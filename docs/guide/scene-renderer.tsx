@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { BackgroundGlow } from '@shared/types'
+import { isFriendJoinable } from '@shared/joinability'
 import AppShell from '@renderer/components/AppShell'
 import LoginScreen from '@renderer/components/LoginScreen'
 import SetupWizard from '@renderer/components/setup/SetupWizard'
@@ -10,20 +11,29 @@ import FriendDrawer from '@renderer/components/FriendDrawer'
 import DashboardView from '@renderer/components/DashboardView'
 import JoinConfirmDialog from '@renderer/components/JoinConfirmDialog'
 import ErrorBoundary from '@renderer/components/ErrorBoundary'
+import AppBackdrop from '@renderer/components/AppBackdrop'
+import { appBackgroundKey } from '@renderer/queries/appBackground'
 import { queryClient } from '@renderer/queries/queryClient'
 import { authStatusQueryKey } from '@renderer/queries/auth'
 import { friendsQueryKey } from '@renderer/queries/friends'
 import { exploreQueryKey } from '@renderer/queries/explore'
 import { linkedProfilesKey } from '@renderer/queries/linkedProfiles'
+import { activityKey } from '@renderer/queries/activity'
 import { useSettingsStore } from '@renderer/stores/settings'
 import { useUiStore } from '@renderer/stores/ui'
 import { useApplyTheme } from '@renderer/hooks/useApplyTheme'
 import { useApplyGlow } from '@renderer/hooks/useApplyGlow'
 import { useJoinInstance } from '@renderer/hooks/useJoinInstance'
 import { fixtureAuth } from './fixture-bridge'
-import { friends, getPlatformSnapshot, linkedSnapshot } from './fixtures'
+import {
+  activityEntries,
+  backgroundPicture,
+  friends,
+  getPlatformSnapshot,
+  linkedSnapshot
+} from './fixtures'
 import CatalogScene from './catalog-scenes'
-import { friendsFailureFor } from './scenarios'
+import { alertScopeFor, friendsFailureFor, guideDashboardSections } from './scenarios'
 
 function DrawerScene({
   platform,
@@ -76,7 +86,16 @@ function JoinScene(): React.JSX.Element {
             if (friend) void join(friend)
           }}
         >
-          Open real Join confirmation
+          Open VRChat Join confirmation
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const friend = friends.chilloutvr.find(isFriendJoinable)
+            if (friend) void join(friend)
+          }}
+        >
+          Open ChilloutVR Join confirmation
         </button>
         <span>Confirm demonstrates a local denial. No game can launch.</span>
       </div>
@@ -130,7 +149,19 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
     )
   if (name === 'join') return <JoinScene />
   if (name === 'setup') return <SetupScene />
-  if (['dashboard', 'hot', 'friends', 'linked', 'settings', 'updater'].includes(name))
+  if (
+    [
+      'dashboard',
+      'hot',
+      'friends',
+      'activity',
+      'inbox',
+      'linked',
+      'avatars',
+      'settings',
+      'updater'
+    ].includes(name)
+  )
     return <AppShell />
   return (
     <main className="fixture-canvas">
@@ -142,8 +173,9 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
 export function mountScene(root: HTMLElement, params: URLSearchParams): void {
   const name = params.get('scene') ?? 'dashboard'
   const variant = params.get('variant') ?? 'ready'
+  const glowParam = params.get('glow')
   const glow: BackgroundGlow =
-    params.get('glow') === 'muted' ? 'muted' : params.get('glow') === 'vivid' ? 'vivid' : 'standard'
+    glowParam === 'off' || glowParam === 'muted' || glowParam === 'vivid' ? glowParam : 'standard'
   queryClient.clear()
   queryClient.setDefaultOptions({
     queries: {
@@ -198,15 +230,27 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
       })
   }
   queryClient.setQueryData(linkedProfilesKey, structuredClone(linkedSnapshot))
+  // `empty`: the Activity page before anything has happened.
+  queryClient.setQueryData(
+    activityKey,
+    name === 'activity' && variant === 'empty' ? [] : activityEntries(Date.now())
+  )
+  queryClient.setQueryData(
+    appBackgroundKey,
+    params.get('picture') === '1' ? { dataUrl: backgroundPicture } : null
+  )
   useSettingsStore.getState().setSettings({
     ...DEFAULT_SETTINGS,
     theme: params.get('theme') === 'light' ? 'light' : 'dark',
     backgroundGlow: glow,
     reconcileInterval: 'manual',
     confirmJoin: true,
+    friendAlertScope: alertScopeFor(variant),
+    // Picked alerts only matter with friend alerts on; the bell shows both.
+    notifyFriendOnline: alertScopeFor(variant) === 'picked',
+    notifyFriendInGame: alertScopeFor(variant) === 'picked',
     setupPending: name === 'setup',
-    dashboardSectionOrder:
-      name === 'dashboard' && variant === 'hot-first' ? 'hot-first' : 'popular-first'
+    ...guideDashboardSections(name === 'dashboard' ? variant : null)
   })
   useSettingsStore.getState().hydrate()
   if (name === 'settings' && variant === 'save-error') {
@@ -221,12 +265,19 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
           ? 'settings'
           : name === 'hot'
             ? 'hot'
-            : 'dashboard'
+            : name === 'activity'
+              ? 'activity'
+              : name === 'avatars'
+                ? 'avatars'
+                : name === 'inbox'
+                  ? 'inbox'
+                  : 'dashboard'
     )
   document.body.classList.add('fixture-document')
   createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
+        <AppBackdrop />
         <Scene name={name} variant={variant} />
       </ErrorBoundary>
     </QueryClientProvider>

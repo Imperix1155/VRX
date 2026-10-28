@@ -21,7 +21,8 @@
  *   id — no profiles on the wire; absent same-platform friends flip offline.
  * - connection: no list change (handled by the hook — reconcile trigger).
  */
-import type { AdapterEvent, Friend } from '@shared/types'
+import type { BroadcastAdapterEvent } from '@shared/ipc'
+import type { Friend } from '@shared/types'
 
 /** Value-compare ALL InstanceInfo fields (snapshot entries are freshly allocated). */
 function sameInstance(a: Friend['instance'], b: Friend['instance']): boolean {
@@ -77,7 +78,7 @@ function upsert(
   return next
 }
 
-export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend[] {
+export function applyFriendEvent(friends: Friend[], event: BroadcastAdapterEvent): Friend[] {
   switch (event.type) {
     case 'friend-presence':
     case 'friend-added':

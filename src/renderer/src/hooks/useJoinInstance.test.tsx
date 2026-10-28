@@ -268,9 +268,59 @@ describe('useJoinInstance', () => {
   it('says a friend is no longer joinable instead of blaming the game', () => {
     expect(joinFailureMessageKey('not-joinable')).toBe('friends.joinFailure.notJoinable')
     expect(joinFailureMessageKey('unknown-friend')).toBe('friends.joinFailure.notJoinable')
-    // A failed launch or invite keeps the check-the-game advice.
-    expect(joinFailureMessageKey('invite-failed')).toBe('friends.joinFailed')
+    // A failed launch keeps the check-the-game advice; a failed invite says so.
+    expect(joinFailureMessageKey('invite-failed')).toBe('friends.joinFailure.inviteFailed')
     expect(joinFailureMessageKey('launch-failed')).toBe('friends.joinFailed')
+  })
+
+  it('says where a Join went when it used the open game, then clears on its own', async () => {
+    vi.useFakeTimers()
+    joinInstance.mockResolvedValueOnce({ ok: true, handoff: 'invite' })
+    const { result } = renderHook(() => useJoinInstance())
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('invite-sent')
+    expect(result.current.joinFailedFor(friend)).toBe(false)
+    expect(joinFailureMessageKey('invite-sent')).toBe('friends.joinNotice.inviteSent')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(7_999)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('invite-sent')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(result.current.joinFailureFor(friend)).toBeNull()
+
+    joinInstance.mockResolvedValueOnce({ ok: true, handoff: 'in-game' })
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('in-game')
+    expect(joinFailureMessageKey('in-game')).toBe('friends.joinNotice.inGame')
+    // A plain launch says nothing, and replaces the earlier note.
+    joinInstance.mockResolvedValueOnce({ ok: true, handoff: 'launch' })
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    expect(result.current.joinFailureFor(friend)).toBeNull()
+  })
+
+  it('a later failure is not cleared by an earlier note’s timer', async () => {
+    vi.useFakeTimers()
+    joinInstance.mockResolvedValueOnce({ ok: true, handoff: 'in-game' })
+    const { result } = renderHook(() => useJoinInstance())
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    joinInstance.mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('cooldown')
   })
 
   it('cross-surface latch: while ANY join is in flight, every other surface no-ops', async () => {

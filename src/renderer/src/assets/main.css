@@ -386,6 +386,9 @@
   --tint-vrc-border: rgba(43, 124, 232, 0.34);
   --tint-cvr-bg: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
   --tint-cvr-border: rgba(243, 113, 30, 0.36);
+  /* Activity capsules: platform tint, stronger at the platform edge. */
+  --activity-tint-strong: 24%;
+  --activity-tint-soft: 12%;
 
   /* TEXT ON PLATFORM surfaces (login button, etc.) */
   --text-on-vrc: #ffffff;
@@ -545,6 +548,8 @@
   --tint-vrc-border: rgba(31, 111, 211, 0.28);
   --tint-cvr-bg: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
   --tint-cvr-border: rgba(216, 95, 24, 0.3);
+  --activity-tint-strong: 18%;
+  --activity-tint-soft: 9%;
 
   --text-on-vrc: #ffffff;
   /* Same dark ink on the light-theme CVR fill (4.89:1; white = 3.77:1 fails). */
@@ -662,7 +667,15 @@ body::before {
       color-mix(in srgb, var(--cvr) calc(var(--wisp-a-cvr) * 100%), transparent),
       transparent var(--wisp-fade)
     ),
-    var(--aurora-gradient);
+    var(--aurora-floor, var(--aurora-gradient));
+}
+
+/* Off = no glow at all: the plain base canvas (owner, 2026-10-26). */
+[data-glow='off'] {
+  --glow-a-vrc: 0;
+  --glow-a-cvr: 0;
+  --wisp-a-vrc: 0;
+  --wisp-a-cvr: 0;
 }
 
 /* Muted = old shipped look (intensity 1.00, no wisps). */
@@ -697,6 +710,50 @@ body::before {
 [data-theme='light'][data-glow='vivid'] {
   --glow-a-vrc: 0.27;
   --glow-a-cvr: 0.225;
+}
+
+/* Background picture (owner, 2026-10-26): the user's own picture replaces the
+   base canvas. The aurora drops its opaque floor so the picture shows through,
+   and any glow the user keeps sits over it. The fade layer pulls the picture
+   toward the theme's base colour so words over it stay readable; information
+   panels keep their own solid backing either way. */
+[data-app-background] {
+  --aurora-floor: transparent;
+}
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  pointer-events: none;
+  background: var(--bg-base);
+}
+.app-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.app-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg-base) var(--app-backdrop-fade), transparent);
+}
+.app-backdrop[data-fade='low'] {
+  --app-backdrop-fade: 35%;
+}
+.app-backdrop[data-fade='medium'] {
+  --app-backdrop-fade: 55%;
+}
+.app-backdrop[data-fade='high'] {
+  --app-backdrop-fade: 75%;
+}
+/* Settings preview of the kept picture, beside its Change and Remove buttons. */
+.background-picture-thumb {
+  width: 48px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  object-fit: cover;
 }
 
 /* §4 CRT scanlines — faint texture, never a visible grid */
@@ -843,6 +900,56 @@ body::after {
 }
 
 /**
+ * Dashboard glance row (owner, 2026-10-27): "Wearing now" and "Latest invites"
+ * side by side under the numbers, one column on a narrow pane. A lone section
+ * fills the row. The wrapper is the query container, like `.hotwrap`.
+ */
+.glancewrap {
+  container-type: inline-size;
+}
+
+.glance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 26px;
+}
+
+@container (min-width: 520px) {
+  .glance-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.glance-grid > :only-child {
+  grid-column: 1 / -1;
+}
+
+/* Each section's rows: stacked with a divider, or, when the section has the
+   row to itself (the other one is off or empty), its two platform rows side
+   by side so the width is used instead of left blank. */
+.glance-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.glance-list > li + li {
+  border-top: 1px solid var(--border);
+}
+
+@container (min-width: 520px) {
+  .glance-grid > :only-child .glance-list {
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  }
+
+  .glance-grid > :only-child .glance-list > li + li {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+}
+
+/**
  * Reduced motion (DESIGN.md R10): VRX never animates by default for users who opt
  * out. Apply all animation/transition utilities behind Tailwind's `motion-safe:`
  * variant (e.g. `motion-safe:transition`) so reduced-motion users get none — with
@@ -851,6 +958,38 @@ body::after {
 
 /* Settings: compact information cards over a neutral backing panel. */
 @layer components {
+  /* Activity entries (owner, 2026-10-27): each entry is its own capsule tinted
+     with its platform's brand color plus a 3px platform edge, so VRChat and
+     ChilloutVR read apart at a glance. Both platforms share one recipe; only
+     the color differs. The platform pill stays the non-color cue. */
+  .activity-row {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--activity-platform-border);
+    border-radius: var(--radius-control);
+    background-color: var(--glass-information);
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--activity-platform) var(--activity-tint-strong), transparent),
+      color-mix(in srgb, var(--activity-platform) var(--activity-tint-soft), transparent)
+    );
+  }
+  .activity-row::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--activity-platform);
+    pointer-events: none;
+  }
+  .activity-row--vrchat {
+    --activity-platform: var(--vrc);
+    --activity-platform-border: var(--tint-vrc-border);
+  }
+  .activity-row--chilloutvr {
+    --activity-platform: var(--cvr);
+    --activity-platform-border: var(--tint-cvr-border);
+  }
   .settings-cards {
     display: grid;
     gap: var(--space-2);
@@ -1053,5 +1192,143 @@ body::after {
   from {
     transform: translateX(10px);
     opacity: 0.5;
+  }
+}
+
+/* Friend details alerts bell (owner, 2026-10-27). The panel springs out of
+   the bell and its rows follow one after another; the bell swings when it
+   opens and when a friend starts alerting. Open state lives in data-open,
+   which utilities cannot animate as one rule set. Reduced motion shows and
+   hides the panel without movement. */
+@layer components {
+  .alert-bell {
+    color: var(--text-dim);
+  }
+  .alert-bell[data-on='true'],
+  .alert-bell[aria-expanded='true'],
+  .alert-bell:hover {
+    color: var(--text);
+  }
+  .alert-bell[aria-expanded='true'] {
+    background-color: var(--surface-hover);
+  }
+  .alert-bell-panel {
+    border-radius: 16px;
+    transform-origin: calc(100% - 16px) calc(100% + 24px);
+    visibility: hidden;
+    opacity: 0;
+  }
+  .alert-bell-panel[data-open='true'] {
+    visibility: visible;
+    opacity: 1;
+  }
+  .alert-bell-kind {
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .alert-bell-kind[data-kind-on='false'] {
+    color: var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .alert-bell-panel {
+      transform: translateY(6px) scale(0.55);
+      transition:
+        opacity 120ms ease-in,
+        transform 160ms ease-in,
+        visibility 160ms;
+    }
+    .alert-bell-panel[data-open='true'] {
+      transform: none;
+      transition:
+        opacity 140ms ease-out,
+        transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
+        visibility 0ms;
+    }
+    .alert-bell-panel[data-open='true'] .alert-bell-step {
+      animation: alert-bell-step-in 260ms ease-out both;
+      animation-delay: calc(70ms + var(--alert-step, 0) * 55ms);
+    }
+    .alert-bell {
+      transition:
+        color 160ms ease,
+        background-color 160ms ease,
+        transform 160ms ease;
+    }
+    .alert-bell:active {
+      transform: scale(0.92);
+    }
+    .alert-bell-glyph[data-ring='true'] .alert-bell-body {
+      transform-box: fill-box;
+      transform-origin: 50% 8%;
+      animation: alert-bell-swing 720ms ease-out;
+    }
+    .alert-bell-glyph[data-ring='true'] .alert-bell-clapper {
+      transform-box: fill-box;
+      transform-origin: 50% -200%;
+      animation: alert-bell-clapper 720ms ease-out;
+    }
+    .alert-bell-glyph[data-ring='true'] .alert-bell-waves {
+      animation: alert-bell-waves 720ms ease-out;
+    }
+  }
+}
+
+@keyframes alert-bell-step-in {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+}
+@keyframes alert-bell-swing {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  15% {
+    rotate: 16deg;
+  }
+  32% {
+    rotate: -13deg;
+  }
+  48% {
+    rotate: 9deg;
+  }
+  64% {
+    rotate: -5deg;
+  }
+  80% {
+    rotate: 2deg;
+  }
+}
+@keyframes alert-bell-clapper {
+  0%,
+  100% {
+    translate: 0;
+  }
+  20% {
+    translate: -1.5px;
+  }
+  38% {
+    translate: 1.5px;
+  }
+  56% {
+    translate: -1px;
+  }
+  72% {
+    translate: 0.5px;
+  }
+}
+@keyframes alert-bell-waves {
+  0% {
+    opacity: 0;
+    scale: 0.6;
+  }
+  40% {
+    opacity: 1;
+    scale: 1.08;
+  }
+  100% {
+    scale: 1;
   }
 }

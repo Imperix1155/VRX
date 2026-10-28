@@ -9,6 +9,9 @@ export const VIEW_TITLE_KEYS: Record<ActiveTab, string> = {
   dashboard: 'shell.nav.dashboard',
   hot: 'shell.nav.hot',
   friends: 'shell.nav.friends',
+  activity: 'shell.nav.activity',
+  inbox: 'shell.nav.inbox',
   explore: 'shell.nav.explore',
+  avatars: 'shell.nav.avatars',
   settings: 'shell.nav.settings'
 }

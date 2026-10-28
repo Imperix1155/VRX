@@ -31,6 +31,14 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-friends': { max: 12, windowMs: 30_000 },
   // Three complete 200-friend paints fit in one burst at the exact boundary.
   'get-avatar': { max: 600, windowMs: 10_000 },
+  // The Avatars page reads on open and on Refresh; main coalesces repeats.
+  'get-avatar-library': { max: 30, windowMs: 60_000 },
+  // The Dashboard reads the worn avatar when it opens with stale data.
+  'get-current-avatar': { max: 30, windowMs: 60_000 },
+  // One read per details panel opened.
+  'get-avatar-details': { max: 60, windowMs: 60_000 },
+  // The 5 s per-platform switch cooldown allows at most 24 switches/minute.
+  'switch-avatar': { max: 24, windowMs: 60_000 },
   // Account settings normally loads once; repeated tab mounts stay harmless.
   'get-accounts': { max: 12, windowMs: 30_000 },
   // Two platforms can mount, invalidate, and retry without approaching this cap.
@@ -47,8 +55,15 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'join-instance': { max: 20, windowMs: 60_000 },
   // Existing 3s action cooldown permits at most 20 successful invites/minute.
   'self-invite': { max: 20, windowMs: 60_000 },
+  // Read once per join dialog open; the answer is a cached local process check.
+  'get-join-handoff': { max: 60, windowMs: 60_000 },
   // The 7.5s status poll runs eight times/minute; this is a 3x allowance.
   'get-app-status': { max: 24, windowMs: 60_000 },
+  // Read on page open and after each coalesced change push (at most two a
+  // second), with headroom for remounts.
+  'get-activity': { max: 240, windowMs: 60_000 },
+  // A deliberate button press.
+  'clear-activity': { max: 20, windowMs: 60_000 },
   // External links are human-clicked; 30/minute still bounds a click loop.
   'open-url': { max: 30, windowMs: 60_000 },
   // Settings hydrate once per renderer load, with ample reload/remount headroom.
@@ -59,6 +74,9 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-friend-note': { max: 90, windowMs: 60_000 },
   // Blur-triggered note saves are human-paced; one/second is generous.
   'set-friend-note': { max: 60, windowMs: 60_000 },
+  // Alert picks follow the same human-paced drawer and Settings use as notes.
+  'get-alert-picks': { max: 90, windowMs: 60_000 },
+  'set-alert-pick': { max: 60, windowMs: 60_000 },
   'get-linked-profiles': { max: 90, windowMs: 60_000 },
   'change-linked-profile': { max: 60, windowMs: 60_000 },
   // Hydration is once per renderer load; three allows dev remount/reload churn.
@@ -70,7 +88,17 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'updater:download': { max: 6, windowMs: 60_000 },
   'updater:install': { max: 6, windowMs: 60_000 },
   // A deliberate button press that opens a file-manager window.
-  'open-logs-folder': { max: 6, windowMs: 60_000 }
+  'open-logs-folder': { max: 6, windowMs: 60_000 },
+  // The picture is read once per renderer load, with reload/remount headroom.
+  'get-app-background': { max: 12, windowMs: 30_000 },
+  // Deliberate button presses; choosing opens a native dialog.
+  'choose-app-background': { max: 10, windowMs: 60_000 },
+  'clear-app-background': { max: 10, windowMs: 60_000 },
+  // Re-read after each inbox push; pushes are bounded by what the sockets send.
+  'get-inbox': { max: 240, windowMs: 60_000 },
+  // Human clicks that only hide rows locally.
+  'dismiss-inbox-item': { max: 120, windowMs: 60_000 },
+  'clear-inbox': { max: 30, windowMs: 60_000 }
 } as const satisfies Record<RateLimitedIpcChannel, RateLimitBudget>
 
 /** Existing structured result channels keep their result shape on denial. */
@@ -83,7 +111,9 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-instance':
     case 'join-explore-room':
     case 'self-invite':
+    case 'switch-avatar':
     case 'set-friend-note':
+    case 'set-alert-pick':
     case 'get-linked-profiles':
     case 'change-linked-profile':
       return { ok: false, reason: 'rate-limited' }

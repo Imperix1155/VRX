@@ -25,6 +25,19 @@ type VrxBridge = {
   onLinkedProfilesChanged: (callback: () => void) => () => void
   getFriends: (req: IpcInvoke['get-friends']['req']) => Promise<IpcInvoke['get-friends']['res']>
   getAvatar: (url: string, rendition?: 'avatar') => Promise<IpcInvoke['get-avatar']['res']>
+  getAvatarLibrary: (
+    req: IpcInvoke['get-avatar-library']['req']
+  ) => Promise<IpcInvoke['get-avatar-library']['res']>
+  getCurrentAvatar: (
+    req: IpcInvoke['get-current-avatar']['req']
+  ) => Promise<IpcInvoke['get-current-avatar']['res']>
+  getAvatarDetails: (
+    req: IpcInvoke['get-avatar-details']['req']
+  ) => Promise<IpcInvoke['get-avatar-details']['res']>
+  /** Avatar IDs only; main switches only to an avatar it listed. */
+  switchAvatar: (
+    req: IpcInvoke['switch-avatar']['req']
+  ) => Promise<IpcInvoke['switch-avatar']['res']>
   getAccounts: () => Promise<IpcInvoke['get-accounts']['res']>
   getAuthStatus: (
     req: IpcInvoke['get-auth-status']['req']
@@ -40,9 +53,31 @@ type VrxBridge = {
     req: IpcInvoke['join-instance']['req']
   ) => Promise<IpcInvoke['join-instance']['res']>
   selfInvite: (req: IpcInvoke['self-invite']['req']) => Promise<IpcInvoke['self-invite']['res']>
+  /** What Join would do now: start the game, or use the copy that is already open. */
+  getJoinHandoff: (
+    req: IpcInvoke['get-join-handoff']['req']
+  ) => Promise<IpcInvoke['get-join-handoff']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
+  /** The in-memory activity list; reading it makes no platform request. */
+  getActivity: () => Promise<IpcInvoke['get-activity']['res']>
+  clearActivity: () => Promise<IpcInvoke['clear-activity']['res']>
+  /** The activity list changed (coalesced). Returns an unsubscribe. */
+  onActivityChanged: (callback: () => void) => () => void
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
   openLogsFolder: () => Promise<IpcInvoke['open-logs-folder']['res']>
+  /** The user's background picture; main owns the file and the picking dialog. */
+  getAppBackground: () => Promise<IpcInvoke['get-app-background']['res']>
+  chooseAppBackground: () => Promise<IpcInvoke['choose-app-background']['res']>
+  clearAppBackground: () => Promise<IpcInvoke['clear-app-background']['res']>
+  /** View-only inbox: rows the sockets delivered while VRX was open. */
+  getInbox: () => Promise<IpcInvoke['get-inbox']['res']>
+  /** Hide a row in VRX only; nothing reaches the platform. */
+  dismissInboxItem: (
+    req: IpcInvoke['dismiss-inbox-item']['req']
+  ) => Promise<IpcInvoke['dismiss-inbox-item']['res']>
+  clearInbox: (req: IpcInvoke['clear-inbox']['req']) => Promise<IpcInvoke['clear-inbox']['res']>
+  /** The inbox changed; read it again. Returns an unsubscribe. */
+  onInboxChanged: (callback: () => void) => () => void
   getSettings: () => Promise<IpcInvoke['get-settings']['res']>
   saveSettings: (
     req: IpcInvoke['save-settings']['req']
@@ -57,6 +92,13 @@ type VrxBridge = {
   setFriendNote: (
     req: IpcInvoke['set-friend-note']['req']
   ) => Promise<IpcInvoke['set-friend-note']['res']>
+  /** Local friend picks for alerts (per signed-in account). */
+  getAlertPicks: (
+    req: IpcInvoke['get-alert-picks']['req']
+  ) => Promise<IpcInvoke['get-alert-picks']['res']>
+  setAlertPick: (
+    req: IpcInvoke['set-alert-pick']['req']
+  ) => Promise<IpcInvoke['set-alert-pick']['res']>
   /** The settings-backed document attributes are ready for the first reveal. */
   notifyRendererHydrated: () => void
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */

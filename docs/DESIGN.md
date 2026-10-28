@@ -39,13 +39,18 @@ These decisions are settled. Changing one needs the owner's explicit approval.
 6. **Background never tints information.** The aurora may color decorative
    chrome such as the sidebar, but never a card or panel that carries
    information (§3).
-7. **Dashboard layout.** The Dashboard has a Popular now section and a Hot
-   Instances section. Settings → Dashboard → Section order picks which comes
-   first, Popular now by default. The first section uses picture cards and the
-   second uses bars with the world picture behind them. Each section shows two
-   cards: the top one per platform when both have one, otherwise the top two.
-   The Popular now and Hot Instances switches, both on by default, only hide
-   their Dashboard section (§8, §9.1).
+7. **Dashboard layout.** Under the numbers the Dashboard has four sections:
+   Wearing now (the worn avatar per signed-in platform), Latest invites (the
+   newest invite per platform), Popular now and Hot Instances, in that order
+   by default. Settings → Dashboard → Sections moves each one up or down and
+   turns it on or off, all on by default; off only hides the Dashboard
+   section (§8, §9.1). Wearing now and Latest invites share one glance row
+   while they sit next to each other. Of Popular now and Hot Instances, the
+   first uses picture cards and the second uses bars with the world picture
+   behind them. Each shows two cards: the top one per platform when both
+   have one, otherwise the top two. Hide empty sections, on by default,
+   lets a section with nothing to show step aside so the others take its
+   space, and the first section actually shown gets the picture cards.
 8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
    hot instance, most friends first. It shows by default and can be hidden in
    Settings → Behavior (§8). While it shows, the Dashboard section's "See
@@ -164,11 +169,21 @@ top-left and orange bottom-right in both themes. Background glow and a glass
 pane's tint are separate controls; changing the glow never changes the colors
 of informational surfaces.
 
-Use [`applyGlow`](../src/renderer/src/hooks/useApplyGlow.ts) with the Muted,
-Standard, and Vivid settings. Standard, the default, has no `data-glow`
-attribute. In light mode Standard is deliberately stronger than Muted. The
-exact values live in `main.css`. Reduced motion keeps the same static
-composition.
+Use [`applyGlow`](../src/renderer/src/hooks/useApplyGlow.ts) with the Off,
+Muted, Standard, and Vivid settings. Standard, the default, has no `data-glow`
+attribute; Off keeps the plain base canvas. In light mode Standard is
+deliberately stronger than Muted. The exact values live in `main.css`. Reduced
+motion keeps the same static composition.
+
+The user may put their own picture behind the app (Settings → Appearance →
+Background picture). [`AppBackdrop`](../src/renderer/src/components/AppBackdrop.tsx)
+draws it as a fixed, decorative layer under the aurora, and
+`data-app-background` on `<html>` drops the aurora's opaque floor so any glow
+the user keeps sits over the picture. A fade layer in the theme's base colour
+(Low, Medium, High; Medium by default) keeps words over the picture readable.
+Information-bearing cards and panels keep their own solid backing, so a
+picture never changes their colours or meaning; translucent chrome such as the
+sidebar shows it blurred.
 
 ## §5 Presence, status, and privacy
 
@@ -198,11 +213,20 @@ offline friends never show a stale cached instance. Rows, the drawer, Hot
 Instances, notifications, and actions all use the shared hidden-location and
 membership checks in [`hotInstanceKey.ts`](../src/shared/hotInstanceKey.ts).
 Never put a hidden identifier in gesture metadata.
+An invite is the one place a world name can appear for any sender: the sender
+chose to share it by inviting, so the Inbox shows the world the invite names,
+never a location read from presence (§9.6).
 
 **Joining** is a separate decision, made by
 [`isFriendJoinable`](../src/shared/joinability.ts) and the existing Join
 flow. There is no Ask-to-join action. "Always ask" in Settings → Behavior →
 Join in chooses a ChilloutVR launch mode; it doesn't request an invitation.
+When the game is already open, Join uses it instead of starting a second
+copy, the same way on both platforms: the join dialog shows one quiet note in
+place of the mode picker or launch note ("VRChat is open, so Join takes you
+there in the game.", "ChilloutVR is open, …"), and afterwards the status line
+under Join says "Sent to your open game" or, for a VRChat invite, "Invite
+sent. Accept it in VRChat." for 8 seconds.
 
 **Trust.** Names stay neutral. When VRChat provides a trust rank, it appears
 as quiet 12 px plain text below Notes in the drawer; a combined linked
@@ -276,12 +300,13 @@ added around it); on a smaller screen the minimum shrinks so the app stays
 usable.
 Don't design a mobile layout from a narrow documentation viewport.
 
-**Navigation**, in order: Dashboard, Hot Instances, Friends, Explore,
-Settings. Hot Instances and Explore can be hidden in Settings → Behavior or
-the welcome setup; a hidden page leaves the sidebar and its links, while its
+**Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
+Explore, Settings. Hot Instances and Explore can be hidden in Settings →
+Behavior, Activity and Inbox in Settings → Notifications, and all four in the
+welcome setup; a hidden page leaves the sidebar and its links, while its
 Dashboard section and alerts keep their own switches. A hidden page that is
-open, or that a hot-instance alert asks for, falls back to the Dashboard. Activity and Groups are
-not planned pages and never appear as placeholders.
+open, or that a hot-instance alert asks for, falls back to the Dashboard.
+Groups is not a planned page and never appears as a placeholder.
 
 **Top bar.** It holds the page's single heading; panels below it, the
 Friends list included, keep their section headings for screen readers only.
@@ -309,18 +334,37 @@ behavior. Reduced motion is respected.
 default window size: Appearance, Dashboard, Behavior, Notifications,
 Accounts, and About. Each setting sits on a compact neutral card.
 
-- Appearance: Theme, Background glow, and Instance labels.
-- Dashboard: Section order, Popular now, Hot Instances, and Hot instance
-  threshold, as separate rows.
+- Appearance: Theme, Background glow, Background picture (Choose picture;
+  once set, a thumbnail, Change picture, Remove, and Picture fade in the same
+  card), and Instance labels. A picture too small, too tall or too wide to
+  fill the landscape window is refused with a plain reason; a usable one that
+  will be cropped hard or look soft gets one short warning line in the card.
+- Dashboard: Hide empty sections, then Wearing now, Latest invites, Section
+  order, Popular now, Hot Instances, and Hot instance threshold, as separate
+  rows in Dashboard order.
 - Behavior: Hot Instances page and Explore page (one card), Friend details
   open from (whole card or avatar only), Friends background re-sync, and
-  Allow joining friends, which contains Confirm before joining and Join in.
+  Allow joining friends, which contains Confirm before joining, Join in, and
+  When the game is already open (Go there, Send invite, or Off; Send invite
+  changes only VRChat, since ChilloutVR has one way). Off keeps the saved
+  VRChat choice for when it is turned back on.
   Turning a parent off collapses its card with a 220 ms height transition
   (instant under reduced motion). Hidden children are inert and hidden from
   assistive technology, focus returns to the parent control when needed, and
   their saved choices survive.
-- Notifications: Friend comes online, Friend joins a world, Friend goes
-  offline, and Hot instance. Each is independent and off by default.
+- Notifications: one alerts card. Who alerts you (Everyone or Picked
+  friends; with Picked friends its explanation becomes each platform's pick
+  count and a Show link, which lists picks VRChat first with a Remove for
+  each), then Friend comes online, Friend joins a world and Friend goes
+  offline, then, below a divider, the alerts picks never limit: Hot instance,
+  Invite received (invites and invite requests) and Friend request received.
+  Each alert is independent and off by default. While Picked friends is on,
+  the bell in the friend details panel holds Alert me about this friend; a
+  linked person is one pick. Below it, one pages card: Activity
+  page and Inbox page (both on by default). They sit here, not with the
+  other page switches, so Behavior fits without scrolling. Hiding either keeps
+  its alerts; Activity off also stops VRX keeping activity and forgets what it
+  kept.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
@@ -343,8 +387,22 @@ its tab.
 Explore stays. Hot Instances off removes its Dashboard statistic, heading,
 threshold, cards, and details, and the remaining friend statistics fill two
 equal columns. It never hides the Hot Instances page and never affects the
-Hot instance notification. A compact "Settings" button below the Dashboard
-content opens Settings → Dashboard, even when both sections are off.
+Hot instance notification. Wearing now and Latest invites off hide only
+their glance section; the Avatars and Inbox pages and invite alerts stay.
+These switches sit in one Sections card with each section's move up and
+move down buttons; a button at the top or bottom stays focusable but does
+nothing, and each move is announced to screen readers. A
+compact "Settings" button below the Dashboard content opens Settings →
+Dashboard, even when every section is off.
+
+**Hide empty sections** (owner, 2026-10-27; on by default) makes the
+Dashboard fit what it has: Latest invites with nothing waiting, a platform
+that reported no worn avatar, and Hot Instances with nothing hot step aside
+(Popular now already does). The Hot instances statistic stays, so "0" still
+explains the missing section; the threshold stays in Settings → Dashboard
+and on the Hot Instances page. A lone glance section takes the whole row and
+puts its two platform rows side by side. Off shows each section's empty
+state, and card style follows the section order only.
 
 **Updater.** The update control is the sidebar footer button. When there is
 nothing to do it is absent; available, downloading, and downloaded each have
@@ -384,6 +442,21 @@ threshold stepper sits beside a quiet "?" button that toggles an explanation
 of grouping, visible friends, the platform filter, ranking, and the
 threshold; it starts closed and exposes its state to assistive technology.
 
+The glance row holds Wearing now and Latest invites while they are
+neighbours in the section order; apart, each gets its own full-width row.
+Its two sections sit side by side when the
+area is at least 520 px wide, one above the other below that; a lone section
+fills the row, with its two platform rows side by side. Each is a heading with a quiet button (Avatars, or See all N
+for the Inbox) over one glass list, and every row is the same height: a
+picture, the name, and the platform as a word (PlatformPill), so VRChat and
+ChilloutVR read alike. Wearing now has one row per signed-in platform in the
+filter: the 4:3 avatar picture and name, or a one-line loading, not-reported,
+or failed state with Try again. A row opens the Avatars page. Latest invites
+shows the newest invite or invite request per platform, VRChat's first, in
+the Inbox row's words and age; a row opens the Inbox, and with the Inbox page
+hidden the rows are plain text. With nothing waiting it shows one quiet line,
+or, with Hide empty sections on, steps aside.
+
 Each Dashboard section shows two cards, chosen as in "Locked for 1.0". The
 second section's bars show the world picture behind a same-color scrim with
 the platform tint on top, so the platform color still reads at a glance;
@@ -407,8 +480,18 @@ the opener or the search box. Closed content is inert and hidden from
 assistive technology. While a confirmation modal is open, the drawer pauses
 its own dismissal.
 
-The order is: header, written status, Where, actions, Notes, Trust, and
-Identities. A long name wraps to two lines before it is cut, and its tooltip
+The order is: header, written status, Where, actions, Notes, and Trust. A
+footer pinned below the scrolling area holds Identities on the left and the
+alerts bell on the right. The bell shows whether this friend can alert you by
+shape, not color: sound waves when on, a slash when off, and the button's
+name says On or Off. Pressing it springs a small panel out of the bell
+(scale and fade with a slight overshoot, rows following one after another,
+and the bell swings); reduced motion shows and hides it without movement. The
+panel holds Alert me about this friend while alerts are limited to picked
+friends (otherwise one line says every friend can alert you), the three
+friend alert kinds with a check or dash beside each, and Alert settings, which
+opens Settings → Notifications. Escape or a press outside folds the panel
+before the drawer itself closes. A long name wraps to two lines before it is cut, and its tooltip
 shows it in full. Where cards keep privacy rules, show neutral art when a picture is
 missing, use instance labels, and never show raw IDs or policy pills; a split
 card names each platform. If notes load without a valid account revision,
@@ -471,7 +554,9 @@ side at equal height, and the line under its title doubles as the live sign-in
 status, so the step fits the default window without scrolling; one ready
 account is enough to continue. Every other step
 changes the real settings as the user picks and keeps the defaults (all alerts
-off, VRChat instance labels) until changed. Look also asks for the instance
+off, VRChat instance labels) until changed. Pages lists Hot Instances, Activity, Inbox
+and Explore; Alerts lists the same six alerts as Settings → Notifications, friend alerts
+in one card and inbox alerts in another, so the step fits without scrolling. Look also asks for the instance
 label style. Skip setup is a visible button on every screen before the
 summary, never a small link, so setup never feels like a forced tour; skipping before any
 account is ready shows sign-in only, then opens the app. The main button is a
@@ -491,6 +576,52 @@ way, plus help, terms, privacy and license notes (see
 The real credential and two-factor forms are used in examples; a secure
 storage failure keeps its dedicated message. Guide fixtures accept only
 made-up input and never sign in or save it.
+
+### §9.5 Activity
+
+The Activity page lists friends coming online, joining a world, and going
+offline, newest first. Main records it from the live sockets with the same
+transition rules as the alerts but without the toast rate limit, keeps it in
+memory only (up to 300 entries per platform, so one platform never pushes the
+other out), and forgets a platform's entries at an account change or sign-out.
+Reading it makes no platform request.
+
+Both platforms share one row: a small avatar, the name, what happened in
+words, the platform pill filling a fixed-width column (both pills the same
+size, the word centered), and the time (with the date
+once it is not today). Each row is its own capsule tinted with its platform's
+color, strongest at a 3px platform edge on the left, so the platforms read
+apart at a glance; the pill is the non-color cue. Coming online straight into a world is one entry that
+names the world; a ChilloutVR world name that resolves a moment later fills
+in, and its `(#…)` instance tag is trimmed. Ask Me and Do Not Disturb friends
+never show a world, and their moves are not recorded. The top-bar filter
+scopes the list; the page's Show control (All, Online, Worlds, Offline) is a
+saved setting. Clear empties the list. A row opens that friend's details on
+the Friends page, as a linked person under All; a friend no longer on the
+list is plain text.
+
+### §9.6 Inbox
+
+The Inbox page lists invites, invite requests and friend requests that the two
+platform sockets deliver while VRX is open. It is view-only: VRX never
+accepts, declines or replies, and the "?" help says to answer in the game or
+on the platform's site. Hide removes a row inside VRX only; Hide all hides
+every row in the current platform filter. Nothing is stored, so the list
+starts empty each launch.
+
+- Two sections, Invites (invites and invite requests) and Friend requests,
+  each newest first, and both platforms mixed in one list with equal weight.
+- A row shows the sender's picture when they are a friend (no presence ring)
+  or their initial, the name (a friend's current name, else the name the
+  platform sent, else "Someone"), a platform pill with the platform word, the
+  action ("Invited you to Pug Lounge", "Asked you for an invite", "Sent you a
+  friend request"), a relative age ("Just now" under a minute) and a Hide button.
+- It follows the platform filter, offers Accounts when the filtered platform
+  is not connected, and has a short empty state.
+- The sidebar shows a neutral count badge (text, never color alone) of rows
+  newer than the last ones shown, per platform; opening the page clears it.
+- Invite and friend-request alerts are separate switches in Settings →
+  Notifications, both off by default, and limited to a few a minute.
 
 ## §10 Linked friends
 
@@ -554,7 +685,8 @@ change waives them.
 2. Run `npm run guide:dev` and open `http://127.0.0.1:4173/design.html`, or a
    single scene such as `glass.html?scene=dashboard`. Guide controls stay
    outside the production examples.
-3. Check representative widths, both themes, each glow level, real
+3. Check representative widths, both themes, each glow level, with and
+   without a background picture, real
    typography, material over busy content, overflow, keyboard focus, reduced
    motion, and the loading, error, and disabled states. Use the browser or app
    test tool you were asked to use, and report it before substituting

@@ -159,6 +159,11 @@ describe('SetupWizard', () => {
     const explore = screen.getByRole('radiogroup', { name: msg('setup.pages.exploreAria') })
     fireEvent.click(within(explore).getByRole('radio', { name: msg('settings.boolean.off') }))
     expect(settings().showExplorePage).toBe(false)
+    const activity = screen.getByRole('radiogroup', { name: msg('setup.pages.activityAria') })
+    fireEvent.click(within(activity).getByRole('radio', { name: msg('settings.boolean.off') }))
+    expect(settings().showActivityPage).toBe(false)
+    fireEvent.click(within(activity).getByRole('radio', { name: msg('settings.boolean.on') }))
+    expect(settings().showActivityPage).toBe(true)
 
     fireEvent.click(button('setup.continue'))
     expect(
@@ -178,7 +183,9 @@ describe('SetupWizard', () => {
       notifyFriendOnline: true,
       notifyFriendInGame: true,
       notifyFriendOffline: true,
-      notifyHotInstance: true
+      notifyHotInstance: true,
+      notifyInvites: true,
+      notifyFriendRequests: true
     })
     expect(button('setup.alerts.allOff')).toBeTruthy()
 
@@ -213,12 +220,15 @@ describe('SetupWizard', () => {
           msg('shell.nav.dashboard'),
           msg('shell.nav.hot'),
           msg('shell.nav.friends'),
+          msg('shell.nav.activity'),
+          msg('shell.nav.inbox'),
+          msg('shell.nav.avatars'),
           msg('shell.nav.settings')
         ].join(', ')
       )
     ).toBeTruthy()
     expect(
-      within(summary).getByText(msg('setup.done.alertsSome', { count: 4, total: 4 }))
+      within(summary).getByText(msg('setup.done.alertsSome', { count: 6, total: 6 }))
     ).toBeTruthy()
     expect(within(summary).getByText(msg('settings.labelScheme.platformNative'))).toBeTruthy()
 

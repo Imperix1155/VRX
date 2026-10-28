@@ -122,6 +122,8 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 | Image endpoint and hosts                 | Pictures                                   | Live                              | Placeholder                             |
 | Pipeline WebSocket                       | Live presence                              | Source-derived                    | REST reconcile only                     |
 | `vrchat://launch` link                   | Join                                       | Source-derived                    | Join denied before launch               |
+| `VRChatURLLaunchPipe` (Windows)          | Join while VRChat is open                  | Source-derived                    | One self-invite instead                 |
+| Game process names                       | Is the game open?                          | Source-derived                    | Join launches as before                 |
 | VRCX sign-in file                        | Sign-in from this PC (button)              | Source-derived                    | No import, password sign-in             |
 
 ### Session cookies and headers
@@ -394,13 +396,42 @@ are Synthetic.
   unavailable, and a 401 also emits `auth-invalidated`. Rate limits end the
   batch. The last displayed snapshot is kept.
 
+### Avatars
+
+The Avatars page reads the user's own uploads and the worn avatar, and can
+switch to one of those uploads
+([parseAvatars.ts](../src/main/services/adapters/vrchat/parseAvatars.ts)). The
+routes follow the community
+[avatars API](https://github.com/vrchatapi/specification/blob/main/openapi/components/paths/avatars.yaml)
+and VRCX. They are Source-derived; no real response has been captured yet. Reads
+run only when the page opens or the user presses Refresh. Each switch is one
+request with no retry, at most one every 5 s.
+
+| Route                                                                                   | Assumed shape                                                       |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `GET /avatars?user=me&releaseStatus=all&sort=updated&order=descending&n=100&offset={n}` | Array of avatars. Pages of 100 until a short page, at most 500.     |
+| `GET /users/{userId}/avatar`                                                            | The worn avatar. A failed or empty reply leaves the worn row empty. |
+| `GET /avatars/{avatarId}`                                                               | One avatar. Read only when the list lacked dates and visibility.    |
+| `PUT /avatars/{avatarId}/select`                                                        | Switches the worn avatar. The reply body is ignored.                |
+
+- **Fields:** `id` must be `avtr_<UUID>` and `name` non-empty. `description`,
+  `authorName`, `thumbnailImageUrl` (then `imageUrl`), `releaseStatus`
+  (`public` or `private`), `created_at` and `updated_at` are optional. Image
+  URLs must be `https`. Records that fail are skipped and mark the list
+  incomplete.
+- **When it breaks:** a non-array list page is unavailable. A 401 emits
+  `auth-invalidated`; a 429 surfaces as rate-limited. The renderer keeps the
+  last shown list.
+
 ### Self-invite: `POST /invite/myself/to/{location}`
 
 - **Assumes (Source-derived):** body `{}`. The response is ignored.
 - **Parses:** the location must match `^wrld_[A-Za-z0-9_-]+:[^/?#\\\s]+$` before
-  it enters the path. Public instances are rejected locally.
-- **Reachability:** the main `self-invite` handler and preload bridge exist, but
-  no 1.0 renderer control calls them.
+  it enters the path. The standalone `self-invite` handler refuses a public
+  instance locally; a Join into an open VRChat may invite to one.
+- **Reachability:** Join calls it when VRChat is open and the URL pipe is not
+  used or refuses (see below). The standalone handler and bridge method still
+  have no renderer control.
 - **When it breaks:** a 401 emits `auth-invalidated`. Any failure returns
   `invite-failed`.
 
@@ -433,13 +464,26 @@ are Synthetic.
 | `friend-add`                         | `{ userId, user }`            | `friend-added`; state from `user.state`                         |
 | `friend-delete`                      | `{ userId }`                  | `friend-removed`                                                |
 | `friend-update`                      | `{ userId, user }`            | `friend-updated`; profile only, presence and instance kept      |
-| Self, content and notification types | Any                           | Dropped after decoding                                          |
+| `notification`                       | One Notification object       | `inbox` add for `invite`, `requestInvite`, `friendRequest` only |
+| `hide-notification`                  | Bare notification ID          | `inbox` remove                                                  |
+| `response-notification`              | `{ notificationId, … }`       | `inbox` remove                                                  |
+| `clear-notification`                 | None                          | `inbox` clear                                                   |
+| Other self, content and notification | Any                           | Dropped after decoding                                          |
 | Anything else                        | Any                           | Dropped                                                         |
 
 - **Dropped types:** `user-update`, `user-location`, `user-badge-assigned`,
-  `content-refresh` and the `notification`, `notification-v2*`,
-  `response-notification`, `see-notification`, `hide-notification` and
-  `clear-notification` family are recognized but not routed in 1.0.
+  `content-refresh`, `see-notification` and `notification-v2*` are recognized
+  but not routed.
+- **Inbox (Source-derived, VRCX and the Notification schema):** a
+  `notification` needs string `id`, `type` and `senderUserId`.
+  `senderUsername` is optional. An invite's `details.worldName` is read whether
+  `details` is an object (Pipeline) or a JSON string (REST); unreadable details
+  leave the world unnamed. Other notification types (messages, votes to kick,
+  responses, group notices) are ignored. `hide-notification` and
+  `see-notification` carry a bare, non-JSON ID, so those types skip the second
+  JSON parse. The inbox is view-only: VRX never answers, accepts or declines.
+  VRX makes no REST read of pending notifications, so only what arrives while
+  VRX is open is listed.
 - **Parses:** `user` uses the roster record schema and the same normalizer.
   `friend-add` maps `user.state` `online` to in game and `offline` to offline;
   anything else or a missing state keeps the `active` fallback (Source-derived
@@ -469,6 +513,29 @@ are Synthetic.
   `^wrld_[A-Za-z0-9_-]{1,128}:[A-Za-z0-9][A-Za-z0-9_~().-]{0,767}$`.
 - **When it breaks:** the join is denied with `invalid-url` before
   `shell.openExternal`.
+
+### Join into an open VRChat: `VRChatURLLaunchPipe`
+
+- **Source-derived** from VRCX (`VRCIPC.cs`, `TryOpenInstanceInVrc`): VRChat's
+  launcher forwards launch URLs to the running game through the Windows named
+  pipe `\\.\pipe\VRChatURLLaunchPipe`. The client writes the UTF-8 URL and
+  reads one byte; `1` means the game took it.
+- **Sends** the same main-built URL that passed `isAllowedLaunchUrl`, nothing
+  else, and only when the process check sees `VRChat.exe` and **When the game
+  is already open** is **Go there**.
+- **Linux and Proton:** the pipe lives inside the game's Wine container, which
+  VRX does not enter (VRCX uses `nsenter` there). VRX sends a self-invite.
+- **When it breaks:** no pipe, any other byte, a hang-up, or no answer within
+  3 seconds means not taken; VRX then sends one self-invite. A game that took
+  the URL but answered too late could also get that invite.
+
+### Game process names
+
+- **Assumes (Source-derived from VRCX and CVRX):** the games run as
+  `VRChat.exe` and `ChilloutVR.exe`. On Linux, Wine and Proton set
+  `/proc/<pid>/comm` to the same name. Matching is exact and case-insensitive.
+- **When it breaks:** a renamed process reads as not running, so Join launches
+  the game as it did before this feature.
 
 ### VRCX sign-in file
 
@@ -670,6 +737,35 @@ path. Each read is one request with no retry. They are Synthetic.
   errors follow the data-path rules above. Rate limits end the batch. The last
   displayed snapshot is kept.
 
+### Avatars
+
+The Avatars page reads the user's own uploads and the worn avatar, and can
+switch to one of those uploads
+([parseAvatars.ts](../src/main/services/adapters/cvr/parseAvatars.ts)). Routes
+and fields come from CVRX (`server/api_cvr_http.js`). They are Source-derived; no
+real response has been captured yet. Reads run only when the page opens or the
+user presses Refresh. Each switch is one request with no retry, at most one
+every 5 s.
+
+| Route                                  | Assumed shape                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| `GET /avatars`                         | Array of every avatar the user can wear: own, shared and favorites. One request. |
+| `GET /users/{userId}`                  | The user, with `avatar` (`id`, `name`, `imageUrl`) as the worn avatar.           |
+| `GET /avatars/{avatarId}`              | One avatar with `author.name`, `isPublished`, `uploadedAt` and `updatedAt`.      |
+| `GET /avatars/{avatarId}/switchAvatar` | Switches the worn avatar. The reply body is ignored.                             |
+
+- **Own uploads only:** a list entry is kept when `authorGuid` equals the
+  signed-in user, or when it has no `authorGuid` and `categories` contains
+  `avtrmine`. Shared and favorite avatars are left out so the page means the
+  same thing on both platforms. At most 500 are kept.
+- **Fields:** `id` must be a GUID (stored lower case) and `name` non-empty.
+  `description` and `imageUrl` (`https`) are optional. The list has no dates or
+  visibility; the details read fills them.
+- **Unverified:** whether a switch takes effect while the game is running, or
+  only on the next world load.
+- **When it breaks:** a non-array list is unavailable. Auth errors follow the
+  data-path rules above; a 429 surfaces as rate-limited.
+
 ### WebSocket `/users/ws`
 
 - **Connects** with the session headers on the upgrade and a 15 s handshake
@@ -679,12 +775,25 @@ path. Each read is one request with no retry. They are Synthetic.
   `{ ResponseType, Data }` or `{ responseType, data }`. Both casings are
   accepted because the envelope casing has not been confirmed live.
 
-| `ResponseType`              | VRX event                                                                                          |
-| --------------------------- | -------------------------------------------------------------------------------------------------- |
-| 10 `ONLINE_FRIENDS`         | `presence-snapshot` with the merged online set                                                     |
-| 11 `FRIEND_LIST_UPDATED`    | `roster-changed`; the roster is refetched over REST                                                |
-| 0, 1, 2, 15, 20, 25, 30, 50 | Dropped after decoding (notifications, invites, requests, mature-content and group-invite updates) |
-| Anything else               | Dropped                                                                                            |
+| `ResponseType`           | VRX event                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| 10 `ONLINE_FRIENDS`      | `presence-snapshot` with the merged online set                                  |
+| 11 `FRIEND_LIST_UPDATED` | `roster-changed`; the roster is refetched over REST                             |
+| 15 `INVITES`             | `inbox` add, kind `invite` 🟡                                                   |
+| 20 `REQUEST_INVITES`     | `inbox` add, kind `invite-request` 🟡                                           |
+| 25 `FRIEND_REQUESTS`     | `inbox` add, kind `friend-request` 🟡                                           |
+| 0, 1, 2, 30, 50          | Dropped after decoding (notifications, mature-content and group-invite updates) |
+| Anything else            | Dropped                                                                         |
+
+- **Inbox frames (🟡 Source-derived from CVRX and chilloutvr_rs, not yet seen
+  live):** `15` is `[{ Id, User: { Id, Name }, World: { Name }, InstanceName }]`,
+  `20` is `[{ Id, Sender: { Id, Name } }]` and `25` is `[{ Id, Name }]` where
+  `Id` is the requesting user. Both casings are read, a single object counts as
+  a one-item list, and at most 50 records are read per frame. An invite with no
+  world name falls back to `InstanceName` without its ` (#n)` suffix. Bad
+  records are skipped. A frame never removes rows, because it is unconfirmed
+  whether a frame lists everything still open. A friend request clears when that
+  person shows up on the roster.
 
 - **Live 2026-07-07:** entries use PascalCase `Id`, `IsOnline` and
   `Instance: { Id, Name, Privacy }` with a numeric `Privacy`. The first
@@ -740,6 +849,9 @@ path. Each read is one request with no retry. They are Synthetic.
   `^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$` (any case)
   ([buildCvrJoinUrl.ts](../src/main/services/adapters/cvr/buildCvrJoinUrl.ts)).
   `startInVR` follows the chosen join mode.
+- **Open game (Source-derived from CVRX):** when ChilloutVR is already running,
+  the game picks up the same link, and `startInVR` no longer applies. CVRX's
+  "Join In-Game" sends exactly this.
 - **Validates:** exactly those two parameters, in that order and encoding, with
   `startInVR` equal to `true` or `false`.
 - **When it breaks:** the join is denied with `invalid-url` before

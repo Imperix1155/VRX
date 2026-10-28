@@ -76,15 +76,36 @@ vi.mock('./instance', () => ({
   registerInstanceHandlers: () => {
     electron.ipcMain.handle('join-instance', () => ({ ok: true }))
     electron.ipcMain.handle('self-invite', () => ({ ok: true }))
+    electron.ipcMain.handle('get-join-handoff', () => 'launch')
   }
 }))
 vi.mock('./app-status', () => ({
   registerAppStatusHandlers: () => electron.ipcMain.handle('get-app-status', () => ({ ok: true }))
 }))
+vi.mock('./activity', () => ({
+  registerActivityHandlers: () => {
+    electron.ipcMain.handle('get-activity', () => [])
+    electron.ipcMain.handle('clear-activity', () => undefined)
+  }
+}))
 vi.mock('./launch', () => ({
   registerLaunchHandlers: () => {
     electron.ipcMain.handle('open-url', () => undefined)
     electron.ipcMain.handle('open-logs-folder', () => undefined)
+  }
+}))
+vi.mock('./app-background', () => ({
+  registerAppBackgroundHandlers: () => {
+    electron.ipcMain.handle('get-app-background', () => null)
+    electron.ipcMain.handle('choose-app-background', () => ({ ok: false, reason: 'cancelled' }))
+    electron.ipcMain.handle('clear-app-background', () => undefined)
+  }
+}))
+vi.mock('./inbox', () => ({
+  registerInboxHandlers: () => {
+    electron.ipcMain.handle('get-inbox', () => ({ items: [] }))
+    electron.ipcMain.handle('dismiss-inbox-item', () => undefined)
+    electron.ipcMain.handle('clear-inbox', () => undefined)
   }
 }))
 vi.mock('./settings', () => ({
@@ -121,8 +142,11 @@ function options(): IpcHandlerOptions {
     accountSession: {},
     locationAuthority: {},
     socialStore: {},
+    alertPicks: {},
     links: { linkGraph: {} },
     appStatus: {},
+    appBackground: {} as IpcHandlerOptions['appBackground'],
+    inbox: {} as IpcHandlerOptions['inbox'],
     explore: {
       setActive: vi.fn(),
       getSnapshot: vi.fn(),
@@ -131,6 +155,12 @@ function options(): IpcHandlerOptions {
       getImage: vi.fn(),
       joinRoom: vi.fn(() => ({ ok: true }))
     },
+    avatarLibrary: {
+      getLibrary: vi.fn(),
+      getDetails: vi.fn(),
+      switchAvatar: vi.fn()
+    },
+    currentAvatar: { getCurrent: vi.fn() },
     onRendererHydrated: hydrated,
     rateLimit: {
       clock: () => now,
@@ -177,7 +207,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(29)
+    expect(electron.invokeHandlers.size).toBe(44)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -199,11 +229,25 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-explore-image',
         'join-explore-room',
         'get-accounts',
+        'get-alert-picks',
+        'get-app-background',
+        'choose-app-background',
+        'clear-app-background',
+        'get-inbox',
+        'dismiss-inbox-item',
+        'clear-inbox',
         'get-app-status',
+        'get-activity',
+        'clear-activity',
         'get-auth-status',
         'get-avatar',
+        'get-avatar-library',
+        'get-current-avatar',
+        'get-avatar-details',
+        'switch-avatar',
         'get-friend-note',
         'get-friends',
+        'get-join-handoff',
         'get-linked-profiles',
         'get-settings',
         'import-session',
@@ -214,6 +258,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'open-logs-folder',
         'save-settings',
         'self-invite',
+        'set-alert-pick',
         'set-friend-note',
         'updater:check',
         'updater:download',

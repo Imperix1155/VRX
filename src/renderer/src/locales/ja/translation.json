@@ -113,7 +113,10 @@
       "dashboard": "ダッシュボード",
       "hot": "ホットインスタンス",
       "friends": "フレンド",
+      "activity": "アクティビティ",
+      "inbox": "受信箱",
       "explore": "探索",
+      "avatars": "アバター",
       "settings": "設定"
     },
     "seg": {
@@ -130,7 +133,9 @@
       "down": "切断",
       "signedOut": "サインアウト",
       "needsCode": "コードが必要"
-    }
+    },
+    "inboxNewAria_one": "新着 {{count}} 件",
+    "inboxNewAria_other": "新着 {{count}} 件"
   },
   "settings": {
     "appearance": {
@@ -148,13 +153,44 @@
       "label": "背景のグロー",
       "description": "背景のオーロラの強さを選択します。",
       "aria": "背景グロー選択",
+      "off": "オフ",
       "muted": "控えめ",
       "standard": "標準",
       "vivid": "鮮やか"
     },
+    "backgroundPicture": {
+      "label": "背景画像",
+      "description": "VRXの背景に好きな画像を表示します。",
+      "choose": "画像を選択",
+      "change": "画像を変更",
+      "remove": "削除",
+      "fade": {
+        "label": "画像の薄さ",
+        "description": "文字が読みやすいように画像を薄くします。",
+        "aria": "画像の薄さ選択",
+        "low": "弱め",
+        "medium": "標準",
+        "high": "強め"
+      },
+      "error": {
+        "unsupported": "PNGまたはJPEGの画像を選んでください。",
+        "tooLarge": "画像が大きすぎます。小さい画像を選んでください。",
+        "tooSmall": "画像が小さすぎてウィンドウを埋められません。640 × 360 ピクセル以上の画像を選んでください。",
+        "tooTall": "画像が縦に長すぎます。細い帯の部分しか表示されません。横長か正方形の画像を選んでください。",
+        "tooWide": "画像が横に長すぎます。中央の一部しか表示されません。もう少し横幅の短い画像を選んでください。",
+        "unreadable": "この画像を開けませんでした。",
+        "saveFailed": "画像を保存できませんでした。もう一度お試しください。",
+        "removeFailed": "画像を削除できませんでした。もう一度お試しください。"
+      },
+      "warning": {
+        "tall": "縦長の画像は切り取られ、中央だけが表示されます。横長の画像がおすすめです。",
+        "wide": "横に長い画像は切り取られ、多くの画面では中央だけが表示されます。",
+        "lowRes": "画像が小さいため、大きな画面ではぼやけて見えることがあります。"
+      }
+    },
     "reconcileInterval": {
       "label": "フレンド一覧の再同期",
-      "note": "リアルタイム更新はライブ接続から受信します。ここで完全再同期の間隔を設定します。",
+      "note": "全体を再同期する間隔です。",
       "aria": "フレンドのバックグラウンド再同期間隔",
       "5m": "5分",
       "10m": "10分",
@@ -172,7 +208,7 @@
     },
     "drawerOpener": {
       "label": "フレンド詳細の開き方",
-      "description": "カード全体のクリックで詳細を開くか、アバターのみで開くかを選択します。「パブリック」などのインスタンス表示をクリックすると、常に参加します。",
+      "description": "フレンド詳細を開くときにクリックする場所です。",
       "aria": "フレンド詳細を開く操作の選択",
       "card": "カード全体",
       "avatar": "アバターのみ"
@@ -187,7 +223,7 @@
     },
     "allowJoinInstances": {
       "label": "フレンドへの参加を許可",
-      "description": "フレンドに参加するとき、VRXによるゲームの起動を許可します。オフにするとすべての参加操作をブロックします。",
+      "description": "参加時にVRXがゲームを起動します。オフですべての参加を止めます。",
       "aria": "フレンドへの参加を許可"
     },
     "confirmJoin": {
@@ -205,11 +241,40 @@
       "vr": "VR",
       "desktop": "デスクトップ"
     },
+    "openGameJoin": {
+      "label": "ゲームが起動中のとき",
+      "description": "もう一度起動せず、起動中のゲームで参加します。「招待を送る」はVRChatのみです。",
+      "aria": "ゲームが起動中のときの参加方法",
+      "go": "移動する",
+      "invite": "招待を送る",
+      "off": "オフ"
+    },
     "categories": {
       "aria": "設定カテゴリ"
     },
     "notifications": {
       "heading": "通知",
+      "scope": {
+        "label": "通知する相手",
+        "description": "全員、または選んだフレンドだけ。人気インスタンスの通知は変わりません。",
+        "everyone": "全員",
+        "picked": "選んだフレンド",
+        "aria": "通知を送るフレンド"
+      },
+      "picked": {
+        "label": "選んだフレンド",
+        "description": "VRChat: {{vrchat}} · ChilloutVR: {{chilloutvr}}。フレンドの詳細から選べます。",
+        "show": "表示",
+        "showAria": "選んだフレンドを表示",
+        "title": "選んだフレンド",
+        "loading": "選択中: {{count}}。フレンドリストの読み込み後に名前が表示されます。",
+        "none": "まだフレンドを選んでいません。",
+        "signedOut": "サインインしていません。",
+        "remove": "外す",
+        "removeOne": "{{name}} を外す",
+        "notInList": "フレンドリストにいない: {{count}}",
+        "removeMissing": "フレンドリストにいないフレンドを外す"
+      },
       "online": {
         "label": "フレンドがオンラインになったとき",
         "description": "オフラインのフレンドがオンラインになったときに通知します。",
@@ -229,6 +294,16 @@
         "label": "ホットインスタンス",
         "description": "同じインスタンスに十分な数のフレンドが集まったときに通知します。",
         "aria": "インスタンスがホットになったときに通知"
+      },
+      "invites": {
+        "label": "招待が届いたとき",
+        "description": "招待や招待リクエストが届いたときに通知します。",
+        "aria": "招待が届いたときに通知"
+      },
+      "friendRequests": {
+        "label": "フレンドリクエストが届いたとき",
+        "description": "フレンドリクエストが届いたときに通知します。",
+        "aria": "フレンドリクエストが届いたときに通知"
       }
     },
     "accounts": {
@@ -289,20 +364,33 @@
     "dashboard": {
       "heading": "ダッシュボード",
       "shortcut": "設定",
+      "hideEmpty": {
+        "label": "空のセクションを隠す",
+        "description": "表示する内容がないセクションは隠れ、ほかのセクションが広がります。"
+      },
+      "sections": {
+        "label": "セクション",
+        "description": "ダッシュボードでの順番です。いま人気とホットインスタンスは先のほうが画像付きになります。隠してもページは残ります。",
+        "moveUp": "{{name}}を上へ移動",
+        "moveDown": "{{name}}を下へ移動",
+        "moved": "{{name}}は{{count}}個中{{position}}番目になりました"
+      },
       "order": {
-        "label": "セクションの順番",
-        "description": "ダッシュボードで先に表示するセクションを選びます。先のセクションは画像付きで表示されます。",
         "aria": "ダッシュボードのセクションの順番",
         "popularFirst": "いま人気を先に",
         "hotFirst": "ホットインスタンスを先に"
       },
       "popular": {
-        "label": "いま人気",
-        "description": "ダッシュボードにプレビューを表示します。探索は引き続き利用できます。"
+        "label": "いま人気"
       },
       "hot": {
-        "label": "ホットインスタンス",
-        "description": "ダッシュボードにホットインスタンスを表示します。ホットインスタンスのページと通知は引き続き利用できます。"
+        "label": "ホットインスタンス"
+      },
+      "wearingNow": {
+        "label": "着用中"
+      },
+      "invites": {
+        "label": "最新の招待"
       }
     },
     "persistence": {
@@ -344,6 +432,14 @@
       "explore": {
         "label": "探索のページ",
         "description": "サイドバーに表示します。ダッシュボードのいま人気はそのままです。"
+      },
+      "activity": {
+        "label": "アクティビティのページ",
+        "description": "VRXを開いている間のフレンドの動き。オフで何も保持しません。"
+      },
+      "inbox": {
+        "label": "受信箱のページ",
+        "description": "サイドバーに表示します。通知はそのままです。"
       }
     },
     "setup": {
@@ -382,7 +478,12 @@
       "rateLimited": "試行回数が多すぎます — しばらくしてからもう一度お試しください",
       "targetChanged": "場所が変わりました — もう一度参加を試してください",
       "joiningDisabled": "設定で参加が無効になっています",
-      "notJoinable": "参加できなくなりました — 移動したかオフラインになった可能性があります"
+      "notJoinable": "参加できなくなりました — 移動したかオフラインになった可能性があります",
+      "inviteFailed": "VRChatの招待を送れませんでした。もう一度参加を試してください。"
+    },
+    "joinNotice": {
+      "inGame": "起動中のゲームに送りました",
+      "inviteSent": "招待を送りました。VRChatで承認してください。"
     },
     "notConnected": {
       "vrchat": "ここでフレンドを確認するにはVRChatに接続してください",
@@ -433,6 +534,34 @@
       "chilloutvrShort": "CVR"
     }
   },
+  "activity": {
+    "filterAria": "表示",
+    "kinds": {
+      "all": "すべて",
+      "online": "オンライン",
+      "world": "ワールド",
+      "offline": "オフライン"
+    },
+    "online": "オンラインになりました",
+    "onlineIn": "{{world}} でオンラインになりました",
+    "joined": "{{world}} に移動しました",
+    "joinedUnknown": "ワールドに移動しました",
+    "offline": "オフラインになりました",
+    "openFriend": "{{name}} をフレンドで開く",
+    "clear": "クリア",
+    "clearAria": "アクティビティをすべてクリア",
+    "emptyHeading": "まだアクティビティはありません",
+    "emptyHint": "VRXを開いている間、フレンドのオンライン、ワールド移動、オフラインがここに表示されます。",
+    "filteredEmpty": "この条件で表示できるものはありません。",
+    "loading": "アクティビティを読み込み中…",
+    "error": "アクティビティを読み込めませんでした。",
+    "retry": "再試行",
+    "notConnected": {
+      "vrchat": "ここでフレンドのアクティビティを確認するにはVRChatに接続してください",
+      "chilloutvr": "ここでフレンドのアクティビティを確認するにはChilloutVRに接続してください",
+      "openAccounts": "アカウントを開く"
+    }
+  },
   "drawer": {
     "close": "閉じる",
     "where": "場所",
@@ -453,6 +582,26 @@
       "askMe": "参加する前に確認してください",
       "dnd": "参加を受け付けていません",
       "offline": "未接続"
+    },
+    "alerts": {
+      "heading": "通知",
+      "label": "このフレンドを通知する",
+      "aria": "{{name}} を通知する",
+      "saveFailed": "保存できませんでした。もう一度お試しください。",
+      "full": "VRX が保存できる上限までフレンドを選んでいます。",
+      "bellOn": "{{name}} の通知: オン",
+      "bellOff": "{{name}} の通知: オフ",
+      "everyone": "すべてのフレンドが通知の対象です。一部のフレンドだけにするには、設定の「通知する相手」を変更してください。",
+      "allOff": "フレンドの通知はすべてオフです。",
+      "settings": "通知の設定",
+      "kinds": {
+        "label": "フレンドの通知",
+        "online": "オンライン",
+        "inGame": "ワールド参加",
+        "offline": "オフライン",
+        "on": "(オン)",
+        "off": "(オフ)"
+      }
     },
     "notes": {
       "heading": "メモ（自分用、非公開）",
@@ -489,6 +638,11 @@
     "willLaunch": {
       "vr": "VRで起動します。",
       "desktop": "デスクトップで起動します。"
+    },
+    "openGame": {
+      "vrchatInGame": "VRChatが起動中のため、ゲーム内でそのまま移動します。",
+      "vrchatInvite": "VRChatが起動中のため、ゲーム内で承認する招待を送ります。",
+      "chilloutvrInGame": "ChilloutVRが起動中のため、ゲーム内でそのまま移動します。"
     },
     "driftNotice": "{{name}}さんが別のインスタンスに移動しました — 参加前に確認してください",
     "review": "更新された場所を確認",
@@ -530,7 +684,16 @@
       "threshold": "−と＋で、表示に必要なフレンドの最小人数を{{min}}〜{{max}}人に設定できます。「設定」→「通知」でホットインスタンス通知をオンにした場合、この人数が通知のしきい値にもなります。"
     },
     "seeAll": "すべて表示（{{count}}）",
-    "seeAllAria_other": "ホットインスタンスをすべて表示（{{count}}件）"
+    "seeAllAria_other": "ホットインスタンスをすべて表示（{{count}}件）",
+    "glance": {
+      "invites": "最新の招待",
+      "noInvites": "VRX を開いてから届いた招待はありません",
+      "openAvatarsAria": "アバターのページを開く",
+      "wornAria": "{{name}}、{{platform}} で着用中のアバター。アバターを開く",
+      "inviteAria": "{{name}}、{{platform}}：{{action}}、{{age}}。受信箱を開く",
+      "seeAllInvitesAria_one": "受信箱で {{count}} 件の招待を表示",
+      "seeAllInvitesAria_other": "受信箱で {{count}} 件の招待をすべて表示"
+    }
   },
   "login": {
     "subtitle": "Social VR コンパニオン",
@@ -615,6 +778,62 @@
       "vrchat": "ここで人気のワールドを確認するにはVRChatに接続してください",
       "chilloutvr": "ここで人気のワールドを確認するにはChilloutVRに接続してください",
       "openAccounts": "アカウントを開く"
+    }
+  },
+  "avatars": {
+    "refresh": "更新",
+    "refreshing": "更新中…",
+    "wearingNow": "着用中",
+    "yourUploads": "アップロードしたアバター",
+    "uploadCount_other": "{{count}}体",
+    "loadingPlatform": "{{platform}} のアバターを読み込み中…",
+    "empty": "アップロードしたアバターはまだありません。",
+    "noCurrent": {
+      "vrchat": "着用中の VRChat アバターを確認できませんでした。",
+      "chilloutvr": "着用中の ChilloutVR アバターを確認できませんでした。"
+    },
+    "partial": "一部のアバターを表示できませんでした。",
+    "retry": "再試行",
+    "error": {
+      "unavailable": "{{platform}} のアバターを読み込めませんでした。",
+      "rate-limited": "{{platform}} から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+      "not-authenticated": "アバターを表示するには {{platform}} にもう一度サインインしてください。"
+    },
+    "notConnected": {
+      "vrchat": "ここでアバターを確認するにはVRChatに接続してください",
+      "chilloutvr": "ここでアバターを確認するにはChilloutVRに接続してください",
+      "openAccounts": "アカウントを開く"
+    },
+    "openAria": "{{name}}（{{platform}} のアバター）。詳細を表示",
+    "sheet": {
+      "aria": "{{name}}（{{platform}} のアバター）",
+      "wear": "このアバターを着る",
+      "wearAria": "{{platform}} で {{name}} を着る",
+      "switching": "切り替え中…",
+      "wornNow": "着用中です",
+      "wearHint": "{{platform}} アカウントのアバターを変更します。",
+      "switched": "完了しました。{{platform}} のアバターを変更しました。",
+      "detailsLoading": "詳細を読み込み中…",
+      "detailsError": "一部の詳細を読み込めませんでした。"
+    },
+    "switchFailed": {
+      "cooldown": "数秒待ってからもう一度切り替えてください。",
+      "rate-limited": "{{platform}} から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+      "switch-failed": "{{platform}} でアバターを切り替えられませんでした。もう一度お試しください。",
+      "not-authenticated": "アバターを切り替えるには {{platform}} にもう一度サインインしてください。",
+      "unknown-avatar": "一覧を更新してから、もう一度お試しください。"
+    },
+    "details": {
+      "heading": "詳細",
+      "creator": "作成者",
+      "visibility": "公開設定",
+      "public": "公開",
+      "private": "非公開",
+      "uploaded": "アップロード日",
+      "updated": "更新日",
+      "notShown": "表示なし",
+      "description": "説明",
+      "noDescription": "説明はありません"
     }
   },
   "updater": {
@@ -704,8 +923,12 @@
       "title": "表示するページを選ぶ",
       "lead": "使わないページはオフにできます。ダッシュボード、フレンド、設定はいつでも表示されます。",
       "hot": "何人かのフレンドが一緒にいるインスタンスをすべて表示します。",
+      "activity": "フレンドのオンライン、ワールド移動、オフラインの流れ。",
+      "inbox": "両方のプラットフォームの招待とフレンドリクエスト。",
       "explore": "両方のプラットフォームでいま人気のワールド。",
       "hotAria": "ホットインスタンスのページを表示",
+      "activityAria": "アクティビティのページを表示",
+      "inboxAria": "受信箱のページを表示",
       "exploreAria": "探索のページを表示"
     },
     "dashboard": {
@@ -750,5 +973,35 @@
       "alertsSome": "{{total}}件中{{count}}件オン",
       "lookValue": "{{theme}}・グロー{{glow}}"
     }
+  },
+  "inbox": {
+    "invitesHeading": "招待",
+    "requestsHeading": "フレンドリクエスト",
+    "invite": "{{world}}に招待されました",
+    "inviteNoWorld": "招待されました",
+    "inviteRequest": "招待を求めています",
+    "friendRequest": "フレンドリクエストが届きました",
+    "someone": "誰か",
+    "justNow": "たった今",
+    "hide": "非表示",
+    "hideInviteAria": "{{name}}からの招待を非表示",
+    "hideInviteRequestAria": "{{name}}からの招待リクエストを非表示",
+    "hideFriendRequestAria": "{{name}}からのフレンドリクエストを非表示",
+    "hideAll": "すべて非表示",
+    "hideFailed": "非表示にできませんでした。もう一度お試しください。",
+    "count_one": "{{count}}件",
+    "count_other": "{{count}}件",
+    "emptyHeading": "届いているものはありません",
+    "emptyHint": "VRXの起動中に届いた招待とフレンドリクエストがここに表示されます。",
+    "help": {
+      "label": "受信箱について",
+      "answer": "VRXは表示するだけです。返事はゲーム内またはプラットフォームのサイトで行ってください。非表示にするとVRXから消えるだけで、何も送信されません。",
+      "live": "受信箱にはVRXの起動中に届いたものが表示され、VRXを終了すると消えます。"
+    },
+    "notConnected": {
+      "vrchat": "ここで招待を確認するにはVRChatに接続してください",
+      "chilloutvr": "ここで招待を確認するにはChilloutVRに接続してください"
+    },
+    "loadError": "受信箱を読み込めませんでした"
   }
 }

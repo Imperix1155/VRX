@@ -1,14 +1,19 @@
 import { forwardRef, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthState, BackgroundGlow, LabelScheme, Platform, Theme } from '@shared/types'
-import { BACKGROUND_GLOWS, DASHBOARD_SECTION_ORDERS, LABEL_SCHEMES } from '@shared/types'
+import {
+  BACKGROUND_GLOWS,
+  DASHBOARD_SECTION_ORDERS,
+  LABEL_SCHEMES,
+  withDashboardSectionOrder
+} from '@shared/types'
 import type { Settings } from '@shared/settings'
 import { useSettingsStore } from '../../stores/settings'
 import { focusRadioSibling, segArrowTarget } from '../../utils/segmented'
 import AccountCard from '../AccountCard'
 import SegmentedControl from '../SegmentedControl'
 import Toggle from '../Toggle'
-import { IconExplore, IconFriends, IconHot } from '../NavIcons'
+import { IconActivity, IconExplore, IconFriends, IconHot, IconInbox } from '../NavIcons'
 import { SECONDARY_BUTTON, SETUP_ALERTS, SETUP_PLATFORMS } from './setupModel'
 
 /**
@@ -23,6 +28,7 @@ const PLATFORM_LABEL_KEYS: Record<Platform, string> = {
 }
 
 const GLOW_LABEL_KEYS: Record<BackgroundGlow, string> = {
+  off: 'settings.backgroundGlow.off',
   muted: 'settings.backgroundGlow.muted',
   standard: 'settings.backgroundGlow.standard',
   vivid: 'settings.backgroundGlow.vivid'
@@ -74,19 +80,17 @@ function RowIcon({ children }: { children: React.ReactNode }): React.JSX.Element
   )
 }
 
-function Row({
-  label,
-  description,
-  icon,
-  children
-}: {
+interface RowProps {
   label: string
   description: string
   icon?: React.ReactNode
   children: React.ReactNode
-}): React.JSX.Element {
+}
+
+/** One labeled control row; `Row` wraps it in its own card. */
+function RowContent({ label, description, icon, children }: RowProps): React.JSX.Element {
   return (
-    <div className="setting-card setting-row py-[10px]">
+    <div className="setting-row">
       <div className="flex items-center gap-[var(--space-3)]">
         {icon ? <RowIcon>{icon}</RowIcon> : null}
         <div className="min-w-0">
@@ -98,6 +102,17 @@ function Row({
     </div>
   )
 }
+
+function Row(props: RowProps): React.JSX.Element {
+  return (
+    <div className="setting-card py-[10px]">
+      <RowContent {...props} />
+    </div>
+  )
+}
+
+/** Friend alerts share one card and inbox alerts another, like Settings. */
+const ALERT_GROUPS = ['friends', 'inbox'] as const
 
 const FINE_PRINT = 'text-[11.5px] leading-[1.45] text-[var(--text-dim)]'
 
@@ -222,6 +237,8 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
   const { t } = useTranslation()
   const showHot = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplore = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivity = useSettingsStore((s) => s.settings.showActivityPage)
+  const showInbox = useSettingsStore((s) => s.settings.showInboxPage)
   const update = useSettingsStore((s) => s.updateSettings)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
@@ -232,6 +249,24 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             checked={showHot}
             ariaLabel={t('setup.pages.hotAria')}
             onChange={(checked) => update({ showHotInstancesPage: checked })}
+          />
+        </Row>
+        <Row
+          icon={<IconActivity />}
+          label={t('shell.nav.activity')}
+          description={t('setup.pages.activity')}
+        >
+          <Toggle
+            checked={showActivity}
+            ariaLabel={t('setup.pages.activityAria')}
+            onChange={(checked) => update({ showActivityPage: checked })}
+          />
+        </Row>
+        <Row icon={<IconInbox />} label={t('shell.nav.inbox')} description={t('setup.pages.inbox')}>
+          <Toggle
+            checked={showInbox}
+            ariaLabel={t('setup.pages.inboxAria')}
+            onChange={(checked) => update({ showInboxPage: checked })}
           />
         </Row>
         <Row
@@ -257,6 +292,7 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
   const popular = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const hot = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const order = useSettingsStore((s) => s.settings.dashboardSectionOrder)
+  const sections = useSettingsStore((s) => s.settings.dashboardSections)
   const update = useSettingsStore((s) => s.updateSettings)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
@@ -291,7 +327,13 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
               active={order}
               labelKeys={ORDER_LABEL_KEYS}
               ariaLabel={t('settings.dashboard.order.aria')}
-              onChange={(value) => update({ dashboardSectionOrder: value })}
+              // The full section list owns the order; swap the two in it too.
+              onChange={(value) =>
+                update({
+                  dashboardSectionOrder: value,
+                  dashboardSections: withDashboardSectionOrder(sections, value)
+                })
+              }
             />
           </Row>
         )}
@@ -316,14 +358,18 @@ export const AlertsStep = forwardRef<HTMLHeadingElement>(function AlertsStep(_pr
     <div className="flex flex-col gap-[var(--space-3)]">
       <StepHeading ref={ref} title={t('setup.alerts.title')} lead={t('setup.alerts.lead')} />
       <div className="settings-cards">
-        {SETUP_ALERTS.map((alert) => (
-          <Row key={alert.key} label={t(alert.label)} description={t(alert.description)}>
-            <Toggle
-              checked={settings[alert.key]}
-              ariaLabel={t(alert.aria)}
-              onChange={(checked) => update({ [alert.key]: checked })}
-            />
-          </Row>
+        {ALERT_GROUPS.map((group) => (
+          <div key={group} className="setting-card grid gap-[var(--space-2)] py-[10px]">
+            {SETUP_ALERTS.filter((alert) => alert.group === group).map((alert) => (
+              <RowContent key={alert.key} label={t(alert.label)} description={t(alert.description)}>
+                <Toggle
+                  checked={settings[alert.key]}
+                  ariaLabel={t(alert.aria)}
+                  onChange={(checked) => update({ [alert.key]: checked })}
+                />
+              </RowContent>
+            ))}
+          </div>
         ))}
       </div>
       <div>
@@ -465,7 +511,10 @@ export const DoneStep = forwardRef<
       ['shell.nav.dashboard', true],
       ['shell.nav.hot', s.showHotInstancesPage],
       ['shell.nav.friends', true],
+      ['shell.nav.activity', s.showActivityPage],
+      ['shell.nav.inbox', s.showInboxPage],
       ['shell.nav.explore', s.showExplorePage],
+      ['shell.nav.avatars', true],
       ['shell.nav.settings', true]
     ] as const
   )

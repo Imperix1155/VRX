@@ -883,6 +883,80 @@ describe('mode picker — CVR only (research-settled)', () => {
   })
 })
 
+describe('a game that is already open', () => {
+  function withHandoff(handoff: Record<Platform, 'launch' | 'in-game' | 'invite'>): void {
+    ;(window.vrx as unknown as { getJoinHandoff: unknown }).getJoinHandoff = vi.fn(
+      async ({ platform }: { platform: Platform }) => handoff[platform]
+    )
+  }
+
+  it('ChilloutVR open → the same note as VRChat replaces the mode picker', async () => {
+    withHandoff({ vrchat: 'launch', chilloutvr: 'in-game' })
+    mockFriends([], [cvrFriend])
+    render(<TestSurface friend={cvrFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+    expect(
+      await within(dialog).findByText('ChilloutVR is open, so Join takes you there in the game.')
+    ).toBeTruthy()
+    expect(within(dialog).queryByRole('radiogroup')).toBeNull()
+  })
+
+  it('VRChat open → says whether Join goes there or sends an invite', async () => {
+    withHandoff({ vrchat: 'in-game', chilloutvr: 'launch' })
+    const view = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    expect(
+      await within(confirmDialog()).findByText(
+        'VRChat is open, so Join takes you there in the game.'
+      )
+    ).toBeTruthy()
+    fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Cancel' }))
+    view.unmount()
+
+    withHandoff({ vrchat: 'invite', chilloutvr: 'launch' })
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    expect(
+      await within(confirmDialog()).findByText(
+        'VRChat is open, so Join sends you an invite to accept in the game.'
+      )
+    ).toBeTruthy()
+  })
+
+  it('setting off → never asks, and keeps the launch copy', async () => {
+    withHandoff({ vrchat: 'in-game', chilloutvr: 'in-game' })
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, joinOpenGame: false },
+      dirty: false
+    })
+    mockFriends([], [cvrFriend])
+    render(<TestSurface friend={cvrFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(within(dialog).getByRole('radiogroup', { name: 'Launch mode' })).toBeTruthy()
+    expect(
+      (window.vrx as unknown as { getJoinHandoff: ReturnType<typeof vi.fn> }).getJoinHandoff
+    ).not.toHaveBeenCalled()
+  })
+
+  it('after Confirm, the friend row says the invite was sent', async () => {
+    withHandoff({ vrchat: 'invite', chilloutvr: 'launch' })
+    joinInstance.mockResolvedValue({ ok: true, handoff: 'invite' })
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    await act(async () => {
+      fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+    const { result } = renderHook(() => useJoinInstance())
+    expect(result.current.joinFailureFor(joinableFriend)).toBe('invite-sent')
+  })
+})
+
 describe("who's-there row", () => {
   it('filters by exact worldId + instanceId; ≤4 avatars + "+N" overflow', () => {
     const sameInstance = Array.from({ length: 5 }, (_, i) => ({

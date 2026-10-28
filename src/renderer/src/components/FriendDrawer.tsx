@@ -24,6 +24,9 @@
  *      placeholders here.
  *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
  *      explicit Retry after failure, then quiet VRChat trust when known.
+ *   6. Pinned footer: Identities, and across from it the alerts bell
+ *      (FriendAlertBell) with "Alert me about this friend" while Settings
+ *      limits alerts to picked friends. A linked person is one pick.
  *
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
  * card stays fully interactive — the soft scrim (`--scrim-soft`) is
@@ -52,6 +55,7 @@ import LinkedWorlds from './LinkedWorlds'
 import LinkedDestinationChooser from './LinkedDestinationChooser'
 import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
 import IdentitiesDialog from './IdentitiesDialog'
+import FriendAlertBell from './FriendAlertBell'
 
 /** Status-band descriptor per ring label (quoted literals so the i18n
  *  key-existence scan sees them). Web-active has no owner-approved descriptor
@@ -536,29 +540,41 @@ export default function FriendDrawer({
                 {t('drawer.trust', { rank: t(trustKey) })}
               </p>
             )}
+          </div>
+        )}
+        {/* 6 · Footer, pinned below the scroll: Identities on the left, the
+            alerts bell on the right (owner, 2026-10-27). */}
+        {shown && (
+          <div className="flex shrink-0 items-center gap-[var(--space-2)] px-[var(--space-4)] pt-[var(--space-2)] pb-[var(--space-4)]">
             {selection && onNavigate && (
-              <div className="mt-auto pt-[var(--space-2)]">
-                <button
-                  type="button"
-                  className="linked-identities rounded-control border border-transparent px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold"
-                  onClick={() => {
-                    onNoteBlur()
-                    setIdentityDialogOwner(identityOwner)
+              <button
+                type="button"
+                className="linked-identities rounded-control border border-transparent px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold"
+                onClick={() => {
+                  onNoteBlur()
+                  setIdentityDialogOwner(identityOwner)
+                }}
+              >
+                <span
+                  style={{
+                    background:
+                      'linear-gradient(90deg, var(--plat-vrc-ghost-text), var(--plat-cvr-ghost-text))',
+                    backgroundClip: 'text',
+                    color: 'transparent'
                   }}
                 >
-                  <span
-                    style={{
-                      background:
-                        'linear-gradient(90deg, var(--plat-vrc-ghost-text), var(--plat-cvr-ghost-text))',
-                      backgroundClip: 'text',
-                      color: 'transparent'
-                    }}
-                  >
-                    {t('linking.identities')}
-                  </span>
-                </button>
-              </div>
+                  {t('linking.identities')}
+                </span>
+              </button>
             )}
+            <div className="ml-auto">
+              <FriendAlertBell
+                accounts={shownAccounts}
+                name={profileName || t('linking.unknownName')}
+                drawerOpen={open}
+                onLeave={onNoteBlur}
+              />
+            </div>
           </div>
         )}
       </div>

@@ -7,7 +7,7 @@
  * VRX-37 added the Accounts category (ChilloutVrAccountCard uses `useAuthStatus`,
  * a TanStack Query hook — SettingsView now needs a QueryClientProvider ancestor).
  */
-import { act, fireEvent, within, render, screen, cleanup } from '@testing-library/react'
+import { act, fireEvent, within, render, screen, cleanup, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -178,11 +178,12 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     ])
   })
 
-  it('renders the background-glow options in Muted | Standard | Vivid order (Standard default)', () => {
+  it('renders the background-glow options in Off | Muted | Standard | Vivid order (Standard default)', () => {
     renderSettings()
     const glowGroup = screen.getByRole('radiogroup', { name: msg('settings.backgroundGlow.aria') })
     const labels = [...glowGroup.querySelectorAll('[role="radio"]')].map((b) => b.textContent)
     expect(labels).toEqual([
+      msg('settings.backgroundGlow.off'),
       msg('settings.backgroundGlow.muted'),
       msg('settings.backgroundGlow.standard'),
       msg('settings.backgroundGlow.vivid')
@@ -205,6 +206,13 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     fireEvent.click(muted!)
     expect(useSettingsStore.getState().settings.backgroundGlow).toBe('muted')
     expect(useSettingsStore.getState().dirty).toBe(true)
+  })
+
+  it('turns the background glow off through updateSettings', () => {
+    renderSettings()
+    const glowGroup = screen.getByRole('radiogroup', { name: msg('settings.backgroundGlow.aria') })
+    fireEvent.click(within(glowGroup).getByText(msg('settings.backgroundGlow.off')))
+    expect(useSettingsStore.getState().settings.backgroundGlow).toBe('off')
   })
 
   it('renders the friends background re-sync row with its note and five cadence options', () => {
@@ -325,6 +333,34 @@ describe('SettingsView — Behavior section (VRX-78/231)', () => {
     fireEvent.click(toggle.querySelector('[aria-checked="false"]')!)
     expect(useSettingsStore.getState().settings.allowJoinInstances).toBe(false)
     expect(useSettingsStore.getState().dirty).toBe(true)
+  })
+
+  it('keeps both open-game choices in one row and Off keeps the VRChat choice', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+    const group = screen.getByRole('radiogroup', { name: msg('settings.openGameJoin.aria') })
+    const option = (key: string): HTMLElement =>
+      within(group).getByRole('radio', { name: msg(`settings.openGameJoin.${key}`) })
+    expect(option('go').getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.click(option('invite'))
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'invite'
+    })
+
+    fireEvent.click(option('off'))
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      joinOpenGame: false,
+      vrchatOpenGameJoin: 'invite'
+    })
+    expect(option('off').getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.click(option('go'))
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go'
+    })
   })
 
   it('renders the confirm-before-joining row (On default) and writes confirmJoin (VRX-210)', () => {
@@ -675,18 +711,50 @@ describe('Settings dependency cards', () => {
       dashboardPopularNow: true
     })
   })
-  it('switches the Dashboard section order', () => {
+  it('moves Dashboard sections and keeps the older order field in step', () => {
     useUiStore.setState({ settingsCategory: 'dashboard' })
     renderSettings()
-    const order = screen.getByRole('radiogroup', { name: msg('settings.dashboard.order.aria') })
-    const popularFirst = within(order).getByRole('radio', {
-      name: msg('settings.dashboard.order.popularFirst')
+    const list = screen.getByRole('list', { name: msg('settings.dashboard.sections.label') })
+    const names = (): string[] =>
+      within(list)
+        .getAllByRole('listitem')
+        .map((row) => row.querySelector('p')?.textContent ?? '')
+    expect(names()).toEqual([
+      msg('settings.dashboard.wearingNow.label'),
+      msg('settings.dashboard.invites.label'),
+      msg('settings.dashboard.popular.label'),
+      msg('settings.dashboard.hot.label')
+    ])
+    const hot = msg('settings.dashboard.hot.label')
+    const up = screen.getByRole('button', {
+      name: i18n.t('settings.dashboard.sections.moveUp', { name: hot })
     })
-    expect(popularFirst.getAttribute('aria-checked')).toBe('true')
-    fireEvent.click(
-      within(order).getByRole('radio', { name: msg('settings.dashboard.order.hotFirst') })
-    )
-    expect(useSettingsStore.getState().settings.dashboardSectionOrder).toBe('hot-first')
+    fireEvent.click(up)
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      dashboardSections: ['wearing-now', 'invites', 'hot', 'popular'],
+      dashboardSectionOrder: 'hot-first'
+    })
+    expect(
+      screen.getByText(
+        i18n.t('settings.dashboard.sections.moved', { name: hot, position: 3, count: 4 })
+      )
+    ).toBeTruthy()
+    fireEvent.click(up)
+    fireEvent.click(up)
+    expect(names()[0]).toBe(hot)
+    // At the top the button stays focusable but does nothing.
+    expect(up.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(up)
+    expect(useSettingsStore.getState().settings.dashboardSections).toEqual([
+      'hot',
+      'wearing-now',
+      'invites',
+      'popular'
+    ])
+    const wearing = msg('settings.dashboard.wearingNow.label')
+    const toggle = screen.getByRole('radiogroup', { name: wearing })
+    fireEvent.click(within(toggle).getByRole('radio', { name: msg('settings.boolean.off') }))
+    expect(useSettingsStore.getState().settings.dashboardWearingNow).toBe(false)
   })
   it('retains joining choices and returns child focus to the disabled parent', () => {
     useUiStore.setState({ settingsCategory: 'behavior' })
@@ -780,5 +848,144 @@ describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)'
       theme: 'light',
       setupPending: true
     })
+  })
+})
+
+describe('SettingsView — background picture', () => {
+  const PICTURE = 'data:image/jpeg;base64,AAAA'
+
+  function setPictureBridge(overrides: Record<string, unknown> = {}): Record<string, MockFn> {
+    const bridge = {
+      getAuthStatus: vi.fn().mockResolvedValue({ platform: 'vrchat', state: 'unauthenticated' }),
+      getAppBackground: vi.fn().mockResolvedValue(null),
+      chooseAppBackground: vi.fn().mockResolvedValue({ ok: true, dataUrl: PICTURE }),
+      clearAppBackground: vi.fn().mockResolvedValue(undefined),
+      ...overrides
+    }
+    ;(window as unknown as { vrx?: unknown }).vrx = bridge
+    return bridge as Record<string, MockFn>
+  }
+
+  it('offers only Choose picture while no picture is set, with the fade choice hidden', async () => {
+    setPictureBridge()
+    renderSettings()
+    expect(await screen.findByRole('button', { name: msg('settings.backgroundPicture.choose') }))
+    expect(
+      screen.queryByRole('button', { name: msg('settings.backgroundPicture.remove') })
+    ).toBeNull()
+    const fade = screen.getByRole('radiogroup', {
+      name: msg('settings.backgroundPicture.fade.aria'),
+      hidden: true
+    })
+    expect(fade.closest('[inert]')).toBeTruthy()
+  })
+
+  it('adopts the kept picture after choosing, then shows Change, Remove and the fade', async () => {
+    const bridge = setPictureBridge()
+    renderSettings()
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.choose') })
+    )
+    expect(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.change') })
+    ).toBeTruthy()
+    expect(bridge.chooseAppBackground).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('background-picture-thumb').getAttribute('src')).toBe(PICTURE)
+    const fade = screen.getByRole('radiogroup', {
+      name: msg('settings.backgroundPicture.fade.aria')
+    })
+    fireEvent.click(within(fade).getByText(msg('settings.backgroundPicture.fade.high')))
+    expect(useSettingsStore.getState().settings.backgroundPictureFade).toBe('high')
+  })
+
+  it('removes the picture and returns focus to Choose picture', async () => {
+    const bridge = setPictureBridge({
+      getAppBackground: vi.fn().mockResolvedValue({ dataUrl: PICTURE })
+    })
+    renderSettings()
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.remove') })
+    )
+    const choose = await screen.findByRole('button', {
+      name: msg('settings.backgroundPicture.choose')
+    })
+    expect(bridge.clearAppBackground).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(choose)
+    expect(screen.queryByTestId('background-picture-thumb')).toBeNull()
+  })
+
+  it('explains a refused picture and stays quiet when the dialog is cancelled', async () => {
+    const bridge = setPictureBridge({
+      chooseAppBackground: vi.fn().mockResolvedValue({ ok: false, reason: 'unsupported' })
+    })
+    renderSettings()
+    const choose = await screen.findByRole('button', {
+      name: msg('settings.backgroundPicture.choose')
+    })
+    fireEvent.click(choose)
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      msg('settings.backgroundPicture.error.unsupported')
+    )
+
+    bridge.chooseAppBackground!.mockResolvedValue({ ok: false, reason: 'cancelled' })
+    fireEvent.click(choose)
+    await act(async () => {})
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it.each([
+    ['too-small', 'settings.backgroundPicture.error.tooSmall'],
+    ['too-tall', 'settings.backgroundPicture.error.tooTall'],
+    ['too-wide', 'settings.backgroundPicture.error.tooWide']
+  ])('explains a picture refused as %s', async (reason, key) => {
+    setPictureBridge({
+      chooseAppBackground: vi.fn().mockResolvedValue({ ok: false, reason })
+    })
+    renderSettings()
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.choose') })
+    )
+    expect((await screen.findByRole('alert')).textContent).toBe(msg(key))
+  })
+
+  function loadThumb(width: number, height: number): void {
+    const thumb = screen.getByTestId('background-picture-thumb')
+    Object.defineProperty(thumb, 'naturalWidth', { configurable: true, value: width })
+    Object.defineProperty(thumb, 'naturalHeight', { configurable: true, value: height })
+    fireEvent.load(thumb)
+  }
+
+  it('warns about a tall picture and says nothing about a wide, sharp one', async () => {
+    setPictureBridge({ getAppBackground: vi.fn().mockResolvedValue({ dataUrl: PICTURE }) })
+    renderSettings()
+    await screen.findByTestId('background-picture-thumb')
+    expect(screen.queryByTestId('background-picture-warning')).toBeNull()
+
+    loadThumb(1080, 1600)
+    expect(screen.getByTestId('background-picture-warning').textContent).toBe(
+      msg('settings.backgroundPicture.warning.tall')
+    )
+    loadThumb(1920, 1080)
+    expect(screen.queryByTestId('background-picture-warning')).toBeNull()
+  })
+
+  it('warns about a small picture and drops the warning once the picture changes', async () => {
+    const SECOND = 'data:image/jpeg;base64,BBBB'
+    setPictureBridge({
+      getAppBackground: vi.fn().mockResolvedValue({ dataUrl: PICTURE }),
+      chooseAppBackground: vi.fn().mockResolvedValue({ ok: true, dataUrl: SECOND })
+    })
+    renderSettings()
+    await screen.findByTestId('background-picture-thumb')
+    loadThumb(800, 600)
+    expect(screen.getByTestId('background-picture-warning').textContent).toBe(
+      msg('settings.backgroundPicture.warning.lowRes')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.backgroundPicture.change') }))
+    await waitFor(() =>
+      expect(screen.getByTestId('background-picture-thumb').getAttribute('src')).toBe(SECOND)
+    )
+    expect(screen.queryByTestId('background-picture-warning')).toBeNull()
   })
 })

@@ -52,6 +52,40 @@ export function IconFriends(): React.JSX.Element {
   )
 }
 
+/** A pulse line: friends coming and going. */
+export function IconActivity(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M3 12h4l2.5-6 5 12 2.5-6h4" />
+    </svg>
+  )
+}
+
+export function IconInbox(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M4 13.5 6.6 5.6A2 2 0 0 1 8.5 4.2h7a2 2 0 0 1 1.9 1.4L20 13.5" />
+      <path d="M4 13.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4.5h-4.6l-1.2 2.3h-4.4l-1.2-2.3Z" />
+    </svg>
+  )
+}
+
 export function IconExplore(): React.JSX.Element {
   return (
     <svg
@@ -65,6 +99,23 @@ export function IconExplore(): React.JSX.Element {
       <circle cx="12" cy="12" r="8.5" />
       <path d="M3.5 12h17" />
       <path d="M12 3.5c2.6 2.4 2.6 14.6 0 17M12 3.5c-2.6 2.4-2.6 14.6 0 17" />
+    </svg>
+  )
+}
+
+/** A shirt: the avatars a user wears. */
+export function IconAvatars(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M8.2 3.5 3.5 6.2l1.9 3.7 2.4-1.1v11.7h8.4V8.8l2.4 1.1 1.9-3.7-4.7-2.7c-.6 1.5-2 2.4-3.8 2.4s-3.2-.9-3.8-2.4Z" />
     </svg>
   )
 }

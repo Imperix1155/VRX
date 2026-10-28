@@ -15,12 +15,22 @@ import type {
   AuthStatus,
   Credentials,
   Friend,
+  JoinHandoff,
   JoinMode,
   LoginResult,
   Platform
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
+import type {
+  AvatarDetailsResult,
+  AvatarLibraryResult,
+  AvatarSwitchResult,
+  CurrentAvatarResult
+} from './avatarLibrary'
+import type { BackgroundPictureRefusal } from './backgroundPicture'
+import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
+import type { ActivityEntry } from './activity'
 import type {
   ExplorePlatformSnapshot,
   ExploreImageResult,
@@ -43,8 +53,26 @@ export interface UpdaterSnapshot {
   failure: UpdaterFailure | null
 }
 
+/** Result of picking a background picture. Failures carry only a typed reason. */
+export type AppBackgroundResult =
+  | { ok: true; dataUrl: string }
+  | {
+      ok: false
+      reason:
+        | 'cancelled'
+        | 'unsupported'
+        | 'too-large'
+        | BackgroundPictureRefusal
+        | 'unreadable'
+        | 'save-failed'
+    }
+
 export type InstanceActionResult =
-  | { ok: true }
+  | {
+      ok: true
+      /** How the join reached the game. Absent on actions that are not a Join. */
+      handoff?: JoinHandoff
+    }
   | {
       ok: false
       reason:
@@ -75,7 +103,10 @@ export interface FriendRosterResponse {
   provenance?: FriendRosterProvenance
 }
 
-export type FriendEvent = AdapterEvent & { rosterRevision?: number }
+/** Inbox events stay in main (the inbox service); they never reach `friend-event`. */
+export type BroadcastAdapterEvent = Exclude<AdapterEvent, { type: 'inbox' }>
+
+export type FriendEvent = BroadcastAdapterEvent & { rosterRevision?: number }
 
 /**
  * Request/response channels — renderer asks, main answers:
@@ -115,6 +146,17 @@ export interface IpcInvoke {
     req: { url: string; rendition?: 'avatar' }
     res: { ok: true; dataUrl: string } | null
   }
+  /** The signed-in user's own avatars and the one they wear now. Never on a timer. */
+  'get-avatar-library': { req: { platform: Platform }; res: AvatarLibraryResult }
+  /** Only the avatar the user wears now (the Dashboard). Never on a timer. */
+  'get-current-avatar': { req: { platform: Platform }; res: CurrentAvatarResult }
+  /** One listed avatar's details; ChilloutVR reads them on demand. */
+  'get-avatar-details': {
+    req: { platform: Platform; avatarId: string }
+    res: AvatarDetailsResult
+  }
+  /** Wear a listed avatar. Main checks the ID against its own list first. */
+  'switch-avatar': { req: { platform: Platform; avatarId: string }; res: AvatarSwitchResult }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }
@@ -140,10 +182,30 @@ export interface IpcInvoke {
     req: { platform: 'vrchat'; friendId: string }
     res: InstanceActionResult
   }
+  /** What a Join on this platform would do right now, for the dialog's copy.
+   *  Main decides again when the Join happens. */
+  'get-join-handoff': { req: { platform: Platform }; res: JoinHandoff }
   'get-app-status': { req: void; res: AppStatus }
+  /** The in-memory activity list, newest first. Main records it from the live
+   *  sockets; reading it makes no platform request. */
+  'get-activity': { req: void; res: ActivityEntry[] }
+  /** Forget every activity entry. */
+  'clear-activity': { req: void; res: void }
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */
   'open-logs-folder': { req: void; res: void }
+  /** The user's own background picture as a `data:` URL, or null when none is set. */
+  'get-app-background': { req: void; res: { dataUrl: string } | null }
+  /** Open the native picture dialog; main reads, re-encodes, and keeps the picked file. */
+  'choose-app-background': { req: void; res: AppBackgroundResult }
+  /** Forget the background picture. */
+  'clear-app-background': { req: void; res: void }
+  /** Invites and requests that arrived while VRX was open. View-only. */
+  'get-inbox': { req: void; res: InboxSnapshot }
+  /** Hide one row in VRX. Never answers or declines anything on the platform. */
+  'dismiss-inbox-item': { req: { platform: Platform; id: string }; res: void }
+  /** Hide every row for these platforms, in VRX only. */
+  'clear-inbox': { req: { platforms: Platform[] }; res: void }
   'get-settings': { req: void; res: Settings & { unsaved?: true; fallback?: true } }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }
@@ -165,6 +227,23 @@ export interface IpcInvoke {
       | { ok: true }
       | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'rate-limited' }
   }
+  /** The signed-in account's friends picked for alerts. Local only. */
+  'get-alert-picks': {
+    req: { platform: Platform }
+    res: { friendIds: string[]; revision?: { platformAccountId: string; epoch: number } }
+  }
+  /** Pick or unpick friends for alerts in one write; echo the read's revision. */
+  'set-alert-pick': {
+    req: {
+      platform: Platform
+      friendIds: string[]
+      picked: boolean
+      revision: { platformAccountId: string; epoch: number }
+    }
+    res:
+      | { ok: true }
+      | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'full' | 'rate-limited' }
+  }
 }
 
 /**
@@ -175,6 +254,10 @@ export interface IpcInvoke {
 export interface IpcEvents {
   'explore-changed': { platform: Platform }
   'linked-profiles-changed': void
+  /** The activity list changed; coalesced, carries nothing. */
+  'activity-changed': void
+  /** The inbox changed; read it again with `get-inbox`. */
+  'inbox-changed': void
   'friend-event': FriendEvent
   'identity-boundary': { platform: Platform }
   /** A hot-instance alert click: open Hot Instances with this platform in view. */
@@ -196,5 +279,4 @@ export type IpcNotificationChannel = keyof IpcNotifications
 
 // Channels deliberately deferred until their feature exists — we don't define
 // payload types for things that aren't built yet (keeps the contract honest):
-//   'get-notifications'              → Notification[] (notifications, M3)
 //   'launch-app'                     → LaunchResult (process launch, VRX-98)

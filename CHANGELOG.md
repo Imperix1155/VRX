@@ -7,9 +7,183 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-28
+
+VRX 1.2 adds three new pages, a smarter Dashboard, and a few things that make
+joining and alerts work the way VRCX and CVRX users expect. It is everything
+from the 1.2.0 dev builds (dev.1 to dev.4), listed in detail below.
+
+### Added
+
+- **Avatars page.** The avatars you uploaded on VRChat and ChilloutVR, the one
+  you're wearing now on each, details for every avatar, and a Wear button to
+  switch. Favorites are not included yet. (#464, #474)
+- **Activity page.** Friends coming online, joining a world, and going offline
+  on both platforms, newest first, tinted with each platform's color. It uses
+  the live connection VRX already has, so it adds no requests, and it is kept
+  only while VRX is open. Friends set to Ask Me or Do Not Disturb never show a
+  world. (#467, #472)
+- **Inbox page.** Invites, invite requests, and friend requests from both
+  platforms that arrive while VRX is open. VRX only shows them; you answer in
+  the game. Two new optional alerts, Invite received and Friend request
+  received, are off until you turn them on. (#469)
+- **Join in the game that's already open.** When VRChat or ChilloutVR is
+  running, Join takes you there instead of starting a second copy. In VRChat
+  it goes straight there on Windows, or sends you an invite to accept (always
+  on Linux). Choose in Settings → Behavior → When the game is already open.
+  (#468, #471)
+- **Alerts for picked friends.** Settings → Notifications → Who alerts you can
+  be set to Picked friends. The new bell at the bottom of a friend's details
+  shows whether that friend can alert you and lets you pick them. Everyone
+  stays the default. (#466, #473)
+- **Your own background picture** in Settings → Appearance, with a picture
+  fade to keep text readable, and an Off choice for the background glow.
+  Pictures that can't fill the window are refused with the reason. (#458,
+  #465)
+- **Dashboard: Wearing now and Latest invites.** Two new sections under the
+  numbers show your worn avatar and the newest invite from each platform.
+  (#475)
+
+### Changed
+
+- The Dashboard fits what it has: a section with nothing to show steps aside
+  and the rest move up. Move any section up or down, or turn it off, in
+  Settings → Dashboard → Sections. (#475)
+- Settings → Notifications and the welcome setup's alerts step group every
+  alert in one card. (#469)
+- Checking for updates never offers a release older than the one that is
+  running, on any channel. (#461, #462)
+- The app is built with Vite 8, linted with ESLint 10, and type-checked with
+  TypeScript 7. (#455, #456, #457)
+
+### Known limits
+
+- Activity and Inbox show only what arrives while VRX is open. Answer invites
+  and friend requests in the game or on the platform's site.
+- The avatar list doesn't include favorites yet.
+
+## [1.2.0-dev.4] - 2026-10-27
+
+Dev test build. It has everything in 1.2.0-dev.3 plus the changes below.
+
+### Added
+
+- Two new Dashboard sections under the numbers, side by side: Wearing now
+  shows the avatar you're wearing on VRChat and ChilloutVR, and Latest
+  invites shows the newest invite from each platform. A row opens the
+  Avatars page or the Inbox. Each can be turned off in Settings → Dashboard.
+  Wearing now asks each platform for your worn avatar only (one request,
+  none if the Avatars page just loaded it), and invites come from what VRX
+  already received. (#475)
+- The Dashboard now fits what it has. A section with nothing to show (no
+  invites, no hot instances) steps aside and the rest move up to use the
+  space; the first section shown gets the big picture cards. Turn off
+  Settings → Dashboard → Hide empty sections to always see every section.
+  (#475)
+- Move any Dashboard section up or down. Settings → Dashboard → Sections
+  lists Wearing now, Latest invites, Popular now and Hot Instances in their
+  Dashboard order, each with up and down buttons and its On/Off switch.
+  (#475)
+
+### Changed
+
+- Friend alerts moved to a bell in the friend details panel, at the bottom
+  across from Identities. The bell shows waves when that friend can alert you
+  and a slash when they can't. Pressing it pops open a small panel with Alert
+  me about this friend (while alerts are limited to picked friends), which
+  friend alerts are on, and a shortcut to Settings → Notifications. The panel
+  springs out of the bell, or simply appears with reduced motion on. (#473)
+- The Avatars page opens faster. Avatars you already loaded stay ready for
+  the rest of the session instead of loading again after a few minutes away,
+  big libraries show the first screenful at once and fill in the rest without
+  freezing the window, and opening an avatar's details or pressing Refresh no
+  longer redraws every card. The worn avatar loads alongside your uploads, and
+  Wear works even while a refresh is still running. Nothing extra is sent to
+  VRChat or ChilloutVR. (#474)
+- Activity entries are now tinted with their platform's color, VRChat blue
+  and ChilloutVR orange, with a colored edge on the left, so the two are easy
+  to tell apart at a glance. The VRChat and ChilloutVR labels stay, now the
+  same size as each other. (#472)
+
+## [1.2.0-dev.3] - 2026-10-27
+
+Dev test build. It has everything in 1.2.0-dev.2 plus the changes below.
+
+### Added
+
+- New Avatars page in the sidebar. It shows the avatars you uploaded on VRChat
+  and ChilloutVR, the one you are wearing now on each, and a details panel for
+  each avatar with a Wear button to switch to it. Both platforms share one
+  page, sorted by name. Avatars load when you open the page or press Refresh,
+  and switching is limited to one every 5 seconds per platform. Favorites are
+  not included yet. (#464)
+- Alerts for picked friends. Settings → Notifications → Who alerts you can be
+  set to Picked friends; then only the friends you choose send the online,
+  joins-a-world and offline alerts. Pick a friend with Alert me about this
+  friend in their details, for VRChat and ChilloutVR alike, and review or
+  remove picks with Show. Picks stay on this PC, per account, and nothing is
+  sent to either platform. Everyone stays the default. (#466)
+- Activity page: friends coming online, joining a world, and going offline on
+  VRChat and ChilloutVR, newest first, in one list with each platform named.
+  Show picks All, Online, Worlds, or Offline; Clear empties the list; a row
+  opens that friend on the Friends page. It is built from the live connection
+  VRX already has, so it makes no extra requests, and it stays in memory only
+  until VRX closes or you sign out. Friends set to Ask Me or Do Not Disturb
+  never show a world or a move. Turn it off in Settings → Notifications →
+  Activity page or in the welcome setup; off also stops VRX keeping it. (#467)
+- Join uses the game that's already open. When VRChat or ChilloutVR is running,
+  Join takes you there in that game instead of starting a second copy, the way
+  VRCX and CVRX do. In VRChat it goes straight there on Windows, or sends you
+  an invite to accept in the game (always on Linux, or if you pick Send
+  invite). The join dialog says which will happen, and the line under Join
+  confirms it. Pick Go there, Send invite, or Off in Settings → Behavior →
+  When the game is already open. (#468, #471)
+- Inbox page: invites, invite requests and friend requests from VRChat and
+  ChilloutVR that arrive while VRX is open, in one list that follows the
+  platform filter. It only shows them; answer in the game or on the
+  platform's site. Hide takes a row out of VRX and sends nothing. The sidebar
+  shows how many are new. Turn the page off in Settings → Notifications. (#469)
+- Two optional alerts in Settings → Notifications and the welcome setup:
+  Invite received and Friend request received. Both are off until you turn
+  them on. (#469)
+
+### Changed
+
+- Settings → Notifications puts every alert in one card, with Who alerts you
+  on top and the Activity and Inbox page switches in a second card, so the
+  page fits the window without scrolling. With Picked friends, the pick counts
+  and Show sit under Who alerts you. The welcome setup's alerts step groups
+  its alerts the same way. (#469)
+- Background picture explains pictures that cannot fill the window: too small
+  (under 640 × 360), too tall (like a phone screenshot) or too wide (like a
+  long panorama) are refused with the reason. A usable picture that will be
+  cropped a lot or may look blurry gets one short note in Settings. (#465)
+
+## [1.2.0-dev.2] - 2026-10-27
+
+Dev test build. It has everything in 1.2.0-dev.1 plus the fix below.
+
+### Fixed
+
 - Checking for updates no longer offers a release older than the one that is
   running. On Beta and Dev, VRX stays on the current build when nothing newer
-  is published, including right after a channel change.
+  is published, including right after a channel change. (#461)
+
+## [1.2.0-dev.1] - 2026-10-26
+
+Dev test build. It has everything in 1.1.1 plus the changes below.
+
+### Added
+
+- Settings → Appearance → Background picture puts a picture of your choice
+  behind VRX. Choose any PNG or JPEG; VRX keeps its own resized copy and never
+  changes your file. Picture fade (Low, Medium, High) keeps text easy to read,
+  and Remove goes back to the normal background. (#458)
+- Background glow has an Off choice for a plain background, in Settings →
+  Appearance and in the welcome setup. (#458)
+
+### Changed
+
 - Lint runs on ESLint 10. React component rules come from `@eslint-react`,
   because `eslint-plugin-react` does not load on ESLint 10.
 - Typecheck uses the TypeScript 7 compiler. Lint and the design-token scanner

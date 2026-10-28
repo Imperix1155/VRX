@@ -31,6 +31,7 @@ import { ExploreDataError } from './adapters/ExploreAdapter'
 import { assertRequestLease, type RequestLease } from './adapters/RequestLease'
 import type { AccountSession, ResolvedAccountSession } from './accountSession'
 import type { JoinCoordinator } from './joinCoordinator'
+import type { HandoffResult } from './gameHandoff'
 import { isAllowedLaunchUrl } from '../ipc/url-allowlist'
 
 const FRESH_MS = 60_000
@@ -122,6 +123,14 @@ export interface ExploreServiceOptions {
   isJoinAllowed: () => boolean
   getImage: (url: string) => Promise<string | null>
   openExternal: (url: string) => Promise<void>
+  /** Reach a game that is already open (`GameHandoff.deliver`). Without it,
+   *  a Join always launches through `openExternal`. */
+  deliverJoin?: (
+    platform: Platform,
+    url: string,
+    location: string,
+    stillCurrent: () => boolean
+  ) => Promise<HandoffResult>
   onChanged: (platform: Platform) => void
   clock?: () => number
   wallClock?: () => number
@@ -299,13 +308,15 @@ export class ExploreService {
         .get(platform)
         ?.buildJoinUrl(this.instance(world, evidence), mode)
       if (!url || !isAllowedLaunchUrl(url)) return { ok: false, reason: 'invalid-url' }
-      try {
-        await this.options.openExternal(url)
-      } catch {
-        return { ok: false, reason: 'launch-failed' }
-      }
+      const result = await this.deliver(
+        platform,
+        url,
+        `${world.evidence.worldId}:${roomId}`,
+        () => this.current(platform, state) && this.findSelection(state, selectionRef) === selection
+      )
+      if (!result.ok) return result
       permit.complete()
-      return { ok: true }
+      return { ok: true, handoff: result.handoff }
     } catch (error) {
       return {
         ok: false,
@@ -1033,6 +1044,22 @@ export class ExploreService {
     } catch {
       return null
     }
+  }
+
+  private async deliver(
+    platform: Platform,
+    url: string,
+    location: string,
+    stillCurrent: () => boolean
+  ): Promise<HandoffResult> {
+    if (this.options.deliverJoin)
+      return this.options.deliverJoin(platform, url, location, stillCurrent)
+    try {
+      await this.options.openExternal(url)
+    } catch {
+      return { ok: false, reason: 'launch-failed' }
+    }
+    return { ok: true, handoff: 'launch' }
   }
 
   private instance(world: WorldRecord, room: ExploreRoomEvidence): InstanceInfo {

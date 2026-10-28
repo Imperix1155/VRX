@@ -5,6 +5,7 @@ import './guide.css'
 import {
   desktopScenes,
   drawerScenarios,
+  joinScenarios,
   exploreScenarios,
   friendsScenarios,
   sourceScenarios
@@ -14,7 +15,7 @@ declare const __APP_VERSION__: string
 declare const __GUIDE_REVISION__: string
 
 type Theme = 'dark' | 'light'
-type Glow = 'muted' | 'standard' | 'vivid'
+type Glow = 'off' | 'muted' | 'standard' | 'vivid'
 
 type SceneProps = {
   name: string
@@ -106,6 +107,7 @@ function Scene({
           <label>
             Glow
             <select value={glow} onChange={(event) => setGlow(event.target.value as Glow)}>
+              <option value="off">Off</option>
               <option value="muted">Muted</option>
               <option value="standard">Standard</option>
               <option value="vivid">Vivid</option>
@@ -265,6 +267,7 @@ export default function Guide(): React.JSX.Element {
             variants={[
               { value: 'popular-first', label: 'Popular now first' },
               { value: 'hot-first', label: 'Hot Instances first' },
+              { value: 'reordered', label: 'Sections moved' },
               { value: 'needs-code', label: 'VRChat needs a code' }
             ]}
             height="tall"
@@ -276,6 +279,18 @@ export default function Guide(): React.JSX.Element {
             note="Interactive fixture. Every hot instance, most friends first, as picture cards with the same header and sheet as the Dashboard."
             source="HotInstancesView.tsx · HotInstanceCard.tsx"
             height="tall"
+          />
+          <Scene
+            name="activity"
+            title="Activity page"
+            note="Interactive fixture. Friends coming online, joining worlds and going offline on both platforms, newest first, with one row layout and the platform named in words. Ask Me and Do Not Disturb rows never name a world. Try the Show filter, the platform filter, or open a friend."
+            source="ActivityView.tsx · activityFeed.ts"
+            height="tall"
+            variant="ready"
+            variants={[
+              { value: 'ready', label: 'With activity' },
+              { value: 'empty', label: 'Nothing yet' }
+            ]}
           />
           <Scene
             name="explore"
@@ -351,9 +366,14 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="settings"
             title="Settings cards and Dashboard controls"
-            note="Interactive fixture. Try the Dashboard and Behavior categories: On/Off controls retain child choices while collapsing their cards. Dashboard settings independently hide Popular now and Hot Instances. The Dashboard’s bottom Settings button opens this category; its circular question mark reveals Hot Instances help without adding a permanent label to the selector. Appearance controls change the actual theme and glow. About keeps Stable, Beta, and Dev in the Automatic updates card, next to the on/off control. The Save error variant shows the compact failure strip with its warning glyph and Retry. All choices last only in this sample."
-            source="assets/main.css · SettingsView.tsx"
+            note="Interactive fixture. Try the Dashboard and Behavior categories: On/Off controls retain child choices while collapsing their cards. Dashboard settings independently hide Popular now and Hot Instances. The Dashboard’s bottom Settings button opens this category; its circular question mark reveals Hot Instances help without adding a permanent label to the selector. Appearance controls change the actual theme and glow; Choose picture puts a synthetic sample behind the app with its Picture fade, and Remove takes it away. About keeps Stable, Beta, and Dev in the Automatic updates card, next to the on/off control. The Save error variant shows the compact failure strip with its warning glyph and Retry. The Picked-friend alerts variant sets Notifications → Who alerts you to Picked friends; Show lists the sample picks for both platforms. All choices last only in this sample."
+            source="assets/main.css · SettingsView.tsx · PickedFriendsDialog.tsx"
             height="short"
+            variants={[
+              { value: 'ready', label: 'Ready' },
+              { value: 'save-error', label: 'Save error' },
+              { value: 'picked-alerts', label: 'Picked-friend alerts' }
+            ]}
           />
         </Section>
 
@@ -473,16 +493,17 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="drawer"
             title="Friend drawer"
-            note="Interactive fixture. Compare both platforms, inspect Notes and quiet Trust, and open the real frosted drawer. Failure states recover through Retry."
-            source="FriendDrawer.tsx · JoinConfirmDialog.tsx"
+            note="Interactive fixture. Compare both platforms, inspect Notes and quiet Trust, and open the real frosted drawer. Failure states recover through Retry. Picked-friend alerts shows the Alerts section with Alert me about this friend."
+            source="FriendDrawer.tsx · AlertPickRow.tsx · JoinConfirmDialog.tsx"
             variant="vrchat"
             variants={drawerScenarios}
           />
           <Scene
             name="join"
             title="Join confirmation"
-            note="Interactive fixture. Open the real heavy-frosted modal. Confirm returns a local sample denial and cannot launch a game."
-            source="JoinConfirmDialog.tsx"
+            note="Interactive fixture. Open the real heavy-frosted modal for either platform. Game open shows the note that replaces the mode choice when the game is already running. Confirm returns a local sample denial and cannot launch a game."
+            source="JoinConfirmDialog.tsx · useJoinHandoff.ts"
+            variants={joinScenarios}
           />
         </Section>
 

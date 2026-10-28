@@ -1,9 +1,11 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import type {
   BackgroundGlow,
-  DashboardSectionOrder,
+  BackgroundPictureFade,
   DrawerOpener,
+  FriendAlertScope,
   JoinModePreference,
   LabelScheme,
   ReconcileInterval,
@@ -12,12 +14,14 @@ import type {
 } from '@shared/types'
 import {
   BACKGROUND_GLOWS,
-  DASHBOARD_SECTION_ORDERS,
+  BACKGROUND_PICTURE_FADES,
   DRAWER_OPENERS,
+  FRIEND_ALERT_SCOPES,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
   THEMES,
-  UPDATE_CHANNELS
+  UPDATE_CHANNELS,
+  VRCHAT_OPEN_GAME_JOINS
 } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
@@ -27,9 +31,14 @@ import AccountCard from './AccountCard'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
 import Toggle from './Toggle'
+import DashboardSectionsCard from './DashboardSectionsCard'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { IconDownload, IconSpinner, IconRestart, IconExternalLink } from './UpdaterIcons'
-import type { UpdaterFailure } from '@shared/ipc'
+import type { AppBackgroundResult, UpdaterFailure } from '@shared/ipc'
+import { backgroundPictureWarning, type BackgroundPictureWarning } from '@shared/backgroundPicture'
+import { chooseAppBackground, clearAppBackground, useAppBackground } from '../queries/appBackground'
+import { useAlertPicks } from '../queries/alertPicks'
+import PickedFriendsDialog from './PickedFriendsDialog'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -44,9 +53,31 @@ const SCHEME_LABEL_KEYS: Record<LabelScheme, string> = {
 }
 
 const GLOW_LABEL_KEYS: Record<BackgroundGlow, string> = {
+  off: 'settings.backgroundGlow.off',
   muted: 'settings.backgroundGlow.muted',
   standard: 'settings.backgroundGlow.standard',
   vivid: 'settings.backgroundGlow.vivid'
+}
+
+const PICTURE_FADE_LABEL_KEYS: Record<BackgroundPictureFade, string> = {
+  low: 'settings.backgroundPicture.fade.low',
+  medium: 'settings.backgroundPicture.fade.medium',
+  high: 'settings.backgroundPicture.fade.high'
+}
+
+/** A cancelled dialog is not an error. */
+const PICTURE_ERROR_KEYS: Record<
+  Extract<AppBackgroundResult, { ok: false }>['reason'],
+  string | null
+> = {
+  cancelled: null,
+  unsupported: 'settings.backgroundPicture.error.unsupported',
+  'too-large': 'settings.backgroundPicture.error.tooLarge',
+  'too-small': 'settings.backgroundPicture.error.tooSmall',
+  'too-tall': 'settings.backgroundPicture.error.tooTall',
+  'too-wide': 'settings.backgroundPicture.error.tooWide',
+  unreadable: 'settings.backgroundPicture.error.unreadable',
+  'save-failed': 'settings.backgroundPicture.error.saveFailed'
 }
 
 const RECONCILE_LABEL_KEYS: Record<ReconcileInterval, string> = {
@@ -70,6 +101,15 @@ const JOIN_MODE_LABEL_KEYS: Record<JoinModePreference, string> = {
   ask: 'settings.joinMode.ask',
   vr: 'settings.joinMode.vr',
   desktop: 'settings.joinMode.desktop'
+}
+
+/** One row for both open-game settings: Off keeps the saved VRChat choice. */
+const OPEN_GAME_CHOICES = [...VRCHAT_OPEN_GAME_JOINS, 'off'] as const
+type OpenGameChoice = (typeof OPEN_GAME_CHOICES)[number]
+const OPEN_GAME_LABEL_KEYS: Record<OpenGameChoice, string> = {
+  go: 'settings.openGameJoin.go',
+  invite: 'settings.openGameJoin.invite',
+  off: 'settings.openGameJoin.off'
 }
 
 const UPDATER_FAILURE_KEYS: Record<UpdaterFailure, string> = {
@@ -111,6 +151,100 @@ function SettingCard({
         </div>
       </div>
     </div>
+  )
+}
+
+const FRIEND_ALERT_SCOPE_LABEL_KEYS: Record<FriendAlertScope, string> = {
+  everyone: 'settings.notifications.scope.everyone',
+  picked: 'settings.notifications.scope.picked'
+}
+
+/** One labeled On/Off row inside a card. */
+function SwitchRow({
+  label,
+  description,
+  ariaLabel,
+  checked,
+  onChange
+}: {
+  label: string
+  description: string
+  ariaLabel: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}): React.JSX.Element {
+  return (
+    <div className="setting-row">
+      <div>
+        <p className="text-sm font-medium text-[var(--text)]">{label}</p>
+        <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">{description}</p>
+      </div>
+      <Toggle checked={checked} ariaLabel={ariaLabel} onChange={onChange} />
+    </div>
+  )
+}
+
+/** Who the friend alerts cover, then those alerts (`scoped`) and, past a
+ *  divider, the alerts the scope never limits (`children`), all in one card.
+ *  Picked friends are chosen in each friend's details panel; the list behind
+ *  Show lets the user review and remove them. */
+function FriendAlertsCard({
+  scoped,
+  children
+}: {
+  scoped: React.ReactNode
+  children: React.ReactNode
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const scope = useSettingsStore((s) => s.settings.friendAlertScope)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const vrchat = useAlertPicks('vrchat').picked.size
+  const chilloutvr = useAlertPicks('chilloutvr').picked.size
+  const [showList, setShowList] = useState(false)
+  const picked = scope === 'picked'
+  return (
+    <>
+      <div className="setting-card">
+        <div className="setting-row">
+          <div>
+            <p className="text-sm font-medium text-[var(--text)]">
+              {t('settings.notifications.scope.label')}
+            </p>
+            {/* Picked friends swaps the explanation for each platform's count
+                and Show, so the page still fits the 900x670 window. */}
+            {picked ? (
+              <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                <span>
+                  {t('settings.notifications.picked.description', { vrchat, chilloutvr })}
+                </span>{' '}
+                <button
+                  type="button"
+                  onClick={() => setShowList(true)}
+                  aria-label={t('settings.notifications.picked.showAria')}
+                  className="whitespace-nowrap text-[var(--text)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] cursor-pointer"
+                >
+                  {t('settings.notifications.picked.show')}
+                </button>
+              </p>
+            ) : (
+              <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                {t('settings.notifications.scope.description')}
+              </p>
+            )}
+          </div>
+          <SegmentedControl<FriendAlertScope>
+            values={FRIEND_ALERT_SCOPES}
+            active={scope}
+            labelKeys={FRIEND_ALERT_SCOPE_LABEL_KEYS}
+            ariaLabel={t('settings.notifications.scope.aria')}
+            onChange={(value) => updateSettings({ friendAlertScope: value })}
+          />
+        </div>
+        <div className="mt-[var(--space-2)] grid gap-[var(--space-2)]">{scoped}</div>
+        <div className="setting-children">{children}</div>
+      </div>
+      {showList && <PickedFriendsDialog onClose={() => setShowList(false)} />}
+    </>
   )
 }
 
@@ -362,6 +496,153 @@ function LegalSettingsRow(): React.JSX.Element {
   )
 }
 
+const PICTURE_WARNING_KEYS: Record<BackgroundPictureWarning, string> = {
+  tall: 'settings.backgroundPicture.warning.tall',
+  wide: 'settings.backgroundPicture.warning.wide',
+  'low-res': 'settings.backgroundPicture.warning.lowRes'
+}
+
+/**
+ * Background picture (owner, 2026-10-26): main opens the picture dialog and
+ * keeps its own copy; the renderer only ever sees the kept copy's data URL.
+ * The fade choice appears once a picture is set. Main refuses pictures that
+ * cannot fill the window; a usable picture that will be cropped hard or look
+ * soft gets one warning line, read from the thumbnail's own size.
+ */
+function BackgroundPictureCard(): React.JSX.Element {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const { data } = useAppBackground()
+  const fade = useSettingsStore((s) => s.settings.backgroundPictureFade)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const [busy, setBusy] = useState(false)
+  const [errorKey, setErrorKey] = useState<string | null>(null)
+  const chooseButton = useRef<HTMLButtonElement>(null)
+  const dataUrl = data?.dataUrl ?? null
+  const [fit, setFit] = useState<{ url: string; warning: BackgroundPictureWarning | null } | null>(
+    null
+  )
+  const warning = fit !== null && fit.url === dataUrl ? fit.warning : null
+  const button = [
+    'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
+    'border border-[var(--border)]',
+    'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+    'text-[var(--text)]',
+    'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+    busy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+  ].join(' ')
+
+  const choose = async (): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    setErrorKey(null)
+    const result = await chooseAppBackground(queryClient)
+    setBusy(false)
+    if (!result.ok) setErrorKey(PICTURE_ERROR_KEYS[result.reason])
+  }
+  const remove = async (): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    setErrorKey(null)
+    const removed = await clearAppBackground(queryClient)
+    setBusy(false)
+    if (!removed) {
+      setErrorKey('settings.backgroundPicture.error.removeFailed')
+      return
+    }
+    // The Remove button is gone now; keep focus in the card.
+    chooseButton.current?.focus()
+  }
+
+  return (
+    <SettingCard
+      expanded={dataUrl !== null}
+      parent={
+        <div className="setting-row">
+          <div>
+            <p className="text-sm font-medium text-[var(--text)]">
+              {t('settings.backgroundPicture.label')}
+            </p>
+            <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+              {t('settings.backgroundPicture.description')}
+            </p>
+            {errorKey !== null && (
+              <p role="alert" className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                {t(errorKey)}
+              </p>
+            )}
+            {errorKey === null && warning !== null && (
+              <p
+                role="status"
+                className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]"
+                data-testid="background-picture-warning"
+              >
+                {t(PICTURE_WARNING_KEYS[warning])}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-[var(--space-2)]">
+            {dataUrl !== null && (
+              <img
+                src={dataUrl}
+                alt=""
+                className="background-picture-thumb"
+                data-testid="background-picture-thumb"
+                onLoad={(event) => {
+                  const image = event.currentTarget
+                  setFit({
+                    url: dataUrl,
+                    warning: backgroundPictureWarning(image.naturalWidth, image.naturalHeight)
+                  })
+                }}
+              />
+            )}
+            <button
+              ref={chooseButton}
+              type="button"
+              onClick={() => void choose()}
+              aria-disabled={busy || undefined}
+              className={button}
+            >
+              {dataUrl === null
+                ? t('settings.backgroundPicture.choose')
+                : t('settings.backgroundPicture.change')}
+            </button>
+            {dataUrl !== null && (
+              <button
+                type="button"
+                onClick={() => void remove()}
+                aria-disabled={busy || undefined}
+                className={button}
+              >
+                {t('settings.backgroundPicture.remove')}
+              </button>
+            )}
+          </div>
+        </div>
+      }
+    >
+      <div className="setting-row">
+        <div>
+          <p className="text-sm font-medium text-[var(--text)]">
+            {t('settings.backgroundPicture.fade.label')}
+          </p>
+          <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+            {t('settings.backgroundPicture.fade.description')}
+          </p>
+        </div>
+        <SegmentedControl
+          values={BACKGROUND_PICTURE_FADES}
+          active={fade}
+          labelKeys={PICTURE_FADE_LABEL_KEYS}
+          ariaLabel={t('settings.backgroundPicture.fade.aria')}
+          onChange={(value) => updateSettings({ backgroundPictureFade: value })}
+        />
+      </div>
+    </SettingCard>
+  )
+}
+
 /** Category pages with compact cards and retained dependent preferences. */
 export default function SettingsView(): React.JSX.Element {
   const { t } = useTranslation()
@@ -370,19 +651,23 @@ export default function SettingsView(): React.JSX.Element {
   const reconcileInterval = useSettingsStore((s) => s.settings.reconcileInterval)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const drawerOpener = useSettingsStore((s) => s.settings.drawerOpener)
-  const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
-  const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
-  const sectionOrder = useSettingsStore((s) => s.settings.dashboardSectionOrder)
+  const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
+  const joinOpenGame = useSettingsStore((s) => s.settings.joinOpenGame)
+  const vrchatOpenGameJoin = useSettingsStore((s) => s.settings.vrchatOpenGameJoin)
   const notifyFriendOnline = useSettingsStore((s) => s.settings.notifyFriendOnline)
   const notifyFriendInGame = useSettingsStore((s) => s.settings.notifyFriendInGame)
   const notifyFriendOffline = useSettingsStore((s) => s.settings.notifyFriendOffline)
   const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
+  const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
+  const notifyInvites = useSettingsStore((s) => s.settings.notifyInvites)
+  const notifyFriendRequests = useSettingsStore((s) => s.settings.notifyFriendRequests)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -441,6 +726,8 @@ export default function SettingsView(): React.JSX.Element {
               />
             </div>
 
+            <BackgroundPictureCard />
+
             {/* Instance-labels row (VRX-183) */}
             <div className="setting-card setting-row">
               <div>
@@ -467,59 +754,26 @@ export default function SettingsView(): React.JSX.Element {
             <h2 id="settings-dashboard-heading" className="sr-only">
               {t('settings.dashboard.heading')}
             </h2>
-            {/* Section order (owner, 2026-10-18): the first section shows
-                picture cards, the second compact bars. */}
+            {/* Hide empty sections (owner, 2026-10-27): the whole Dashboard
+                shifts to what has something to show. */}
             <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.dashboard.order.label')}
+                  {t('settings.dashboard.hideEmpty.label')}
                 </p>
                 <p className="text-xs text-[var(--text-dim)]">
-                  {t('settings.dashboard.order.description')}
-                </p>
-              </div>
-              <SegmentedControl<DashboardSectionOrder>
-                values={DASHBOARD_SECTION_ORDERS}
-                active={sectionOrder}
-                labelKeys={{
-                  'popular-first': 'settings.dashboard.order.popularFirst',
-                  'hot-first': 'settings.dashboard.order.hotFirst'
-                }}
-                ariaLabel={t('settings.dashboard.order.aria')}
-                onChange={(value) => updateSettings({ dashboardSectionOrder: value })}
-              />
-            </div>
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.dashboard.popular.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)]">
-                  {t('settings.dashboard.popular.description')}
+                  {t('settings.dashboard.hideEmpty.description')}
                 </p>
               </div>
               <Toggle
-                checked={popularNow}
-                ariaLabel={t('settings.dashboard.popular.label')}
-                onChange={(checked) => updateSettings({ dashboardPopularNow: checked })}
+                checked={hideEmpty}
+                ariaLabel={t('settings.dashboard.hideEmpty.label')}
+                onChange={(checked) => updateSettings({ dashboardHideEmpty: checked })}
               />
             </div>
-            {/* Dashboard-only: the Hot Instances page and alerts stay available. */}
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.dashboard.hot.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)]">
-                  {t('settings.dashboard.hot.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={hotEnabled}
-                ariaLabel={t('settings.dashboard.hot.label')}
-                onChange={(checked) => updateSettings({ hotInstancesEnabled: checked })}
-              />
-            </div>
+            {/* Every section's place and On/Off (owner, 2026-10-27). Hiding
+                one keeps its page and alerts. */}
+            <DashboardSectionsCard />
             {/* Hot-instance threshold (VRX-78) — its own row so it keeps working
                 when the Dashboard section is off. Also quick-adjustable on the
                 Dashboard and the Hot Instances page; all write the same setting. */}
@@ -685,6 +939,30 @@ export default function SettingsView(): React.JSX.Element {
                   onChange={(value) => updateSettings({ joinMode: value })}
                 />
               </div>
+
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.openGameJoin.label')}
+                  </p>
+                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                    {t('settings.openGameJoin.description')}
+                  </p>
+                </div>
+                <SegmentedControl
+                  values={OPEN_GAME_CHOICES}
+                  active={joinOpenGame ? vrchatOpenGameJoin : 'off'}
+                  labelKeys={OPEN_GAME_LABEL_KEYS}
+                  ariaLabel={t('settings.openGameJoin.aria')}
+                  onChange={(value) =>
+                    updateSettings(
+                      value === 'off'
+                        ? { joinOpenGame: false }
+                        : { joinOpenGame: true, vrchatOpenGameJoin: value }
+                    )
+                  }
+                />
+              </div>
             </SettingCard>
           </section>
         )}
@@ -696,69 +974,81 @@ export default function SettingsView(): React.JSX.Element {
               {t('settings.notifications.heading')}
             </h2>
 
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.online.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.online.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyFriendOnline}
-                ariaLabel={t('settings.notifications.online.aria')}
-                onChange={(checked) => updateSettings({ notifyFriendOnline: checked })}
-              />
-            </div>
-
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.inGame.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.inGame.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyFriendInGame}
-                ariaLabel={t('settings.notifications.inGame.aria')}
-                onChange={(checked) => updateSettings({ notifyFriendInGame: checked })}
-              />
-            </div>
-
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.offline.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.offline.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyFriendOffline}
-                ariaLabel={t('settings.notifications.offline.aria')}
-                onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
-              />
-            </div>
-
-            {/* Hot instance alert — moved here from the Dashboard card (owner,
-                2026-10-18); the Dashboard switch no longer gates it. */}
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.hotInstance.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.hotInstance.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyHotInstance}
+            {/* Every alert in one card (as in the welcome setup), so the page
+                switches below still fit the 900x670 window. Who alerts you
+                covers the three friend alerts right under it; the divider sets
+                off the alerts it never limits. Each switch stays independent.
+                The hot instance alert moved here from the Dashboard card
+                (owner, 2026-10-18); the Dashboard switch no longer gates it. */}
+            <FriendAlertsCard
+              scoped={
+                <>
+                  <SwitchRow
+                    label={t('settings.notifications.online.label')}
+                    description={t('settings.notifications.online.description')}
+                    ariaLabel={t('settings.notifications.online.aria')}
+                    checked={notifyFriendOnline}
+                    onChange={(checked) => updateSettings({ notifyFriendOnline: checked })}
+                  />
+                  <SwitchRow
+                    label={t('settings.notifications.inGame.label')}
+                    description={t('settings.notifications.inGame.description')}
+                    ariaLabel={t('settings.notifications.inGame.aria')}
+                    checked={notifyFriendInGame}
+                    onChange={(checked) => updateSettings({ notifyFriendInGame: checked })}
+                  />
+                  <SwitchRow
+                    label={t('settings.notifications.offline.label')}
+                    description={t('settings.notifications.offline.description')}
+                    ariaLabel={t('settings.notifications.offline.aria')}
+                    checked={notifyFriendOffline}
+                    onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
+                  />
+                </>
+              }
+            >
+              <SwitchRow
+                label={t('settings.notifications.hotInstance.label')}
+                description={t('settings.notifications.hotInstance.description')}
                 ariaLabel={t('settings.notifications.hotInstance.aria')}
+                checked={notifyHotInstance}
                 onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
+              />
+              {/* Inbox alerts (owner, 2026-10-27): invites and invite requests
+                  share one switch; friend requests have their own. */}
+              <SwitchRow
+                label={t('settings.notifications.invites.label')}
+                description={t('settings.notifications.invites.description')}
+                ariaLabel={t('settings.notifications.invites.aria')}
+                checked={notifyInvites}
+                onChange={(checked) => updateSettings({ notifyInvites: checked })}
+              />
+              <SwitchRow
+                label={t('settings.notifications.friendRequests.label')}
+                description={t('settings.notifications.friendRequests.description')}
+                ariaLabel={t('settings.notifications.friendRequests.aria')}
+                checked={notifyFriendRequests}
+                onChange={(checked) => updateSettings({ notifyFriendRequests: checked })}
+              />
+            </FriendAlertsCard>
+
+            {/* The Activity and Inbox page switches (owner, 2026-10-27) live
+                here rather than with the other page switches so Behavior
+                still fits the 900x670 window. Hiding either keeps its alerts. */}
+            <div className="setting-card grid gap-[var(--space-2)]">
+              <SwitchRow
+                label={t('settings.pages.activity.label')}
+                description={t('settings.pages.activity.description')}
+                ariaLabel={t('settings.pages.activity.label')}
+                checked={showActivityPage}
+                onChange={(checked) => updateSettings({ showActivityPage: checked })}
+              />
+              <SwitchRow
+                label={t('settings.pages.inbox.label')}
+                description={t('settings.pages.inbox.description')}
+                ariaLabel={t('settings.pages.inbox.label')}
+                checked={showInboxPage}
+                onChange={(checked) => updateSettings({ showInboxPage: checked })}
               />
             </div>
           </section>

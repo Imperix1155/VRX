@@ -1,15 +1,20 @@
 import type { UpdaterSnapshot } from '@shared/ipc'
 import type { AuthStatus, Platform } from '@shared/types'
+import type { AvatarItem } from '@shared/avatarLibrary'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import {
+  activityEntries,
+  avatarLibraries,
+  backgroundPicture,
   friends,
   worlds,
   worldImages,
   getPlatformSnapshot,
   getWorldSnapshot,
+  inboxSample,
   linkedSnapshot
 } from './fixtures'
-import { friendsFailureFor } from './scenarios'
+import { friendsFailureFor, joinHandoffFor } from './scenarios'
 
 export type FixtureBridge = NonNullable<Window['vrx']>
 const noop = (): void => undefined
@@ -44,7 +49,27 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     failure: null
   }
   const links = structuredClone(linkedSnapshot)
+  // Two sample friends per platform start picked for alerts.
+  const alertPicks: Record<Platform, Set<string>> = {
+    vrchat: new Set(friends.vrchat.slice(0, 2).map((friend) => friend.platformUserId)),
+    chilloutvr: new Set(friends.chilloutvr.slice(0, 2).map((friend) => friend.platformUserId))
+  }
   const denied = { ok: false, reason: 'launch-failed' } as const
+  // Choosing always "picks" the synthetic sample; no dialog or file is involved.
+  let picture: string | null = null
+  // Hiding rows changes synthetic memory only and tells the scene to re-read.
+  let inbox = variant === 'empty' ? { items: [] } : inboxSample(Date.now())
+  const inboxListeners = new Set<() => void>()
+  const inboxChanged = (): void => {
+    for (const listener of inboxListeners) listener()
+  }
+  // Worn avatars change only in this synthetic memory.
+  const worn: Record<Platform, string | null> = {
+    vrchat: avatarLibraries.vrchat[0]?.avatarId ?? null,
+    chilloutvr: avatarLibraries.chilloutvr[0]?.avatarId ?? null
+  }
+  const findAvatar = (platform: Platform, avatarId: string): AvatarItem | undefined =>
+    avatarLibraries[platform].find((avatar) => avatar.avatarId === avatarId)
   return {
     setExploreActive: () => Promise.resolve(),
     getExplore: ({ platform }) => Promise.resolve(getPlatformSnapshot(platform)),
@@ -79,6 +104,39 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       const dataUrl = worldImages[url] ?? (url.startsWith('data:image/') ? url : undefined)
       return Promise.resolve(dataUrl ? { ok: true, dataUrl } : null)
     },
+    getAvatarLibrary: ({ platform }) =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        avatars: structuredClone(avatarLibraries[platform]),
+        complete: true,
+        current: structuredClone(
+          avatarLibraries[platform].find((avatar) => avatar.avatarId === worn[platform]) ?? null
+        )
+      }),
+    getCurrentAvatar: ({ platform }) =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        current: structuredClone(
+          avatarLibraries[platform].find((avatar) => avatar.avatarId === worn[platform]) ?? null
+        )
+      }),
+    getAvatarDetails: ({ platform, avatarId }) => {
+      const avatar = findAvatar(platform, avatarId)
+      return Promise.resolve(
+        avatar
+          ? { ok: true, avatar: structuredClone(avatar) }
+          : { ok: false, reason: 'unknown-avatar' }
+      )
+    },
+    switchAvatar: ({ platform, avatarId }) => {
+      if (!findAvatar(platform, avatarId)) {
+        return Promise.resolve({ ok: false, reason: 'unknown-avatar' })
+      }
+      worn[platform] = avatarId
+      return Promise.resolve({ ok: true })
+    },
     getAccounts: () =>
       Promise.resolve(
         (['vrchat', 'chilloutvr'] as const).map((platform) => ({
@@ -109,13 +167,43 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     logout: () => Promise.resolve(),
     joinInstance: () => Promise.resolve(denied),
     selfInvite: () => Promise.resolve(denied),
+    getJoinHandoff: ({ platform }) => Promise.resolve(joinHandoffFor(variant, platform)),
     getAppStatus: () =>
       Promise.resolve({
         ws: { vrchat: 'live', chilloutvr: 'live' },
         lastReconcileAt: { vrchat: null, chilloutvr: null }
       }),
+    getActivity: () => Promise.resolve(variant === 'empty' ? [] : activityEntries(Date.now())),
+    clearActivity: () => Promise.resolve(),
+    onActivityChanged: unsubscribe,
     openUrl: () => Promise.resolve(),
     openLogsFolder: () => Promise.resolve(),
+    getAppBackground: () => Promise.resolve(picture === null ? null : { dataUrl: picture }),
+    chooseAppBackground: () => {
+      picture = backgroundPicture
+      return Promise.resolve({ ok: true, dataUrl: picture })
+    },
+    clearAppBackground: () => {
+      picture = null
+      return Promise.resolve()
+    },
+    getInbox: () => Promise.resolve(structuredClone(inbox)),
+    dismissInboxItem: ({ platform, id }) => {
+      inbox = {
+        items: inbox.items.filter((item) => !(item.platform === platform && item.id === id))
+      }
+      inboxChanged()
+      return Promise.resolve()
+    },
+    clearInbox: ({ platforms }) => {
+      inbox = { items: inbox.items.filter((item) => !platforms.includes(item.platform)) }
+      inboxChanged()
+      return Promise.resolve()
+    },
+    onInboxChanged: (callback) => {
+      inboxListeners.add(callback)
+      return () => inboxListeners.delete(callback)
+    },
     getSettings: () => Promise.resolve(DEFAULT_SETTINGS),
     saveSettings: ({ patch }) => Promise.resolve({ ...DEFAULT_SETTINGS, ...patch }),
     getUpdaterState: () => Promise.resolve(updater),
@@ -141,6 +229,18 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         return Promise.reject(new Error('Synthetic note save failed'))
       }
       notes.set(key, note)
+      return Promise.resolve({ ok: true })
+    },
+    getAlertPicks: ({ platform }) =>
+      Promise.resolve({
+        friendIds: [...alertPicks[platform]],
+        revision: { platformAccountId: fixtureAuth(platform).accountId ?? '', epoch: 1 }
+      }),
+    setAlertPick: ({ platform, friendIds, picked }) => {
+      for (const friendId of friendIds) {
+        if (picked) alertPicks[platform].add(friendId)
+        else alertPicks[platform].delete(friendId)
+      }
       return Promise.resolve({ ok: true })
     },
     notifyRendererHydrated: noop,

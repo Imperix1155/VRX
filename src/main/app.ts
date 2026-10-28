@@ -1,8 +1,12 @@
 import { createRendererRecovery } from './services/rendererRecovery'
 import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
 import { ExploreService } from './services/exploreService'
+import { AvatarLibraryService } from './services/avatarLibraryService'
+import { CurrentAvatarService } from './services/currentAvatarService'
 import { JoinCoordinator } from './services/joinCoordinator'
+import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
+import type { AvatarLibraryAdapter } from './services/adapters/AvatarLibraryAdapter'
 import {
   app,
   shell,
@@ -36,7 +40,9 @@ import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdap
 import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdapter'
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
-import type { AdapterEvent, Platform } from '@shared/types'
+import type { BroadcastAdapterEvent } from '@shared/ipc'
+import type { Platform } from '@shared/types'
+import { ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
 import {
@@ -46,6 +52,7 @@ import {
 } from './services/avatarCache'
 import { IMAGE_DISK_DIRECTORY, ImageDiskStore } from './services/imageDiskStore'
 import { createAvatarRenditionMaker } from './services/avatarRendition'
+import { APP_BACKGROUND_DIRECTORY, AppBackgroundStore } from './services/appBackground'
 import { VRC_METADATA_DIRECTORY, VrcMetadataStore } from './services/vrcMetadataStore'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
@@ -53,23 +60,31 @@ import { createTray } from './tray'
 import { isQuitShortcut } from './quitShortcut'
 import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
+import { ActivityFeed } from './services/activityFeed'
+import { InboxService } from './services/inbox'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
 import { SocialStore } from './services/socialStore'
+import { FriendAlertPicks } from './services/friendAlertPicks'
 import { LinkGraphStore } from './services/linkGraphStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
-import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friendNotifications'
+import {
+  createFriendNotificationNotifier,
+  isFriendAlertEnabled,
+  isFriendAlertIncluded,
+  isInboxAlertEnabled
+} from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
 import { importCvrSession } from './services/cvrSessionImport'
 import { importVrcxSession } from './services/vrcxSessionImport'
 import { createSessionImporter } from './services/sessionImport'
-import { setMainLocale } from './i18n'
+import { mt, setMainLocale } from './i18n'
 import { showFatalErrorBox } from './fatalErrorBox'
 
 // Set true by the before-quit handler below — the single source of truth for
@@ -390,10 +405,14 @@ app
     // User-Agent (same policy as REST — VRX-129); logs route through the
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
+    const activityBoundary: { current?: ActivityFeed } = {}
+    const inboxBoundary: { current?: InboxService } = {}
     const exploreBoundary: { current?: ExploreService } = {}
+    const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
+    const alertPicks = new FriendAlertPicks(accountSession, socialStore)
     const linkGraph = new LinkGraphStore()
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
@@ -419,8 +438,12 @@ app
       },
       onSessionBoundary: ({ identityRetained }) => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
+        // The same account after a data-path 401 keeps its activity and inbox.
+        activityBoundary.current?.resetPlatform('vrchat', { keepEntries: identityRetained })
+        if (!identityRetained) inboxBoundary.current?.resetPlatform('vrchat')
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
+        avatarLibraryBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
         // boundary too would read as an account switch: it refetched the dead
@@ -491,8 +514,11 @@ app
         // renderer boundary would refetch the roster and drop note drafts.
         if (identityRetained) return
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
+        activityBoundary.current?.resetPlatform('chilloutvr')
+        inboxBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
+        avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -521,11 +547,50 @@ app
       // Monotonic time keeps limiter windows correct across wall-clock adjustments.
       clock: () => performance.now(),
       isEnabled: (type) => isFriendAlertEnabled(type, getSettingsSnapshot()),
+      isFriendIncluded: (platform, platformUserId) =>
+        isFriendAlertIncluded(getSettingsSnapshot(), () =>
+          alertPicks.isPicked(platform, platformUserId)
+        ),
       hotInstanceThreshold: () => getSettingsSnapshot().hotInstanceThreshold,
       resolveName: (platform, platformUserId) =>
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
     })
     friendAlertBoundary.current = friendAlerts
+
+    // The Activity page's list (activityFeed.ts): memory only, fed by the same
+    // events as the alerts, no requests. Changes reach the renderer coalesced.
+    let activityPushTimer: ReturnType<typeof setTimeout> | null = null
+    const activityFeed = new ActivityFeed({
+      now: () => Date.now(),
+      clock: () => performance.now(),
+      isEnabled: () => getSettingsSnapshot().showActivityPage,
+      resolveName: (platform, platformUserId) =>
+        platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null,
+      onChanged: () => {
+        if (activityPushTimer !== null) return
+        activityPushTimer = setTimeout(() => {
+          activityPushTimer = null
+          for (const window of BrowserWindow.getAllWindows()) {
+            if (!window.isDestroyed()) window.webContents.send('activity-changed')
+          }
+        }, ACTIVITY_PUSH_COALESCE_MS)
+        activityPushTimer.unref()
+      }
+    })
+    activityBoundary.current = activityFeed
+    // View-only inbox: socket-delivered invites and requests, memory only.
+    const inbox = new InboxService({
+      now: () => Date.now(),
+      clock: () => performance.now(),
+      onChanged: () => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) window.webContents.send('inbox-changed')
+        }
+      },
+      notify: (item) => showFriendAlert({ type: 'inbox', item }),
+      isAlertEnabled: (kind) => isInboxAlertEnabled(kind, getSettingsSnapshot())
+    })
+    inboxBoundary.current = inbox
 
     // VRX-202: the avatar fetcher needs the live VRChat auth cookie (the image
     // endpoint 401s unauthenticated). Each operation captures its own session lease.
@@ -548,6 +613,15 @@ app
     )
 
     const joinCoordinator = new JoinCoordinator()
+    const gameHandoff = new GameHandoff({
+      hostPlatform: process.platform,
+      isRunning: (() => {
+        const games = new RunningGames(processNameListerFor(process.platform))
+        return (platform: Platform) => games.isRunning(platform)
+      })(),
+      settings: () => getSettingsSnapshot(),
+      openExternal: (url) => shell.openExternal(url)
+    })
     const explore = new ExploreService({
       adapters: new Map<Platform, ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>>([
         ['vrchat', vrcAdapter],
@@ -562,6 +636,13 @@ app
       isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
       getImage: (url) => avatarCache.get(url),
       openExternal: (url) => shell.openExternal(url),
+      deliverJoin: (platform, url, location, stillCurrent) =>
+        gameHandoff.deliver(
+          platform,
+          url,
+          () => (platform === 'vrchat' ? vrcAdapter : cvrAdapter).selfInvite(location),
+          stillCurrent
+        ),
       onChanged: (platform) => {
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) window.webContents.send('explore-changed', { platform })
@@ -570,16 +651,62 @@ app
     })
     exploreBoundary.current = explore
     exploreWindowService = explore
+    // The Avatars page: own avatars, the worn one, and a user-clicked switch.
+    const avatarLibrary = new AvatarLibraryService({
+      adapters: new Map<Platform, AvatarLibraryAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    avatarLibraryBoundary.current = avatarLibrary
+    // The Dashboard's "Wearing now": only the worn avatar, one request a read.
+    const currentAvatar = new CurrentAvatarService({
+      adapters: new Map<Platform, AvatarLibraryAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      log: (message, meta) => log.warn(message, meta)
+    })
 
     registerIpcHandlers(adapters, {
       explore,
+      inbox,
+      avatarLibrary,
+      currentAvatar,
+      // Settings → Appearance background picture (appBackground.ts).
+      appBackground: {
+        store: new AppBackgroundStore({
+          directory: join(app.getPath('userData'), APP_BACKGROUND_DIRECTORY),
+          decode: (bytes) => nativeImage.createFromBuffer(bytes),
+          fromBitmap: (bitmap, size) => nativeImage.createFromBitmap(bitmap, size),
+          log: (message, meta) => log.warn(message, meta)
+        }),
+        pickFile: async (event) => {
+          const owner = BrowserWindow.fromWebContents(event.sender)
+          const options: Electron.OpenDialogOptions = {
+            title: mt('appBackground.dialogTitle'),
+            properties: ['openFile'],
+            filters: [
+              { name: mt('appBackground.dialogFilter'), extensions: ['png', 'jpg', 'jpeg'] }
+            ]
+          }
+          const picked = owner
+            ? await dialog.showOpenDialog(owner, options)
+            : await dialog.showOpenDialog(options)
+          return picked.canceled ? null : (picked.filePaths[0] ?? null)
+        }
+      },
       onSettingsApplied: (saved) => {
         applyWindowTheme(saved.theme)
         applyUpdaterSettings(saved)
+        // Turning the Activity page off also forgets what it kept.
+        if (!saved.showActivityPage) activityFeed.clearAll()
       },
       accountRegistry,
       accountSession,
       socialStore,
+      alertPicks,
       links: {
         linkGraph,
         onChanged: () => {
@@ -589,6 +716,7 @@ app
         }
       },
       appStatus,
+      activity: activityFeed,
       importSession: createSessionImporter({
         discoverVrchat: importVrcxSession,
         discoverChilloutvr: () =>
@@ -624,9 +752,15 @@ app
       },
       locationAuthority,
       onRendererHydrated,
-      onFriendRoster: (platform, friends) => friendAlerts.seedRoster(platform, friends),
+      onFriendRoster: (platform, friends) => {
+        // Settle requests first: it cannot throw, and an alert failure must not skip it.
+        inbox.settleRoster(platform, friends)
+        friendAlerts.seedRoster(platform, friends)
+        activityFeed.seedRoster(platform, friends)
+      },
       instance: {
         joinCoordinator,
+        gameHandoff,
         isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
         clock: () => performance.now(),
         log: (_level, message, meta) => log.warn(message, meta)
@@ -637,8 +771,11 @@ app
     // channel ('friend-event', @shared/ipc). The renderer applies them to the
     // TanStack cache — presence is PUSHED, never polled (CLAUDE.md). Both
     // platforms share one broadcaster; the renderer keys events by platform.
-    const broadcast = (event: AdapterEvent): void => {
-      if (event.type === 'auth-invalidated') explore.clearPlatform(event.platform)
+    const broadcast = (event: BroadcastAdapterEvent): void => {
+      if (event.type === 'auth-invalidated') {
+        explore.clearPlatform(event.platform)
+        avatarLibrary.clearPlatform(event.platform)
+      }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }
       for (const window of BrowserWindow.getAllWindows()) {
         // Guard a window torn down between enumeration and send.
@@ -650,6 +787,8 @@ app
       appStatus,
       locationAuthority,
       friendAlerts,
+      activityFeed,
+      inbox,
       broadcast
     })
     // A socket can look open after sleep while its connection is gone.

@@ -7,11 +7,13 @@ const LABEL_KEYS = { on: 'settings.boolean.on', off: 'settings.boolean.off' }
 export default function Toggle({
   checked,
   onChange,
-  ariaLabel
+  ariaLabel,
+  disabled = false
 }: {
   checked: boolean
   onChange: (checked: boolean) => void
   ariaLabel: string
+  disabled?: boolean
 }): React.JSX.Element {
   return (
     <SegmentedControl
@@ -20,6 +22,7 @@ export default function Toggle({
       labelKeys={LABEL_KEYS}
       ariaLabel={ariaLabel}
       onChange={(value) => onChange(value === 'on')}
+      disabled={disabled}
     />
   )
 }

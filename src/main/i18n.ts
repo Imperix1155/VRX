@@ -24,6 +24,14 @@ const en = {
   'notify.hot.body_other': '{{count}} friends are together in {{world}} — join them?',
   'notify.hot.bodyNoWorld_one': '1 friend is in the same instance — join them?',
   'notify.hot.bodyNoWorld_other': '{{count}} friends are in the same instance — join them?',
+  'notify.inbox.someone': 'Someone',
+  'notify.invite.title': 'Invite',
+  'notify.invite.body': '{{name}} invited you to {{world}}',
+  'notify.invite.bodyNoWorld': '{{name}} invited you',
+  'notify.inviteRequest.title': 'Invite Request',
+  'notify.inviteRequest.body': '{{name}} asked you for an invite',
+  'notify.friendRequest.title': 'Friend Request',
+  'notify.friendRequest.body': '{{name}} sent you a friend request',
   'recovery.crash.title': 'VRX — Renderer Crashed',
   'recovery.crash.message': 'The window has stopped responding due to an unexpected error.',
   'recovery.crash.detail': 'Reason: {{reason}} (exit code {{exitCode}})',
@@ -36,7 +44,9 @@ const en = {
   'fatal.startup.title': 'VRX failed to start',
   'fatal.startup.message': 'Something went wrong while VRX was starting. Try opening it again.',
   'fatal.runtime.title': 'VRX has to close',
-  'fatal.runtime.message': 'Something went wrong and VRX has to close. Open it again to continue.'
+  'fatal.runtime.message': 'Something went wrong and VRX has to close. Open it again to continue.',
+  'appBackground.dialogTitle': 'Choose a background picture',
+  'appBackground.dialogFilter': 'Pictures (PNG, JPEG)'
 } as const
 
 export type MainStringKey = keyof typeof en
@@ -58,6 +68,14 @@ const ja: Record<MainStringKey, string> = {
   'notify.hot.bodyNoWorld_one': '同じインスタンスにフレンドが1人います — 参加しますか？',
   'notify.hot.bodyNoWorld_other':
     '同じインスタンスにフレンドが{{count}}人集まっています — 参加しますか？',
+  'notify.inbox.someone': '誰か',
+  'notify.invite.title': '招待',
+  'notify.invite.body': '{{name}}から{{world}}への招待が届きました',
+  'notify.invite.bodyNoWorld': '{{name}}から招待が届きました',
+  'notify.inviteRequest.title': '招待リクエスト',
+  'notify.inviteRequest.body': '{{name}}が招待を求めています',
+  'notify.friendRequest.title': 'フレンドリクエスト',
+  'notify.friendRequest.body': '{{name}}からフレンドリクエストが届きました',
   'recovery.crash.title': 'VRX — 画面がクラッシュしました',
   'recovery.crash.message': '予期しないエラーにより、ウィンドウが応答しなくなりました。',
   'recovery.crash.detail': '理由: {{reason}}（終了コード {{exitCode}}）',
@@ -70,7 +88,9 @@ const ja: Record<MainStringKey, string> = {
   'fatal.startup.title': 'VRX を起動できませんでした',
   'fatal.startup.message': 'VRX の起動中に問題が発生しました。もう一度開いてみてください。',
   'fatal.runtime.title': 'VRX を終了します',
-  'fatal.runtime.message': '問題が発生したため、VRX を終了します。もう一度開いて続けてください。'
+  'fatal.runtime.message': '問題が発生したため、VRX を終了します。もう一度開いて続けてください。',
+  'appBackground.dialogTitle': '背景画像を選択',
+  'appBackground.dialogFilter': '画像（PNG、JPEG）'
 }
 
 const TABLES: Record<MainLocale, Record<MainStringKey, string>> = { en, ja }

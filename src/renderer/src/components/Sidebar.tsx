@@ -5,7 +5,18 @@ import { isPageShown } from '../utils/pages'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import { useUpdater } from '../hooks/useUpdater'
 import { IconDownload, IconSpinner, IconRestart } from './UpdaterIcons'
-import { IconDashboard, IconExplore, IconFriends, IconHot, IconSettings } from './NavIcons'
+import { useInbox } from '../queries/inbox'
+import { countNewInboxItems, scopeInboxItems } from '../utils/inbox'
+import {
+  IconActivity,
+  IconAvatars,
+  IconDashboard,
+  IconExplore,
+  IconFriends,
+  IconHot,
+  IconInbox,
+  IconSettings
+} from './NavIcons'
 
 function SidebarUpdateButton(): React.JSX.Element | null {
   const { t } = useTranslation()
@@ -105,11 +116,23 @@ function indicatorBackground(filter: PlatformFilter): string {
   }
 }
 
+/** Inbox arrivals the user hasn't had on screen, within the platform filter.
+ *  A neutral count: the number itself is the cue, never a color. */
+function useNewInboxCount(): number {
+  const { data } = useInbox()
+  const platformFilter = useFriendsStore((s) => s.platformFilter)
+  const seenAt = useUiStore((s) => s.inboxSeenAt)
+  return countNewInboxItems(scopeInboxItems(data?.items ?? [], platformFilter), seenAt)
+}
+
 const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'dashboard', icon: IconDashboard },
   { id: 'hot', icon: IconHot },
   { id: 'friends', icon: IconFriends },
+  { id: 'activity', icon: IconActivity },
+  { id: 'inbox', icon: IconInbox },
   { id: 'explore', icon: IconExplore },
+  { id: 'avatars', icon: IconAvatars },
   { id: 'settings', icon: IconSettings }
 ]
 
@@ -120,9 +143,13 @@ export default function Sidebar(): React.JSX.Element {
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
+  const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
   const navItems = NAV_ITEMS.filter(({ id }) =>
-    isPageShown(id, { showHotInstancesPage, showExplorePage })
+    isPageShown(id, { showHotInstancesPage, showExplorePage, showActivityPage, showInboxPage })
   )
+  // While the Inbox is open its rows are on screen, so nothing there is new.
+  const newInboxCount = useNewInboxCount()
 
   return (
     <aside className="glass flex flex-col" style={{ padding: '20px 16px' }}>
@@ -186,6 +213,17 @@ export default function Sidebar(): React.JSX.Element {
               )}
               <Icon />
               {t(`shell.nav.${id}`)}
+              {id === 'inbox' && !isActive && newInboxCount > 0 ? (
+                <span
+                  data-inbox-new=""
+                  className="ml-auto min-w-[20px] rounded-full border border-[var(--border)] bg-[var(--control-fill)] px-[6px] text-center text-[11px] font-semibold leading-[18px] text-[var(--text)]"
+                >
+                  <span aria-hidden="true">{newInboxCount > 99 ? '99+' : newInboxCount}</span>
+                  <span className="sr-only">
+                    {t('shell.inboxNewAria', { count: newInboxCount })}
+                  </span>
+                </span>
+              ) : null}
             </button>
           )
         })}

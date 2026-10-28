@@ -15,13 +15,19 @@ through `@shared`.
   choice, and adapter event vocabulary.
 - `settings.ts`: schema, defaults, `SETTINGS_VERSION`, migrations,
   `parseSettings`, and `shouldPersistSettings`.
+- `inbox.ts`: view-only inbox vocabulary (kinds, entries, changes, rows), its
+  size bounds, and the ID and text guards the parsers share.
 - `explore.ts`: display-only discovery values, opaque main-issued `worldRef`
   and `selectionRef`, typed refresh reasons, and the 2/4/6 world totals.
   `exploreRanking.ts`: pure per-platform ranking and balanced cross-platform
   selection.
 - `linkedProfiles.ts`: versioned linked-person values, changes, and snapshots.
+- `activity.ts`: Activity entry values and the page's Show filter. Entries
+  carry no location, only a world name that is null for hidden worlds.
 - `joinability.ts` and `hotInstanceKey.ts`: the shared privacy, joinability,
   hot-membership, and hot-grouping predicates.
+- `backgroundPicture.ts`: which background pictures main refuses and which
+  Settings warns about (size and shape against the landscape window).
 - `constants.ts`: the single source for limits, TTLs, and API endpoints.
 - Look up symbols in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md).
 
@@ -46,8 +52,17 @@ through `@shared`.
   (default `stable`); anything else stays `stable`. `SETTINGS_VERSION` 15
   keeps that choice across a downgrade. `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
   off. The Dashboard section switches hide sections only and change no other
-  preference. The page switches (`showHotInstancesPage`, `showExplorePage`)
-  hide sidebar pages only. Missing or invalid `setupPending` is `false`, so
+  preference. The page switches (`showHotInstancesPage`, `showExplorePage`,
+  `showActivityPage`, `showInboxPage`) hide sidebar pages only;
+  `showActivityPage` also stops main keeping activity. `SETTINGS_VERSION` 20
+  adds `showInboxPage` (on) and the `notifyInvites` and `notifyFriendRequests`
+  alerts (off). `SETTINGS_VERSION` 21 adds the Dashboard glance switches
+  `dashboardWearingNow` and `dashboardInvites` (on); they hide sections only.
+  `dashboardHideEmpty` (on, same version) hides empty Dashboard sections.
+  `dashboardSections` (same version) owns the Dashboard section order;
+  `parseSettings` derives it from `dashboardSectionOrder` when missing and
+  then rewrites `dashboardSectionOrder` from it, so every order change must
+  write both fields. Missing or invalid `setupPending` is `false`, so
   only `freshInstallSettings` (a brand-new install) starts the welcome setup.
 - The renderer sends friend IDs and opaque Explore references, never a launch
   URL or an authoritative location. Typed denials stay structured; never pass

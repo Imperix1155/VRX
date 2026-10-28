@@ -9,11 +9,14 @@ import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 import FriendsList from './FriendsList'
 import DashboardView from './DashboardView'
 import HotInstancesView from './HotInstancesView'
+import ActivityView from './ActivityView'
+import InboxView from './InboxView'
 import SettingsView from './SettingsView'
 import ErrorBoundary from './ErrorBoundary'
 import RecoveryNotices from './RecoveryNotices'
 import JoinConfirmDialog from './JoinConfirmDialog'
 import ExploreRoute from './ExploreRoute'
+import AvatarsView from './AvatarsView'
 import { useExploreCoordinator } from '../hooks/useExploreCoordinator'
 
 /** A page the user turned off falls back to the Dashboard before paint, so a
@@ -23,9 +26,16 @@ function useHiddenPageFallback(): void {
   const activeTab = useUiStore((s) => s.activeTab)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
+  const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
   const hotOpenedFromAlert = useUiStore((s) => s.hotOpenedFromAlert)
   const shown =
-    isPageShown(activeTab, { showHotInstancesPage, showExplorePage }) ||
+    isPageShown(activeTab, {
+      showHotInstancesPage,
+      showExplorePage,
+      showActivityPage,
+      showInboxPage
+    }) ||
     (activeTab === 'hot' && hotOpenedFromAlert)
   useLayoutEffect(() => {
     if (!shown) useUiStore.getState().setActiveTab('dashboard')
@@ -54,10 +64,28 @@ function MainContent(): React.JSX.Element {
           <HotInstancesView />
         </ErrorBoundary>
       )
+    case 'activity':
+      return (
+        <ErrorBoundary key={activeTab} variant="panel">
+          <ActivityView />
+        </ErrorBoundary>
+      )
+    case 'inbox':
+      return (
+        <ErrorBoundary key={activeTab} variant="panel">
+          <InboxView />
+        </ErrorBoundary>
+      )
     case 'explore':
       return (
         <ErrorBoundary key={activeTab} variant="panel">
           <ExploreRoute />
+        </ErrorBoundary>
+      )
+    case 'avatars':
+      return (
+        <ErrorBoundary key={activeTab} variant="panel">
+          <AvatarsView />
         </ErrorBoundary>
       )
     case 'settings':

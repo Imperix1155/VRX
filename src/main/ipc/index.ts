@@ -5,15 +5,24 @@ import type { Settings } from '@shared/settings'
 import type { Friend, Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { registerAccountsHandlers } from './accounts'
+import { registerActivityHandlers } from './activity'
 import { registerAppStatusHandlers } from './app-status'
 import { registerAuthHandlers } from './auth'
 import { registerAvatarHandlers } from './avatar'
+import { registerAppBackgroundHandlers, type AppBackgroundHandlerOptions } from './app-background'
 import { registerFriendsHandlers } from './friends'
+import { registerInboxHandlers } from './inbox'
+import type { InboxService } from '../services/inbox'
 import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers } from './explore'
+import { registerAvatarLibraryHandlers, registerCurrentAvatarHandler } from './avatar-library'
+import type { AvatarLibraryService } from '../services/avatarLibraryService'
+import type { CurrentAvatarService } from '../services/currentAvatarService'
 import type { ExploreService } from '../services/exploreService'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
+import { registerAlertPicksHandlers } from './alert-picks'
+import type { FriendAlertPicks } from '../services/friendAlertPicks'
 import { registerLinksHandlers, type LinksHandlerOptions } from './links'
 import { registerSettingsHandlers } from './settings'
 import { registerUpdaterHandlers } from './updater'
@@ -25,6 +34,7 @@ import type { AccountRegistry } from '../services/accountRegistry'
 import type { AccountSession } from '../services/accountSession'
 import type { SocialStore } from '../services/socialStore'
 import type { AppStatusService } from '../services/appStatus'
+import type { ActivityFeed } from '../services/activityFeed'
 import {
   IPC_RATE_LIMIT_BUDGETS,
   ipcRateLimitDenial,
@@ -42,10 +52,16 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   accountSession: AccountSession
   locationAuthority: LocationAuthority
   socialStore: SocialStore
+  alertPicks: FriendAlertPicks
   links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
-  instance: InstanceHandlerOptions
+  activity: ActivityFeed
+  instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
+  avatarLibrary: AvatarLibraryService
+  currentAvatar: CurrentAvatarService
+  appBackground: AppBackgroundHandlerOptions
+  inbox: InboxService
   onRendererHydrated: (event: IpcMainEvent) => void
   /** Each roster read, after the location authority is seeded. */
   onFriendRoster?: (platform: Platform, friends: Friend[]) => void
@@ -110,16 +126,25 @@ export function registerIpcHandlers(
       accountSession: options.accountSession,
       socialStore: options.socialStore
     })
+    registerAlertPicksHandlers(options.alertPicks)
     registerLinksHandlers({
       ...options.links,
       accountSession: options.accountSession,
       locationAuthority: options.locationAuthority
     })
-    registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
+    registerInstanceHandlers(adapters, options.locationAuthority, {
+      ...options.instance,
+      accountSession: options.accountSession
+    })
     registerExploreHandlers(options.explore)
+    registerAvatarLibraryHandlers(options.avatarLibrary)
+    registerCurrentAvatarHandler(options.currentAvatar)
     registerAppStatusHandlers(options.appStatus)
+    registerActivityHandlers(options.activity)
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)
+    registerAppBackgroundHandlers(options.appBackground)
+    registerInboxHandlers(options.inbox)
     registerUpdaterHandlers()
   } finally {
     if (originalHandleDescriptor === undefined) Reflect.deleteProperty(ipcMain, 'handle')

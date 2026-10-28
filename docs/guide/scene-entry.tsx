@@ -5,7 +5,13 @@ import { createRoot } from 'react-dom/client'
 import { useState } from 'react'
 import { applyTheme } from '@renderer/hooks/useApplyTheme'
 import { installFixtureBridge } from './fixture-bridge'
-import { desktopScenes, drawerScenarios, exploreScenarios, sourceScenarios } from './scenarios'
+import {
+  desktopScenes,
+  drawerScenarios,
+  exploreScenarios,
+  joinScenarios,
+  sourceScenarios
+} from './scenarios'
 
 const params = new URLSearchParams(location.search)
 const scene = params.get('scene') ?? 'dashboard'
@@ -16,8 +22,10 @@ if (root === null) throw new Error('Missing scene root')
 
 const SCENE_VARIANTS: Record<string, string[]> = {
   updater: ['available', 'downloading', 'downloaded', 'idle'],
-  settings: ['ready', 'save-error'],
+  settings: ['ready', 'save-error', 'picked-alerts'],
+  inbox: ['ready', 'empty'],
   drawer: drawerScenarios.map(({ value }) => value),
+  join: joinScenarios.map(({ value }) => value),
   login: ['ready', 'totp', 'email'],
   explore: exploreScenarios.map(({ value }) => value),
   feedback: sourceScenarios.map(({ value }) => value)
@@ -28,12 +36,14 @@ function SceneFrame(): React.JSX.Element {
   const [glow, setGlow] = useState(params.get('glow') ?? 'standard')
   const [variant, setVariant] = useState(params.get('variant') ?? 'ready')
   const [grayscale, setGrayscale] = useState(false)
+  const [picture, setPicture] = useState(params.get('picture') === '1')
   const [reset, setReset] = useState(0)
   const query = new URLSearchParams({
     scene,
     theme,
     glow,
     variant,
+    picture: picture ? '1' : '0',
     render: '1',
     reset: String(reset)
   })
@@ -55,6 +65,7 @@ function SceneFrame(): React.JSX.Element {
         <label>
           Glow{' '}
           <select value={glow} onChange={(event) => setGlow(event.target.value)}>
+            <option value="off">Off</option>
             <option value="muted">Muted</option>
             <option value="standard">Standard</option>
             <option value="vivid">Vivid</option>
@@ -77,6 +88,14 @@ function SceneFrame(): React.JSX.Element {
             onChange={(event) => setGrayscale(event.target.checked)}
           />{' '}
           Grayscale
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={picture}
+            onChange={(event) => setPicture(event.target.checked)}
+          />{' '}
+          Background picture
         </label>
         <button type="button" onClick={() => setReset((value) => value + 1)}>
           Reset sample

@@ -30,7 +30,7 @@ export interface RenditionImage {
 const DECODABLE = new Set(['image/png', 'image/jpeg'])
 
 /** True when every pixel of a 32-bit bitmap is fully opaque (alpha is the 4th byte). */
-function isOpaque(bitmap: Buffer): boolean {
+export function isOpaque(bitmap: Buffer): boolean {
   for (let index = 3; index < bitmap.length; index += 4) {
     if (bitmap[index] !== 255) return false
   }

@@ -55,8 +55,14 @@ interface FriendAlertsOptions {
   notify: (alert: FriendAlert) => void
   clock: () => number
   isEnabled: (type: FriendAlertType) => boolean
+  /** Whether this friend's own alerts may fire (the picked-friends scope). Hot
+   *  instances are about groups and never ask. Omitted: every friend. */
+  isFriendIncluded?: (platform: Platform, platformUserId: string) => boolean
   hotInstanceThreshold?: () => number
   resolveName: (platform: Platform, platformUserId: string) => string | null
+  /** Native toasts are rate limited; the in-app activity list records every
+   *  transition instead (default true). */
+  rateLimited?: boolean
 }
 
 const RATE_LIMIT_COUNT = 3
@@ -365,6 +371,7 @@ export class FriendAlerts {
     // Read at the exact decision point so a just-saved setting applies to the
     // very next event; the engine never caches toggle values.
     if (!this.options.isEnabled(type)) return
+    if (this.options.isFriendIncluded?.(platform, platformUserId) === false) return
 
     const displayName =
       this.platformNames(platform).get(platformUserId) ??
@@ -399,7 +406,7 @@ export class FriendAlerts {
   }
 
   private withinRateLimit(type: FriendAlertType): boolean {
-    if (!RATE_LIMITED_TYPES.has(type)) return true
+    if (this.options.rateLimited === false || !RATE_LIMITED_TYPES.has(type)) return true
 
     const limitedType = type
     const now = this.options.clock()

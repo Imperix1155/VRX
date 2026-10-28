@@ -11,7 +11,8 @@ or launch authority.
 - `index.html` holds the shipped CSP. `src/App.tsx` owns the settings
   hydration gate, the welcome-setup gate (`components/setup`, before the shell
   and login), the auth gate, and the app-wide subscriptions it mounts once
-  (`useLiveFriendEvents`, `useLinkedProfileEvents`, dashboard navigation).
+  (`useLiveFriendEvents`, `useLinkedProfileEvents`, `useActivityEvents`,
+  dashboard navigation).
 - `src/components`, `hooks`, `queries` (TanStack Query), `stores` (Zustand),
   `utils` (pure helpers), `i18n` with `locales/en` and `locales/ja`, and
   `assets` (`main.css` tokens, local fonts).
@@ -45,8 +46,8 @@ or launch authority.
   because a VRChat check is a real API request. The only interval re-checks an
   `error` status once a minute (`AUTH_ERROR_RECHECK_MS`).
 - While `setupPending` is true the welcome setup replaces the shell and login.
-  Only Hot Instances and Explore can be hidden (`isPageShown`); a hidden
-  active page falls back to the Dashboard.
+  Only Hot Instances, Activity, Inbox and Explore can be hidden (`isPageShown`); a hidden
+  active page falls back to the Dashboard. The Avatars page always shows.
 
 **State**
 
@@ -83,8 +84,9 @@ or launch authority.
 
 **Account-bound data**
 
-- Friend, linked-profile, Explore, and note queries cancel old work and clear
-  data and fences at identity or auth boundaries. An old reply never publishes
+- Friend, linked-profile, Explore, note, alert-pick and avatar queries cancel
+  old work and clear data and fences at identity or auth boundaries. Avatar
+  libraries otherwise stay in memory for the session, keyed by account. An old reply never publishes
   under the replacement account.
 - `projectLinkedFriends` projects only qualified people; raw friend caches stay
   account-scoped. Linked snapshots keep the newest `storeRevision` within a

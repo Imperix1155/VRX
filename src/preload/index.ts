@@ -43,6 +43,14 @@ const vrx = {
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
   getAvatar: (url: string, rendition?: 'avatar') =>
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
+  getAvatarLibrary: (req: IpcInvoke['get-avatar-library']['req']) =>
+    invoke('get-avatar-library', req),
+  getCurrentAvatar: (req: IpcInvoke['get-current-avatar']['req']) =>
+    invoke('get-current-avatar', req),
+  getAvatarDetails: (req: IpcInvoke['get-avatar-details']['req']) =>
+    invoke('get-avatar-details', req),
+  // Avatar IDs only: main switches only to an avatar it listed for this session.
+  switchAvatar: (req: IpcInvoke['switch-avatar']['req']) => invoke('switch-avatar', req),
   getAccounts: () => invoke('get-accounts', undefined),
   getLinkedProfiles: () => invoke('get-linked-profiles', undefined),
   changeLinkedProfile: (req: IpcInvoke['change-linked-profile']['req']) =>
@@ -60,9 +68,29 @@ const vrx = {
   // Friend IDs only: the main-process LocationAuthority owns every instance identifier.
   joinInstance: (req: IpcInvoke['join-instance']['req']) => invoke('join-instance', req),
   selfInvite: (req: IpcInvoke['self-invite']['req']) => invoke('self-invite', req),
+  getJoinHandoff: (req: IpcInvoke['get-join-handoff']['req']) => invoke('get-join-handoff', req),
   getAppStatus: () => invoke('get-app-status', undefined),
+  getActivity: () => invoke('get-activity', undefined),
+  clearActivity: () => invoke('clear-activity', undefined),
+  onActivityChanged: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('activity-changed', listener)
+    return () => ipcRenderer.removeListener('activity-changed', listener)
+  },
   openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
   openLogsFolder: () => invoke('open-logs-folder', undefined),
+  getAppBackground: () => invoke('get-app-background', undefined),
+  chooseAppBackground: () => invoke('choose-app-background', undefined),
+  clearAppBackground: () => invoke('clear-app-background', undefined),
+  getInbox: () => invoke('get-inbox', undefined),
+  dismissInboxItem: (req: IpcInvoke['dismiss-inbox-item']['req']) =>
+    invoke('dismiss-inbox-item', req),
+  clearInbox: (req: IpcInvoke['clear-inbox']['req']) => invoke('clear-inbox', req),
+  onInboxChanged: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('inbox-changed', listener)
+    return () => ipcRenderer.removeListener('inbox-changed', listener)
+  },
   getSettings: () => invoke('get-settings', undefined),
   saveSettings: (req: IpcInvoke['save-settings']['req']) => invoke('save-settings', req),
   getUpdaterState: () => invoke('updater:get-state', undefined),
@@ -71,6 +99,8 @@ const vrx = {
   installUpdate: () => invoke('updater:install', undefined),
   getFriendNote: (req: IpcInvoke['get-friend-note']['req']) => invoke('get-friend-note', req),
   setFriendNote: (req: IpcInvoke['set-friend-note']['req']) => invoke('set-friend-note', req),
+  getAlertPicks: (req: IpcInvoke['get-alert-picks']['req']) => invoke('get-alert-picks', req),
+  setAlertPick: (req: IpcInvoke['set-alert-pick']['req']) => invoke('set-alert-pick', req),
   notifyRendererHydrated: () => notify('renderer-hydrated', undefined),
   /**
    * Live adapter events pushed from main ('friend-event', VRX-146). Returns an

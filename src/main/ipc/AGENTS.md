@@ -41,14 +41,28 @@ Persistence, network, cache, and account-transition policy stay in services.
 - Push channels are main-to-renderer only. Never make one callable.
 - `join-instance` order: allow-join setting, `LocationAuthority` lookup,
   `isFriendJoinable`, `expectedTarget` comparison by `hotInstanceKey` (never
-  launch input), adapter URL build, `isAllowedLaunchUrl`, then launch under
-  `JoinCoordinator`.
-  `self-invite` is VRChat-only with its own in-flight lock and 3 s cooldown.
+  launch input), adapter URL build, `isAllowedLaunchUrl`, then
+  `GameHandoff.deliver` under `JoinCoordinator`: launch, or reach the game that
+  is already open (the same URL, or one self-invite to main's location).
+  The Join captures the signed-in account first and `deliver` rechecks it
+  after each wait; a changed account gets `stale` and nothing launches.
+  `get-join-handoff` takes only a validated platform and returns a preview.
+  `self-invite` is VRChat-only with its own in-flight lock and 3 s cooldown,
+  and refuses a public instance.
+- `get-inbox`, `dismiss-inbox-item` and `clear-inbox` are local to VRX: they
+  read or hide rows in `InboxService` and never reach a platform. Item IDs are
+  pattern- and length-checked; `clear-inbox` takes one or two allowlisted
+  platforms.
 - `open-url` opens only `isAllowedUrl` HTTPS links. Game schemes are reachable
   only from main-built join paths. `open-logs-folder` takes no input.
+- `get-activity` and `clear-activity` take no input and only read or clear
+  `ActivityFeed`; neither makes a platform request.
 - `get-avatar` accepts a length-capped URL string, delegates to `AvatarCache`,
   and returns a `data:` result or `null`. It never exposes fetch, cookies, or
   redirects.
+- The `*-app-background` channels take no input. `choose-app-background`
+  opens main's own dialog and imports only the path it returns; a press while
+  it is open joins that dialog. Results carry typed reasons, never paths.
 - Auth handlers route `login` and `verify-2fa` by the validated platform; a
   direct ChilloutVR login is a normal path. They never log or return
   credentials. 2FA completes the adapter's pending session from the code
@@ -71,6 +85,12 @@ Persistence, network, cache, and account-transition policy stay in services.
   saved. `get-settings` marks a pending save as `unsaved`.
 - Explore accepts only bounded main-issued references and delegates discovery,
   admission, caching, and launch to `ExploreService`.
+- Avatar library handlers accept only a platform and a bounded avatar ID and
+  delegate to `AvatarLibraryService`. `get-current-avatar` takes only a
+  platform and delegates to `CurrentAvatarService`, whose answer is never a
+  switch target. `switch-avatar` wears only an ID the
+  current account's library listed, one at a time, with a cooldown; a denial
+  keeps the `{ ok: false, reason: 'rate-limited' }` shape.
 
 ## Work Guidance
 

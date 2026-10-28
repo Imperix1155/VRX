@@ -1,3 +1,4 @@
+import type { InboxItem, InboxSnapshot } from '@shared/inbox'
 import type {
   CvrFriend,
   CvrInstanceType,
@@ -14,6 +15,8 @@ import type {
   ExploreWorldSnapshot
 } from '@shared/explore'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
+import type { ActivityEntry } from '@shared/activity'
+import type { AvatarItem } from '@shared/avatarLibrary'
 
 export type PlatformMode =
   'ready' | 'loading' | 'refreshing' | 'error' | 'stale' | 'empty' | 'unavailable'
@@ -23,6 +26,9 @@ function illustration(first: string, second: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560"><defs><linearGradient id="sky" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${first}"/><stop offset="1" stop-color="${second}"/></linearGradient><filter id="blur"><feGaussianBlur stdDeviation="28"/></filter></defs><rect width="1280" height="560" fill="url(#sky)"/><circle cx="1080" cy="106" r="172" fill="#fff" fill-opacity=".16" filter="url(#blur)"/><path d="M0 405 C190 300 280 475 470 365 S735 305 880 405 S1100 300 1280 390 V560 H0Z" fill="#060917" fill-opacity=".44"/><path d="M0 445 C245 355 370 515 585 405 S940 344 1280 445 V560 H0Z" fill="#02030a" fill-opacity=".4"/><g fill="#fff" fill-opacity=".52"><circle cx="100" cy="274" r="5"/><circle cx="188" cy="231" r="3"/><circle cx="272" cy="284" r="4"/><circle cx="764" cy="181" r="4"/><circle cx="870" cy="242" r="3"/><circle cx="1130" cy="302" r="5"/></g></svg>`
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
+
+/** Synthetic stand-in for a user's own background picture (Settings → Appearance). */
+export const backgroundPicture = illustration('#5b3fa6', '#0e7c86')
 
 function vrcInstance(
   type: VrcInstanceType,
@@ -203,6 +209,100 @@ export const friends: Record<Platform, Friend[]> = {
     cvrFriend('cvr-guide-echo', 'Echo', 'in-game', auroraCvr),
     cvrFriend('cvr-guide-oak', 'Oak', 'in-game', hallCvr)
   ]
+}
+
+/** Sample Activity list, newest first. Ask Me / DND friends never name a world,
+ *  and the oldest rows fall on the previous day to show the date form. Times
+ *  are relative to the moment the scene loads. */
+export function activityEntries(now: number): ActivityEntry[] {
+  const minute = 60_000
+  const rows: Array<Omit<ActivityEntry, 'id' | 'at'> & { ago: number }> = [
+    {
+      kind: 'world',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-iris',
+      displayName: 'Iris Circuitbreaker',
+      worldName: 'Aurora Transit Lounge',
+      ago: 1
+    },
+    {
+      kind: 'online',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-pixel',
+      displayName: 'Pixel Orchard',
+      worldName: 'Midnight Museum of Small Wonders (#816332)',
+      ago: 3
+    },
+    {
+      kind: 'offline',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-sol',
+      displayName: 'Sol in a Very Long Display Name That Truncates Gracefully',
+      worldName: null,
+      ago: 6
+    },
+    {
+      kind: 'world',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-marlow',
+      displayName: 'Marlow, Archive Keeper',
+      worldName: 'Aurora Transit Lounge',
+      ago: 9
+    },
+    {
+      kind: 'online',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-vale',
+      displayName: 'Vale After the Last Train',
+      worldName: null,
+      ago: 14
+    },
+    {
+      kind: 'offline',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-delta',
+      displayName: 'Delta Frame',
+      worldName: null,
+      ago: 22
+    },
+    {
+      kind: 'online',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-kai',
+      displayName: 'Kai',
+      worldName: null,
+      ago: 31
+    },
+    {
+      kind: 'world',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-fern',
+      displayName: 'Fern',
+      worldName: null,
+      ago: 40
+    },
+    {
+      kind: 'online',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-nyx',
+      displayName: 'Nyx “Long Name” Hyperion-Santos',
+      worldName: 'Aurora Transit Lounge',
+      ago: 26 * 60
+    },
+    {
+      kind: 'online',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-gone',
+      displayName: 'Former Friend',
+      worldName: null,
+      ago: 27 * 60
+    }
+  ]
+  return rows.map(({ ago, ...row }, index) => ({
+    ...row,
+    id: rows.length - index,
+    at: now - ago * minute
+  }))
 }
 
 export const worlds: Record<Platform, ExploreWorld[]> = {
@@ -495,3 +595,114 @@ export const instanceExamples: ReadonlyArray<{ platform: Platform; instance: Ins
     instance: cvrInstance(type, `cvr-guide-${type}`, `ChilloutVR ${type}`)
   }))
 ]
+
+/**
+ * Synthetic inbox rows: one of each kind across both platforms, from sample
+ * friends so their pictures show, plus a non-friend request. Times are offsets
+ * from the moment the scene opens.
+ */
+export function inboxSample(now: number): InboxSnapshot {
+  const vrc = friends.vrchat[0]
+  const cvr = friends.chilloutvr[0]
+  const items: InboxItem[] = []
+  if (vrc)
+    items.push({
+      id: 'invite:not_fixture_1',
+      platform: 'vrchat',
+      kind: 'invite',
+      senderId: vrc.platformUserId,
+      senderName: vrc.displayName,
+      worldName: 'Moonlit Observatory',
+      receivedAt: now - 4 * 60_000
+    })
+  if (cvr)
+    items.push({
+      id: 'invite-request:fixture-req-1',
+      platform: 'chilloutvr',
+      kind: 'invite-request',
+      senderId: cvr.platformUserId,
+      senderName: cvr.displayName,
+      worldName: null,
+      receivedAt: now - 25 * 60_000
+    })
+  items.push(
+    {
+      id: 'friend-request:fixture-guest-1',
+      platform: 'chilloutvr',
+      kind: 'friend-request',
+      senderId: 'fixture-guest-1',
+      senderName: 'Pixel Wanderer',
+      worldName: null,
+      receivedAt: now - 20_000
+    },
+    {
+      id: 'friend-request:not_fixture_2',
+      platform: 'vrchat',
+      kind: 'friend-request',
+      senderId: 'usr_fixture_guest_2',
+      senderName: 'Starlight Courier',
+      worldName: null,
+      receivedAt: now - 2 * 60 * 60_000
+    }
+  )
+  items.sort((a, b) => b.receivedAt - a.receivedAt)
+  return { items }
+}
+
+/** A simple standing figure on a soft gradient: a stand-in avatar picture. */
+function avatarPicture(first: string, second: string, body: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480"><defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${first}"/><stop offset="1" stop-color="${second}"/></linearGradient></defs><rect width="640" height="480" fill="url(#bg)"/><circle cx="320" cy="150" r="62" fill="${body}"/><path d="M220 470c0-120 40-210 100-210s100 90 100 210Z" fill="${body}"/><circle cx="296" cy="146" r="8" fill="#0b0d1a"/><circle cx="344" cy="146" r="8" fill="#0b0d1a"/></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function sampleAvatar(
+  platform: Platform,
+  index: number,
+  name: string,
+  colors: [string, string, string],
+  details: Partial<AvatarItem> = {}
+): AvatarItem {
+  const suffix = String(index).padStart(12, '0')
+  const guid = `5a3c1e2d-0000-4000-8000-${suffix}`
+  return {
+    platform,
+    avatarId: platform === 'vrchat' ? `avtr_${guid}` : guid,
+    name,
+    description: null,
+    imageUrl: avatarPicture(...colors),
+    authorName: 'Guide visitor',
+    visibility: 'private',
+    createdAt: '2026-03-14T12:00:00.000Z',
+    updatedAt: '2026-10-02T18:30:00.000Z',
+    ...details
+  }
+}
+
+const vrcAvatars: AvatarItem[] = [
+  sampleAvatar('vrchat', 1, 'Lumen Fox', ['#2b4ea8', '#7a5cf0', '#f2c38b'], {
+    description: 'Everyday avatar with a soft glow tail and three outfits.',
+    visibility: 'public'
+  }),
+  sampleAvatar('vrchat', 2, 'Night Runner', ['#0f2a4a', '#1b7f9c', '#cfd8e6']),
+  sampleAvatar('vrchat', 3, 'Paper Crane', ['#3a3f5c', '#c86f8f', '#f6efe6'], {
+    updatedAt: '2026-08-21T09:00:00.000Z'
+  }),
+  sampleAvatar('vrchat', 4, 'Moss Golem (Quest test)', ['#203b2a', '#5f8f4a', '#a7c48a'])
+]
+
+const cvrAvatars: AvatarItem[] = [
+  sampleAvatar('chilloutvr', 11, 'Ember Synth', ['#5a1f12', '#d9752b', '#ffd6a5'], {
+    description: 'Club avatar with toggles for jacket, visor and glow.',
+    visibility: 'public'
+  }),
+  sampleAvatar('chilloutvr', 12, 'Harbor Otter', ['#183847', '#3f8a9a', '#c9a27e']),
+  sampleAvatar('chilloutvr', 13, 'Copper Knight', ['#2e2620', '#a5652d', '#d8c3a5'], {
+    updatedAt: '2026-07-30T20:15:00.000Z'
+  })
+]
+
+/** The Avatars page's synthetic libraries: the first avatar is worn on each platform. */
+export const avatarLibraries: Record<Platform, AvatarItem[]> = {
+  vrchat: vrcAvatars,
+  chilloutvr: cvrAvatars
+}
