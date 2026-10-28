@@ -105,7 +105,7 @@ function PlatformTab({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const isVrc = platform === 'vrchat'
-  const pvar = isVrc ? '--vrc' : '--cvr'
+  const pkey = isVrc ? 'vrc' : 'cvr'
   return (
     <span
       id={labelId}
@@ -121,18 +121,10 @@ function PlatformTab({
       style={{
         background:
           platform === 'vrx'
-            ? 'linear-gradient(to top, color-mix(in srgb, var(--cvr) var(--pill-tint), transparent), color-mix(in srgb, var(--vrc) var(--pill-tint), transparent))'
-            : `color-mix(in srgb, var(${pvar}) var(--pill-tint), transparent)`,
-        borderColor:
-          platform === 'vrx'
-            ? 'transparent'
-            : `color-mix(in srgb, var(${pvar}) var(--pill-edge), transparent)`,
-        color:
-          platform === 'vrx'
-            ? 'var(--text)'
-            : isVrc
-              ? 'var(--plat-vrc-ghost-text)'
-              : 'var(--plat-cvr-ghost-text)'
+            ? 'linear-gradient(to top, var(--plat-cvr-rail-bg), var(--plat-vrc-rail-bg))'
+            : `var(--plat-${pkey}-rail-bg)`,
+        borderColor: platform === 'vrx' ? 'transparent' : `var(--plat-${pkey}-rail-border)`,
+        color: platform === 'vrx' ? 'var(--linked-rail-text)' : `var(--plat-${pkey}-badge-text)`
       }}
     >
       {platform === 'vrx' ? (

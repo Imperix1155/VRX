@@ -127,8 +127,13 @@ for an approved need that existing ones can't meet.
 Light is not dark inverted. Cards are white on a canvas a step darker, so
 they read as raised. Brand colors stay at full strength for fills, rings,
 edges and the glow, and words in a brand color use a deeper companion that
-clears 4.5:1 on white and on the platform tints. Platform pills get a soft fill
-of their own hue in light; dark keeps them as outlines.
+clears 4.5:1 on white and on the platform tints. Every small platform label
+(the friends-list rail, platform pills, the short badge on a picture) takes
+the `--plat-*-badge-*` and `--plat-*-rail-*` tokens: solid platform color with
+white words in light, so blue and orange show at a glance down a list, and
+quiet outlines in dark, where the word and edge already glow. The ChilloutVR
+badge fill is one step deeper than the raw orange so its white word clears
+4.5:1.
 
 Themed colors stay runtime CSS variables; a build must never bake light and
 dark values into a fixed palette.

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Light mode shows each platform much more clearly. Platform labels are now
+  solid VRChat blue or ChilloutVR orange with white words: the strip at the
+  start of each friend row, the VRChat and ChilloutVR pills, and the small
+  VRC / CVR badge on world and avatar pictures. Platform cards and the
+  background glow are also stronger, so you can tell the platform at a glance
+  without reading the label. Dark mode is unchanged.
+
 ## [1.3.0-dev.1] - 2026-10-28
 
 Dev test build. It has everything in 1.2.0 plus the changes below.
