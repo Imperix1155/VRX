@@ -799,7 +799,9 @@ body::before {
 [data-theme='light'] .app-backdrop img {
   filter: saturate(1.15);
 }
-[data-app-background] .canvas-text {
+/* Any word on the canvas (loading and empty lines included) gets the halo;
+   information surfaces drop it again (in the components layer below). */
+[data-app-background] :is(.canvas-area, .canvas-text) {
   text-shadow: var(--canvas-text-halo);
 }
 /* Translucent dim and faint words would let a busy light picture through;
@@ -897,6 +899,12 @@ body::after {
     background-color: var(--glass-information);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+
+  /* Information surfaces carry their own backing, so they drop the canvas
+     halo their words would otherwise inherit over a background picture. */
+  [data-app-background] .canvas-area :is(.glass, .glass-information, .activity-row) {
+    text-shadow: none;
   }
 }
 
