@@ -358,12 +358,16 @@ export default function FriendDrawer({
                           style={{
                             color:
                               member.platform === 'vrchat'
-                                ? 'var(--plat-vrc-ghost-text)'
-                                : 'var(--plat-cvr-ghost-text)',
+                                ? 'var(--plat-vrc-badge-text)'
+                                : 'var(--plat-cvr-badge-text)',
                             borderColor:
                               member.platform === 'vrchat'
-                                ? 'var(--plat-vrc-ghost-border)'
-                                : 'var(--plat-cvr-ghost-border)'
+                                ? 'var(--plat-vrc-badge-border)'
+                                : 'var(--plat-cvr-badge-border)',
+                            background:
+                              member.platform === 'vrchat'
+                                ? 'var(--plat-vrc-badge-bg)'
+                                : 'var(--plat-cvr-badge-bg)'
                           }}
                           onClick={() => {
                             navigationFocusRef.current = 'back'
@@ -385,12 +389,13 @@ export default function FriendDrawer({
                   </div>
                 ) : (
                   <span
-                    className="mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border bg-transparent px-[var(--space-2-5)] text-[11px] font-semibold"
+                    className="mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border px-[var(--space-2-5)] text-[11px] font-semibold"
                     style={{
-                      color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
+                      color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
                       borderColor: isVrc
-                        ? 'var(--plat-vrc-ghost-border)'
-                        : 'var(--plat-cvr-ghost-border)'
+                        ? 'var(--plat-vrc-badge-border)'
+                        : 'var(--plat-cvr-badge-border)',
+                      background: isVrc ? 'var(--plat-vrc-badge-bg)' : 'var(--plat-cvr-badge-bg)'
                     }}
                   >
                     {isVrc ? t('friends.platform.vrchat') : t('friends.platform.chilloutvr')}

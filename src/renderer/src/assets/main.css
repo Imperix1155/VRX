@@ -4,10 +4,16 @@
 .linked-platform-vrchat {
   --linked-platform: var(--vrc);
   --linked-platform-text: var(--plat-vrc-ghost-text);
+  --linked-badge-bg: var(--plat-vrc-rail-bg);
+  --linked-badge-border: var(--plat-vrc-rail-border);
+  --linked-badge-text: var(--plat-vrc-badge-text);
 }
 .linked-platform-chilloutvr {
   --linked-platform: var(--cvr);
   --linked-platform-text: var(--plat-cvr-ghost-text);
+  --linked-badge-bg: var(--plat-cvr-rail-bg);
+  --linked-badge-border: var(--plat-cvr-rail-border);
+  --linked-badge-text: var(--plat-cvr-badge-text);
 }
 .linked-world-pair {
   display: flex;
@@ -26,9 +32,9 @@
 .linked-world-platform {
   flex-shrink: 0;
   border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--linked-platform) var(--pill-edge), transparent);
-  background: color-mix(in srgb, var(--linked-platform) var(--pill-tint), transparent);
-  color: var(--linked-platform-text);
+  border: 1px solid var(--linked-badge-border);
+  background: var(--linked-badge-bg);
+  color: var(--linked-badge-text);
   padding-inline: var(--space-1);
   font-size: 10px;
   font-weight: 600;
@@ -159,14 +165,16 @@
   color: transparent;
 }
 .linked-platform-rail::before {
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--cvr) var(--pill-edge), transparent),
-    color-mix(in srgb, var(--vrc) var(--pill-edge), transparent)
-  );
+  background: linear-gradient(to top, var(--plat-cvr-rail-border), var(--plat-vrc-rail-border));
 }
 .linked-platform-rail .linked-gradient-text {
   background-image: linear-gradient(to top, var(--plat-cvr-ghost-text), var(--plat-vrc-ghost-text));
+}
+/* Light rails are solid brand color, so the linked rail's word is plain ink
+   on its blue-to-orange fill instead of a gradient that would vanish into it. */
+[data-theme='light'] .linked-platform-rail .linked-gradient-text {
+  background-image: none;
+  color: var(--linked-rail-text);
 }
 .linked-location-button {
   position: relative;
@@ -339,9 +347,26 @@
   --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 15%, transparent);
   --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 72%, white);
   --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 17%, transparent);
-  /* Platform pill fill: none in dark, where the outline and word carry it. */
-  --plat-vrc-pill-bg: transparent;
-  --plat-cvr-pill-bg: transparent;
+  /* PLATFORM BADGES — every small VRChat / ChilloutVR label (pills, the
+     friends-list rail, the short badge on a picture). Dark keeps the quiet
+     outline: the word and edge already glow against the dark glass. Light
+     swaps in a solid brand fill (see the light block). */
+  --plat-vrc-badge-bg: transparent;
+  --plat-cvr-badge-bg: transparent;
+  --plat-vrc-badge-text: var(--plat-vrc-ghost-text);
+  --plat-cvr-badge-text: var(--plat-cvr-ghost-text);
+  --plat-vrc-badge-border: var(--plat-vrc-ghost-border);
+  --plat-cvr-badge-border: var(--plat-cvr-ghost-border);
+  /* Badges over a picture keep a small card-color backing so the word reads
+     on bright art. */
+  --plat-vrc-picture-badge-bg: color-mix(in srgb, var(--glass-information) 78%, transparent);
+  --plat-cvr-picture-badge-bg: color-mix(in srgb, var(--glass-information) 78%, transparent);
+  /* Friends-list rail: a tint and a firmer edge, like the other pills. */
+  --plat-vrc-rail-bg: color-mix(in srgb, var(--vrc) var(--pill-tint), transparent);
+  --plat-cvr-rail-bg: color-mix(in srgb, var(--cvr) var(--pill-tint), transparent);
+  --plat-vrc-rail-border: color-mix(in srgb, var(--vrc) var(--pill-edge), transparent);
+  --plat-cvr-rail-border: color-mix(in srgb, var(--cvr) var(--pill-edge), transparent);
+  --linked-rail-text: var(--text);
 
   /* DRAWER — scrim behind the friend drawer (VRX-69, owner-approved 2026-07-17;
      softened + made non-blocking in VRX-225, owner live session 2026-07-23:
@@ -555,10 +580,25 @@
   --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 55%, transparent);
   --plat-vrc-ghost-text: #1155c8;
   --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 50%, transparent);
-  /* Light platform pills get a soft opaque fill of their own hue, so the
-     platform reads at a glance and the word keeps its contrast on any tint. */
-  --plat-vrc-pill-bg: color-mix(in srgb, var(--vrc) 12%, var(--glass-information));
-  --plat-cvr-pill-bg: color-mix(in srgb, var(--cvr) 12%, var(--glass-information));
+  /* Platform badges are solid brand color in light, so blue and orange read
+     at a glance down a list, the way the glow does in dark. Both carry white
+     words: VRChat blue as is (5.0:1), ChilloutVR one step deeper than the
+     raw orange so its white word keeps AA too (4.7:1; raw orange is 3.3:1). */
+  --plat-cvr-solid: #c84c08;
+  --plat-badge-ink: #ffffff;
+  --plat-vrc-badge-bg: var(--vrc);
+  --plat-cvr-badge-bg: var(--plat-cvr-solid);
+  --plat-vrc-badge-text: var(--plat-badge-ink);
+  --plat-cvr-badge-text: var(--plat-badge-ink);
+  --plat-vrc-badge-border: var(--vrc);
+  --plat-cvr-badge-border: var(--plat-cvr-solid);
+  --plat-vrc-picture-badge-bg: var(--vrc);
+  --plat-cvr-picture-badge-bg: var(--plat-cvr-solid);
+  --plat-vrc-rail-bg: var(--vrc);
+  --plat-cvr-rail-bg: var(--plat-cvr-solid);
+  --plat-vrc-rail-border: var(--vrc);
+  --plat-cvr-rail-border: var(--plat-cvr-solid);
+  --linked-rail-text: var(--plat-badge-ink);
 
   /* Higher saturation keeps a background picture's color under the glass
      instead of letting the white pane gray it out. */
@@ -575,12 +615,12 @@
   --glass-information: rgb(255, 255, 255);
   --glass-blur-frosted: blur(30px) saturate(175%);
   --glass-frost-heavy: rgba(250, 251, 253, 0.96);
-  --tint-vrc-bg: linear-gradient(135deg, rgba(23, 105, 232, 0.16), rgba(23, 105, 232, 0.04));
-  --tint-vrc-border: rgba(23, 105, 232, 0.42);
-  --tint-cvr-bg: linear-gradient(135deg, rgba(236, 98, 16, 0.16), rgba(236, 98, 16, 0.04));
-  --tint-cvr-border: rgba(236, 98, 16, 0.46);
-  --activity-tint-strong: 24%;
-  --activity-tint-soft: 8%;
+  --tint-vrc-bg: linear-gradient(135deg, rgba(23, 105, 232, 0.24), rgba(23, 105, 232, 0.1));
+  --tint-vrc-border: rgba(23, 105, 232, 0.72);
+  --tint-cvr-bg: linear-gradient(135deg, rgba(236, 98, 16, 0.24), rgba(236, 98, 16, 0.1));
+  --tint-cvr-border: rgba(236, 98, 16, 0.76);
+  --activity-tint-strong: 28%;
+  --activity-tint-soft: 12%;
 
   --text-on-vrc: #ffffff;
   /* Dark ink on the light-theme CVR fill (white falls under 3.5:1). */
@@ -625,8 +665,8 @@
 
   /* GLOW — light standard. Strong enough that the brand corners read as
      clearly as they do in dark, never a faint pastel haze. */
-  --glow-a-vrc: 0.34;
-  --glow-a-cvr: 0.3;
+  --glow-a-vrc: 0.42;
+  --glow-a-cvr: 0.38;
   --wisp-a-vrc: 0;
   --wisp-a-cvr: 0;
   --scanline-color: rgba(20, 19, 28, 0.024);
@@ -739,14 +779,14 @@ body::before {
 
 /* Light + muted: keep muted size/fade, switch to light base alphas. */
 [data-theme='light'][data-glow='muted'] {
-  --glow-a-vrc: 0.24;
-  --glow-a-cvr: 0.21;
+  --glow-a-vrc: 0.3;
+  --glow-a-cvr: 0.27;
 }
 
 /* Light + vivid: keep vivid size/fade/wisps, switch to light base alphas. */
 [data-theme='light'][data-glow='vivid'] {
-  --glow-a-vrc: 0.44;
-  --glow-a-cvr: 0.38;
+  --glow-a-vrc: 0.54;
+  --glow-a-cvr: 0.48;
 }
 
 /* Background picture (owner, 2026-10-26): the user's own picture replaces the
