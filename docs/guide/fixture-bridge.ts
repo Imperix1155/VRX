@@ -178,6 +178,7 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     onActivityChanged: unsubscribe,
     openUrl: () => Promise.resolve(),
     openLogsFolder: () => Promise.resolve(),
+    openBugReport: () => Promise.resolve(),
     getAppBackground: () => Promise.resolve(picture === null ? null : { dataUrl: picture }),
     chooseAppBackground: () => {
       picture = backgroundPicture

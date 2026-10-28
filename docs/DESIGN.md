@@ -369,7 +369,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
   in that same card beside the on/off control and the check button, plus the
-  installed version, Welcome setup (Run setup again), and Open logs folder.
+  installed version, Welcome setup (Run setup again), Found a bug? (Report a
+  bug opens GitHub's bug report form in the browser), Open logs folder, and
+  Legal.
 
 Saving is reported once, in the shell, failures first. A failed save shows an
 alert at once, keeps the latest edits, offers Retry, and stays until a save

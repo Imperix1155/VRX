@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a problem with VRX
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. If you used **Report a bug** in VRX
+        (Settings → About), the version and system fields below are already filled in.
+
+        This page is public. **Don't paste passwords, sign-in codes, or tokens,** and
+        leave out anything personal you don't want others to see.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What went wrong?
+      description: A short description of the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen
+      description: What you clicked or did, in order, if you know.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Which platform is affected?
+      options:
+        - VRChat
+        - ChilloutVR
+        - Both
+        - Not sure or neither
+  - type: input
+    id: version
+    attributes:
+      label: VRX version
+      description: Shown at the bottom of the sidebar.
+      placeholder: 1.2.0
+    validations:
+      required: true
+  - type: input
+    id: install
+    attributes:
+      label: How you installed VRX
+      placeholder: Windows installer, Windows portable, Linux AppImage, or Linux deb
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11, Ubuntu 24.04, ...
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, logs, or anything else
+      description: |
+        Drag screenshots in here. To find logs, open Settings → About → Open logs folder.
+        Credentials are redacted in logs, but read them before sharing and remove anything personal.

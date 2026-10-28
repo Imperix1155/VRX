@@ -89,6 +89,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'updater:install': { max: 6, windowMs: 60_000 },
   // A deliberate button press that opens a file-manager window.
   'open-logs-folder': { max: 6, windowMs: 60_000 },
+  // A deliberate button press that opens a browser tab.
+  'open-bug-report': { max: 6, windowMs: 60_000 },
   // The picture is read once per renderer load, with reload/remount headroom.
   'get-app-background': { max: 12, windowMs: 30_000 },
   // Deliberate button presses; choosing opens a native dialog.

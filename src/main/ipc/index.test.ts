@@ -92,6 +92,7 @@ vi.mock('./launch', () => ({
   registerLaunchHandlers: () => {
     electron.ipcMain.handle('open-url', () => undefined)
     electron.ipcMain.handle('open-logs-folder', () => undefined)
+    electron.ipcMain.handle('open-bug-report', () => undefined)
   }
 }))
 vi.mock('./app-background', () => ({
@@ -207,7 +208,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(44)
+    expect(electron.invokeHandlers.size).toBe(45)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -256,6 +257,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'logout',
         'open-url',
         'open-logs-folder',
+        'open-bug-report',
         'save-settings',
         'self-invite',
         'set-alert-pick',

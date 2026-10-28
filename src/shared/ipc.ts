@@ -194,6 +194,9 @@ export interface IpcInvoke {
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */
   'open-logs-folder': { req: void; res: void }
+  /** Open GitHub's bug report form in the browser. Main fills in the app
+   *  version, install type and system; nothing from the user's accounts. */
+  'open-bug-report': { req: void; res: void }
   /** The user's own background picture as a `data:` URL, or null when none is set. */
   'get-app-background': { req: void; res: { dataUrl: string } | null }
   /** Open the native picture dialog; main reads, re-encodes, and keeps the picked file. */
