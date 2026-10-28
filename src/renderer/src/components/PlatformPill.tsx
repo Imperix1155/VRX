@@ -32,7 +32,7 @@ export default function PlatformPill({
       style={{
         color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
         borderColor: isVrc ? 'var(--plat-vrc-ghost-border)' : 'var(--plat-cvr-ghost-border)',
-        background: 'transparent'
+        background: isVrc ? 'var(--plat-vrc-pill-bg)' : 'var(--plat-cvr-pill-bg)'
       }}
     >
       {isVrc ? t('dashboard.platformVrc') : t('dashboard.platformCvr')}

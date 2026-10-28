@@ -280,8 +280,10 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
             }}
             className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] disabled:pointer-events-none disabled:opacity-50"
             style={{
-              borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-              background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+              borderColor:
+                'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+              background:
+                'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
               color: 'var(--op-public-text)'
             }}
           >
@@ -762,8 +764,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
             disabled={isInert}
             className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] disabled:pointer-events-none disabled:opacity-50"
             style={{
-              borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-              background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+              borderColor:
+                'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+              background:
+                'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
               color: 'var(--op-public-text)'
             }}
           >

@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   optional like the rest of setup, and the summary says when a picture is
   set.
 
+### Changed
+
+- Light mode is reworked. Cards are now white on a slightly darker page so
+  they stand out, VRChat blue and ChilloutVR orange are stronger everywhere
+  (glow, card tints, Activity entries, platform and instance pills), and the
+  platform words read as blue and orange instead of navy and brown. A
+  background picture keeps its colours in light mode instead of turning
+  milky white; page titles and headings over it get a soft halo so they stay
+  readable. Dark mode is unchanged.
+
 ## [1.2.0-dev.4] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.3 plus the changes below.

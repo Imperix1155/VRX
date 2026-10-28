@@ -453,8 +453,10 @@ export default function FriendDrawer({
                     disabled={isJoining}
                     className="w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
                     style={{
-                      borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-                      background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+                      borderColor:
+                        'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+                      background:
+                        'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
                       color: 'var(--op-public-text)'
                     }}
                   >
@@ -506,7 +508,8 @@ export default function FriendDrawer({
                     role="alert"
                     className="flex items-start gap-[var(--space-2)] rounded-control border px-[var(--space-2)] py-[var(--space-2)] text-[12px] text-[var(--text-dim)]"
                     style={{
-                      borderColor: 'color-mix(in srgb, var(--error) 45%, transparent)',
+                      borderColor:
+                        'color-mix(in srgb, var(--error) var(--pill-edge-strong), transparent)',
                       background: 'color-mix(in srgb, var(--error) 10%, transparent)'
                     }}
                   >
