@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   picture, with the same checks and notes as Settings → Appearance. It's
   optional like the rest of setup, and the summary says when a picture is
   set.
+- Settings → About has a Report a bug button. It opens VRX's bug report
+  form on GitHub in your browser with the VRX version, install type and
+  system already filled in. Nothing from your accounts is added. The form
+  on GitHub is now a short set of fields instead of a blank template.
 
 ### Changed
 

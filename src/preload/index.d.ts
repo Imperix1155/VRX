@@ -65,6 +65,7 @@ type VrxBridge = {
   onActivityChanged: (callback: () => void) => () => void
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
   openLogsFolder: () => Promise<IpcInvoke['open-logs-folder']['res']>
+  openBugReport: () => Promise<IpcInvoke['open-bug-report']['res']>
   /** The user's background picture; main owns the file and the picking dialog. */
   getAppBackground: () => Promise<IpcInvoke['get-app-background']['res']>
   chooseAppBackground: () => Promise<IpcInvoke['choose-app-background']['res']>

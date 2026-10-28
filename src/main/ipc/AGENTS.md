@@ -55,6 +55,8 @@ Persistence, network, cache, and account-transition policy stay in services.
   platforms.
 - `open-url` opens only `isAllowedUrl` HTTPS links. Game schemes are reachable
   only from main-built join paths. `open-logs-folder` takes no input.
+  `open-bug-report` takes no input; main builds the GitHub link from the app
+  version, install type and system only, and still checks `isAllowedUrl`.
 - `get-activity` and `clear-activity` take no input and only read or clear
   `ActivityFeed`; neither makes a platform request.
 - `get-avatar` accepts a length-capped URL string, delegates to `AvatarCache`,

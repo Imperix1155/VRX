@@ -401,6 +401,12 @@
       "retry": "Retry saving settings",
       "saving": "Saving…"
     },
+    "bugReport": {
+      "label": "Found a bug?",
+      "description": "Opens a bug report on GitHub with your VRX version and system filled in. Nothing from your accounts is added.",
+      "open": "Report a bug",
+      "error": "Couldn't open the bug report page."
+    },
     "logs": {
       "label": "Logs",
       "description": "Diagnostic logs for troubleshooting. Credentials are redacted; review before sharing.",

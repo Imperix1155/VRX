@@ -691,6 +691,27 @@ describe('Settings logs row', () => {
   })
 })
 
+describe('Settings bug report row', () => {
+  it('asks main to open the bug report form and reports a failure', async () => {
+    const openBugReport = vi.fn().mockRejectedValue(new Error('no browser'))
+    setBridge({
+      getAuthStatus: vi.fn(),
+      login: vi.fn(),
+      verify2fa: vi.fn(),
+      logout: vi.fn(),
+      openBugReport
+    } as unknown as VrxBridge)
+    useUiStore.setState({ settingsCategory: 'about' })
+    renderSettings()
+
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.bugReport.open') }))
+    // The renderer sends nothing; main builds the whole link.
+    expect(openBugReport).toHaveBeenCalledOnce()
+    expect(openBugReport).toHaveBeenCalledWith()
+    expect((await screen.findByRole('alert')).textContent).toBe(msg('settings.bugReport.error'))
+  })
+})
+
 describe('Settings dependency cards', () => {
   it('keeps the threshold visible and independent of the Dashboard Hot Instances switch', () => {
     useUiStore.setState({ settingsCategory: 'dashboard' })
