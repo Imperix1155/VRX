@@ -5,7 +5,7 @@
  * Pins the §8 status indicator: online = presence 'active' OR 'in-game',
  * summed across BOTH platforms, with the i18next _one/_other plural applied.
  */
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach, onTestFinished } from 'vitest'
 import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
 import i18n from '../i18n'
@@ -178,6 +178,24 @@ describe('TopBar connection health (VRX-223)', () => {
     const indicator = await findIndicator('VRChat: Live; ChilloutVR: Live')
     expect(indicator.getAttribute('style')).toContain('var(--ingame)')
     expect(indicator.className).toContain('motion-safe:animate-pulse')
+  })
+
+  it('holds the live dot still on Linux, where the pulse shifted the picture', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const userAgent = vi
+      .spyOn(navigator, 'userAgent', 'get')
+      .mockReturnValue(
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Electron/45.0.0'
+      )
+    onTestFinished(() => userAgent.mockRestore())
+    stubFriends([], [])
+    stubAppStatus('live', 'live')
+    render(<TopBar />)
+
+    const indicator = await findIndicator('VRChat: Live; ChilloutVR: Live')
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
+    expect(indicator.className).toContain('rounded-full')
+    expect(indicator.className).not.toContain('animate-pulse')
   })
 
   it('holds the live dot still while the window is not focused', async () => {
