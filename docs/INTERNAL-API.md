@@ -181,7 +181,8 @@ current target (`target-changed`), `adapter.buildJoinUrl` passing `isAllowedLaun
 launch per platform at a time and a 3 s destination and friend cooldown (`cooldown`), and finally
 [`GameHandoff.deliver`](../src/main/services/gameHandoff.ts): launch through `shell.openExternal`
 (`launch-failed`), or reach the game that is already open (VRChat URL pipe, else one
-`adapter.selfInvite`, `invite-failed`). Success carries `handoff`. Denial logs carry platform and
+`adapter.selfInvite`, `invite-failed`). The account fence is checked again after every wait,
+including right before the pipe write (`stale`). Success carries `handoff`. Denial logs carry platform and
 reason only. `join-explore-room` shares the same coordinator, launch validation and hand-off
 (`ExploreServiceOptions.deliverJoin`).
 

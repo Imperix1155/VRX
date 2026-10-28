@@ -514,7 +514,9 @@ describe('join in a game that is already open', () => {
   let running: Set<Platform>
   let handoffSettings: GameHandoffSettings
   let hostPlatform: NodeJS.Platform
-  let sendToVrchat: ReturnType<typeof vi.fn<(url: string) => Promise<boolean>>>
+  let sendToVrchat: ReturnType<
+    typeof vi.fn<(url: string, stillCurrent: () => boolean) => Promise<boolean>>
+  >
   let cvrAdapter: IPlatformAdapter
   let accountSession: AccountSession
   const cvrInstance = 'i+0123456789abcdef-012345-6789ab-01234567'
@@ -533,7 +535,9 @@ describe('join in a game that is already open', () => {
     running = new Set()
     handoffSettings = { joinOpenGame: true, vrchatOpenGameJoin: 'go' }
     hostPlatform = 'win32'
-    sendToVrchat = vi.fn<(url: string) => Promise<boolean>>().mockResolvedValue(true)
+    sendToVrchat = vi
+      .fn<(url: string, stillCurrent: () => boolean) => Promise<boolean>>()
+      .mockResolvedValue(true)
     cvrAdapter = stubPlatformAdapter({ platform: 'chilloutvr' })
     vi.mocked(cvrAdapter.buildJoinUrl).mockReturnValue(cvrUrl)
     accountSession = new AccountSession()
@@ -587,7 +591,7 @@ describe('join in a game that is already open', () => {
       ok: true,
       handoff: 'in-game'
     })
-    expect(sendToVrchat).toHaveBeenCalledWith(launchUrl)
+    expect(sendToVrchat).toHaveBeenCalledWith(launchUrl, expect.any(Function))
     expect(openExternal).not.toHaveBeenCalled()
     expect(adapter.selfInvite).not.toHaveBeenCalled()
   })

@@ -133,6 +133,12 @@ describe('sendToVrchatUrlPipe', () => {
     await expect(sendToVrchatUrlPipe(url, testPipePath('missing'))).resolves.toBe(false)
   })
 
+  it('writes nothing when the account changes while the pipe connects', async () => {
+    const accepted = await listen(() => 1)
+    await expect(sendToVrchatUrlPipe(url, accepted.path, 500, () => false)).resolves.toBe(false)
+    expect(accepted.received).toEqual([])
+  })
+
   it('gives up after the timeout when the game never answers', async () => {
     const silent = await listen(() => 'silent')
     await expect(sendToVrchatUrlPipe(url, silent.path, 50)).resolves.toBe(false)
@@ -147,7 +153,7 @@ describe('GameHandoff', () => {
       settings?: GameHandoffSettings
       host?: NodeJS.Platform
       openExternal?: (url: string) => Promise<void>
-      sendToVrchat?: (url: string) => Promise<boolean>
+      sendToVrchat?: (url: string, stillCurrent: () => boolean) => Promise<boolean>
     } = {}
   ): GameHandoff {
     return new GameHandoff({
