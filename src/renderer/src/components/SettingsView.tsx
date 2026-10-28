@@ -356,6 +356,56 @@ function UpdaterSettingsRow(): React.JSX.Element {
   )
 }
 
+/**
+ * Report a bug (owner, 2026-10-28): opens GitHub's bug report form in the
+ * browser. Main builds the link and fills in only the version, install type
+ * and system; the renderer sends nothing.
+ */
+function BugReportSettingsRow(): React.JSX.Element {
+  const { t } = useTranslation()
+  const [failed, setFailed] = useState(false)
+  const openReport = (): void => {
+    setFailed(false)
+    const opening = window.vrx?.openBugReport?.()
+    if (!opening) {
+      setFailed(true)
+      return
+    }
+    opening.catch(() => setFailed(true))
+  }
+  return (
+    <div className="setting-card setting-row">
+      <div>
+        <p className="text-sm font-medium text-[var(--text)]">{t('settings.bugReport.label')}</p>
+        <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+          {t('settings.bugReport.description')}
+        </p>
+        {failed && (
+          <p role="alert" className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+            {t('settings.bugReport.error')}
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={openReport}
+        className={[
+          'shrink-0 inline-flex items-center gap-[var(--space-1)]',
+          'px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
+          'border border-[var(--border)]',
+          'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+          'text-[var(--text)]',
+          'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+          'cursor-pointer'
+        ].join(' ')}
+      >
+        {t('settings.bugReport.open')}
+        <IconExternalLink />
+      </button>
+    </div>
+  )
+}
+
 /** Reveal the main-owned log directory (path never crosses the bridge). */
 function LogsSettingsRow(): React.JSX.Element {
   const { t } = useTranslation()
@@ -956,7 +1006,7 @@ export default function SettingsView(): React.JSX.Element {
           </section>
         )}
 
-        {/* ── About page: the app's own upkeep (version, updates, setup, logs). Moved
+        {/* ── About page: the app's own upkeep (version, updates, setup, bug reports, logs). Moved
             out of Behavior so every page fits the default window (§8). ── */}
         {category === 'about' && (
           <section className="settings-cards" aria-labelledby="settings-about-heading">
@@ -992,6 +1042,7 @@ export default function SettingsView(): React.JSX.Element {
                 {t('settings.setup.run')}
               </button>
             </div>
+            <BugReportSettingsRow />
             <LogsSettingsRow />
             <LegalSettingsRow />
           </section>
