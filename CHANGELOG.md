@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0-dev.2] - 2026-10-28
+
+Dev test build. It has everything in 1.3.0-dev.1 plus the change below.
+
 ### Changed
 
 - Light mode shows each platform much more clearly. Platform labels are now
