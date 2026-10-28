@@ -329,7 +329,9 @@ Dashboard, Hot Instances, Friends, and Explore, even when a scrollbar appears;
 nothing else may take its place. The connection indicator pairs color with
 shape: a dot is live, a hollow ring is reconnecting, a square is down, and
 its label names each platform. The live dot pulses only while VRX has focus;
-an endless animation would keep the window redrawing behind a game. Settings replaces the filter with
+an endless animation would keep the window redrawing behind a game. On Linux
+it stays steady: some Linux desktops draw the pulse's redraw a pixel off, which
+shifted the background picture around the filter. Settings replaces the filter with
 its category control, on its own row under the title, so the online count
 stays on the title row as on every other page.
 

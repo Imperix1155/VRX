@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   milky white; page titles and headings over it get a soft halo so they stay
   readable. Dark mode is unchanged.
 
+### Fixed
+
+- On Linux, the background picture no longer shifts slightly in the top-right
+  corner, around the platform filter. The live dot next to the online count
+  now stays steady on Linux instead of pulsing; its color and shape still
+  show the connection the same way. Windows is unchanged.
+
 ## [1.2.0-dev.4] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.3 plus the changes below.
