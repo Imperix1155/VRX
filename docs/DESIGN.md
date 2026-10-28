@@ -119,8 +119,16 @@ for an approved need that existing ones can't meet.
 - Friend state: `--ingame`, `--active`, `--offline`; VRChat status: `--st-*`;
   each with text companions.
 - Instance access: `--op-*`. Policy space: `--policy-*`.
+- Colored pills: `--pill-tint` and `--pill-edge` (and their Strong pair) set
+  how much of a pill's hue fills and edges it, so each theme can tune them.
 - Controls: `--control-fill`, `--control-fill-hover`, borders, and focus.
 - Material: `--glass-*`, scrim, shine, shadow, and radius tokens.
+
+Light is not dark inverted. Cards are white on a canvas a step darker, so
+they read as raised. Brand colors stay at full strength for fills, rings,
+edges and the glow, and words in a brand color use a deeper companion that
+clears 4.5:1 on white and on the platform tints. Platform pills get a soft fill
+of their own hue in light; dark keeps them as outlines.
 
 Themed colors stay runtime CSS variables; a build must never bake light and
 dark values into a fixed palette.
@@ -181,6 +189,10 @@ draws it as a fixed, decorative layer under the aurora, and
 `data-app-background` on `<html>` drops the aurora's opaque floor so any glow
 the user keeps sits over the picture. A fade layer in the theme's base colour
 (Low, Medium, High; Medium by default) keeps words over the picture readable.
+Light uses a lighter fade so a picture never turns milky white; words set
+straight on the canvas there (`.canvas-text`: page titles, the online count,
+section headings) get a soft halo and near-solid ink instead, and small
+buttons beside them (`.canvas-control`) a white backing.
 Information-bearing cards and panels keep their own solid backing, so a
 picture never changes their colours or meaning; translucent chrome such as the
 sidebar shows it blurred.

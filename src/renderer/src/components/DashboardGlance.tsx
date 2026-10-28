@@ -50,7 +50,7 @@ const ROW =
   'flex min-h-[76px] w-full min-w-0 items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)]'
 const ROW_BUTTON = `${ROW} text-left hover:bg-[var(--surface-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors`
 const HEADER_BUTTON =
-  'rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)]'
+  'canvas-control rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)]'
 
 function platformName(platform: Platform, t: (key: string) => string): string {
   return t(platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
@@ -128,7 +128,7 @@ function GlanceHeading({
     <div className="mx-[2px] mb-[10px] flex min-h-[28px] items-center justify-between gap-[var(--space-3)]">
       <h2
         id={id}
-        className="truncate font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-faint)]"
+        className="canvas-text truncate font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-faint)]"
       >
         {label}
       </h2>

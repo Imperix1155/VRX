@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   system already filled in. Nothing from your accounts is added. The form
   on GitHub is now a short set of fields instead of a blank template.
 
+### Changed
+
+- Light mode is reworked. Cards are now white on a slightly darker page so
+  they stand out, VRChat blue and ChilloutVR orange are stronger everywhere
+  (glow, card tints, Activity entries, platform and instance pills), and the
+  platform words read as blue and orange instead of navy and brown. A
+  background picture keeps its colours in light mode instead of turning
+  milky white; page titles and headings over it get a soft halo so they stay
+  readable. Dark mode is unchanged.
+
 ### Fixed
 
 - On Linux, the background picture no longer shifts slightly in the top-right

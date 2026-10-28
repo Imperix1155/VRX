@@ -121,10 +121,12 @@ function PlatformTab({
       style={{
         background:
           platform === 'vrx'
-            ? 'linear-gradient(to top, color-mix(in srgb, var(--cvr) 13%, transparent), color-mix(in srgb, var(--vrc) 13%, transparent))'
-            : `color-mix(in srgb, var(${pvar}) 13%, transparent)`,
+            ? 'linear-gradient(to top, color-mix(in srgb, var(--cvr) var(--pill-tint), transparent), color-mix(in srgb, var(--vrc) var(--pill-tint), transparent))'
+            : `color-mix(in srgb, var(${pvar}) var(--pill-tint), transparent)`,
         borderColor:
-          platform === 'vrx' ? 'transparent' : `color-mix(in srgb, var(${pvar}) 36%, transparent)`,
+          platform === 'vrx'
+            ? 'transparent'
+            : `color-mix(in srgb, var(${pvar}) var(--pill-edge), transparent)`,
         color:
           platform === 'vrx'
             ? 'var(--text)'

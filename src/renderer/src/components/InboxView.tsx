@@ -202,7 +202,7 @@ export default function InboxView(): React.JSX.Element {
     if (rows.length === 0) return null
     return (
       <section aria-label={t(headingKey)} className="flex flex-col gap-[var(--space-2)]">
-        <h2 className="px-[var(--space-1)] text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">
+        <h2 className="canvas-text px-[var(--space-1)] text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">
           {t(headingKey)}
         </h2>
         <ul className="glass glass-information divide-y divide-[var(--border)] overflow-hidden">
@@ -250,7 +250,7 @@ export default function InboxView(): React.JSX.Element {
 
   return (
     <div ref={listRef} className="flex flex-col gap-[var(--space-4)]">
-      <div className="flex items-center justify-between gap-[var(--space-4)]">
+      <div className="canvas-text flex items-center justify-between gap-[var(--space-4)]">
         <p className="text-sm text-[var(--text-dim)]" aria-live="polite">
           {items.length > 0 ? t('inbox.count', { count: items.length }) : null}
         </p>

@@ -26,8 +26,8 @@
 .linked-world-platform {
   flex-shrink: 0;
   border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--linked-platform) 36%, transparent);
-  background: color-mix(in srgb, var(--linked-platform) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--linked-platform) var(--pill-edge), transparent);
+  background: color-mix(in srgb, var(--linked-platform) var(--pill-tint), transparent);
   color: var(--linked-platform-text);
   padding-inline: var(--space-1);
   font-size: 10px;
@@ -161,8 +161,8 @@
 .linked-platform-rail::before {
   background: linear-gradient(
     to top,
-    color-mix(in srgb, var(--cvr) 36%, transparent),
-    color-mix(in srgb, var(--vrc) 36%, transparent)
+    color-mix(in srgb, var(--cvr) var(--pill-edge), transparent),
+    color-mix(in srgb, var(--vrc) var(--pill-edge), transparent)
   );
 }
 .linked-platform-rail .linked-gradient-text {
@@ -179,8 +179,8 @@
   color: var(--text-dim);
   background: linear-gradient(
     45deg,
-    color-mix(in srgb, var(--linked-cvr-tier) 13%, transparent) 50%,
-    color-mix(in srgb, var(--linked-vrc-tier) 13%, transparent) 50%
+    color-mix(in srgb, var(--linked-cvr-tier) var(--pill-tint), transparent) 50%,
+    color-mix(in srgb, var(--linked-vrc-tier) var(--pill-tint), transparent) 50%
   );
 }
 .linked-location-button::before {
@@ -191,8 +191,8 @@
   padding: 1px;
   background: linear-gradient(
     45deg,
-    color-mix(in srgb, var(--linked-cvr-tier) 36%, transparent) 50%,
-    color-mix(in srgb, var(--linked-vrc-tier) 36%, transparent) 50%
+    color-mix(in srgb, var(--linked-cvr-tier) var(--pill-edge), transparent) 50%,
+    color-mix(in srgb, var(--linked-vrc-tier) var(--pill-edge), transparent) 50%
   );
   mask:
     linear-gradient(white 0 0) content-box,
@@ -339,6 +339,9 @@
   --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 15%, transparent);
   --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 72%, white);
   --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 17%, transparent);
+  /* Platform pill fill: none in dark, where the outline and word carry it. */
+  --plat-vrc-pill-bg: transparent;
+  --plat-cvr-pill-bg: transparent;
 
   /* DRAWER — scrim behind the friend drawer (VRX-69, owner-approved 2026-07-17;
      softened + made non-blocking in VRX-225, owner live session 2026-07-23:
@@ -389,6 +392,13 @@
   /* Activity capsules: platform tint, stronger at the platform edge. */
   --activity-tint-strong: 24%;
   --activity-tint-soft: 12%;
+  /* Colored pills (instance access, policy space, platform rails): how much
+     of the pill's hue fills it and edges it. The Strong pair is for pills
+     that call out a single state, such as Public in a join dialog. */
+  --pill-tint: 13%;
+  --pill-edge: 36%;
+  --pill-tint-strong: 16%;
+  --pill-edge-strong: 45%;
 
   /* TEXT ON PLATFORM surfaces (login button, etc.) */
   --text-on-vrc: #ffffff;
@@ -456,6 +466,10 @@
   --setup-picture-light-panel: rgba(255, 255, 255, 0.85);
   --setup-picture-light-edge: rgba(40, 48, 68, 0.14);
 
+  /* Halo for words set straight on the canvas over a background picture.
+     Dark needs none; light overrides it below. */
+  --canvas-text-halo: none;
+
   /* SCROLLBAR */
   --scrollbar-thumb: rgba(255, 255, 255, 0.12);
 }
@@ -463,56 +477,59 @@
 /* ── §2A Tokens — light (override only; same semantic names) ───────────────── */
 [data-theme='light'] {
   color-scheme: light;
-  --bg-base: #eef3f8;
-  --text: #14131c;
-  --text-dim: rgba(30, 28, 42, 0.72);
-  --text-faint: rgba(52, 49, 70, 0.48);
-  --border: rgba(40, 48, 68, 0.16);
-  --surface-hover: rgba(20, 19, 28, 0.045);
-  --control-fill: rgba(20, 19, 28, 0.045);
-  --control-fill-hover: rgba(20, 19, 28, 0.09);
+  /* Light theme (reworked 2026-10-28): cards are white and the canvas sits a
+     step darker, so panels read as raised instead of melting into the page.
+     Brand colors stay at full strength for fills, rings, edges and the glow;
+     words in a brand color use a deeper companion so they clear 4.5:1. */
+  --bg-base: #e7ecf3;
+  --text: #12111a;
+  --text-dim: rgba(26, 24, 38, 0.76);
+  --text-faint: rgba(44, 41, 62, 0.56);
+  --border: rgba(36, 44, 64, 0.15);
+  --surface-hover: rgba(20, 19, 28, 0.05);
+  --control-fill: rgba(20, 19, 28, 0.05);
+  --control-fill-hover: rgba(20, 19, 28, 0.1);
   --error: #b4232c;
   --warning: #a15c00;
 
-  --vrc: #1f6fd3;
-  --cvr: #d85f18;
+  --vrc: #1769e8;
+  --cvr: #ec6210;
   --bridge: #30323b;
 
-  --ingame: #0f9f6e;
-  --active: #0d9488;
-  --offline: #8a8d99;
+  --ingame: #08a56a;
+  --active: #0a9a8f;
+  --offline: #868a97;
 
-  --st-joinme: #1d78d8;
-  --st-online: #169a4a;
-  --st-askme: #cf6a18;
-  --st-dnd: #c9363a;
+  --st-joinme: #1772e0;
+  --st-online: #13a04b;
+  --st-askme: #e46a0e;
+  --st-dnd: #d9363b;
   --st-joinme-text: #124e91;
   --st-online-text: #0f6e35;
   --st-askme-text: #91480e;
   --st-dnd-text: #8d2428;
-  --ingame-text: color-mix(in srgb, var(--ingame) 75%, black);
-  --active-text: color-mix(in srgb, var(--active) 75%, black);
+  --ingame-text: color-mix(in srgb, var(--ingame) 72%, black);
+  --active-text: color-mix(in srgb, var(--active) 72%, black);
   --offline-text: color-mix(in srgb, var(--offline) 70%, black);
 
-  /* OPENNESS — light: darkened hues (tint/border) + darker text for contrast.
-     The friend-ladder words sit ~12% darker than their first pass so each one
-     clears 4.5:1 on its own tint over rows, cards and banner scrims. */
-  --op-public: #1fae4e;
-  --op-friends-plus: #7fa821;
-  --op-friends: #b28a1d;
-  --op-invite-plus: #d98324;
-  --op-invite: #c96a20;
-  --op-group-public: #7a5fd0;
-  --op-group-plus: #6d4fc9;
-  --op-group: #5f3fc4;
-  --op-public-text: #126b30;
-  --op-friends-plus-text: #516b13;
-  --op-friends-text: #725917;
-  --op-invite-plus-text: #885112;
-  --op-invite-text: #7e4312;
-  --op-group-public-text: #5b429e;
-  --op-group-plus-text: #4f38a0;
-  --op-group-text: #452f96;
+  /* OPENNESS — light: deeper hues for the tint and edge, darker words so each
+     one clears 4.5:1 on its own tint over rows, cards and banner scrims. */
+  --op-public: #16ad48;
+  --op-friends-plus: #7ba51a;
+  --op-friends: #c29410;
+  --op-invite-plus: #e58a1f;
+  --op-invite: #dd6a14;
+  --op-group-public: #7d5ce0;
+  --op-group-plus: #6c48d6;
+  --op-group: #5c37cf;
+  --op-public-text: #11652d;
+  --op-friends-plus-text: #4c6512;
+  --op-friends-text: #6c5410;
+  --op-invite-plus-text: #804c10;
+  --op-invite-text: #7a3f10;
+  --op-group-public-text: #553c98;
+  --op-group-plus-text: #4a3399;
+  --op-group-text: #412b8f;
 
   /* POLICY SPACE — light-mode contrast companions for Rose and Ice. */
   --policy-public: #c84f91;
@@ -520,44 +537,57 @@
   --policy-private: #228eaa;
   --policy-private-text: #17667a;
 
-  /* DASHBOARD CARD — light (§9/VRX-198). Ghost label mixes toward BLACK (light
-     --cvr/--vrc are already darkened) so it stays legible on the light card;
-     names-lift is a darker/more-opaque dim. WCAG AA re-verified in light. */
-  --names-lift: rgba(30, 28, 42, 0.86);
-  /* CVR mixes darker (70%) than VRC: at 76% its rail and card labels fell to
-     4.2-4.4:1 while VRC read 5.0-5.4:1. */
-  --plat-cvr-ghost-text: color-mix(in srgb, var(--cvr) 70%, black);
-  --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 30%, transparent);
-  --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 76%, black);
-  --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 32%, transparent);
+  /* Colored pills: a fuller tint and a firmer edge than dark. On a white card
+     a 13% wash reads as gray; this keeps each pill's hue clear at a glance. */
+  --pill-tint: 17%;
+  --pill-edge: 55%;
+  --pill-tint-strong: 20%;
+  --pill-edge-strong: 62%;
 
-  --glass-blur: blur(24px) saturate(142%);
+  /* DASHBOARD CARD — light. Platform words mix the brand hue toward black so
+     they read on white, on the platform tint, and on the canvas; borders keep
+     enough hue to name the platform at a glance. */
+  --names-lift: rgba(26, 24, 38, 0.86);
+  /* Deep but still saturated, so the words read as blue and orange rather
+     than navy and brown: VRChat 6.6:1 and ChilloutVR 6.0:1 on white, both
+     above 4.5:1 on the strongest platform tint. */
+  --plat-cvr-ghost-text: #b03c08;
+  --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 55%, transparent);
+  --plat-vrc-ghost-text: #1155c8;
+  --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 50%, transparent);
+  /* Light platform pills get a soft opaque fill of their own hue, so the
+     platform reads at a glance and the word keeps its contrast on any tint. */
+  --plat-vrc-pill-bg: color-mix(in srgb, var(--vrc) 12%, var(--glass-information));
+  --plat-cvr-pill-bg: color-mix(in srgb, var(--cvr) 12%, var(--glass-information));
+
+  /* Higher saturation keeps a background picture's color under the glass
+     instead of letting the white pane gray it out. */
+  --glass-blur: blur(24px) saturate(175%);
 
   /* GLASS material — light overrides (§3A) */
-  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.28));
-  --glass-border: rgba(40, 48, 68, 0.16);
+  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.34));
+  --glass-border: rgba(36, 44, 64, 0.13);
   --glass-shadow:
-    0 16px 46px rgba(59, 72, 93, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    inset 0 -1px 1px rgba(40, 48, 68, 0.08);
-  --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.72), transparent 48%);
-  --glass-frost: rgba(244, 247, 252, 0.84);
-  --glass-information: rgb(244, 247, 252);
-  --glass-blur-frosted: blur(30px) saturate(142%);
-  --glass-frost-heavy: rgba(244, 247, 252, 0.96);
-  --tint-vrc-bg: linear-gradient(135deg, rgba(31, 111, 211, 0.18), rgba(255, 255, 255, 0.34));
-  --tint-vrc-border: rgba(31, 111, 211, 0.28);
-  --tint-cvr-bg: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
-  --tint-cvr-border: rgba(216, 95, 24, 0.3);
-  --activity-tint-strong: 18%;
-  --activity-tint-soft: 9%;
+    0 1px 2px rgba(31, 38, 56, 0.07), 0 12px 34px rgba(31, 38, 56, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.6), transparent 48%);
+  --glass-frost: rgba(250, 251, 253, 0.86);
+  --glass-information: rgb(255, 255, 255);
+  --glass-blur-frosted: blur(30px) saturate(175%);
+  --glass-frost-heavy: rgba(250, 251, 253, 0.96);
+  --tint-vrc-bg: linear-gradient(135deg, rgba(23, 105, 232, 0.16), rgba(23, 105, 232, 0.04));
+  --tint-vrc-border: rgba(23, 105, 232, 0.42);
+  --tint-cvr-bg: linear-gradient(135deg, rgba(236, 98, 16, 0.16), rgba(236, 98, 16, 0.04));
+  --tint-cvr-border: rgba(236, 98, 16, 0.46);
+  --activity-tint-strong: 24%;
+  --activity-tint-soft: 8%;
 
   --text-on-vrc: #ffffff;
-  /* Same dark ink on the light-theme CVR fill (4.89:1; white = 3.77:1 fails). */
+  /* Dark ink on the light-theme CVR fill (white falls under 3.5:1). */
   --text-on-cvr: #14131c;
 
-  /* LOGIN TAB / PLATFORM words — light: BOTH raw hues fail on light glass (vrc
-     3.57:1, cvr 2.74:1), so both take their ghost companions (vrc 5.40:1, cvr
-     at its darker 70% mix 4.90:1). */
+  /* LOGIN TAB / PLATFORM words — light: both raw hues fall short as words on
+     light glass, so both take their deeper ghost companions. */
   --login-tab-vrc: var(--plat-vrc-word);
   --login-tab-cvr: var(--plat-cvr-word);
   --plat-vrc-word: var(--plat-vrc-ghost-text);
@@ -565,6 +595,7 @@
 
   /* HOT-INSTANCE SHEET — light: dark text needs a light scrim, not a dimmed
      picture and black shadows (that left the world name unreadable). */
+  --hot-sheet-shadow: 0 -12px 44px rgba(31, 38, 56, 0.2);
   --hot-sheet-banner-title-shadow: 0 1px 8px var(--glass-information);
   --hot-sheet-banner-subtitle-shadow: none;
   --hot-sheet-banner-image-filter: none;
@@ -576,35 +607,41 @@
     color-mix(in srgb, var(--glass-information) 24%, transparent) 100%
   );
 
-  /* ACTIVE CONTROL surfaces (§8 nav active, §9 segmented bubble) — light overrides */
-  --control-active-bg: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.78),
-    rgba(255, 255, 255, 0.38)
-  );
-  --control-active-border: rgba(40, 48, 68, 0.16);
+  /* ACTIVE CONTROL surfaces (§8 nav active, §9 segmented bubble) — light:
+     solid white with a soft drop, so the selected item stands clear of the
+     frosted pane around it. */
+  --control-active-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.8));
+  --control-active-border: rgba(36, 44, 64, 0.14);
   --control-active-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 2px 12px rgba(59, 72, 93, 0.12);
-  --seg-bubble-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.38));
-  --seg-bubble-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 2px 12px rgba(59, 72, 93, 0.12);
-  --sidebar-foot-border: rgba(40, 48, 68, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 10px rgba(31, 38, 56, 0.12);
+  --seg-bubble-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.8));
+  --seg-bubble-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 10px rgba(31, 38, 56, 0.14);
+  --sidebar-foot-border: rgba(36, 44, 64, 0.1);
 
   /* AURORA (§4A) — light overrides */
-  --aurora-vrc: rgba(31, 111, 211, 0.18);
-  --aurora-cvr: rgba(216, 95, 24, 0.15);
-  --aurora-gradient: linear-gradient(180deg, #fbfcff 0%, var(--bg-base) 48%, #e7edf4 100%);
+  --aurora-vrc: rgba(23, 105, 232, 0.26);
+  --aurora-cvr: rgba(236, 98, 16, 0.22);
+  --aurora-gradient: linear-gradient(180deg, #f3f6fa 0%, var(--bg-base) 50%, #dfe5ee 100%);
 
-  /* GLOW — light standard (intensity 1.15) */
-  --glow-a-vrc: 0.207;
-  --glow-a-cvr: 0.1725;
+  /* GLOW — light standard. Strong enough that the brand corners read as
+     clearly as they do in dark, never a faint pastel haze. */
+  --glow-a-vrc: 0.34;
+  --glow-a-cvr: 0.3;
   --wisp-a-vrc: 0;
   --wisp-a-cvr: 0;
-  --scanline-color: rgba(20, 19, 28, 0.026);
+  --scanline-color: rgba(20, 19, 28, 0.024);
   --scanline-blend: multiply;
-  --scanline-opacity: 0.42;
+  --scanline-opacity: 0.4;
+
+  /* Text set straight on the canvas (page titles, the online count, Dashboard
+     headings) gets a soft white halo over a background picture, so it stays
+     readable on a dark picture without washing the whole picture out. */
+  --canvas-text-halo:
+    0 0 1px rgba(255, 255, 255, 0.9), 0 0 4px rgba(255, 255, 255, 0.85),
+    0 0 10px rgba(255, 255, 255, 0.6);
 
   /* SCROLLBAR — light */
-  --scrollbar-thumb: rgba(20, 19, 28, 0.16);
+  --scrollbar-thumb: rgba(20, 19, 28, 0.2);
 }
 
 /* ── Static scale → Tailwind utilities (never theme-switches) ──────────────── */
@@ -702,14 +739,14 @@ body::before {
 
 /* Light + muted: keep muted size/fade, switch to light base alphas. */
 [data-theme='light'][data-glow='muted'] {
-  --glow-a-vrc: 0.18;
-  --glow-a-cvr: 0.15;
+  --glow-a-vrc: 0.24;
+  --glow-a-cvr: 0.21;
 }
 
 /* Light + vivid: keep vivid size/fade/wisps, switch to light base alphas. */
 [data-theme='light'][data-glow='vivid'] {
-  --glow-a-vrc: 0.27;
-  --glow-a-cvr: 0.225;
+  --glow-a-vrc: 0.44;
+  --glow-a-cvr: 0.38;
 }
 
 /* Background picture (owner, 2026-10-26): the user's own picture replaces the
@@ -746,6 +783,37 @@ body::before {
 }
 .app-backdrop[data-fade='high'] {
   --app-backdrop-fade: 75%;
+}
+/* Light (owner, 2026-10-28): a heavy pale wash turned pictures milky white.
+   Light keeps more of the picture and its color, and words set straight on
+   the canvas carry a soft halo (--canvas-text-halo) instead. */
+[data-theme='light'] .app-backdrop[data-fade='low'] {
+  --app-backdrop-fade: 18%;
+}
+[data-theme='light'] .app-backdrop[data-fade='medium'] {
+  --app-backdrop-fade: 34%;
+}
+[data-theme='light'] .app-backdrop[data-fade='high'] {
+  --app-backdrop-fade: 55%;
+}
+[data-theme='light'] .app-backdrop img {
+  filter: saturate(1.15);
+}
+/* Any word on the canvas (loading and empty lines included) gets the halo;
+   information surfaces drop it again (in the components layer below). */
+[data-app-background] :is(.canvas-area, .canvas-text) {
+  text-shadow: var(--canvas-text-halo);
+}
+/* Translucent dim and faint words would let a busy light picture through;
+   on the canvas they turn near-solid. Small buttons beside them take a white
+   backing for the same reason. */
+[data-theme='light'][data-app-background] .canvas-text {
+  --text-dim: color-mix(in srgb, var(--text) 84%, transparent);
+  --text-faint: color-mix(in srgb, var(--text) 74%, transparent);
+}
+[data-theme='light'][data-app-background] .canvas-control {
+  --control-fill: color-mix(in srgb, var(--glass-information) 78%, transparent);
+  --control-fill-hover: var(--glass-information);
 }
 /* Settings preview of the kept picture, beside its Change and Remove buttons. */
 .background-picture-thumb {
@@ -831,6 +899,12 @@ body::after {
     background-color: var(--glass-information);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+
+  /* Information surfaces carry their own backing, so they drop the canvas
+     halo their words would otherwise inherit over a background picture. */
+  [data-app-background] .canvas-area :is(.glass, .glass-information, .activity-row) {
+    text-shadow: none;
   }
 }
 

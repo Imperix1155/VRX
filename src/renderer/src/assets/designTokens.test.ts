@@ -454,7 +454,7 @@ describe('renderer design token contract', () => {
     const light = css.match(/\[data-theme=['"]light['"]\]\s*{[\s\S]*?\n}/)?.[0] ?? ''
     for (const [name, block, value] of [
       [':root', root, ['rgba', '(13, 15, 22, 0.94)'].join('')],
-      ["[data-theme='light']", light, ['rgba', '(244, 247, 252, 0.96)'].join('')]
+      ["[data-theme='light']", light, ['rgba', '(250, 251, 253, 0.96)'].join('')]
     ] as const) {
       expect(block, `${name} is missing --glass-frost-heavy`).toContain(
         `--glass-frost-heavy: ${value};`
@@ -487,7 +487,7 @@ describe('renderer design token contract', () => {
     const light = css.match(/\[data-theme=['"]light['"]\]\s*{[\s\S]*?\n}/)?.[0] ?? ''
     for (const [name, block, value] of [
       [':root', root, ['rgb', '(13, 15, 22)'].join('')],
-      ["[data-theme='light']", light, ['rgb', '(244, 247, 252)'].join('')]
+      ["[data-theme='light']", light, ['rgb', '(255, 255, 255)'].join('')]
     ] as const) {
       expect(block, `${name} is missing opaque information material`).toContain(
         `--glass-information: ${value};`

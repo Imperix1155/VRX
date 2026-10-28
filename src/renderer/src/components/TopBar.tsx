@@ -281,7 +281,7 @@ export default function TopBar(): React.JSX.Element {
   const status = (
     <div
       data-testid="topbar-status"
-      className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
+      className="canvas-text flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
     >
       {/* Shape repeats the color for colorblind users: a dot is live, a hollow
           ring is reconnecting, a square is down. The live dot pulses only
@@ -316,7 +316,7 @@ export default function TopBar(): React.JSX.Element {
       className={`flex flex-wrap items-center gap-[var(--space-2)] ${activeTab === 'settings' ? 'mb-[var(--space-2)]' : 'mb-[22px]'}`}
     >
       {/* View title */}
-      <h1 className="text-[25px] font-extrabold text-[var(--text)] shrink-0">
+      <h1 className="canvas-text text-[25px] font-extrabold text-[var(--text)] shrink-0">
         {t(VIEW_TITLE_KEYS[activeTab])}
       </h1>
 

@@ -259,12 +259,13 @@ export default function HotInstanceSheet({
                       })}
                       className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
                       style={{
-                        borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
+                        borderColor:
+                          'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
                         // Over the picture the tint sits on the same card-color
                         // backing as the pills beside it, so Join stays readable.
                         background: showBannerImage
-                          ? 'linear-gradient(color-mix(in srgb, var(--op-public) 16%, transparent), color-mix(in srgb, var(--op-public) 16%, transparent)) color-mix(in srgb, var(--glass-information) 78%, transparent)'
-                          : 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+                          ? 'linear-gradient(color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent), color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)) color-mix(in srgb, var(--glass-information) 78%, transparent)'
+                          : 'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
                         color: 'var(--op-public-text)'
                       }}
                     >

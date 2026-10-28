@@ -307,7 +307,7 @@ export default function ActivityView(): React.JSX.Element {
             clearActivity(client).catch(() => undefined)
           }}
           aria-label={t('activity.clearAria')}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent motion-safe:transition-colors"
+          className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent motion-safe:transition-colors"
         >
           {t('activity.clear')}
         </button>
