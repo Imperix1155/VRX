@@ -122,11 +122,16 @@ export class RunningGames {
   }
 }
 
-/** Hand a launch URL to the running VRChat. True only when the game says it took it. */
+/**
+ * Hand a launch URL to the running VRChat. True only when the game says it
+ * took it. `stillCurrent` is checked once the pipe connects, right before the
+ * write, so a sign-in change while connecting sends nothing.
+ */
 export function sendToVrchatUrlPipe(
   url: string,
   pipePath: string = VRCHAT_URL_PIPE,
-  timeoutMs: number = PIPE_TIMEOUT_MS
+  timeoutMs: number = PIPE_TIMEOUT_MS,
+  stillCurrent: () => boolean = () => true
 ): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false
@@ -139,7 +144,10 @@ export function sendToVrchatUrlPipe(
       resolve(accepted)
     }
     const timer = setTimeout(() => finish(false), timeoutMs)
-    socket.once('connect', () => socket.write(Buffer.from(url, 'utf8')))
+    socket.once('connect', () => {
+      if (stillCurrent()) socket.write(Buffer.from(url, 'utf8'))
+      else finish(false)
+    })
     socket.once('data', (chunk: Buffer) => finish(chunk[0] === 1))
     socket.once('error', () => finish(false))
     socket.once('close', () => finish(false))
@@ -156,7 +164,7 @@ export interface GameHandoffOptions {
   isRunning: (platform: Platform) => Promise<boolean>
   settings: () => GameHandoffSettings
   openExternal: (url: string) => Promise<void>
-  sendToVrchat?: (url: string) => Promise<boolean>
+  sendToVrchat?: (url: string, stillCurrent: () => boolean) => Promise<boolean>
 }
 
 export type HandoffResult =
@@ -165,10 +173,12 @@ export type HandoffResult =
 
 /** A Join's last step: launch, or reach the copy of the game that is already open. */
 export class GameHandoff {
-  private readonly sendToVrchat: (url: string) => Promise<boolean>
+  private readonly sendToVrchat: (url: string, stillCurrent: () => boolean) => Promise<boolean>
 
   constructor(private readonly options: GameHandoffOptions) {
-    this.sendToVrchat = options.sendToVrchat ?? ((url) => sendToVrchatUrlPipe(url))
+    this.sendToVrchat =
+      options.sendToVrchat ??
+      ((url, stillCurrent) => sendToVrchatUrlPipe(url, undefined, undefined, stillCurrent))
   }
 
   /** What a Join would do now. Main decides again at Join time. */
@@ -199,7 +209,10 @@ export class GameHandoff {
       }
       return { ok: true, handoff: openGame ? 'in-game' : 'launch' }
     }
-    if (this.canHandVrchatUrl() && (await this.sendToVrchat(url).catch(() => false))) {
+    if (
+      this.canHandVrchatUrl() &&
+      (await this.sendToVrchat(url, stillCurrent).catch(() => false))
+    ) {
       return { ok: true, handoff: 'in-game' }
     }
     if (!stillCurrent()) return { ok: false, reason: 'stale' }
