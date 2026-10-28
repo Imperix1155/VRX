@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-28
+
+VRX 1.2 adds three new pages, a smarter Dashboard, and a few things that make
+joining and alerts work the way VRCX and CVRX users expect. It is everything
+from the 1.2.0 dev builds (dev.1 to dev.4), listed in detail below.
+
+### Added
+
+- **Avatars page.** The avatars you uploaded on VRChat and ChilloutVR, the one
+  you're wearing now on each, details for every avatar, and a Wear button to
+  switch. Favorites are not included yet. (#464, #474)
+- **Activity page.** Friends coming online, joining a world, and going offline
+  on both platforms, newest first, tinted with each platform's color. It uses
+  the live connection VRX already has, so it adds no requests, and it is kept
+  only while VRX is open. Friends set to Ask Me or Do Not Disturb never show a
+  world. (#467, #472)
+- **Inbox page.** Invites, invite requests, and friend requests from both
+  platforms that arrive while VRX is open. VRX only shows them; you answer in
+  the game. Two new optional alerts, Invite received and Friend request
+  received, are off until you turn them on. (#469)
+- **Join in the game that's already open.** When VRChat or ChilloutVR is
+  running, Join takes you there instead of starting a second copy. In VRChat
+  it goes straight there on Windows, or sends you an invite to accept (always
+  on Linux). Choose in Settings → Behavior → When the game is already open.
+  (#468, #471)
+- **Alerts for picked friends.** Settings → Notifications → Who alerts you can
+  be set to Picked friends. The new bell at the bottom of a friend's details
+  shows whether that friend can alert you and lets you pick them. Everyone
+  stays the default. (#466, #473)
+- **Your own background picture** in Settings → Appearance, with a picture
+  fade to keep text readable, and an Off choice for the background glow.
+  Pictures that can't fill the window are refused with the reason. (#458,
+  #465)
+- **Dashboard: Wearing now and Latest invites.** Two new sections under the
+  numbers show your worn avatar and the newest invite from each platform.
+  (#475)
+
+### Changed
+
+- The Dashboard fits what it has: a section with nothing to show steps aside
+  and the rest move up. Move any section up or down, or turn it off, in
+  Settings → Dashboard → Sections. (#475)
+- Settings → Notifications and the welcome setup's alerts step group every
+  alert in one card. (#469)
+- Checking for updates never offers a release older than the one that is
+  running, on any channel. (#461, #462)
+- The app is built with Vite 8, linted with ESLint 10, and type-checked with
+  TypeScript 7. (#455, #456, #457)
+
+### Known limits
+
+- Activity and Inbox show only what arrives while VRX is open. Answer invites
+  and friend requests in the game or on the platform's site.
+- The avatar list doesn't include favorites yet.
+
 ## [1.2.0-dev.4] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.3 plus the changes below.
