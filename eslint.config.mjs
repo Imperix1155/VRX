@@ -2,7 +2,7 @@ import { defineConfig } from 'eslint/config'
 import tseslint from '@electron-toolkit/eslint-config-ts'
 import tseslintBase from 'typescript-eslint'
 import eslintConfigPrettier from '@electron-toolkit/eslint-config-prettier'
-import eslintPluginReact from 'eslint-plugin-react'
+import eslintReact from '@eslint-react/eslint-plugin'
 import eslintPluginReactHooks from 'eslint-plugin-react-hooks'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
@@ -45,13 +45,26 @@ export default defineConfig(
       '@typescript-eslint/no-misused-promises': 'off'
     }
   },
-  eslintPluginReact.configs.flat.recommended,
-  eslintPluginReact.configs.flat['jsx-runtime'],
   {
-    settings: {
-      react: {
-        version: 'detect'
-      }
+    // eslint-plugin-react 7.37 does not load on ESLint 10 (`context.getFilename`
+    // is gone). @eslint-react's type-checked preset covers JSX and component
+    // rules and does not require `React` in scope. Its extra style rules
+    // (ref names, forwardRef, use() vs useContext, hook naming) describe a
+    // different component style than the previous preset; react-hooks stays
+    // the source for hook dependencies and effect setState.
+    files: ['**/*.{ts,tsx}'],
+    ...eslintReact.configs['recommended-type-checked'],
+    rules: {
+      ...eslintReact.configs['recommended-type-checked'].rules,
+      '@eslint-react/naming-convention-ref-name': 'off',
+      '@eslint-react/no-forward-ref': 'off',
+      '@eslint-react/no-use-context': 'off',
+      '@eslint-react/use-state': 'off',
+      '@eslint-react/purity': 'off',
+      '@eslint-react/no-array-index-key': 'off',
+      '@eslint-react/set-state-in-effect': 'off',
+      '@eslint-react/exhaustive-deps': 'off',
+      '@eslint-react/dom-no-flush-sync': 'off'
     }
   },
   {

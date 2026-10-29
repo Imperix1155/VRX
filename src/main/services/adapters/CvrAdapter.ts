@@ -651,7 +651,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     } catch (error) {
       // A replacement account needs a fresh caller-owned operation.
       if (generation !== this.sessionGeneration) {
-        throw new Error('Session ended')
+        throw new Error('Session ended') // eslint-disable-line preserve-caught-error -- the previous account's error stays behind the session boundary
       }
 
       // The data path is where a dead session surfaces (VRX-190): getAuthStatus
@@ -722,7 +722,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
       } catch (error) {
         // Only the session that issued this request owns its outcome.
         if (generation !== this.sessionGeneration) {
-          throw new Error('Session ended')
+          throw new Error('Session ended') // eslint-disable-line preserve-caught-error -- the previous account's error stays behind the session boundary
         }
         if (error instanceof CVRAuthError) this.handleDataAuthFailure(error)
         throw error

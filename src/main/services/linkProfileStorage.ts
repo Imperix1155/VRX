@@ -60,7 +60,7 @@ export class LinkProfileStorage implements LinkGraphStorage {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
       const stat = lstatSync(path)
       if (!stat.isFile() || stat.isSymbolicLink() || !readFileSync(path).equals(this.originalBytes))
-        throw new Error('link storage: conflicting migration backup')
+        throw new Error('link storage: conflicting migration backup', { cause: error })
     } finally {
       if (fd !== undefined) closeSync(fd)
     }
@@ -73,7 +73,7 @@ export class LinkProfileStorage implements LinkGraphStorage {
     const temporary = join(this.directory, `.link-graph-${randomUUID()}.tmp`)
     let fd: number | undefined
     let owned = false
-    let committed = false
+    let committed: boolean
     try {
       fd = openSync(temporary, 'wx', 0o600)
       owned = true

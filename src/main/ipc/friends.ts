@@ -56,7 +56,7 @@ export function registerFriendsHandlers(
       // Error properties do not survive Electron's invoke wrapping. Reuse the
       // preload-normalized marker that the query client never retries.
       if (error instanceof RateLimitError || error instanceof RequestQueueFullError) {
-        throw new Error('rate_limited')
+        throw new Error('rate_limited', { cause: error })
       }
       throw error
     }

@@ -88,7 +88,7 @@ function Row({
   return (
     <div className="setting-card setting-row py-[10px]">
       <div className="flex items-center gap-[var(--space-3)]">
-        {icon && <RowIcon>{icon}</RowIcon>}
+        {icon ? <RowIcon>{icon}</RowIcon> : null}
         <div className="min-w-0">
           <p className="text-sm font-medium text-[var(--text)]">{label}</p>
           <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">{description}</p>
