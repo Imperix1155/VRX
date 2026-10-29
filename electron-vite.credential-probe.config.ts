@@ -6,11 +6,11 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin({ exclude: ['electron-store'] })],
     build: {
       outDir: resolve('out/credential-probe'),
-      rollupOptions: {
+      rolldownOptions: {
         input: resolve('scripts/credential-persistence-probe.ts'),
         output: {
           entryFileNames: 'index.js',
-          inlineDynamicImports: true
+          codeSplitting: false
         }
       }
     }
