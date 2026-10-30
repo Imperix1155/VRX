@@ -196,9 +196,10 @@ the user keeps sits over the picture. A fade layer in the theme's base colour
 (Low, Medium, High; Medium by default) keeps words over the picture readable.
 Light uses a lighter fade so a picture never turns milky white; words set
 straight on the canvas there (`.canvas-text`: page titles, the online count,
-section headings) take near-solid ink instead, and small buttons beside them
-(`.canvas-control`) a white backing. Words never get a glow or halo: on a
-light theme it reads as fuzzy text.
+section headings) sit on a small crisp card-color backing with near-solid
+ink, so a dark picture cannot swallow them, and small buttons beside them
+(`.canvas-control`) take a white backing too. Words never get a glow or halo:
+on a light theme it reads as fuzzy text.
 Information-bearing cards and panels keep their own solid backing, so a
 picture never changes their colours or meaning; translucent chrome such as the
 sidebar shows it blurred.

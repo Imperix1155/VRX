@@ -250,13 +250,17 @@ export default function InboxView(): React.JSX.Element {
 
   return (
     <div ref={listRef} className="flex flex-col gap-[var(--space-4)]">
-      <div className="canvas-text flex items-center justify-between gap-[var(--space-4)]">
-        <p className="text-sm text-[var(--text-dim)]" aria-live="polite">
+      <div className="flex items-center justify-between gap-[var(--space-4)]">
+        <p className="canvas-text text-sm text-[var(--text-dim)]" aria-live="polite">
           {items.length > 0 ? t('inbox.count', { count: items.length }) : null}
         </p>
         <div className="flex shrink-0 items-center gap-[var(--space-2)]">
           {items.length > 0 ? (
-            <button type="button" onClick={() => void hideAll()} className={QUIET_BUTTON}>
+            <button
+              type="button"
+              onClick={() => void hideAll()}
+              className={`canvas-text ${QUIET_BUTTON}`}
+            >
               {t('inbox.hideAll')}
             </button>
           ) : null}

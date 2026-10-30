@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   platform the same way. A friend linked on both platforms gets a card that
   runs from blue into orange.
 - Light mode text is sharper. Words over a background picture no longer have
-  a soft white glow around them, which made them look fuzzy.
+  a soft white glow around them, which made them look fuzzy. Page titles and
+  headings set straight on the picture sit on a small light backing instead,
+  so they stay readable on a dark picture too.
 
 ## [1.3.0-dev.2] - 2026-10-28
 

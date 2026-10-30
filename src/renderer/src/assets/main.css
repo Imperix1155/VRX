@@ -831,12 +831,18 @@ body::before {
 [data-theme='light'] .app-backdrop img {
   filter: saturate(1.15);
 }
-/* Translucent dim and faint words would let a busy light picture through;
-   on the canvas they turn near-solid. Small buttons beside them take a white
-   backing for the same reason. */
-[data-theme='light'][data-app-background] .canvas-text {
+/* Dark ink straight on a dark picture would vanish, and a glow around it
+   reads as fuzzy. So over a light-theme picture, words on the canvas sit on
+   a small crisp card-color backing, like the small buttons beside them, and
+   their dim and faint tones turn near-solid. */
+[data-theme='light'][data-app-background] .canvas-text:not(:empty) {
   --text-dim: color-mix(in srgb, var(--text) 84%, transparent);
   --text-faint: color-mix(in srgb, var(--text) 74%, transparent);
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background-color: color-mix(in srgb, var(--glass-information) 78%, transparent);
 }
 [data-theme='light'][data-app-background] .canvas-control {
   --control-fill: color-mix(in srgb, var(--glass-information) 78%, transparent);
