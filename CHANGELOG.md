@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0-dev.3] - 2026-10-30
+
+Dev test build. It has everything in 1.3.0-dev.2 plus the changes below.
+
 ### Changed
 
 - Friends, Inbox and the Dashboard's Wearing now and Latest invites rows now
