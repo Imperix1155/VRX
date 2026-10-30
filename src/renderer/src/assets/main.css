@@ -137,6 +137,8 @@
    other pills over a picture use (PictureBackedPill) and its word keeps 4.5:1. */
 [data-theme='light'] .linked-world-pill {
   background: color-mix(in srgb, var(--glass-information) 78%, transparent);
+  /* The backing already carries the word; a pale glow would only blur it. */
+  text-shadow: none;
 }
 .linked-identities,
 .linked-platform-rail {
@@ -414,9 +416,9 @@
   --tint-vrc-border: rgba(43, 124, 232, 0.34);
   --tint-cvr-bg: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
   --tint-cvr-border: rgba(243, 113, 30, 0.36);
-  /* Activity capsules: platform tint, stronger at the platform edge. */
-  --activity-tint-strong: 24%;
-  --activity-tint-soft: 12%;
+  /* Platform rows (.platform-row): platform tint, stronger at the platform edge. */
+  --platform-row-tint-strong: 24%;
+  --platform-row-tint-soft: 12%;
   /* Colored pills (instance access, policy space, platform rails): how much
      of the pill's hue fills it and edges it. The Strong pair is for pills
      that call out a single state, such as Public in a join dialog. */
@@ -490,10 +492,6 @@
     radial-gradient(80% 90% at 100% 100%, rgba(216, 95, 24, 0.18), transparent 70%), #eef3f8;
   --setup-picture-light-panel: rgba(255, 255, 255, 0.85);
   --setup-picture-light-edge: rgba(40, 48, 68, 0.14);
-
-  /* Halo for words set straight on the canvas over a background picture.
-     Dark needs none; light overrides it below. */
-  --canvas-text-halo: none;
 
   /* SCROLLBAR */
   --scrollbar-thumb: rgba(255, 255, 255, 0.12);
@@ -619,8 +617,8 @@
   --tint-vrc-border: rgba(23, 105, 232, 0.72);
   --tint-cvr-bg: linear-gradient(135deg, rgba(236, 98, 16, 0.24), rgba(236, 98, 16, 0.1));
   --tint-cvr-border: rgba(236, 98, 16, 0.76);
-  --activity-tint-strong: 28%;
-  --activity-tint-soft: 12%;
+  --platform-row-tint-strong: 28%;
+  --platform-row-tint-soft: 12%;
 
   --text-on-vrc: #ffffff;
   /* Dark ink on the light-theme CVR fill (white falls under 3.5:1). */
@@ -636,7 +634,8 @@
   /* HOT-INSTANCE SHEET — light: dark text needs a light scrim, not a dimmed
      picture and black shadows (that left the world name unreadable). */
   --hot-sheet-shadow: 0 -12px 44px rgba(31, 38, 56, 0.2);
-  --hot-sheet-banner-title-shadow: 0 1px 8px var(--glass-information);
+  /* The light scrim carries the title; no glow, so the words stay crisp. */
+  --hot-sheet-banner-title-shadow: none;
   --hot-sheet-banner-subtitle-shadow: none;
   --hot-sheet-banner-image-filter: none;
   --hot-sheet-group-image-filter: none;
@@ -672,13 +671,6 @@
   --scanline-color: rgba(20, 19, 28, 0.024);
   --scanline-blend: multiply;
   --scanline-opacity: 0.4;
-
-  /* Text set straight on the canvas (page titles, the online count, Dashboard
-     headings) gets a soft white halo over a background picture, so it stays
-     readable on a dark picture without washing the whole picture out. */
-  --canvas-text-halo:
-    0 0 1px rgba(255, 255, 255, 0.9), 0 0 4px rgba(255, 255, 255, 0.85),
-    0 0 10px rgba(255, 255, 255, 0.6);
 
   /* SCROLLBAR — light */
   --scrollbar-thumb: rgba(20, 19, 28, 0.2);
@@ -825,8 +817,8 @@ body::before {
   --app-backdrop-fade: 75%;
 }
 /* Light (owner, 2026-10-28): a heavy pale wash turned pictures milky white.
-   Light keeps more of the picture and its color, and words set straight on
-   the canvas carry a soft halo (--canvas-text-halo) instead. */
+   Light keeps more of the picture and its color. Words on the canvas stay
+   crisp (no glow, which read as fuzzy): they turn near-solid ink instead. */
 [data-theme='light'] .app-backdrop[data-fade='low'] {
   --app-backdrop-fade: 18%;
 }
@@ -838,11 +830,6 @@ body::before {
 }
 [data-theme='light'] .app-backdrop img {
   filter: saturate(1.15);
-}
-/* Any word on the canvas (loading and empty lines included) gets the halo;
-   information surfaces drop it again (in the components layer below). */
-[data-app-background] :is(.canvas-area, .canvas-text) {
-  text-shadow: var(--canvas-text-halo);
 }
 /* Translucent dim and faint words would let a busy light picture through;
    on the canvas they turn near-solid. Small buttons beside them take a white
@@ -939,12 +926,6 @@ body::after {
     background-color: var(--glass-information);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-  }
-
-  /* Information surfaces carry their own backing, so they drop the canvas
-     halo their words would otherwise inherit over a background picture. */
-  [data-app-background] .canvas-area :is(.glass, .glass-information, .activity-row) {
-    text-shadow: none;
   }
 }
 
@@ -1046,20 +1027,12 @@ body::after {
 .glance-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-}
-
-.glance-list > li + li {
-  border-top: 1px solid var(--border);
+  gap: 6px;
 }
 
 @container (min-width: 520px) {
   .glance-grid > :only-child .glance-list {
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-  }
-
-  .glance-grid > :only-child .glance-list > li + li {
-    border-top: 0;
-    border-left: 1px solid var(--border);
   }
 }
 
@@ -1076,33 +1049,54 @@ body::after {
      with its platform's brand color plus a 3px platform edge, so VRChat and
      ChilloutVR read apart at a glance. Both platforms share one recipe; only
      the color differs. The platform pill stays the non-color cue. */
-  .activity-row {
+  /* Platform-tinted rows (Activity, Friends, Inbox, the Dashboard glance):
+     a card-color capsule washed in its platform's hue from the left, a
+     platform-colored edge and a 3px platform bar. A linked person carries
+     both platforms, blue into orange. */
+  .platform-row {
+    --platform-row-from: var(--platform-row-color);
+    --platform-row-to: var(--platform-row-color);
     position: relative;
     overflow: hidden;
-    border: 1px solid var(--activity-platform-border);
+    border: 1px solid var(--platform-row-border);
     border-radius: var(--radius-control);
     background-color: var(--glass-information);
     background-image: linear-gradient(
       90deg,
-      color-mix(in srgb, var(--activity-platform) var(--activity-tint-strong), transparent),
-      color-mix(in srgb, var(--activity-platform) var(--activity-tint-soft), transparent)
+      color-mix(in srgb, var(--platform-row-from) var(--platform-row-tint-strong), transparent),
+      color-mix(in srgb, var(--platform-row-to) var(--platform-row-tint-soft), transparent)
     );
   }
-  .activity-row::before {
+  .platform-row::before {
     content: '';
     position: absolute;
     inset: 0 auto 0 0;
     width: 3px;
-    background: var(--activity-platform);
+    background: linear-gradient(var(--platform-row-from), var(--platform-row-to));
     pointer-events: none;
   }
-  .activity-row--vrchat {
-    --activity-platform: var(--vrc);
-    --activity-platform-border: var(--tint-vrc-border);
+  .platform-row--vrchat {
+    --platform-row-color: var(--vrc);
+    --platform-row-border: var(--tint-vrc-border);
   }
-  .activity-row--chilloutvr {
-    --activity-platform: var(--cvr);
-    --activity-platform-border: var(--tint-cvr-border);
+  .platform-row--chilloutvr {
+    --platform-row-color: var(--cvr);
+    --platform-row-border: var(--tint-cvr-border);
+  }
+  .platform-row--vrx {
+    --platform-row-color: var(--vrc);
+    --platform-row-to: var(--cvr);
+    --platform-row-border: var(--tint-vrc-border);
+    border-right-color: var(--tint-cvr-border);
+    border-bottom-color: var(--tint-cvr-border);
+  }
+  /* Rows without a platform (loading, empty) keep the same capsule, plain. */
+  .platform-row--none {
+    --platform-row-color: transparent;
+    --platform-row-border: var(--border);
+  }
+  .platform-row--none::before {
+    content: none;
   }
   .settings-cards {
     display: grid;

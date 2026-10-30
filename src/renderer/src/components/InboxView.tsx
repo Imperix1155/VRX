@@ -205,14 +205,14 @@ export default function InboxView(): React.JSX.Element {
         <h2 className="canvas-text px-[var(--space-1)] text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">
           {t(headingKey)}
         </h2>
-        <ul className="glass glass-information divide-y divide-[var(--border)] overflow-hidden">
+        <ul className="flex flex-col gap-[6px]">
           {rows.map((item) => {
             const name = nameOf(item)
             const age = relativeInboxTime(item.receivedAt, now, i18n.language) ?? t('inbox.justNow')
             return (
               <li
                 key={`${item.platform}:${item.id}`}
-                className="flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)]"
+                className={`platform-row platform-row--${item.platform} flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)]`}
               >
                 <InboxAvatar name={name} friend={friendsById[item.platform].get(item.senderId)} />
                 <div className="min-w-0 flex-1">

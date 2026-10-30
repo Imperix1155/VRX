@@ -145,7 +145,7 @@ export default function AppShell(): React.JSX.Element {
               ? 'var(--space-2)'
               : 'var(--space-2) var(--space-2) var(--space-10)'
         }}
-        className="canvas-area [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar-thumb]:rounded-full"
+        className="[&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar-thumb]:rounded-full"
       >
         <TopBar />
         <RecoveryNotices />

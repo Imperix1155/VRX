@@ -148,10 +148,10 @@ describe('ActivityView', () => {
     renderView()
     const items = screen.getAllByRole('listitem')
     expect(items.map((item) => item.className)).toEqual([
-      'activity-row activity-row--chilloutvr',
-      'activity-row activity-row--vrchat',
-      'activity-row activity-row--chilloutvr',
-      'activity-row activity-row--vrchat'
+      'platform-row platform-row--chilloutvr',
+      'platform-row platform-row--vrchat',
+      'platform-row platform-row--chilloutvr',
+      'platform-row platform-row--vrchat'
     ])
     // Both pills fill the same fixed column, so they are the same size.
     for (const item of items) {

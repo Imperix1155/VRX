@@ -163,9 +163,9 @@ function WornAvatars({
           </button>
         }
       />
-      <ul className="glance-list glass glass-information overflow-hidden">
+      <ul className="glance-list">
         {rows.map(({ platform, state }) => (
-          <li key={platform}>
+          <li key={platform} className={`platform-row platform-row--${platform}`}>
             <WornRow platform={platform} state={state} onOpen={openAvatars} />
           </li>
         ))}
@@ -326,7 +326,7 @@ function LatestInvites({
           ) : null
         }
       />
-      <ul className="glance-list glass glass-information overflow-hidden">
+      <ul className="glance-list">
         {hasRows ? (
           latest.map((item) => {
             const friend = friendsById[item.platform].get(item.senderId)
@@ -355,7 +355,10 @@ function LatestInvites({
               </>
             )
             return (
-              <li key={`${item.platform}:${item.id}`}>
+              <li
+                key={`${item.platform}:${item.id}`}
+                className={`platform-row platform-row--${item.platform}`}
+              >
                 {showInboxPage ? (
                   <button
                     type="button"
@@ -377,7 +380,7 @@ function LatestInvites({
             )
           })
         ) : (
-          <li className={ROW}>
+          <li className={`platform-row platform-row--none ${ROW}`}>
             <p className="text-sm text-[var(--text-dim)]">{t('dashboard.glance.noInvites')}</p>
           </li>
         )}
