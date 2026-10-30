@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Friends, Inbox and the Dashboard's Wearing now and Latest invites rows now
+  use the same soft blue or orange card as Activity, so every list shows the
+  platform the same way. A friend linked on both platforms gets a card that
+  runs from blue into orange.
+- Light mode text is sharper. Words over a background picture no longer have
+  a soft white glow around them, which made them look fuzzy. Page titles and
+  headings set straight on the picture sit on a small light backing instead,
+  so they stay readable on a dark picture too.
+
 ## [1.3.0-dev.2] - 2026-10-28
 
 Dev test build. It has everything in 1.3.0-dev.1 plus the change below.

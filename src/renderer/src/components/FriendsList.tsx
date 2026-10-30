@@ -384,9 +384,9 @@ const FriendRow = memo(function FriendRow({
       className={[
         // grid: 14px platform tab · 42px avatar · 1fr content · auto instance pill
         'grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
+        // Platform-tinted capsule, like the Activity rows.
+        `platform-row platform-row--${projection.platformMark}`,
         'rounded-[13px] py-[8px] pr-[12px] pl-[10px]',
-        'border border-[color-mix(in_srgb,var(--text)_7%,transparent)]',
-        'bg-[color-mix(in_srgb,var(--text)_4%,transparent)]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors',
         'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--text-dim)]',
         'has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-transparent',

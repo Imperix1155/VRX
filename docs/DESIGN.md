@@ -196,8 +196,10 @@ the user keeps sits over the picture. A fade layer in the theme's base colour
 (Low, Medium, High; Medium by default) keeps words over the picture readable.
 Light uses a lighter fade so a picture never turns milky white; words set
 straight on the canvas there (`.canvas-text`: page titles, the online count,
-section headings) get a soft halo and near-solid ink instead, and small
-buttons beside them (`.canvas-control`) a white backing.
+section headings) sit on a small crisp card-color backing with near-solid
+ink, so a dark picture cannot swallow them, and small buttons beside them
+(`.canvas-control`) take a white backing too. Words never get a glow or halo:
+on a light theme it reads as fuzzy text.
 Information-bearing cards and panels keep their own solid backing, so a
 picture never changes their colours or meaning; translucent chrome such as the
 sidebar shows it blurred.
@@ -613,7 +615,10 @@ words, the platform pill filling a fixed-width column (both pills the same
 size, the word centered), and the time (with the date
 once it is not today). Each row is its own capsule tinted with its platform's
 color, strongest at a 3px platform edge on the left, so the platforms read
-apart at a glance; the pill is the non-color cue. Coming online straight into a world is one entry that
+apart at a glance; the pill is the non-color cue. The same `.platform-row`
+capsule carries friend rows (a linked person runs blue into orange), Inbox
+rows and the Dashboard glance rows, so a platform looks the same on every
+list. Coming online straight into a world is one entry that
 names the world; a ChilloutVR world name that resolves a moment later fills
 in, and its `(#…)` instance tag is trimmed. Ask Me and Do Not Disturb friends
 never show a world, and their moves are not recorded. The top-bar filter
