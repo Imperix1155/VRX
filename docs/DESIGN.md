@@ -388,8 +388,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
   linked person is one pick. Below it, Alerts in VR (off by default) shows
   the alerts switched on above in the headset through XSOverlay, the overlay
   VRCX and CVRX both use, with the same words for both platforms. On opens
-  Time on screen (Short, Medium or Long) with a Send a test link in its
-  explanation, which turns into a short sent or failed line for a few seconds.
+  Time on screen (Short, Medium or Long) with a Send a test link after its
+  explanation; for a few seconds after a test, the explanation becomes a short
+  sent or failed line beside the link.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
