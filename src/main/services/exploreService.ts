@@ -42,6 +42,8 @@ const IMAGE_RETRY_JITTER_MS = 750
 const IMAGE_RETRY_MIN_MS = 250
 const IMAGE_RETRY_MAX_MS = 60_000
 const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
+/** Worlds adopted from search and the other lists, per platform (oldest use drops first). */
+const ADOPTED_LIMIT = 60
 type MainAdapter = ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>
 type LoadStatus = ExplorePlatformSnapshot['status']
 type Problem = ExplorePlatformSnapshot['problem']
@@ -83,6 +85,9 @@ interface SharedRead<T> {
 interface State {
   session: ResolvedAccountSession | null
   worlds: Map<string, WorldRecord>
+  /** Worlds named by a search or a New / Recently updated list. They live
+   *  beside the candidates so a candidate refresh never drops their references. */
+  adopted: Map<string, WorldRecord>
   candidateIds: string[]
   worldReads: Map<string, SharedRead<ExploreWorldDetail | null>>
   roomReads: Map<string, SharedRead<ExploreRoomEvidence | null>>
@@ -165,7 +170,7 @@ export class ExploreService {
           if (state.candidateJob) state.candidateAttemptAt = null
           if (state.worldJob) {
             const ref = state.worldJob.worldRef
-            for (const world of state.worlds.values()) {
+            for (const world of [...state.worlds.values(), ...state.adopted.values()]) {
               if (world.ref === ref) world.lastAttemptAt = null
             }
           }
@@ -226,6 +231,47 @@ export class ExploreService {
       state.worldJob = null
       this.publish(platform)
     }
+  }
+
+  /**
+   * Issue references for worlds another main-side read named (a search, or
+   * the New and Recently updated lists), so the same world sheet, images and
+   * Join work for them. Adopting makes no request: the sheet reads the world
+   * only when the user opens it, exactly as for a Popular now world.
+   */
+  adoptWorlds(platform: Platform, evidence: readonly ExploreWorldEvidence[]): ExploreWorld[] {
+    const state = this.state(platform)
+    if (this.disposed || !state.session) return []
+    const now = this.clock()
+    const adopted: ExploreWorld[] = []
+    const seen = new Set<string>()
+    for (const item of evidence.slice(0, ADOPTED_LIMIT)) {
+      if (item.platform !== platform || seen.has(item.worldId)) continue
+      seen.add(item.worldId)
+      let world = state.worlds.get(item.worldId)
+      if (!world) {
+        world = state.adopted.get(item.worldId)
+        if (world) {
+          // Re-insert so the most recently used world is the last to go.
+          state.adopted.delete(item.worldId)
+          // Display values may change between reads; a world sheet's own read
+          // (detail) stays the fresher source while it lasts.
+          if (!world.detail) world.evidence = { ...item }
+        } else {
+          world = this.newWorld({ ...item })
+        }
+        state.adopted.set(item.worldId, world)
+      }
+      world.lastUsedAt = now
+      adopted.push(this.publicWorld(state, world))
+    }
+    for (const [id, world] of state.adopted) {
+      if (state.adopted.size <= ADOPTED_LIMIT) break
+      if (world.ref === state.selectedRef || world.ref === state.suspendedRef) continue
+      state.adopted.delete(id)
+    }
+    this.pruneSelections(state)
+    return adopted
   }
 
   async getImage(platform: Platform, worldRef: string): Promise<ExploreImageResult> {
@@ -369,6 +415,7 @@ export class ExploreService {
     const state: State = {
       session,
       worlds: new Map(),
+      adopted: new Map(),
       candidateIds: [],
       worldReads: new Map(),
       roomReads: new Map(),
@@ -449,7 +496,7 @@ export class ExploreService {
     const staged = new Map<string, WorldRecord>()
     for (const evidence of candidates.slice(0, 12)) {
       if (evidence.platform !== platform || staged.has(evidence.worldId)) continue
-      const existing = state.worlds.get(evidence.worldId)
+      const existing = state.worlds.get(evidence.worldId) ?? state.adopted.get(evidence.worldId)
       staged.set(
         evidence.worldId,
         existing
@@ -490,7 +537,9 @@ export class ExploreService {
     this.check(job)
     // Candidate refresh owns membership. A more recent sheet read retains its evidence.
     for (const [id, world] of staged) {
-      const live = state.worlds.get(id)
+      // An adopted world that became a candidate keeps its record, so an open
+      // sheet and its selections stay valid.
+      const live = state.worlds.get(id) ?? state.adopted.get(id)
       if (live?.detail && (!world.detail || live.detail.fetchedAt > world.detail.fetchedAt)) {
         world.detail = live.detail
       } else if (live?.detail && world.detail) {
@@ -518,6 +567,7 @@ export class ExploreService {
       }
     }
     state.worlds = staged
+    for (const id of staged.keys()) state.adopted.delete(id)
     state.candidateIds = [...staged.values()]
       .filter((world) => platform === 'vrchat' || this.qualifiedRooms(world).length > 0)
       .map((world) => world.evidence.worldId)
@@ -906,11 +956,13 @@ export class ExploreService {
 
   private findWorld(state: State, ref: string): WorldRecord | null {
     if (!state.session) return null
-    return (
-      [...state.worlds.values()].find(
-        (world) => world.ref === ref && world.refExpiresAt > this.clock()
-      ) ?? null
-    )
+    const now = this.clock()
+    for (const records of [state.worlds, state.adopted]) {
+      for (const world of records.values()) {
+        if (world.ref === ref && world.refExpiresAt > now) return world
+      }
+    }
+    return null
   }
 
   private findSelection(state: State, ref: string): Selection | null {
@@ -918,12 +970,16 @@ export class ExploreService {
     if (
       !selection ||
       selection.expiresAt <= this.clock() ||
-      state.worlds.get(selection.world.evidence.worldId) !== selection.world ||
+      this.recordFor(state, selection.world.evidence.worldId) !== selection.world ||
       selection.generation !== selection.world.generation ||
       !selection.world.detail?.ids.includes(selection.roomId)
     )
       return null
     return selection
+  }
+
+  private recordFor(state: State, worldId: string): WorldRecord | undefined {
+    return state.worlds.get(worldId) ?? state.adopted.get(worldId)
   }
 
   private pruneSelections(state: State): void {
@@ -967,7 +1023,7 @@ export class ExploreService {
 
   private expireDetails(state: State): void {
     const now = this.clock()
-    for (const world of state.worlds.values()) {
+    for (const world of [...state.worlds.values(), ...state.adopted.values()]) {
       if (world.detail && world.lastUsedAt + RETAIN_MS <= now && state.selectedRef !== world.ref) {
         world.detail = null
         world.status = 'idle'

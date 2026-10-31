@@ -118,7 +118,9 @@
       "inbox": "Inbox",
       "explore": "Explore",
       "avatars": "Avatars",
-      "settings": "Settings"
+      "settings": "Settings",
+      "search": "Search",
+      "groups": "Groups"
     },
     "seg": {
       "vrchatShort": "VRC",
@@ -393,6 +395,10 @@
       },
       "invites": {
         "label": "Latest invites"
+      },
+      "playersOnline": {
+        "label": "Playing now",
+        "description": "How many people are online on each platform, under the counts."
       }
     },
     "persistence": {
@@ -448,6 +454,14 @@
       "inbox": {
         "label": "Inbox page",
         "description": "Show it in the sidebar. Its alerts stay."
+      },
+      "search": {
+        "label": "Search page",
+        "description": "Find people and worlds on both platforms."
+      },
+      "groups": {
+        "label": "Groups page",
+        "description": "The groups you belong to. View only."
       }
     },
     "setup": {
@@ -618,6 +632,10 @@
       "loadFailed": "Couldn't load this note. Retry before editing so VRX can save changes safely.",
       "saveFailed": "Couldn't save this note. Your newest draft remains local and will not survive closing VRX.",
       "retry": "Retry"
+    },
+    "fullProfile": {
+      "show": "Show full profile",
+      "hide": "Hide full profile"
     }
   },
   "policySpace": {
@@ -704,6 +722,10 @@
       "inviteAria": "{{name}}, {{platform}}: {{action}}, {{age}}. Open Inbox",
       "seeAllInvitesAria_one": "See {{count}} invite in the Inbox",
       "seeAllInvitesAria_other": "See all {{count}} invites in the Inbox"
+    },
+    "playersOnline": {
+      "label": "Playing now",
+      "help": "Everyone online on each platform right now, as the platform reports it. Checked when you open the Dashboard."
     }
   },
   "login": {
@@ -789,6 +811,14 @@
       "vrchat": "Connect VRChat to see popular worlds here",
       "chilloutvr": "Connect ChilloutVR to see popular worlds here",
       "openAccounts": "Go to Accounts"
+    },
+    "lists": {
+      "aria": "Which worlds to show",
+      "new": "New",
+      "updated": "Recently updated",
+      "newHint": "The newest public worlds on each platform.",
+      "updatedHint": "Public worlds their creators updated most recently.",
+      "empty": "No worlds to show right now."
     }
   },
   "avatars": {
@@ -941,7 +971,11 @@
       "hotAria": "Show the Hot Instances page",
       "activityAria": "Show the Activity page",
       "inboxAria": "Show the Inbox page",
-      "exploreAria": "Show the Explore page"
+      "exploreAria": "Show the Explore page",
+      "search": "Find people and worlds on both platforms by name.",
+      "groups": "The groups you belong to on both platforms.",
+      "searchAria": "Show the Search page",
+      "groupsAria": "Show the Groups page"
     },
     "dashboard": {
       "title": "Your Dashboard",
@@ -1016,5 +1050,84 @@
       "chilloutvr": "Connect ChilloutVR to see your invites here"
     },
     "loadError": "Could not load your inbox right now"
+  },
+  "community": {
+    "loading": "Loading {{platform}}…",
+    "retry": "Try again",
+    "openAccounts": "Open Accounts",
+    "notConnected": {
+      "vrchat": "Connect VRChat to see it here",
+      "chilloutvr": "Connect ChilloutVR to see it here"
+    },
+    "error": {
+      "unavailable": "Couldn't reach {{platform}}. Try again in a moment.",
+      "rate-limited": "{{platform}} asked VRX to slow down. Try again in a minute.",
+      "not-authenticated": "Sign in to {{platform}} again to see this.",
+      "cooldown": "One moment. Wait a second, then search again.",
+      "invalid-query": "Type at least 2 letters."
+    }
+  },
+  "search": {
+    "placeholder": "Search people and worlds",
+    "aria": "Search people and worlds",
+    "submit": "Search",
+    "hint": "Press Enter to search VRChat and ChilloutVR by name.",
+    "people": "People",
+    "worlds": "Worlds",
+    "noPeople": "No people found.",
+    "noWorlds": "No worlds found.",
+    "friend": "Friend",
+    "openPersonAria": "{{name}} on {{platform}}. Open profile"
+  },
+  "profile": {
+    "aria": "Profile of {{name}} on {{platform}}",
+    "loading": "Loading profile…",
+    "notShown": "Not shown",
+    "pronouns": "Pronouns",
+    "rank": "Rank",
+    "bio": "Bio",
+    "noBio": "No bio.",
+    "badges": "Badges",
+    "noBadges": "No badges shown.",
+    "showWorlds": "Show worlds",
+    "hideWorlds": "Hide worlds",
+    "showGroups": "Show groups",
+    "hideGroups": "Hide groups",
+    "noWorlds": "No public worlds.",
+    "noGroups": "No groups shown.",
+    "partial": "Showing the first ones only.",
+    "listLoading": "Loading…",
+    "listError": "Couldn't load this list.",
+    "error": {
+      "unavailable": "Couldn't load this profile.",
+      "rate-limited": "The platform asked VRX to slow down. Try again in a minute.",
+      "not-authenticated": "Sign in again to see profiles.",
+      "unknown-person": "Search for this person again to see their profile.",
+      "not-found": "This profile is no longer available."
+    }
+  },
+  "groups": {
+    "heading": "Your groups",
+    "hint": "The groups you belong to. View only.",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "count_one": "{{count}} group",
+    "count_other": "{{count}} groups",
+    "empty": "You aren't in any groups yet.",
+    "partial": "Some groups could not be shown.",
+    "members_one": "{{formatted}} member",
+    "members_other": "{{formatted}} members",
+    "openAria": "{{name}}, a {{platform}} group. Show details",
+    "sheetAria": "{{name}}, a {{platform}} group",
+    "description": "Description",
+    "noDescription": "No description.",
+    "details": "Details",
+    "code": "Code",
+    "memberCount": "Members",
+    "yourRole": "Your role",
+    "role": {
+      "owner": "Owner",
+      "member": "Member"
+    }
   }
 }

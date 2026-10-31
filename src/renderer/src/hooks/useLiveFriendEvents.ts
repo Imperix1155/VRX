@@ -40,6 +40,7 @@ import {
 import { authStatusQueryKey } from '../queries/auth'
 import { alertPicksPlatformKey } from '../queries/alertPicks'
 import { avatarQueryKeysForPlatform } from '../queries/avatarLibrary'
+import { communityQueryKeysForPlatform } from '../queries/community'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 
@@ -177,6 +178,11 @@ export function useLiveFriendEvents(): void {
       for (const avatarKey of avatarQueryKeysForPlatform(platform)) {
         void queryClient.cancelQueries({ queryKey: avatarKey })
         queryClient.removeQueries({ queryKey: avatarKey })
+      }
+      // Profiles, searches, lists and groups answered for the old account.
+      for (const communityKey of communityQueryKeysForPlatform(platform)) {
+        void queryClient.cancelQueries({ queryKey: communityKey })
+        queryClient.removeQueries({ queryKey: communityKey })
       }
       // removeQueries does not reset a mounted observer in query-core 5.101.2.
       // Set [] so every mounted consumer clears immediately and B live events

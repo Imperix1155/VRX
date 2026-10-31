@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Search page: find people and worlds on VRChat and ChilloutVR by name. Press
+  Enter to search; nothing is sent while you type. A person opens their full
+  profile, and a world opens the same panel as Explore, with its rooms and
+  Join.
+- Full profiles: a person's bio, pronouns, rank and badges, with their public
+  worlds and groups a click away. Open it from Search, or from a friend's
+  details with Show full profile.
+- Groups page: the groups you belong to on both platforms, with each group's
+  code, member count, your role and its description. View only.
+- Explore has New and Recently updated tabs beside Popular now.
+- Dashboard: an optional Playing now line under the counts shows how many
+  people are online on each platform (Settings → Dashboard).
+- Search and Groups can be hidden from the sidebar like the other optional
+  pages (Settings → Notifications, or the welcome setup).
+
 ### Fixed
 
 - Settings → About: the Open logs folder and Report a bug buttons no longer

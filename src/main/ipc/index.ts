@@ -16,6 +16,8 @@ import type { InboxService } from '../services/inbox'
 import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers } from './explore'
 import { registerAvatarLibraryHandlers, registerCurrentAvatarHandler } from './avatar-library'
+import { registerCommunityHandlers } from './community'
+import type { CommunityService } from '../services/communityService'
 import type { AvatarLibraryService } from '../services/avatarLibraryService'
 import type { CurrentAvatarService } from '../services/currentAvatarService'
 import type { ExploreService } from '../services/exploreService'
@@ -60,6 +62,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   explore: ExploreService
   avatarLibrary: AvatarLibraryService
   currentAvatar: CurrentAvatarService
+  community: CommunityService
   appBackground: AppBackgroundHandlerOptions
   inbox: InboxService
   onRendererHydrated: (event: IpcMainEvent) => void
@@ -139,6 +142,7 @@ export function registerIpcHandlers(
     registerExploreHandlers(options.explore)
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerCurrentAvatarHandler(options.currentAvatar)
+    registerCommunityHandlers(options.community)
     registerAppStatusHandlers(options.appStatus)
     registerActivityHandlers(options.activity)
     registerLaunchHandlers()

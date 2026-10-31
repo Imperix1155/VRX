@@ -603,6 +603,9 @@ export default function SettingsView(): React.JSX.Element {
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
   const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
+  const showSearchPage = useSettingsStore((s) => s.settings.showSearchPage)
+  const showGroupsPage = useSettingsStore((s) => s.settings.showGroupsPage)
+  const playersOnline = useSettingsStore((s) => s.settings.dashboardPlayersOnline)
   const notifyInvites = useSettingsStore((s) => s.settings.notifyInvites)
   const notifyFriendRequests = useSettingsStore((s) => s.settings.notifyFriendRequests)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -706,6 +709,22 @@ export default function SettingsView(): React.JSX.Element {
                 checked={hideEmpty}
                 ariaLabel={t('settings.dashboard.hideEmpty.label')}
                 onChange={(checked) => updateSettings({ dashboardHideEmpty: checked })}
+              />
+            </div>
+            {/* "Playing now" under the stat cards (owner, 2026-10-31). */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.dashboard.playersOnline.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)]">
+                  {t('settings.dashboard.playersOnline.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={playersOnline}
+                ariaLabel={t('settings.dashboard.playersOnline.label')}
+                onChange={(checked) => updateSettings({ dashboardPlayersOnline: checked })}
               />
             </div>
             {/* Every section's place and On/Off (owner, 2026-10-27). Hiding
@@ -969,9 +988,10 @@ export default function SettingsView(): React.JSX.Element {
               />
             </FriendAlertsCard>
 
-            {/* The Activity and Inbox page switches (owner, 2026-10-27) live
-                here rather than with the other page switches so Behavior
-                still fits the 900x670 window. Hiding either keeps its alerts. */}
+            {/* The Activity, Inbox, Search and Groups page switches (owner,
+                2026-10-27 and 2026-10-31) live here rather than with the other
+                page switches so Behavior still fits the 900x670 window. Hiding
+                a page keeps its alerts. */}
             <div className="setting-card grid gap-[var(--space-2)]">
               <SwitchRow
                 label={t('settings.pages.activity.label')}
@@ -986,6 +1006,20 @@ export default function SettingsView(): React.JSX.Element {
                 ariaLabel={t('settings.pages.inbox.label')}
                 checked={showInboxPage}
                 onChange={(checked) => updateSettings({ showInboxPage: checked })}
+              />
+              <SwitchRow
+                label={t('settings.pages.search.label')}
+                description={t('settings.pages.search.description')}
+                ariaLabel={t('settings.pages.search.label')}
+                checked={showSearchPage}
+                onChange={(checked) => updateSettings({ showSearchPage: checked })}
+              />
+              <SwitchRow
+                label={t('settings.pages.groups.label')}
+                description={t('settings.pages.groups.description')}
+                ariaLabel={t('settings.pages.groups.label')}
+                checked={showGroupsPage}
+                onChange={(checked) => updateSettings({ showGroupsPage: checked })}
               />
             </div>
           </section>

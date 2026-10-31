@@ -38,6 +38,25 @@ type VrxBridge = {
   switchAvatar: (
     req: IpcInvoke['switch-avatar']['req']
   ) => Promise<IpcInvoke['switch-avatar']['res']>
+  getProfile: (req: IpcInvoke['get-profile']['req']) => Promise<IpcInvoke['get-profile']['res']>
+  getProfileWorlds: (
+    req: IpcInvoke['get-profile-worlds']['req']
+  ) => Promise<IpcInvoke['get-profile-worlds']['res']>
+  getProfileGroups: (
+    req: IpcInvoke['get-profile-groups']['req']
+  ) => Promise<IpcInvoke['get-profile-groups']['res']>
+  searchCommunity: (
+    req: IpcInvoke['search-community']['req']
+  ) => Promise<IpcInvoke['search-community']['res']>
+  getWorldList: (
+    req: IpcInvoke['get-world-list']['req']
+  ) => Promise<IpcInvoke['get-world-list']['res']>
+  getPlayersOnline: (
+    req: IpcInvoke['get-players-online']['req']
+  ) => Promise<IpcInvoke['get-players-online']['res']>
+  getMyGroups: (
+    req: IpcInvoke['get-my-groups']['req']
+  ) => Promise<IpcInvoke['get-my-groups']['res']>
   getAccounts: () => Promise<IpcInvoke['get-accounts']['res']>
   getAuthStatus: (
     req: IpcInvoke['get-auth-status']['req']

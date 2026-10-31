@@ -46,8 +46,9 @@ or launch authority.
   because a VRChat check is a real API request. The only interval re-checks an
   `error` status once a minute (`AUTH_ERROR_RECHECK_MS`).
 - While `setupPending` is true the welcome setup replaces the shell and login.
-  Only Hot Instances, Activity, Inbox and Explore can be hidden (`isPageShown`); a hidden
-  active page falls back to the Dashboard. The Avatars page always shows.
+  Only Hot Instances, Activity, Inbox, Explore, Search and Groups can be hidden
+  (`isPageShown`); a hidden active page falls back to the Dashboard. The
+  Avatars page always shows.
 
 **State**
 
@@ -84,7 +85,7 @@ or launch authority.
 
 **Account-bound data**
 
-- Friend, linked-profile, Explore, note, alert-pick and avatar queries cancel
+- Friend, linked-profile, Explore, note, alert-pick, avatar and community queries cancel
   old work and clear data and fences at identity or auth boundaries. Avatar
   libraries otherwise stay in memory for the session, keyed by account. An old reply never publishes
   under the replacement account.
@@ -103,7 +104,10 @@ or launch authority.
   feedback stays until another attempt or an account boundary. Retries reuse
   the flow and never run automatically.
 - Explore and the Dashboard preview share ranking, selection, and the
-  non-modal sheet. `useExploreCoordinator` is the only discovery trigger:
+  non-modal sheet; Search and Explore's New and Recently updated tabs open the
+  same sheet for main-adopted worlds. `useExploreCoordinator` is the only
+  discovery trigger. It also declares Explore active on Search (for its world
+  pictures and sheet) without loading Popular now there:
   visibility, focus, and connectivity wakes, gated by account and platform. No
   polling; timers serve only local freshness and typed image deferrals.
 - Explore reads, selection, and images are fenced by generation, account,

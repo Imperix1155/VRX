@@ -23,7 +23,9 @@
  *      Copy link / self-invite / favorite remain separate issues; no
  *      placeholders here.
  *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
- *      explicit Retry after failure, then quiet VRChat trust when known.
+ *      explicit Retry after failure, then quiet VRChat trust when known, then
+ *      "Full profile" (owner, 2026-10-31): bio, pronouns, rank, badges, and
+ *      worlds and groups on demand, read only after the press.
  *   6. Pinned footer: Identities, and across from it the alerts bell
  *      (FriendAlertBell) with "Alert me about this friend" while Settings
  *      limits alerts to picked friends. A linked person is one pick.
@@ -56,6 +58,8 @@ import LinkedDestinationChooser from './LinkedDestinationChooser'
 import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
 import IdentitiesDialog from './IdentitiesDialog'
 import FriendAlertBell from './FriendAlertBell'
+import PlatformPill from './PlatformPill'
+import ProfileDetails from './ProfileDetails'
 
 /** Status-band descriptor per ring label (quoted literals so the i18n
  *  key-existence scan sees them). Web-active has no owner-approved descriptor
@@ -548,6 +552,13 @@ export default function FriendDrawer({
                 {t('drawer.trust', { rank: t(trustKey) })}
               </p>
             )}
+            {shown && (
+              <DrawerFullProfile
+                // A different person starts collapsed again.
+                key={shownAccounts.map((a) => `${a.platform}:${a.platformUserId}`).join('|')}
+                accounts={shownAccounts}
+              />
+            )}
           </div>
         )}
         {/* 6 · Footer, pinned below the scroll: Identities on the left, the
@@ -599,6 +610,39 @@ export default function FriendDrawer({
           onClose={() => setIdentityDialogOwner(null)}
         />
       )}
+    </div>
+  )
+}
+
+/** Collapsed by default: nothing is read until the user opens it. */
+function DrawerFullProfile({ accounts }: { accounts: readonly Friend[] }): React.JSX.Element {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const ordered = inPlatformOrder(accounts)
+  return (
+    <div className="flex flex-col gap-[var(--space-3)]">
+      <button
+        type="button"
+        aria-expanded={open}
+        data-drawer-full-profile=""
+        onClick={() => setOpen((value) => !value)}
+        className="self-start rounded-control px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
+      >
+        {t(open ? 'drawer.fullProfile.hide' : 'drawer.fullProfile.show')}
+      </button>
+      {open
+        ? ordered.map((account) => (
+            <div
+              key={`${account.platform}:${account.platformUserId}`}
+              className="flex flex-col gap-[var(--space-2)]"
+            >
+              {ordered.length > 1 ? (
+                <PlatformPill platform={account.platform} className="self-start" />
+              ) : null}
+              <ProfileDetails platform={account.platform} userId={account.platformUserId} />
+            </div>
+          ))
+        : null}
     </div>
   )
 }

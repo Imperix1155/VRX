@@ -423,6 +423,36 @@ request with no retry, at most one every 5 s.
   `auth-invalidated`; a 429 surfaces as rate-limited. The renderer keeps the
   last shown list.
 
+### Profiles, search, lists, players online and groups
+
+Read-only lookups for the Search and Groups pages, Explore's New and Recently
+updated tabs, the full profile and the Dashboard's Playing now line
+([parseCommunity.ts](../src/main/services/adapters/vrchat/parseCommunity.ts)).
+Routes and fields follow the community
+[specification](https://github.com/vrchatapi/specification) and VRCX. They are
+Source-derived; no real response has been captured yet. Every read starts from
+a user action (Enter, a page or tab opening, a Show press, Refresh) and is
+cached in main for 5 minutes; nothing runs on a timer.
+
+| Route                                                                                 | Assumed shape                                                           |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `GET /users/{userId}`                                                                 | One user: `displayName`, `bio`, `pronouns`, `tags`, `badges`, pictures. |
+| `GET /users?search={text}&n=10`                                                       | Array of users.                                                         |
+| `GET /worlds?search={text}&sort=relevance&tag=system_approved&n=10`                   | Array of worlds, as for Explore.                                        |
+| `GET /worlds?sort=publicationDate\|updated&order=descending&tag=system_approved&n=12` | Array of worlds: New and Recently updated.                              |
+| `GET /worlds?userId={userId}&releaseStatus=public&sort=updated&order=descending&n=24` | A person's public worlds.                                               |
+| `GET /users/{userId}/groups`                                                          | Array of memberships: `groupId` (`grp_`), `name`, `shortCode`, counts.  |
+| `GET /visits`                                                                         | A bare number: everyone online now.                                     |
+
+- **Fields:** user ids must be `usr_<UUID>` (or a short legacy id of letters and
+  digits); world ids `wrld_<UUID>`; group ids `grp_<UUID>`. Trust comes from
+  `tags` like the friends list. Hidden badges are skipped and showcased ones
+  come first, at most 8. Text is cut at 2,048 characters; image URLs must be
+  `https`.
+- **When it breaks:** a non-array reply (or a non-number for `/visits`) is
+  unavailable; a 404 profile is not found. A 401 emits `auth-invalidated`; a
+  429 surfaces as rate-limited.
+
 ### Self-invite: `POST /invite/myself/to/{location}`
 
 - **Assumes (Source-derived):** body `{}`. The response is ignored.
@@ -765,6 +795,28 @@ every 5 s.
   only on the next world load.
 - **When it breaks:** a non-array list is unavailable. Auth errors follow the
   data-path rules above; a 429 surfaces as rate-limited.
+
+### Profiles, search, lists, players online and groups
+
+The same read-only lookups as VRChat
+([parseCommunity.ts](../src/main/services/adapters/cvr/parseCommunity.ts)).
+Routes and fields come from CVRX and the official client. They are
+Source-derived; no real response has been captured yet. The same user-action
+and 5-minute cache rules apply.
+
+| Route                                                                              | Assumed shape                                                                                       |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `GET /users/{userId}`                                                              | `name`, `imageUrl`, `profileBio`, `profilePronouns`, `rank`, `featuredBadge`.                       |
+| `GET /search/{text}`                                                               | Array mixing `type` `user`, `world`, `avatar` and `prop`; only people and worlds are kept.          |
+| `GET https://api.chilloutvr.net/2/worlds/list/wrldnew\|wrldrecentlyupdated?page=0` | `{ entries }`, as for Explore: New and Recently updated.                                            |
+| `GET /users/{userId}/worlds`                                                       | Array of `{ id, name, imageUrl }`.                                                                  |
+| `GET /groups` and `GET /users/{userId}/groups`                                     | `{ owned, member }`, each an array of `{ id, tag, name, description, memberCount, image, banner }`. |
+| `GET https://api.chilloutvr.net/1/public/userstats`                                | `{ usersOnline: { overall, … } }`.                                                                  |
+
+- **Fields:** user, world and group ids must be GUIDs (stored lower case). A
+  featured badge named `No badge featured` is skipped.
+- **When it breaks:** a reply of the wrong shape is unavailable. Auth errors
+  follow the data-path rules above; a 429 surfaces as rate-limited.
 
 ### WebSocket `/users/ws`
 

@@ -35,6 +35,7 @@ import HotInstanceSheet from './HotInstanceSheet'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
+import PlayersOnline from './PlayersOnline'
 import DashboardGlance from './DashboardGlance'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
@@ -118,6 +119,7 @@ function DashboardContent(): React.JSX.Element {
   // useSettingsPersistence (VRX-184).
   const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
+  const playersOnline = useSettingsStore((s) => s.settings.dashboardPlayersOnline)
   const sections = useSettingsStore((s) => s.settings.dashboardSections)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   // "See all" leads to the Hot Instances page, so it goes when that page is off.
@@ -292,20 +294,22 @@ function DashboardContent(): React.JSX.Element {
 
   return (
     <div>
-      {/* Stat cards row */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${hotEnabled ? 3 : 2}, minmax(0, 1fr))`,
-          gap: '14px',
-          marginBottom: '26px'
-        }}
-      >
-        <StatCard value={stats.onlineCount} labelKey="dashboard.statOnlineLabel" tint="active" />
-        <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" tint="ingame" />
-        {hotEnabled && (
-          <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
-        )}
+      {/* Stat cards row, then the optional "Playing now" line */}
+      <div style={{ marginBottom: '26px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${hotEnabled ? 3 : 2}, minmax(0, 1fr))`,
+            gap: '14px'
+          }}
+        >
+          <StatCard value={stats.onlineCount} labelKey="dashboard.statOnlineLabel" tint="active" />
+          <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" tint="ingame" />
+          {hotEnabled && (
+            <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
+          )}
+        </div>
+        {playersOnline ? <PlayersOnline platforms={scopedPlatforms} /> : null}
       </div>
 
       {/* Every section joins one keyed array in the user's order, so Popular

@@ -162,6 +162,15 @@ function options(): IpcHandlerOptions {
       switchAvatar: vi.fn()
     },
     currentAvatar: { getCurrent: vi.fn() },
+    community: {
+      getProfile: vi.fn(),
+      getProfileWorlds: vi.fn(),
+      getProfileGroups: vi.fn(),
+      search: vi.fn(),
+      getWorldList: vi.fn(),
+      getPlayersOnline: vi.fn(),
+      getMyGroups: vi.fn()
+    },
     onRendererHydrated: hydrated,
     rateLimit: {
       clock: () => now,
@@ -208,7 +217,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(45)
+    expect(electron.invokeHandlers.size).toBe(52)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -246,6 +255,13 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-current-avatar',
         'get-avatar-details',
         'switch-avatar',
+        'get-profile',
+        'get-profile-worlds',
+        'get-profile-groups',
+        'search-community',
+        'get-world-list',
+        'get-players-online',
+        'get-my-groups',
         'get-friend-note',
         'get-friends',
         'get-join-handoff',

@@ -181,14 +181,18 @@ export function useExploreCoordinator(): void {
   const active = useMemo(() => selectedPlatforms(filter, statuses), [filter, statuses])
   const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const relevant = ((activeTab === 'dashboard' && popularNow) || activeTab === 'explore') && visible
+  // Search shows worlds that open the same world sheet, so main must treat
+  // Explore as in use there for their pictures and sheet. Popular now itself
+  // is not loaded for Search: that stays with `relevant`.
+  const declared = (relevant || activeTab === 'search') && visible
 
   useEffect(() => {
     setExploreImagePlatforms([])
     if (typeof window === 'undefined' || !window.vrx?.setExploreActive) return
     let cancelled = false
     const capturedGenerations = { ...activationGenerations.current }
-    const platforms = relevant ? active : []
-    const key = activeDeclarationKey(relevant, active)
+    const platforms = declared ? active : []
+    const key = activeDeclarationKey(declared, active)
     const known = activeDeclaration.current
     let activation: Promise<void>
     if (known.successful === key) {
@@ -229,12 +233,13 @@ export function useExploreCoordinator(): void {
     }
     void activation
       .then(() => {
-        if (cancelled || !relevant || activeDeclaration.current.successful !== key) return
+        if (cancelled || !declared || activeDeclaration.current.successful !== key) return
         setExploreImagePlatforms(
           active.filter(
             (platform) => activationGenerations.current[platform] === capturedGenerations[platform]
           )
         )
+        if (!relevant) return
         const now = Date.now()
         for (const platform of active) {
           if (activationGenerations.current[platform] !== capturedGenerations[platform]) continue
@@ -254,7 +259,7 @@ export function useExploreCoordinator(): void {
       cancelled = true
       setExploreImagePlatforms([])
     }
-  }, [active, relevant, statuses, wake])
+  }, [active, declared, relevant, statuses, wake])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx) return

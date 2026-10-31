@@ -10,7 +10,6 @@ import { useFriendsStore } from '../stores/friends'
 import { requestExplore, useExploreCachedSnapshot, useExploreSnapshot } from '../queries/explore'
 import { queryClient } from '../queries/queryClient'
 import { authStatusQueryKey } from '../queries/auth'
-import { useExploreImage } from '../hooks/useExploreImage'
 import { useExploreWorldSelection } from '../hooks/useExploreWorldSelection'
 import { useJoinInstance } from '../hooks/useJoinInstance'
 import { isNotConnectedAuth } from '../hooks/useNotConnectedGate'
@@ -18,7 +17,11 @@ import { useUiStore } from '../stores/ui'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { EXPLORE_SESSION_SEEDS } from '../utils/exploreSeeds'
 import ExploreView from './ExploreView'
-import ExploreWorldCard from './ExploreWorldCard'
+import { ResolvedCard } from './WorldResults'
+import ExploreListPanel from './ExploreLists'
+import SegmentedControl from './SegmentedControl'
+import { useRefreshWorldList } from '../queries/community'
+import { shownPlatforms } from '../utils/community'
 import ExploreWorldSheet from './ExploreWorldSheet'
 import { PopularNowSection } from './ExploreDashboardPreview'
 import { isPopularNowHidden } from '../utils/popularNow'
@@ -77,21 +80,13 @@ function shownUnderFilter(
   return snapshot.platform === platformFilter
 }
 
-function ResolvedCard({
-  world,
-  onOpen,
-  layout = 'card'
-}: {
-  world: ExploreWorld
-  onOpen: (world: ExploreWorld, opener: HTMLElement) => void
-  layout?: 'card' | 'bar'
-}): React.JSX.Element {
-  const { ref, image } = useExploreImage(world.platform, world.worldRef)
-  return (
-    <div ref={ref} className="h-full w-full">
-      <ExploreWorldCard world={world} image={image} onOpen={onOpen} layout={layout} />
-    </div>
-  )
+/** Popular now, then the two lists every platform offers (owner, 2026-10-31). */
+const EXPLORE_TABS = ['popular', 'new', 'updated'] as const
+type ExploreTab = (typeof EXPLORE_TABS)[number]
+const EXPLORE_TAB_KEYS: Record<ExploreTab, string> = {
+  popular: 'explore.popularNow',
+  new: 'explore.lists.new',
+  updated: 'explore.lists.updated'
 }
 
 /** Production Explore route. Data fetching is intentionally delegated to AppShell's coordinator. */
@@ -145,6 +140,13 @@ export default function ExploreRoute(): React.JSX.Element {
   const [focusFallback, setFocusFallback] = useState<HTMLDivElement | null>(null)
   const { isJoining, joinExplore, joinExploreFailureFor, pendingConfirm } = useJoinInstance()
 
+  const [tab, setTab] = useState<ExploreTab>('popular')
+  const refreshList = useRefreshWorldList()
+  const refreshShownList = useCallback(() => {
+    if (tab === 'popular') return
+    for (const platform of shownPlatforms(platformFilter))
+      void refreshList(platform, tab).catch(() => undefined)
+  }, [platformFilter, refreshList, tab])
   const refresh = useCallback(() => {
     const platforms =
       platformFilter === 'all' ? (['vrchat', 'chilloutvr'] as const) : ([platformFilter] as const)
@@ -174,43 +176,57 @@ export default function ExploreRoute(): React.JSX.Element {
 
   const shell = (
     <>
-      <div className="mb-[var(--space-3)] flex justify-end">
+      <div className="mb-[var(--space-3)] flex flex-wrap items-center justify-between gap-[var(--space-3)]">
+        <SegmentedControl
+          values={EXPLORE_TABS}
+          active={tab}
+          labelKeys={EXPLORE_TAB_KEYS}
+          ariaLabel={t('explore.lists.aria')}
+          onChange={(next) => {
+            // A Popular now sheet belongs to that tab's cards.
+            closeSheet()
+            setTab(next)
+          }}
+        />
         <button
           type="button"
-          onClick={refresh}
+          onClick={tab === 'popular' ? refresh : refreshShownList}
           className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text-dim)] hover:bg-[var(--surface-hover)]"
         >
           {t('explore.refresh')}
         </button>
       </div>
-      <ExploreView
-        worlds={worlds}
-        total={worldsShown}
-        platformSnapshots={snapshots}
-        sheet={sheet}
-        sheetOpener={selected?.opener ?? null}
-        focusFallback={focusFallback}
-        images={sheet && sheetImage ? { [sheet.world.worldRef]: sheetImage } : undefined}
-        onTotalChange={(exploreWorldsShown) => updateSettings({ exploreWorldsShown })}
-        onOpenWorld={openWorld}
-        onCloseSheet={closeSheet}
-        onJoinRoom={(room: ExploreRoom) => {
-          if (sheet !== null) void joinExplore(sheet.world, room)
-        }}
-        renderWorld={(world) => (
-          <ResolvedCard
-            key={`${world.platform}:${world.worldId}`}
-            world={world}
-            onOpen={openWorld}
-          />
-        )}
-        sheetDismissable={pendingConfirm === null}
-        isJoining={isJoining}
-        onRefreshSheet={refreshSheet}
-        joinFailureFor={(room) =>
-          sheet !== null ? joinExploreFailureFor(sheet.world, room) : null
-        }
-      />
+      {tab !== 'popular' ? <ExploreListPanel list={tab} /> : null}
+      {tab === 'popular' ? (
+        <ExploreView
+          worlds={worlds}
+          total={worldsShown}
+          platformSnapshots={snapshots}
+          sheet={sheet}
+          sheetOpener={selected?.opener ?? null}
+          focusFallback={focusFallback}
+          images={sheet && sheetImage ? { [sheet.world.worldRef]: sheetImage } : undefined}
+          onTotalChange={(exploreWorldsShown) => updateSettings({ exploreWorldsShown })}
+          onOpenWorld={openWorld}
+          onCloseSheet={closeSheet}
+          onJoinRoom={(room: ExploreRoom) => {
+            if (sheet !== null) void joinExplore(sheet.world, room)
+          }}
+          renderWorld={(world) => (
+            <ResolvedCard
+              key={`${world.platform}:${world.worldId}`}
+              world={world}
+              onOpen={openWorld}
+            />
+          )}
+          sheetDismissable={pendingConfirm === null}
+          isJoining={isJoining}
+          onRefreshSheet={refreshSheet}
+          joinFailureFor={(room) =>
+            sheet !== null ? joinExploreFailureFor(sheet.world, room) : null
+          }
+        />
+      ) : null}
     </>
   )
   return (

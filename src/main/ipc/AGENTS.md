@@ -93,6 +93,11 @@ Persistence, network, cache, and account-transition policy stay in services.
   switch target. `switch-avatar` wears only an ID the
   current account's library listed, one at a time, with a cooldown; a denial
   keeps the `{ ok: false, reason: 'rate-limited' }` shape.
+- Community handlers (`get-profile`, `get-profile-worlds`, `get-profile-groups`,
+  `search-community`, `get-world-list`, `get-players-online`, `get-my-groups`)
+  accept only a platform, a bounded user ID or search text, a list name and an
+  optional `refresh` flag, and delegate to `CommunityService`. They never write
+  to a platform.
 
 ## Work Guidance
 

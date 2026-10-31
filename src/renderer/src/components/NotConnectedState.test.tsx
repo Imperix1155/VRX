@@ -25,6 +25,7 @@ vi.mock('../queries/auth', async (importOriginal) => ({
 
 // The Dashboard glance row reads through a QueryClient; its own tests cover it.
 vi.mock('./DashboardGlance', () => ({ default: () => null }))
+vi.mock('./PlayersOnline', () => ({ default: () => null }))
 
 const accountCta = 'Go to Accounts'
 
