@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Build and lint tooling pins `minimatch` 11.0.1 and `glob` 14.0.2 anywhere
+  the installed copy is inside the moderate `glob` advisory (9.0.0 through
+  14.0.1). `minimatch` below 11.0.1 is the other moderate advisory. The
+  running app does not ship these packages.
+
 ## [1.3.0] - 2026-10-31
 
 VRX 1.3 reworks light mode so VRChat and ChilloutVR read apart at a glance,
