@@ -13,7 +13,9 @@ request transport, and published adapter events.
 - `fetchCvrFriends.ts` (flat `/friends` roster), `CvrPipeline.ts`
   (`/users/ws`), `parseCvrPrivacy.ts`, `cvrPlatformUserId.ts`,
   `resolveCvrInstance.ts`, `buildCvrJoinUrl.ts`, `parseExplore.ts`, and
-  `parseAvatars.ts` (own uploads only: `authorGuid` or the `avtrmine` category).
+  `parseAvatars.ts` (own uploads only: `authorGuid` or the `avtrmine` category),
+  and `parseCommunity.ts` (people, profiles, search, worlds, groups, player
+  count; IDs lower-cased GUIDs).
 - Symbols and the adapter contract: [`docs/INTERNAL-API.md`](../../../../../docs/INTERNAL-API.md).
 
 ## Local Contracts

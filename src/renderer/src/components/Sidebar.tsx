@@ -13,8 +13,10 @@ import {
   IconDashboard,
   IconExplore,
   IconFriends,
+  IconGroups,
   IconHot,
   IconInbox,
+  IconSearch,
   IconSettings
 } from './NavIcons'
 
@@ -132,6 +134,8 @@ const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'activity', icon: IconActivity },
   { id: 'inbox', icon: IconInbox },
   { id: 'explore', icon: IconExplore },
+  { id: 'search', icon: IconSearch },
+  { id: 'groups', icon: IconGroups },
   { id: 'avatars', icon: IconAvatars },
   { id: 'settings', icon: IconSettings }
 ]
@@ -145,8 +149,17 @@ export default function Sidebar(): React.JSX.Element {
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
   const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
+  const showSearchPage = useSettingsStore((s) => s.settings.showSearchPage)
+  const showGroupsPage = useSettingsStore((s) => s.settings.showGroupsPage)
   const navItems = NAV_ITEMS.filter(({ id }) =>
-    isPageShown(id, { showHotInstancesPage, showExplorePage, showActivityPage, showInboxPage })
+    isPageShown(id, {
+      showHotInstancesPage,
+      showExplorePage,
+      showActivityPage,
+      showInboxPage,
+      showSearchPage,
+      showGroupsPage
+    })
   )
   // While the Inbox is open its rows are on screen, so nothing there is new.
   const newInboxCount = useNewInboxCount()

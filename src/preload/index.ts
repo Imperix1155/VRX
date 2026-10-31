@@ -51,6 +51,16 @@ const vrx = {
     invoke('get-avatar-details', req),
   // Avatar IDs only: main switches only to an avatar it listed for this session.
   switchAvatar: (req: IpcInvoke['switch-avatar']['req']) => invoke('switch-avatar', req),
+  getProfile: (req: IpcInvoke['get-profile']['req']) => invoke('get-profile', req),
+  getProfileWorlds: (req: IpcInvoke['get-profile-worlds']['req']) =>
+    invoke('get-profile-worlds', req),
+  getProfileGroups: (req: IpcInvoke['get-profile-groups']['req']) =>
+    invoke('get-profile-groups', req),
+  searchCommunity: (req: IpcInvoke['search-community']['req']) => invoke('search-community', req),
+  getWorldList: (req: IpcInvoke['get-world-list']['req']) => invoke('get-world-list', req),
+  getPlayersOnline: (req: IpcInvoke['get-players-online']['req']) =>
+    invoke('get-players-online', req),
+  getMyGroups: (req: IpcInvoke['get-my-groups']['req']) => invoke('get-my-groups', req),
   getAccounts: () => invoke('get-accounts', undefined),
   getLinkedProfiles: () => invoke('get-linked-profiles', undefined),
   changeLinkedProfile: (req: IpcInvoke['change-linked-profile']['req']) =>

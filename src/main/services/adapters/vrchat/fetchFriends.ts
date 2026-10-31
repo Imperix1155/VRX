@@ -109,7 +109,7 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string | nu
 
 /** Request a bounded rendition of recognized VRChat file URLs. All other URLs
  * remain subject to AvatarCache's existing host, MIME and body-size checks. */
-function profileThumbnail(value: string | null | undefined): string | null | undefined {
+export function profileThumbnail(value: string | null | undefined): string | null | undefined {
   return value?.replace(
     /^https:\/\/api\.vrchat\.cloud\/api\/1\/file\/(file_[a-f0-9-]+)\/(\d+)(?:\/file)?\/?$/,
     'https://api.vrchat.cloud/api/1/image/$1/$2/256'

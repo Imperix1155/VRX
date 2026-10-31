@@ -65,6 +65,8 @@ describe('Sidebar destinations (VRX-281)', () => {
       'activity',
       'inbox',
       'explore',
+      'search',
+      'groups',
       'avatars',
       'settings'
     ] as const
@@ -89,7 +91,9 @@ describe('Sidebar optional pages (owner, 2026-10-20)', () => {
         showHotInstancesPage: false,
         showExplorePage: false,
         showActivityPage: false,
-        showInboxPage: false
+        showInboxPage: false,
+        showSearchPage: false,
+        showGroupsPage: false
       }
     })
     render(<Sidebar />)

@@ -103,6 +103,45 @@ export function IconExplore(): React.JSX.Element {
   )
 }
 
+/** A magnifier: find people and worlds. */
+export function IconSearch(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.5 15.5 5 5" />
+    </svg>
+  )
+}
+
+/** Three people in a row: the groups a user belongs to. */
+export function IconGroups(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <circle cx="12" cy="8" r="3" />
+      <circle cx="5" cy="10" r="2.2" />
+      <circle cx="19" cy="10" r="2.2" />
+      <path d="M6.5 20c0-3.2 2.4-5.5 5.5-5.5s5.5 2.3 5.5 5.5" />
+      <path d="M2 19c0-2.3 1.4-4 3.4-4.3M22 19c0-2.3-1.4-4-3.4-4.3" />
+    </svg>
+  )
+}
+
 /** A shirt: the avatars a user wears. */
 export function IconAvatars(): React.JSX.Element {
   return (

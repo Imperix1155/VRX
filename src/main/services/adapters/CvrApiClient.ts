@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { CVR_API_BASE, CVR_PLATFORM } from '@shared/constants'
 import type { Platform } from '@shared/types'
+import type { WorldList } from '@shared/community'
 import { BaseAdapter, type AdapterRequestOptions, type RequestInitSource } from './BaseAdapter'
 import type { RequestLease } from './RequestLease'
 import {
@@ -22,8 +23,16 @@ const cvrInstanceId = /^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$/i
 
 type CvrDiscoveryRoute =
   | { kind: 'active-worlds' }
+  | { kind: 'world-list'; list: WorldList }
+  | { kind: 'players-online' }
   | { kind: 'world'; worldId: string }
   | { kind: 'room'; instanceId: string }
+
+/** ChilloutVR's world category for each Explore list (the ones CVRX shows). */
+const CVR_WORLD_LIST_CATEGORY: Record<WorldList, string> = {
+  new: 'wrldnew',
+  updated: 'wrldrecentlyupdated'
+}
 
 // Only username, accessKey and userId are read. The rest of CVR's auth reply is
 // left unvalidated so a renamed or dropped field there cannot fail every sign-in
@@ -177,6 +186,10 @@ export abstract class CvrApiClient extends BaseAdapter {
     switch (route.kind) {
       case 'active-worlds':
         return `${CVR_DISCOVERY_BASE}/2/worlds/list/wrldactive?page=0&sort=Default&direction=Ascending`
+      case 'world-list':
+        return `${CVR_DISCOVERY_BASE}/2/worlds/list/${CVR_WORLD_LIST_CATEGORY[route.list]}?page=0&sort=Default&direction=Ascending`
+      case 'players-online':
+        return `${CVR_DISCOVERY_BASE}/1/public/userstats`
       case 'world':
         if (!cvrWorldId.test(route.worldId))
           throw new CVRNetworkError('Invalid CVR discovery world id')

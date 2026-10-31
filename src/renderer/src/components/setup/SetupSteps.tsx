@@ -13,7 +13,15 @@ import { focusRadioSibling, segArrowTarget } from '../../utils/segmented'
 import AccountCard from '../AccountCard'
 import SegmentedControl from '../SegmentedControl'
 import Toggle from '../Toggle'
-import { IconActivity, IconExplore, IconFriends, IconHot, IconInbox } from '../NavIcons'
+import {
+  IconActivity,
+  IconExplore,
+  IconFriends,
+  IconGroups,
+  IconHot,
+  IconInbox,
+  IconSearch
+} from '../NavIcons'
 import { BackgroundPictureControls, BackgroundPictureMessage } from '../BackgroundPicturePicker'
 import { useBackgroundPicturePicker } from '../../hooks/useBackgroundPicturePicker'
 import { useAppBackground } from '../../queries/appBackground'
@@ -242,6 +250,8 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
   const showExplore = useSettingsStore((s) => s.settings.showExplorePage)
   const showActivity = useSettingsStore((s) => s.settings.showActivityPage)
   const showInbox = useSettingsStore((s) => s.settings.showInboxPage)
+  const showSearch = useSettingsStore((s) => s.settings.showSearchPage)
+  const showGroups = useSettingsStore((s) => s.settings.showGroupsPage)
   const update = useSettingsStore((s) => s.updateSettings)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
@@ -281,6 +291,28 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             checked={showExplore}
             ariaLabel={t('setup.pages.exploreAria')}
             onChange={(checked) => update({ showExplorePage: checked })}
+          />
+        </Row>
+        <Row
+          icon={<IconSearch />}
+          label={t('shell.nav.search')}
+          description={t('setup.pages.search')}
+        >
+          <Toggle
+            checked={showSearch}
+            ariaLabel={t('setup.pages.searchAria')}
+            onChange={(checked) => update({ showSearchPage: checked })}
+          />
+        </Row>
+        <Row
+          icon={<IconGroups />}
+          label={t('shell.nav.groups')}
+          description={t('setup.pages.groups')}
+        >
+          <Toggle
+            checked={showGroups}
+            ariaLabel={t('setup.pages.groupsAria')}
+            onChange={(checked) => update({ showGroupsPage: checked })}
           />
         </Row>
       </div>
@@ -535,6 +567,8 @@ export const DoneStep = forwardRef<
       ['shell.nav.activity', s.showActivityPage],
       ['shell.nav.inbox', s.showInboxPage],
       ['shell.nav.explore', s.showExplorePage],
+      ['shell.nav.search', s.showSearchPage],
+      ['shell.nav.groups', s.showGroupsPage],
       ['shell.nav.avatars', true],
       ['shell.nav.settings', true]
     ] as const

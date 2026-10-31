@@ -36,6 +36,9 @@ describe('settings schema', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
       setupPending: false,
       theme: 'system',
       language: 'en',
@@ -307,6 +310,9 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -362,6 +368,9 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -418,6 +427,9 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -476,6 +488,9 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -532,6 +547,9 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -589,6 +607,9 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -1185,6 +1206,9 @@ describe('Optional pages and first-run setup', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -1210,5 +1234,41 @@ describe('Optional pages and first-run setup', () => {
   it('queues setup only in the fresh-install defaults', () => {
     expect(freshInstallSettings()).toEqual({ ...DEFAULT_SETTINGS, setupPending: true })
     expect(DEFAULT_SETTINGS.setupPending).toBe(false)
+  })
+})
+
+describe('Search, Groups and players-online settings', () => {
+  it('defaults all three on and keeps explicit choices', () => {
+    expect(parseSettings({ version: 22 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true
+    })
+    expect(
+      parseSettings({ showSearchPage: false, showGroupsPage: 'no', dashboardPlayersOnline: false })
+    ).toMatchObject({ showSearchPage: false, showGroupsPage: true, dashboardPlayersOnline: false })
+  })
+
+  it('prevents a v22 build from stripping them during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 23,
+      showSearchPage: false,
+      showGroupsPage: false,
+      dashboardPlayersOnline: false
+    }
+    const oldNormalized = { ...disk, version: 22 }
+    Reflect.deleteProperty(oldNormalized, 'showSearchPage')
+    Reflect.deleteProperty(oldNormalized, 'showGroupsPage')
+    Reflect.deleteProperty(oldNormalized, 'dashboardPlayersOnline')
+
+    if (shouldPersistSettings(disk, 22)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      showSearchPage: false,
+      showGroupsPage: false,
+      dashboardPlayersOnline: false
+    })
   })
 })

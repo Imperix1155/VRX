@@ -87,7 +87,7 @@ import { ACTIVITY_FILTERS } from './activity'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 22 as const
+export const SETTINGS_VERSION = 23 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -122,6 +122,12 @@ export const SettingsSchema = z.object({
   activityFilter: z.enum(ACTIVITY_FILTERS).catch('all'),
   /** The Inbox page. Hiding it keeps its alerts, which have their own switches. */
   showInboxPage: z.boolean().catch(true),
+  /** The Search page (people and worlds on both platforms). */
+  showSearchPage: z.boolean().catch(true),
+  /** The Groups page (the user's own groups, read only). */
+  showGroupsPage: z.boolean().catch(true),
+  /** The "playing now" line under the Dashboard numbers: everyone on each platform. */
+  dashboardPlayersOnline: z.boolean().catch(true),
   /** First-run welcome setup is waiting. Missing or invalid data never starts it:
    *  main marks only a brand-new install (see `freshInstallSettings`). */
   setupPending: z.boolean().catch(false),
@@ -217,7 +223,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v22 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v23 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -274,7 +280,10 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   20: (prev) => ({ ...prev }),
   // v21 → v22: `vrOverlayAlerts` and `vrOverlayAlertDuration` are additive. The
   // version boundary stops an older build from stripping a user's choice.
-  21: (prev) => ({ ...prev })
+  21: (prev) => ({ ...prev }),
+  // v22 → v23: `showSearchPage`, `showGroupsPage` and `dashboardPlayersOnline`
+  // are additive. The version boundary stops an older build from stripping them.
+  22: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

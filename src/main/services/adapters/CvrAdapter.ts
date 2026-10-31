@@ -54,6 +54,30 @@ import {
   parseCvrCurrentAvatar,
   parseCvrOwnAvatars
 } from './cvr/parseAvatars'
+import {
+  COMMUNITY_LIST_MAX_WORLDS,
+  COMMUNITY_MY_GROUPS_MAX,
+  COMMUNITY_PROFILE_MAX_ITEMS,
+  COMMUNITY_SEARCH_MAX_RESULTS,
+  isCommunityUserId,
+  type CommunityGroup,
+  type CommunityWorld,
+  type PersonProfile,
+  type WorldList
+} from '@shared/community'
+import {
+  CommunityDataError,
+  type CommunityAdapter,
+  type CommunityList,
+  type CommunitySearchPage
+} from './CommunityAdapter'
+import {
+  parseCvrGroups,
+  parseCvrPlayersOnline,
+  parseCvrProfile,
+  parseCvrProfileWorlds,
+  parseCvrSearch
+} from './cvr/parseCommunity'
 
 /** The presence-snapshot member of AdapterEvent (no exported alias in shared). */
 type PresenceSnapshotEvent = Extract<AdapterEvent, { type: 'presence-snapshot' }>
@@ -154,7 +178,7 @@ export interface CvrCredentialStore {
  */
 export class CvrAdapter
   extends CvrApiClient
-  implements IPlatformAdapter, ExploreAdapter, AvatarLibraryAdapter
+  implements IPlatformAdapter, ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -702,6 +726,127 @@ export class CvrAdapter
         retry: 'none'
       })
     )
+  }
+
+  // ── Community reads (profiles, search, lists, players online, groups) ───────
+  // Read-only; each one follows a user action and waits in the shared line.
+
+  captureCommunityLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
+    const id = this.communityUserId(userId)
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const profile = parseCvrProfile(raw)
+    return profile?.userId === id ? profile : null
+  }
+
+  async getProfileWorlds(
+    userId: string,
+    lease: RequestLease
+  ): Promise<CommunityList<CommunityWorld>> {
+    const id = this.communityUserId(userId)
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(id)}/worlds`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseCvrProfileWorlds(raw)
+    if (!parsed) throw new CommunityDataError('ChilloutVR world list response was malformed')
+    return parsed
+  }
+
+  async getProfileGroups(
+    userId: string,
+    lease: RequestLease
+  ): Promise<CommunityList<CommunityGroup>> {
+    const id = this.communityUserId(userId)
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(id)}/groups`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseCvrGroups(raw, false, COMMUNITY_PROFILE_MAX_ITEMS)
+    if (!parsed) throw new CommunityDataError('ChilloutVR group list response was malformed')
+    return parsed
+  }
+
+  async search(query: string, lease: RequestLease): Promise<CommunitySearchPage> {
+    // One request answers people, worlds, avatars and props together.
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/search/${encodeURIComponent(query)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseCvrSearch(raw, COMMUNITY_SEARCH_MAX_RESULTS)
+    if (!parsed) throw new CommunityDataError('ChilloutVR search response was malformed')
+    return parsed
+  }
+
+  async getWorldList(list: WorldList, lease: RequestLease): Promise<ExploreWorldEvidence[]> {
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.getExploreDiscovery(
+        { kind: 'world-list', list },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const outer = recordValue(raw)
+    if (!outer || !Array.isArray(outer.entries)) {
+      throw new CommunityDataError('ChilloutVR world list response was malformed')
+    }
+    return parseCvrExploreCandidates({
+      ...outer,
+      entries: outer.entries.slice(0, COMMUNITY_LIST_MAX_WORLDS)
+    })
+  }
+
+  async getPlayersOnline(lease: RequestLease): Promise<number | null> {
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.getExploreDiscovery(
+        { kind: 'players-online' },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    return parseCvrPlayersOnline(raw)
+  }
+
+  async getMyGroups(lease: RequestLease): Promise<CommunityList<CommunityGroup>> {
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get('/groups', z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseCvrGroups(raw, true, COMMUNITY_MY_GROUPS_MAX)
+    if (!parsed) throw new CommunityDataError('ChilloutVR group list response was malformed')
+    return parsed
+  }
+
+  private communityUserId(userId: string): string {
+    if (!isCommunityUserId('chilloutvr', userId)) {
+      throw new CommunityDataError('Invalid ChilloutVR user id')
+    }
+    return userId.toLowerCase()
+  }
+
+  private communityOptions(lease: RequestLease): AdapterRequestOptions {
+    return {
+      lease,
+      priority: 'interactive',
+      // A read is never resent on its own; the user can press again.
+      retry: 'none',
+      // A missing person or world is an ordinary answer; only sign-in failures count.
+      recordCircuitFailure: 'auth'
+    }
+  }
+
+  private async runCommunityRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
+    try {
+      const value = await request()
+      assertRequestLease(lease)
+      return value
+    } catch (error) {
+      if (lease.isCurrent() && error instanceof CVRAuthError) {
+        this.handleDataAuthFailure(error)
+      }
+      throw error
+    }
   }
 
   private avatarRequestOptions(lease: RequestLease): AdapterRequestOptions {

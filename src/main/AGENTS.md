@@ -139,9 +139,16 @@ etiquette rules apply in full; this file adds local detail.
   stamps `rosterRevision` from the same monotonic counter as roster seeds;
   event revisions never move per-friend location fences.
 - A session boundary clears that platform's alerts, location authority, inbox
-  (unless `identityRetained`), and Explore state, then sends `identity-boundary`. A VRChat data-path 401 sets
+  (unless `identityRetained`), Explore and community state, then sends `identity-boundary`. A VRChat data-path 401 sets
   `identityRetained`: clear main state but send no identity boundary; the
   following `auth-invalidated` quarantines the renderer.
+- `CommunityService` (profiles, search, world lists, players online, own
+  groups) is read-only and user-initiated: no timers, 5-minute caches, shared
+  in-flight reads, one uncached search per platform every 2 s, and Refresh
+  re-reads only an answer at least 30 s old. It reads a profile only for a
+  friend or someone a search listed, so the renderer cannot walk profiles.
+  Search and list worlds become Explore references through
+  `ExploreService.adoptWorlds`, which makes no request.
 - Alerts read settings at dispatch (`isFriendAlertEnabled`; every alert
   defaults off). Hot alerts gate only on `notifyHotInstance`;
   `hotInstancesEnabled` hides a Dashboard section only. Alert state is bounded

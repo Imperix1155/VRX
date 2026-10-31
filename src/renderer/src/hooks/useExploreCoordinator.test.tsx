@@ -787,3 +787,30 @@ it('does no discovery for a disabled Dashboard preview but preserves Explore and
     1
   )
 })
+
+it('keeps Explore in use on Search for its world sheet without loading Popular now', async () => {
+  useUiStore.setState({ activeTab: 'search' })
+  const getExplore = vi.fn().mockResolvedValue(snapshot)
+  const setExploreActive = vi.fn().mockResolvedValue(undefined)
+  window.vrx = {
+    setExploreActive,
+    getExplore,
+    onExploreChanged: () => () => {},
+    onIdentityBoundary: () => () => {},
+    onFriendEvent: () => () => {}
+  } as unknown as Window['vrx']
+  render(
+    <QueryClientProvider client={queryClient}>
+      <Coordinator />
+    </QueryClientProvider>
+  )
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'))
+  })
+  expect(setExploreActive).toHaveBeenLastCalledWith({ platforms: ['vrchat'] })
+  expect(getExplore).not.toHaveBeenCalled()
+  await act(async () => {
+    useUiStore.getState().setActiveTab('friends')
+  })
+  expect(setExploreActive).toHaveBeenLastCalledWith({ platforms: [] })
+})

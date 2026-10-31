@@ -5,6 +5,9 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import {
   activityEntries,
   avatarLibraries,
+  communityGroups,
+  profileFor,
+  searchPeople,
   backgroundPicture,
   friends,
   worlds,
@@ -137,6 +140,58 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       worn[platform] = avatarId
       return Promise.resolve({ ok: true })
     },
+    getProfile: ({ platform, userId }) => {
+      const profile = profileFor(platform, userId)
+      return Promise.resolve(
+        profile ? { ok: true, profile } : { ok: false, reason: 'not-found' as const }
+      )
+    },
+    getProfileWorlds: ({ platform }) =>
+      Promise.resolve({
+        ok: true,
+        worlds: worlds[platform].slice(0, 3).map((world) => ({
+          platform,
+          worldId: world.worldId,
+          name: world.name,
+          imageUrl: world.worldRef
+        })),
+        complete: true
+      }),
+    getProfileGroups: ({ platform }) =>
+      Promise.resolve({
+        ok: true,
+        groups: communityGroups[platform].map((group) => ({ ...group, role: null })),
+        complete: true
+      }),
+    searchCommunity: ({ platform, query }) =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        query,
+        people: searchPeople(platform),
+        worlds: structuredClone(worlds[platform].slice(0, 2))
+      }),
+    getWorldList: ({ platform, list }) =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        list,
+        worlds: structuredClone(list === 'new' ? worlds[platform] : [...worlds[platform]].reverse())
+      }),
+    getPlayersOnline: ({ platform }) =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        count: platform === 'vrchat' ? 48213 : 1876,
+        checkedAt: Date.now()
+      }),
+    getMyGroups: ({ platform }) =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        groups: structuredClone(communityGroups[platform]),
+        complete: true
+      }),
     getAccounts: () =>
       Promise.resolve(
         (['vrchat', 'chilloutvr'] as const).map((platform) => ({

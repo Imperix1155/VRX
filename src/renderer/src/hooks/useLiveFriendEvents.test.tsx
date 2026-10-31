@@ -322,6 +322,43 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     )
   })
 
+  it('resets community answers once the same account is back after a 401, and only then', () => {
+    stubBridge()
+    const client = new QueryClient()
+    const vrcSearch = ['community-search', 'vrchat', 'usr_me', 'tea'] as const
+    const vrcProfile = ['profile', 'vrchat', 'usr_me', 'usr_x'] as const
+    const cvrSearch = ['community-search', 'chilloutvr', 'cvr-me', 'tea'] as const
+    client.setQueryData(vrcSearch, { ok: true })
+    client.setQueryData(vrcProfile, { ok: true })
+    client.setQueryData(cvrSearch, { ok: true })
+    mount(client)
+
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' }))
+    // Still shown while the session is checked again.
+    expect(client.getQueryData(vrcSearch)).toEqual({ ok: true })
+
+    act(() => {
+      client.setQueryData(authStatusQueryKey('vrchat'), {
+        state: 'authenticated' as const,
+        accountId: 'usr_me'
+      })
+    })
+    expect(client.getQueryData(vrcSearch)).toBeUndefined()
+    expect(client.getQueryData(vrcProfile)).toBeUndefined()
+    expect(client.getQueryData(cvrSearch)).toEqual({ ok: true })
+
+    // A later status check does not reset fresh answers again.
+    client.setQueryData(vrcSearch, { ok: true })
+    act(() => {
+      client.setQueryData(authStatusQueryKey('vrchat'), {
+        state: 'authenticated' as const,
+        accountId: 'usr_me',
+        checkedAt: 1
+      })
+    })
+    expect(client.getQueryData(vrcSearch)).toEqual({ ok: true })
+  })
+
   it('does NOT lift the quarantine on connection:live alone — socket-open is not proof of re-auth (Codex)', async () => {
     stubBridge()
     const client = new QueryClient()

@@ -47,6 +47,13 @@ vi.mock('./DashboardGlance', () => ({
     </div>
   )
 }))
+// The "Playing now" line reads through its own queries (PlayersOnline.test.tsx);
+// here it is a marker that shows where it mounts and which platforms it gets.
+vi.mock('./PlayersOnline', () => ({
+  default: ({ platforms }: { platforms: readonly string[] }) => (
+    <p data-testid="players-online">{platforms.join(',')}</p>
+  )
+}))
 vi.mock('../queries/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/auth')>()),
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({

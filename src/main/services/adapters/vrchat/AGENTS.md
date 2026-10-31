@@ -13,7 +13,8 @@ transport, and published adapter events.
 
 - `fetchFriends.ts` (paginated roster), `VrcPipeline.ts` (receive-only live
   events), the world and group resolvers and batch fetchers, the `parse*.ts`
-  converters, `buildJoinUrl.ts`, `parseExplore.ts`, and `parseAvatars.ts`.
+  converters, `buildJoinUrl.ts`, `parseExplore.ts`, `parseAvatars.ts`, and
+  `parseCommunity.ts`.
 - Symbols and the adapter contract: [`docs/INTERNAL-API.md`](../../../../../docs/INTERNAL-API.md).
 
 ## Local Contracts
@@ -72,6 +73,9 @@ transport, and published adapter events.
   returns evidence without references, actions, URLs, or raw responses.
 - `parseAvatars.ts` reads only the fields the Avatars page shows; a record
   without an `avtr_` ID or a name is skipped, and image URLs must be `https`.
+- `parseCommunity.ts` reads only the profile, world, group and count fields
+  VRX shows. Hidden badges stay hidden, and records with a malformed ID or no
+  name are skipped and mark the list incomplete.
 
 ## Work Guidance
 

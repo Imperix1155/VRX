@@ -170,6 +170,49 @@ function SwitchRow({
   )
 }
 
+/** The hideable sidebar pages as one compact two-column card: the page name
+ *  beside its On/Off, with the longer note behind the name (depth on demand). */
+function SidebarPagesCard({
+  pages
+}: {
+  pages: ReadonlyArray<{
+    labelKey: string
+    ariaKey: string
+    noteKey: string
+    checked: boolean
+    onChange: (checked: boolean) => void
+  }>
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  return (
+    <div className="setting-card" data-sidebar-pages="">
+      {/* Name and note share one line so Appearance still fits the window
+          with a background picture and its size note showing. */}
+      <p className="flex flex-wrap items-baseline gap-x-[var(--space-2)]">
+        <span className="text-sm font-medium text-[var(--text)]">
+          {t('settings.pages.sidebar.label')}
+        </span>
+        <span className="text-xs text-[var(--text-dim)]">
+          {t('settings.pages.sidebar.description')}
+        </span>
+      </p>
+      <div className="mt-[var(--space-1)] grid grid-cols-2 gap-x-[var(--space-6)] gap-y-[var(--space-1)]">
+        {pages.map((page) => (
+          <div
+            key={page.labelKey}
+            className="flex min-w-0 items-center justify-between gap-[var(--space-3)]"
+          >
+            <span className="min-w-0 truncate text-sm text-[var(--text)]" title={t(page.noteKey)}>
+              {t(page.labelKey)}
+            </span>
+            <Toggle checked={page.checked} ariaLabel={t(page.ariaKey)} onChange={page.onChange} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** Who the friend alerts cover, then those alerts (`scoped`) and, past a
  *  divider, the alerts the scope never limits (`children`), all in one card.
  *  Picked friends are chosen in each friend's details panel; the list behind
@@ -710,6 +753,9 @@ export default function SettingsView(): React.JSX.Element {
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
   const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
+  const showSearchPage = useSettingsStore((s) => s.settings.showSearchPage)
+  const showGroupsPage = useSettingsStore((s) => s.settings.showGroupsPage)
+  const playersOnline = useSettingsStore((s) => s.settings.dashboardPlayersOnline)
   const notifyInvites = useSettingsStore((s) => s.settings.notifyInvites)
   const notifyFriendRequests = useSettingsStore((s) => s.settings.notifyFriendRequests)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -790,27 +836,43 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(value) => updateSettings({ labelScheme: value })}
               />
             </div>
-
-            {/* The Activity and Inbox page switches (owner, 2026-10-27) live
-                here rather than with the other page switches so Behavior and
-                Notifications (which gained Alerts in VR) still fit the 900x670
-                window. Hiding either keeps its alerts. */}
-            <div className="setting-card grid gap-[var(--space-2)]">
-              <SwitchRow
-                label={t('settings.pages.activity.label')}
-                description={t('settings.pages.activity.description')}
-                ariaLabel={t('settings.pages.activity.label')}
-                checked={showActivityPage}
-                onChange={(checked) => updateSettings({ showActivityPage: checked })}
-              />
-              <SwitchRow
-                label={t('settings.pages.inbox.label')}
-                description={t('settings.pages.inbox.description')}
-                ariaLabel={t('settings.pages.inbox.label')}
-                checked={showInboxPage}
-                onChange={(checked) => updateSettings({ showInboxPage: checked })}
-              />
-            </div>
+            {/* The Activity, Inbox, Search and Groups page switches (owner,
+                2026-10-27 and 2026-10-31) sit at the bottom of Appearance in
+                one compact grid, so every Settings page still fits the
+                900x670 window. Hiding a page keeps its alerts; each switch's
+                longer note is its label's tooltip. */}
+            <SidebarPagesCard
+              pages={[
+                {
+                  labelKey: 'shell.nav.activity',
+                  ariaKey: 'settings.pages.activity.label',
+                  noteKey: 'settings.pages.activity.description',
+                  checked: showActivityPage,
+                  onChange: (checked) => updateSettings({ showActivityPage: checked })
+                },
+                {
+                  labelKey: 'shell.nav.inbox',
+                  ariaKey: 'settings.pages.inbox.label',
+                  noteKey: 'settings.pages.inbox.description',
+                  checked: showInboxPage,
+                  onChange: (checked) => updateSettings({ showInboxPage: checked })
+                },
+                {
+                  labelKey: 'shell.nav.search',
+                  ariaKey: 'settings.pages.search.label',
+                  noteKey: 'settings.pages.search.description',
+                  checked: showSearchPage,
+                  onChange: (checked) => updateSettings({ showSearchPage: checked })
+                },
+                {
+                  labelKey: 'shell.nav.groups',
+                  ariaKey: 'settings.pages.groups.label',
+                  noteKey: 'settings.pages.groups.description',
+                  checked: showGroupsPage,
+                  onChange: (checked) => updateSettings({ showGroupsPage: checked })
+                }
+              ]}
+            />
           </section>
         )}
 
@@ -834,6 +896,22 @@ export default function SettingsView(): React.JSX.Element {
                 checked={hideEmpty}
                 ariaLabel={t('settings.dashboard.hideEmpty.label')}
                 onChange={(checked) => updateSettings({ dashboardHideEmpty: checked })}
+              />
+            </div>
+            {/* "Playing now" under the stat cards (owner, 2026-10-31). */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.dashboard.playersOnline.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)]">
+                  {t('settings.dashboard.playersOnline.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={playersOnline}
+                ariaLabel={t('settings.dashboard.playersOnline.label')}
+                onChange={(checked) => updateSettings({ dashboardPlayersOnline: checked })}
               />
             </div>
             {/* Every section's place and On/Off (owner, 2026-10-27). Hiding

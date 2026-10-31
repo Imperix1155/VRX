@@ -885,10 +885,13 @@ describe('Accounts sign-in from this PC', () => {
 })
 
 describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)', () => {
-  it('puts the Hot Instances and Explore switches in Behavior, Activity and Inbox in Appearance, setup in About', () => {
+  it('puts the Hot Instances and Explore switches in Behavior, the other page switches in Appearance, setup in About', () => {
     renderSettings()
-    expect(screen.getByText(msg('settings.pages.activity.label'))).toBeTruthy()
-    expect(screen.getByText(msg('settings.pages.inbox.label'))).toBeTruthy()
+    for (const page of ['activity', 'inbox', 'search', 'groups']) {
+      expect(
+        screen.getByRole('radiogroup', { name: msg(`settings.pages.${page}.label`) })
+      ).toBeTruthy()
+    }
     expect(screen.queryByText(msg('settings.pages.hot.label'))).toBeNull()
     expect(screen.queryByText(msg('settings.pages.explore.label'))).toBeNull()
     expect(screen.queryByRole('button', { name: msg('settings.setup.run') })).toBeNull()
@@ -899,8 +902,10 @@ describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)'
     expect(screen.queryByRole('button', { name: msg('settings.setup.run') })).toBeNull()
 
     act(() => useUiStore.setState({ settingsCategory: 'notifications' }))
-    expect(screen.queryByText(msg('settings.pages.activity.label'))).toBeNull()
-    expect(screen.queryByText(msg('settings.pages.inbox.label'))).toBeNull()
+    expect(
+      screen.queryByRole('radiogroup', { name: msg('settings.pages.activity.label') })
+    ).toBeNull()
+    expect(screen.queryByRole('radiogroup', { name: msg('settings.pages.inbox.label') })).toBeNull()
 
     act(() => useUiStore.setState({ settingsCategory: 'about' }))
     expect(screen.getByRole('button', { name: msg('settings.setup.run') })).toBeTruthy()
@@ -922,6 +927,22 @@ describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)'
     expect(useSettingsStore.getState().settings).toMatchObject({
       dashboardPopularNow: true,
       hotInstancesEnabled: true
+    })
+  })
+
+  it('turns the Search and Groups pages off from Appearance and keeps the others', () => {
+    renderSettings()
+    for (const [label, key] of [
+      ['settings.pages.search.label', 'showSearchPage'],
+      ['settings.pages.groups.label', 'showGroupsPage']
+    ] as const) {
+      const group = screen.getByRole('radiogroup', { name: msg(label) })
+      fireEvent.click(within(group).getByRole('radio', { name: msg('settings.boolean.off') }))
+      expect(useSettingsStore.getState().settings[key]).toBe(false)
+    }
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      showActivityPage: true,
+      showInboxPage: true
     })
   })
 

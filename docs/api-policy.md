@@ -34,7 +34,10 @@ VRX signs in as the user, on the user's own machine, and reads that user's own
 social data: friends, presence, locations, instance details, and public worlds
 for Explore. On the Avatars page it reads the user's own uploaded avatars and
 the one they wear, and switches avatar when the user presses Wear. The
-Dashboard reads only the worn avatar. It launches
+Dashboard reads only the worn avatar. On request it also reads a person's
+profile, searches people and worlds by name, lists New and Recently updated
+worlds, the user's own groups, and each platform's player count (see
+[Search, profile and group limits](#search-profile-and-group-limits)). It launches
 the game through local URL schemes, or, when the game is already open, hands
 the Join to that copy (see
 [Joining a game that is already open](#joining-a-game-that-is-already-open)).
@@ -49,6 +52,7 @@ the Join to that copy (see
 | Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                         | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                   |
 | Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                            | Username and access key                                                                         |
 | Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                          | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open |
+| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`                                                           | `GET /users/{id}`, `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`    |
 | Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select` | Avatar switch, `GET /avatars/{id}/switchAvatar`                                                 |
 | Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                          | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                 |
 | API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days                                                                                     | None; ChilloutVR images come from CDN hosts                                                     |
@@ -77,6 +81,10 @@ before it saves anything.
 - **No avatar crawling.** VRX lists only the user's own uploads and the avatar
   they wear. It never searches other people's avatars or uses third-party
   avatar databases.
+- **No people crawling.** Search sends one request per platform for each
+  Enter, at most one every 2 seconds, and keeps 10 people and 10 worlds. Main
+  reads a full profile only for a friend or someone a search just listed, so
+  the renderer cannot walk arbitrary profiles.
 - **No crawling.** VRChat roster pagination stops at 5,000 friends, and
   ChilloutVR returns its roster in one read. Explore stops at fixed budgets and
   reports incomplete coverage instead of reading further.
@@ -255,6 +263,26 @@ the page still shows the earlier result), main makes that one page-open read
 first; it does so at most once per session, whatever the outcome. Avatar state
 is cleared at every sign-out, account change, and invalidated session.
 
+## Search, profile and group limits
+
+Search, the full profile, the Groups page, Explore's New and Recently updated
+tabs, and the Dashboard's Playing now line read only on a user action: Enter,
+opening the page, tab or Dashboard, a Show worlds or Show groups press, or
+Refresh. Nothing runs on a timer, on window focus or on reconnect. Every answer
+is cached in main for 5 minutes per account, and concurrent asks share one
+read. Refresh re-reads only once the answer is at least 30 seconds old. All
+reads use the platform's admission queue at interactive priority with no
+automatic retry, and all state is cleared at every sign-out, account change and
+invalidated session.
+
+| Limit             | Value                                                                     |
+| ----------------- | ------------------------------------------------------------------------- |
+| Search            | VRChat 2 reads (people, worlds), ChilloutVR 1; at most one every 2 s each |
+| Opening a profile | 1 read; worlds and groups 1 read each, only after their Show press        |
+| Groups page open  | 1 read per platform                                                       |
+| Explore list tab  | 1 read per platform                                                       |
+| Dashboard open    | 1 read per platform for Playing now (when on); none within 5 minutes      |
+
 ## Local action limits
 
 Main also rate-limits the renderer's requests before any network work starts.
@@ -270,6 +298,10 @@ Main also rate-limits the renderer's requests before any network work starts.
 | Avatar list              | 30 per minute; concurrent reads share one run                                                                                            |
 | Avatar details           | 60 per minute                                                                                                                            |
 | Avatar switch            | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
+| Profile                  | 60 per minute; a person's worlds and groups 30 per minute each                                                                           |
+| Search                   | 60 per minute; one platform search every 2 s                                                                                             |
+| World lists              | 60 per minute                                                                                                                            |
+| Players online, groups   | 30 per minute each                                                                                                                       |
 | Join from Explore        | 20 per minute; one launch per platform at a time; 3 s cooldown per destination                                                           |
 
 The full table is `IPC_RATE_LIMIT_BUDGETS` in

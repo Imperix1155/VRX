@@ -28,6 +28,16 @@ import type {
   CurrentAvatarResult
 } from './avatarLibrary'
 import type { BackgroundPictureRefusal } from './backgroundPicture'
+import type {
+  CommunitySearchResult,
+  MyGroupsResult,
+  PlayersOnlineResult,
+  ProfileGroupsResult,
+  ProfileResult,
+  ProfileWorldsResult,
+  WorldList,
+  WorldListResult
+} from './community'
 import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type { ActivityEntry } from './activity'
@@ -157,6 +167,23 @@ export interface IpcInvoke {
   }
   /** Wear a listed avatar. Main checks the ID against its own list first. */
   'switch-avatar': { req: { platform: Platform; avatarId: string }; res: AvatarSwitchResult }
+  /** A friend's (or a searched person's) full profile. One read, reused for 5 minutes. */
+  'get-profile': { req: { platform: Platform; userId: string }; res: ProfileResult }
+  /** That person's public worlds, read when the user asks to see them. */
+  'get-profile-worlds': { req: { platform: Platform; userId: string }; res: ProfileWorldsResult }
+  /** That person's groups, read when the user asks to see them. */
+  'get-profile-groups': { req: { platform: Platform; userId: string }; res: ProfileGroupsResult }
+  /** People and worlds matching a typed search, sent on Enter. */
+  'search-community': { req: { platform: Platform; query: string }; res: CommunitySearchResult }
+  /** Explore's New or Recently updated list. `refresh` is a Refresh press. */
+  'get-world-list': {
+    req: { platform: Platform; list: WorldList; refresh?: boolean }
+    res: WorldListResult
+  }
+  /** Everyone playing the platform now, for the Dashboard. Reused for 5 minutes. */
+  'get-players-online': { req: { platform: Platform }; res: PlayersOnlineResult }
+  /** The signed-in user's groups. `refresh` is a Refresh press. */
+  'get-my-groups': { req: { platform: Platform; refresh?: boolean }; res: MyGroupsResult }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }

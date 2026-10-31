@@ -17,6 +17,8 @@ import RecoveryNotices from './RecoveryNotices'
 import JoinConfirmDialog from './JoinConfirmDialog'
 import ExploreRoute from './ExploreRoute'
 import AvatarsView from './AvatarsView'
+import SearchView from './SearchView'
+import GroupsView from './GroupsView'
 import { useExploreCoordinator } from '../hooks/useExploreCoordinator'
 
 /** A page the user turned off falls back to the Dashboard before paint, so a
@@ -28,13 +30,17 @@ function useHiddenPageFallback(): void {
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
   const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
+  const showSearchPage = useSettingsStore((s) => s.settings.showSearchPage)
+  const showGroupsPage = useSettingsStore((s) => s.settings.showGroupsPage)
   const hotOpenedFromAlert = useUiStore((s) => s.hotOpenedFromAlert)
   const shown =
     isPageShown(activeTab, {
       showHotInstancesPage,
       showExplorePage,
       showActivityPage,
-      showInboxPage
+      showInboxPage,
+      showSearchPage,
+      showGroupsPage
     }) ||
     (activeTab === 'hot' && hotOpenedFromAlert)
   useLayoutEffect(() => {
@@ -80,6 +86,18 @@ function MainContent(): React.JSX.Element {
       return (
         <ErrorBoundary key={activeTab} variant="panel">
           <ExploreRoute />
+        </ErrorBoundary>
+      )
+    case 'search':
+      return (
+        <ErrorBoundary key={activeTab} variant="panel">
+          <SearchView />
+        </ErrorBoundary>
+      )
+    case 'groups':
+      return (
+        <ErrorBoundary key={activeTab} variant="panel">
+          <GroupsView />
         </ErrorBoundary>
       )
     case 'avatars':

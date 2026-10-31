@@ -1,4 +1,5 @@
 import type { InboxItem, InboxSnapshot } from '@shared/inbox'
+import type { CommunityGroup, PersonProfile, PersonSummary } from '@shared/community'
 import type {
   CvrFriend,
   CvrInstanceType,
@@ -705,4 +706,94 @@ const cvrAvatars: AvatarItem[] = [
 export const avatarLibraries: Record<Platform, AvatarItem[]> = {
   vrchat: vrcAvatars,
   chilloutvr: cvrAvatars
+}
+
+/** Sample groups for the Groups page: owned and member groups on both platforms. */
+export const communityGroups: Record<Platform, CommunityGroup[]> = {
+  vrchat: [
+    {
+      platform: 'vrchat',
+      groupId: 'grp-guide-lantern',
+      name: 'Lantern Walkers',
+      code: 'LANTN.4821',
+      description:
+        'Slow walks through quiet worlds every Friday night. Bring a light, leave the music low.',
+      imageUrl: illustration('#1b6fd8', '#0a2a5c'),
+      bannerUrl: illustration('#2b7de9', '#08193a'),
+      memberCount: 1284,
+      role: 'owner'
+    },
+    {
+      platform: 'vrchat',
+      groupId: 'grp-guide-atlas',
+      name: 'Atlas of Tiny Worlds and Very Long Group Names',
+      code: 'ATLAS.0007',
+      description: null,
+      imageUrl: illustration('#3d8bfd', '#13244a'),
+      bannerUrl: null,
+      memberCount: 56210,
+      role: 'member'
+    }
+  ],
+  chilloutvr: [
+    {
+      platform: 'chilloutvr',
+      groupId: 'cvr-group-guide-forge',
+      name: 'Prop Forge',
+      code: 'FORGE',
+      description: 'Makers sharing props, shaders and avatar bits.',
+      imageUrl: illustration('#f07d1a', '#5a2405'),
+      bannerUrl: illustration('#ff9a3c', '#3b1503'),
+      memberCount: 342,
+      role: 'member'
+    },
+    {
+      platform: 'chilloutvr',
+      groupId: 'cvr-group-guide-harbor',
+      name: 'Harbor Night Market',
+      code: 'HRBR',
+      description: 'A weekly market in the harbor world.',
+      imageUrl: illustration('#e86a12', '#47210a'),
+      bannerUrl: null,
+      memberCount: 97,
+      role: 'owner'
+    }
+  ]
+}
+
+/** The full profile of a sample friend: the same fields on both platforms. */
+export function profileFor(platform: Platform, userId: string): PersonProfile | null {
+  const friend = friends[platform].find((item) => item.platformUserId === userId)
+  if (!friend) return null
+  return {
+    platform,
+    userId,
+    displayName: friend.displayName,
+    imageUrl: friend.avatarUrl,
+    isFriend: true,
+    pronouns: platform === 'vrchat' ? 'they/them' : null,
+    bio: 'Builds small worlds and collects sunsets.\nUsually around in the evening.',
+    rank:
+      platform === 'vrchat'
+        ? { kind: 'vrchat-trust', value: 'trusted' }
+        : { kind: 'label', value: 'User' },
+    badges:
+      platform === 'vrchat'
+        ? [
+            { name: 'VRChat+ Supporter', imageUrl: null },
+            { name: 'Early Adopter', imageUrl: null }
+          ]
+        : [{ name: 'Community Helper', imageUrl: null }]
+  }
+}
+
+/** People a sample search finds: two friends per platform. */
+export function searchPeople(platform: Platform): PersonSummary[] {
+  return friends[platform].slice(0, 3).map((friend, index) => ({
+    platform,
+    userId: friend.platformUserId,
+    displayName: friend.displayName,
+    imageUrl: friend.avatarUrl,
+    isFriend: index < 2
+  }))
 }

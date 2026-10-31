@@ -21,6 +21,8 @@ through `@shared`.
   and `selectionRef`, typed refresh reasons, and the 2/4/6 world totals.
   `exploreRanking.ts`: pure per-platform ranking and balanced cross-platform
   selection.
+- `community.ts`: read-only profile, search, world-list, players-online and
+  group values, their limits, and the user-ID and search-text guards.
 - `linkedProfiles.ts`: versioned linked-person values, changes, and snapshots.
 - `activity.ts`: Activity entry values and the page's Show filter. Entries
   carry no location, only a world name that is null for hidden worlds.
@@ -53,7 +55,8 @@ through `@shared`.
   keeps that choice across a downgrade. `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
   off. The Dashboard section switches hide sections only and change no other
   preference. The page switches (`showHotInstancesPage`, `showExplorePage`,
-  `showActivityPage`, `showInboxPage`) hide sidebar pages only;
+  `showActivityPage`, `showInboxPage`, `showSearchPage`, `showGroupsPage`)
+  hide sidebar pages only;
   `showActivityPage` also stops main keeping activity. `SETTINGS_VERSION` 20
   adds `showInboxPage` (on) and the `notifyInvites` and `notifyFriendRequests`
   alerts (off). `SETTINGS_VERSION` 21 adds the Dashboard glance switches
@@ -62,7 +65,8 @@ through `@shared`.
   `dashboardSections` (same version) owns the Dashboard section order;
   `parseSettings` derives it from `dashboardSectionOrder` when missing and
   then rewrites `dashboardSectionOrder` from it, so every order change must
-  write both fields. Missing or invalid `setupPending` is `false`, so
+  write both fields. `SETTINGS_VERSION` 23 adds `showSearchPage`,
+  `showGroupsPage` and `dashboardPlayersOnline` (all on). Missing or invalid `setupPending` is `false`, so
   only `freshInstallSettings` (a brand-new install) starts the welcome setup.
 - The renderer sends friend IDs and opaque Explore references, never a launch
   URL or an authoritative location. Typed denials stay structured; never pass

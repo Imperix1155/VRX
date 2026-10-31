@@ -49,6 +49,22 @@ vi.mock('../hooks/useExploreImage', () => ({
   useExploreImage: () => ({ ref: () => undefined, image: undefined })
 }))
 
+// jsdom has no ResizeObserver; the segmented control's bubble hook needs one.
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+  }
+)
+
+const refreshWorldListMock = vi.hoisted(() => vi.fn(async () => undefined))
+vi.mock('../queries/community', () => ({
+  useRefreshWorldList: () => refreshWorldListMock,
+  useWorldList: () => ({ data: undefined, isError: false, fetchStatus: 'idle', refetch: vi.fn() })
+}))
+
 vi.mock('../hooks/useJoinInstance', () => ({
   useJoinInstance: () => ({
     isJoining: false,

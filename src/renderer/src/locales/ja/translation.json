@@ -117,7 +117,9 @@
       "inbox": "受信箱",
       "explore": "探索",
       "avatars": "アバター",
-      "settings": "設定"
+      "settings": "設定",
+      "search": "検索",
+      "groups": "グループ"
     },
     "seg": {
       "vrchatShort": "VRC",
@@ -410,6 +412,10 @@
       },
       "invites": {
         "label": "最新の招待"
+      },
+      "playersOnline": {
+        "label": "プレイ中の人数",
+        "description": "各プラットフォームのオンライン人数を件数の下に表示します。"
       }
     },
     "persistence": {
@@ -465,6 +471,18 @@
       "inbox": {
         "label": "受信箱のページ",
         "description": "サイドバーに表示します。通知はそのままです。"
+      },
+      "search": {
+        "label": "検索のページ",
+        "description": "両方のプラットフォームで人とワールドを探します。"
+      },
+      "groups": {
+        "label": "グループのページ",
+        "description": "参加しているグループ。表示のみです。"
+      },
+      "sidebar": {
+        "label": "サイドバーのページ",
+        "description": "使わないページはオフにできます。通知はそのままです。"
       }
     },
     "setup": {
@@ -635,6 +653,10 @@
       "loadFailed": "このメモを読み込めませんでした。変更を安全に保存できるよう、編集する前に再試行してください。",
       "saveFailed": "このメモを保存できませんでした。最新の下書きはこの端末に残りますが、VRX を閉じると失われます。",
       "retry": "再試行"
+    },
+    "fullProfile": {
+      "show": "プロフィールをすべて表示",
+      "hide": "プロフィールを閉じる"
     }
   },
   "policySpace": {
@@ -718,6 +740,10 @@
       "inviteAria": "{{name}}、{{platform}}：{{action}}、{{age}}。受信箱を開く",
       "seeAllInvitesAria_one": "受信箱で {{count}} 件の招待を表示",
       "seeAllInvitesAria_other": "受信箱で {{count}} 件の招待をすべて表示"
+    },
+    "playersOnline": {
+      "label": "プレイ中",
+      "help": "各プラットフォームがいま発表しているオンライン人数です。ダッシュボードを開いたときに確認します。"
     }
   },
   "login": {
@@ -803,6 +829,14 @@
       "vrchat": "ここで人気のワールドを確認するにはVRChatに接続してください",
       "chilloutvr": "ここで人気のワールドを確認するにはChilloutVRに接続してください",
       "openAccounts": "アカウントを開く"
+    },
+    "lists": {
+      "aria": "表示するワールド",
+      "new": "新着",
+      "updated": "最近の更新",
+      "newHint": "各プラットフォームの最新の公開ワールド。",
+      "updatedHint": "作者が最近更新した公開ワールド。",
+      "empty": "いま表示できるワールドはありません。"
     }
   },
   "avatars": {
@@ -954,7 +988,11 @@
       "hotAria": "ホットインスタンスのページを表示",
       "activityAria": "アクティビティのページを表示",
       "inboxAria": "受信箱のページを表示",
-      "exploreAria": "探索のページを表示"
+      "exploreAria": "探索のページを表示",
+      "search": "両方のプラットフォームで人とワールドを名前で探します。",
+      "groups": "両方のプラットフォームで参加しているグループ。",
+      "searchAria": "検索のページを表示",
+      "groupsAria": "グループのページを表示"
     },
     "dashboard": {
       "title": "ダッシュボード",
@@ -1029,5 +1067,84 @@
       "chilloutvr": "ここで招待を確認するにはChilloutVRに接続してください"
     },
     "loadError": "受信箱を読み込めませんでした"
+  },
+  "community": {
+    "loading": "{{platform}} を読み込み中…",
+    "retry": "再試行",
+    "openAccounts": "アカウントを開く",
+    "notConnected": {
+      "vrchat": "ここで確認するにはVRChatに接続してください",
+      "chilloutvr": "ここで確認するにはChilloutVRに接続してください"
+    },
+    "error": {
+      "unavailable": "{{platform}} に接続できませんでした。少ししてからもう一度お試しください。",
+      "rate-limited": "{{platform}} から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+      "not-authenticated": "表示するには {{platform}} にもう一度サインインしてください。",
+      "cooldown": "少し待ってからもう一度検索してください。",
+      "invalid-query": "2文字以上入力してください。"
+    }
+  },
+  "search": {
+    "placeholder": "人とワールドを検索",
+    "aria": "人とワールドを検索",
+    "submit": "検索",
+    "hint": "Enterで VRChat と ChilloutVR を名前で検索します。",
+    "people": "人",
+    "worlds": "ワールド",
+    "noPeople": "見つかりませんでした。",
+    "noWorlds": "ワールドは見つかりませんでした。",
+    "friend": "フレンド",
+    "openPersonAria": "{{name}}（{{platform}}）。プロフィールを開く"
+  },
+  "profile": {
+    "aria": "{{name}} のプロフィール（{{platform}}）",
+    "loading": "プロフィールを読み込み中…",
+    "notShown": "表示なし",
+    "pronouns": "代名詞",
+    "rank": "ランク",
+    "bio": "自己紹介",
+    "noBio": "自己紹介はありません。",
+    "badges": "バッジ",
+    "noBadges": "表示されているバッジはありません。",
+    "showWorlds": "ワールドを表示",
+    "hideWorlds": "ワールドを閉じる",
+    "showGroups": "グループを表示",
+    "hideGroups": "グループを閉じる",
+    "noWorlds": "公開ワールドはありません。",
+    "noGroups": "表示されているグループはありません。",
+    "partial": "最初の一部だけを表示しています。",
+    "listLoading": "読み込み中…",
+    "listError": "この一覧を読み込めませんでした。",
+    "error": {
+      "unavailable": "このプロフィールを読み込めませんでした。",
+      "rate-limited": "プラットフォームから間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+      "not-authenticated": "プロフィールを見るにはもう一度サインインしてください。",
+      "unknown-person": "プロフィールを見るにはこの人をもう一度検索してください。",
+      "not-found": "このプロフィールはもう表示できません。"
+    },
+    "worlds": "ワールド",
+    "groups": "グループ"
+  },
+  "groups": {
+    "heading": "参加しているグループ",
+    "hint": "参加しているグループ。表示のみです。",
+    "refresh": "更新",
+    "refreshing": "更新中…",
+    "count_other": "{{count}}件",
+    "empty": "まだどのグループにも参加していません。",
+    "partial": "一部のグループを表示できませんでした。",
+    "members_other": "メンバー {{formatted}}人",
+    "openAria": "{{name}}（{{platform}} のグループ）。詳細を表示",
+    "sheetAria": "{{name}}（{{platform}} のグループ）",
+    "description": "説明",
+    "noDescription": "説明はありません。",
+    "details": "詳細",
+    "code": "コード",
+    "memberCount": "メンバー",
+    "yourRole": "あなたの役割",
+    "role": {
+      "owner": "オーナー",
+      "member": "メンバー"
+    }
   }
 }

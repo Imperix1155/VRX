@@ -57,6 +57,30 @@ import {
   type OwnAvatarsPage
 } from './AvatarLibraryAdapter'
 import { parseVrcAvatar, parseVrcAvatarPage } from './vrchat/parseAvatars'
+import {
+  COMMUNITY_LIST_MAX_WORLDS,
+  COMMUNITY_MY_GROUPS_MAX,
+  COMMUNITY_PROFILE_MAX_ITEMS,
+  COMMUNITY_SEARCH_MAX_RESULTS,
+  isCommunityUserId,
+  type CommunityGroup,
+  type CommunityWorld,
+  type PersonProfile,
+  type WorldList
+} from '@shared/community'
+import {
+  CommunityDataError,
+  type CommunityAdapter,
+  type CommunityList,
+  type CommunitySearchPage
+} from './CommunityAdapter'
+import {
+  parseVrcGroups,
+  parseVrcPeople,
+  parseVrcPlayersOnline,
+  parseVrcProfile,
+  parseVrcProfileWorlds
+} from './vrchat/parseCommunity'
 
 /**
  * Persistence for the VRChat session cookie (safeStorage-backed in production —
@@ -225,7 +249,16 @@ function isInstanceLocation(location: string): boolean {
 /** VRChat's largest `n` for avatar lists. */
 const VRC_AVATAR_PAGE_SIZE = 100
 
-export class VrcAdapter extends VrcApiClient implements ExploreAdapter, AvatarLibraryAdapter {
+/** Sort for each Explore list (VRCX's world search uses the same ones). */
+const VRC_WORLD_LIST_SORT: Record<WorldList, string> = {
+  new: 'publicationDate',
+  updated: 'updated'
+}
+
+export class VrcAdapter
+  extends VrcApiClient
+  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter
+{
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
     () => this.admission.cooldownRemainingMs,
@@ -1052,6 +1085,145 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter, AvatarLi
         retry: 'none'
       })
     )
+  }
+
+  // ── Community reads (profiles, search, lists, players online, groups) ───────
+  // Read-only; each one follows a user action and waits in the shared line.
+
+  captureCommunityLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(userId)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const profile = parseVrcProfile(raw)
+    return profile?.userId === userId ? profile : null
+  }
+
+  async getProfileWorlds(
+    userId: string,
+    lease: RequestLease
+  ): Promise<CommunityList<CommunityWorld>> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    const query = new URLSearchParams({
+      userId,
+      releaseStatus: 'public',
+      sort: 'updated',
+      order: 'descending',
+      n: String(COMMUNITY_PROFILE_MAX_ITEMS)
+    })
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/worlds?${query.toString()}`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseVrcProfileWorlds(raw)
+    if (!parsed) throw new CommunityDataError('VRChat world list response was malformed')
+    return parsed
+  }
+
+  async getProfileGroups(
+    userId: string,
+    lease: RequestLease
+  ): Promise<CommunityList<CommunityGroup>> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/users/${encodeURIComponent(userId)}/groups`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const parsed = parseVrcGroups(raw, null, COMMUNITY_PROFILE_MAX_ITEMS)
+    if (!parsed) throw new CommunityDataError('VRChat group list response was malformed')
+    return parsed
+  }
+
+  async search(query: string, lease: RequestLease): Promise<CommunitySearchPage> {
+    const n = String(COMMUNITY_SEARCH_MAX_RESULTS)
+    const users = new URLSearchParams({ search: query, n })
+    const people = await this.runCommunityRequest(lease, () =>
+      this.get(`/users?${users.toString()}`, z.unknown(), this.communityOptions(lease))
+    )
+    const worlds = new URLSearchParams({
+      search: query,
+      sort: 'relevance',
+      tag: 'system_approved',
+      n
+    })
+    const worldsRaw = await this.runCommunityRequest(lease, () =>
+      this.get(`/worlds?${worlds.toString()}`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsedPeople = parseVrcPeople(people, COMMUNITY_SEARCH_MAX_RESULTS)
+    if (!parsedPeople || !Array.isArray(worldsRaw)) {
+      throw new CommunityDataError('VRChat search response was malformed')
+    }
+    return {
+      people: parsedPeople.items,
+      worlds: parseVrcExploreCandidates(worldsRaw.slice(0, COMMUNITY_SEARCH_MAX_RESULTS))
+    }
+  }
+
+  async getWorldList(list: WorldList, lease: RequestLease): Promise<ExploreWorldEvidence[]> {
+    const query = new URLSearchParams({
+      sort: VRC_WORLD_LIST_SORT[list],
+      order: 'descending',
+      tag: 'system_approved',
+      n: String(COMMUNITY_LIST_MAX_WORLDS)
+    })
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/worlds?${query.toString()}`, z.unknown(), this.communityOptions(lease))
+    )
+    if (!Array.isArray(raw))
+      throw new CommunityDataError('VRChat world list response was malformed')
+    return parseVrcExploreCandidates(raw.slice(0, COMMUNITY_LIST_MAX_WORLDS))
+  }
+
+  async getPlayersOnline(lease: RequestLease): Promise<number | null> {
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get('/visits', z.unknown(), this.communityOptions(lease))
+    )
+    return parseVrcPlayersOnline(raw)
+  }
+
+  async getMyGroups(lease: RequestLease): Promise<CommunityList<CommunityGroup>> {
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/users/${encodeURIComponent(accountId)}/groups`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const parsed = parseVrcGroups(raw, accountId, COMMUNITY_MY_GROUPS_MAX)
+    if (!parsed) throw new CommunityDataError('VRChat group list response was malformed')
+    return parsed
+  }
+
+  private communityOptions(lease: RequestLease): AdapterRequestOptions {
+    return {
+      lease,
+      priority: 'interactive',
+      // A read is never resent on its own; the user can press again.
+      retry: 'none',
+      // A missing person or world is an ordinary answer; only sign-in failures count.
+      recordCircuitFailure: 'auth'
+    }
+  }
+
+  private async runCommunityRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
+    try {
+      const value = await request()
+      assertRequestLease(lease)
+      return value
+    } catch (error) {
+      if (lease.isCurrent() && error instanceof AuthError && error.status === 401) {
+        this.invalidateDataPathSession()
+      }
+      throw error
+    }
   }
 
   private avatarRequestOptions(lease: RequestLease): AdapterRequestOptions {

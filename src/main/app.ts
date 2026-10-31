@@ -3,6 +3,8 @@ import { ApiAdmissionController } from './services/adapters/ApiAdmissionControll
 import { ExploreService } from './services/exploreService'
 import { AvatarLibraryService } from './services/avatarLibraryService'
 import { CurrentAvatarService } from './services/currentAvatarService'
+import { CommunityService } from './services/communityService'
+import type { CommunityAdapter } from './services/adapters/CommunityAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
@@ -411,6 +413,7 @@ app
     const inboxBoundary: { current?: InboxService } = {}
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
+    const communityBoundary: { current?: CommunityService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
@@ -446,6 +449,7 @@ app
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
+        communityBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
         // boundary too would read as an account switch: it refetched the dead
@@ -521,6 +525,7 @@ app
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
+        communityBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -691,12 +696,26 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
 
+    // Profiles, search, Explore's other lists, players online, and groups.
+    // Read-only; world results borrow Explore's references and sheet.
+    const community = new CommunityService({
+      adapters: new Map<Platform, CommunityAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      adoptWorlds: (platform, evidence) => explore.adoptWorlds(platform, evidence),
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    communityBoundary.current = community
+
     registerIpcHandlers(adapters, {
       explore,
       inbox,
       vrOverlayAlerts,
       avatarLibrary,
       currentAvatar,
+      community,
       // Settings → Appearance background picture (appBackground.ts).
       appBackground: {
         store: new AppBackgroundStore({
@@ -798,6 +817,7 @@ app
       if (event.type === 'auth-invalidated') {
         explore.clearPlatform(event.platform)
         avatarLibrary.clearPlatform(event.platform)
+        community.clearPlatform(event.platform)
       }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }
       for (const window of BrowserWindow.getAllWindows()) {

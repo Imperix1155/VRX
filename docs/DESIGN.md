@@ -655,6 +655,32 @@ starts empty each launch.
 - Invite and friend-request alerts are separate switches in Settings →
   Notifications, both off by default, and limited to a few a minute.
 
+### §9.7 Search, profiles, Groups and world lists
+
+Read-only community views (owner, 2026-10-31). Every one follows the platform
+filter, offers Accounts when the filtered platform is not connected, and adds
+no line under ALL for a platform the user isn't signed in to.
+
+- **Search** sends only on Enter or the Search button, never while typing.
+  People and Worlds are two sections; each alternates the platforms' results
+  (first of each, then second of each) so neither platform leads. People are
+  square picture tiles with the platform stripe, tint and VRC/CVR badge, and a
+  quiet "Friend" line. Worlds use the Explore world card and sheet with Join.
+- **Full profile** opens in the non-modal bottom sheet (Search) or behind
+  "Show full profile" in friend details (collapsed by default). Fields come in
+  one order on both platforms: Pronouns, Rank, Bio, Badges, then Show worlds
+  and Show groups, which read only when pressed. A missing field says "Not
+  shown"; VRChat trust uses the friend-details rank words.
+- **Groups** is one name-sorted grid (neutral across platforms) of square
+  tiles: name, then "Owner" or the group code. A group opens the bottom sheet
+  with its banner, platform pill and role pill, description, and Details
+  (Code, Members, Your role). View only.
+- **Explore** has a segmented Popular now · New · Recently updated control.
+  The two lists alternate platforms like Search and open the same world sheet.
+- **Playing now** is one quiet line under the Dashboard stat cards: each count
+  sits beside its platform word (the dot only reinforces it) and a "?" explains
+  the number. A platform with no answer drops out of the line.
+
 ## §10 Linked friends
 
 Linking is explicit and local. Each person links one VRChat account and one

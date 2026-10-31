@@ -30,7 +30,13 @@ you press a "Use my sign-in from" button, described below.
 - **Inbox**: invites, invite requests, and friend requests from both
   platforms that arrive while VRX is open. VRX only shows them; you answer in
   the game. Hide the page in Settings → Appearance if you don't want it.
-- **Explore**: popular public worlds from both platforms, with room details.
+- **Explore**: popular, new, and recently updated public worlds from both
+  platforms, with room details.
+- **Search**: find people and worlds on both platforms by name. A person opens
+  their full profile (bio, pronouns, rank, badges, worlds, and groups), which
+  you can also open from a friend's details.
+- **Groups**: the groups you belong to on both platforms, with their details.
+  View only.
 - **Avatars**: the avatars you uploaded on both platforms, the one you are
   wearing now, their details, and a Wear button to switch.
 - **Linked profiles**: link a friend's VRChat and ChilloutVR accounts into one

@@ -39,6 +39,16 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-avatar-details': { max: 60, windowMs: 60_000 },
   // The 5 s per-platform switch cooldown allows at most 24 switches/minute.
   'switch-avatar': { max: 24, windowMs: 60_000 },
+  // Community reads follow a page opening or a press; main caches each answer
+  // for 5 minutes, so repeats rarely reach a platform.
+  'get-profile': { max: 60, windowMs: 60_000 },
+  'get-profile-worlds': { max: 30, windowMs: 60_000 },
+  'get-profile-groups': { max: 30, windowMs: 60_000 },
+  // Searches go on Enter, 2 s apart per platform in main.
+  'search-community': { max: 60, windowMs: 60_000 },
+  'get-world-list': { max: 60, windowMs: 60_000 },
+  'get-players-online': { max: 30, windowMs: 60_000 },
+  'get-my-groups': { max: 30, windowMs: 60_000 },
   // Account settings normally loads once; repeated tab mounts stay harmless.
   'get-accounts': { max: 12, windowMs: 30_000 },
   // Two platforms can mount, invalidate, and retry without approaching this cap.
