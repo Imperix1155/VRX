@@ -105,7 +105,7 @@ function PlatformTab({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const isVrc = platform === 'vrchat'
-  const pvar = isVrc ? '--vrc' : '--cvr'
+  const pkey = isVrc ? 'vrc' : 'cvr'
   return (
     <span
       id={labelId}
@@ -121,16 +121,10 @@ function PlatformTab({
       style={{
         background:
           platform === 'vrx'
-            ? 'linear-gradient(to top, color-mix(in srgb, var(--cvr) 13%, transparent), color-mix(in srgb, var(--vrc) 13%, transparent))'
-            : `color-mix(in srgb, var(${pvar}) 13%, transparent)`,
-        borderColor:
-          platform === 'vrx' ? 'transparent' : `color-mix(in srgb, var(${pvar}) 36%, transparent)`,
-        color:
-          platform === 'vrx'
-            ? 'var(--text)'
-            : isVrc
-              ? 'var(--plat-vrc-ghost-text)'
-              : 'var(--plat-cvr-ghost-text)'
+            ? 'linear-gradient(to top, var(--plat-cvr-rail-bg), var(--plat-vrc-rail-bg))'
+            : `var(--plat-${pkey}-rail-bg)`,
+        borderColor: platform === 'vrx' ? 'transparent' : `var(--plat-${pkey}-rail-border)`,
+        color: platform === 'vrx' ? 'var(--linked-rail-text)' : `var(--plat-${pkey}-badge-text)`
       }}
     >
       {platform === 'vrx' ? (
@@ -390,9 +384,9 @@ const FriendRow = memo(function FriendRow({
       className={[
         // grid: 14px platform tab · 42px avatar · 1fr content · auto instance pill
         'grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
+        // Platform-tinted capsule, like the Activity rows.
+        `platform-row platform-row--${projection.platformMark}`,
         'rounded-[13px] py-[8px] pr-[12px] pl-[10px]',
-        'border border-[color-mix(in_srgb,var(--text)_7%,transparent)]',
-        'bg-[color-mix(in_srgb,var(--text)_4%,transparent)]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors',
         'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--text-dim)]',
         'has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-transparent',

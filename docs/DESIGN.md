@@ -119,8 +119,21 @@ for an approved need that existing ones can't meet.
 - Friend state: `--ingame`, `--active`, `--offline`; VRChat status: `--st-*`;
   each with text companions.
 - Instance access: `--op-*`. Policy space: `--policy-*`.
+- Colored pills: `--pill-tint` and `--pill-edge` (and their Strong pair) set
+  how much of a pill's hue fills and edges it, so each theme can tune them.
 - Controls: `--control-fill`, `--control-fill-hover`, borders, and focus.
 - Material: `--glass-*`, scrim, shine, shadow, and radius tokens.
+
+Light is not dark inverted. Cards are white on a canvas a step darker, so
+they read as raised. Brand colors stay at full strength for fills, rings,
+edges and the glow, and words in a brand color use a deeper companion that
+clears 4.5:1 on white and on the platform tints. Every small platform label
+(the friends-list rail, platform pills, the short badge on a picture) takes
+the `--plat-*-badge-*` and `--plat-*-rail-*` tokens: solid platform color with
+white words in light, so blue and orange show at a glance down a list, and
+quiet outlines in dark, where the word and edge already glow. The ChilloutVR
+badge fill is one step deeper than the raw orange so its white word clears
+4.5:1.
 
 Themed colors stay runtime CSS variables; a build must never bake light and
 dark values into a fixed palette.
@@ -181,6 +194,12 @@ draws it as a fixed, decorative layer under the aurora, and
 `data-app-background` on `<html>` drops the aurora's opaque floor so any glow
 the user keeps sits over the picture. A fade layer in the theme's base colour
 (Low, Medium, High; Medium by default) keeps words over the picture readable.
+Light uses a lighter fade so a picture never turns milky white; words set
+straight on the canvas there (`.canvas-text`: page titles, the online count,
+section headings) sit on a small crisp card-color backing with near-solid
+ink, so a dark picture cannot swallow them, and small buttons beside them
+(`.canvas-control`) take a white backing too. Words never get a glow or halo:
+on a light theme it reads as fuzzy text.
 Information-bearing cards and panels keep their own solid backing, so a
 picture never changes their colours or meaning; translucent chrome such as the
 sidebar shows it blurred.
@@ -317,7 +336,9 @@ Dashboard, Hot Instances, Friends, and Explore, even when a scrollbar appears;
 nothing else may take its place. The connection indicator pairs color with
 shape: a dot is live, a hollow ring is reconnecting, a square is down, and
 its label names each platform. The live dot pulses only while VRX has focus;
-an endless animation would keep the window redrawing behind a game. Settings replaces the filter with
+an endless animation would keep the window redrawing behind a game. On Linux
+it stays steady: some Linux desktops draw the pulse's redraw a pixel off, which
+shifted the background picture around the filter. Settings replaces the filter with
 its category control, on its own row under the title, so the online count
 stays on the title row as on every other page.
 
@@ -369,7 +390,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
   in that same card beside the on/off control and the check button, plus the
-  installed version, Welcome setup (Run setup again), and Open logs folder.
+  installed version, Welcome setup (Run setup again), Found a bug? (Report a
+  bug opens GitHub's bug report form in the browser), Open logs folder, and
+  Legal.
 
 Saving is reported once, in the shell, failures first. A failed save shows an
 alert at once, keeps the latest edits, offers Retry, and stays until a save
@@ -556,8 +579,9 @@ account is enough to continue. Every other step
 changes the real settings as the user picks and keeps the defaults (all alerts
 off, VRChat instance labels) until changed. Pages lists Hot Instances, Activity, Inbox
 and Explore; Alerts lists the same six alerts as Settings → Notifications, friend alerts
-in one card and inbox alerts in another, so the step fits without scrolling. Look also asks for the instance
-label style. Skip setup is a visible button on every screen before the
+in one card and inbox alerts in another, so the step fits without scrolling. Look also offers the background
+picture (same picker, checks and wording as Settings; the fade stays in
+Settings) and asks for the instance label style. Skip setup is a visible button on every screen before the
 summary, never a small link, so setup never feels like a forced tour; skipping before any
 account is ready shows sign-in only, then opens the app. The main button is a
 neutral text-colored fill, so neither platform color leads. Each screen keeps to a
@@ -591,7 +615,10 @@ words, the platform pill filling a fixed-width column (both pills the same
 size, the word centered), and the time (with the date
 once it is not today). Each row is its own capsule tinted with its platform's
 color, strongest at a 3px platform edge on the left, so the platforms read
-apart at a glance; the pill is the non-color cue. Coming online straight into a world is one entry that
+apart at a glance; the pill is the non-color cue. The same `.platform-row`
+capsule carries friend rows (a linked person runs blue into orange), Inbox
+rows and the Dashboard glance rows, so a platform looks the same on every
+list. Coming online straight into a world is one entry that
 names the world; a ChilloutVR world name that resolves a moment later fills
 in, and its `(#…)` instance tag is trimmed. Ask Me and Do Not Disturb friends
 never show a world, and their moves are not recorded. The top-bar filter

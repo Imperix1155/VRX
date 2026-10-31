@@ -358,12 +358,16 @@ export default function FriendDrawer({
                           style={{
                             color:
                               member.platform === 'vrchat'
-                                ? 'var(--plat-vrc-ghost-text)'
-                                : 'var(--plat-cvr-ghost-text)',
+                                ? 'var(--plat-vrc-badge-text)'
+                                : 'var(--plat-cvr-badge-text)',
                             borderColor:
                               member.platform === 'vrchat'
-                                ? 'var(--plat-vrc-ghost-border)'
-                                : 'var(--plat-cvr-ghost-border)'
+                                ? 'var(--plat-vrc-badge-border)'
+                                : 'var(--plat-cvr-badge-border)',
+                            background:
+                              member.platform === 'vrchat'
+                                ? 'var(--plat-vrc-badge-bg)'
+                                : 'var(--plat-cvr-badge-bg)'
                           }}
                           onClick={() => {
                             navigationFocusRef.current = 'back'
@@ -385,12 +389,13 @@ export default function FriendDrawer({
                   </div>
                 ) : (
                   <span
-                    className="mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border bg-transparent px-[var(--space-2-5)] text-[11px] font-semibold"
+                    className="mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border px-[var(--space-2-5)] text-[11px] font-semibold"
                     style={{
-                      color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
+                      color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
                       borderColor: isVrc
-                        ? 'var(--plat-vrc-ghost-border)'
-                        : 'var(--plat-cvr-ghost-border)'
+                        ? 'var(--plat-vrc-badge-border)'
+                        : 'var(--plat-cvr-badge-border)',
+                      background: isVrc ? 'var(--plat-vrc-badge-bg)' : 'var(--plat-cvr-badge-bg)'
                     }}
                   >
                     {isVrc ? t('friends.platform.vrchat') : t('friends.platform.chilloutvr')}
@@ -453,8 +458,10 @@ export default function FriendDrawer({
                     disabled={isJoining}
                     className="w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
                     style={{
-                      borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-                      background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+                      borderColor:
+                        'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+                      background:
+                        'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
                       color: 'var(--op-public-text)'
                     }}
                   >
@@ -506,7 +513,8 @@ export default function FriendDrawer({
                     role="alert"
                     className="flex items-start gap-[var(--space-2)] rounded-control border px-[var(--space-2)] py-[var(--space-2)] text-[12px] text-[var(--text-dim)]"
                     style={{
-                      borderColor: 'color-mix(in srgb, var(--error) 45%, transparent)',
+                      borderColor:
+                        'color-mix(in srgb, var(--error) var(--pill-edge-strong), transparent)',
                       background: 'color-mix(in srgb, var(--error) 10%, transparent)'
                     }}
                   >

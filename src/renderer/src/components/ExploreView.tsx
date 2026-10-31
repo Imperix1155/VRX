@@ -84,7 +84,9 @@ export default function ExploreView({
     <section aria-label={t('explore.heading')}>
       <div className="flex flex-wrap items-center justify-end gap-[var(--space-4)]">
         <div className="flex items-center gap-[var(--space-2)]">
-          <span className="text-sm text-[var(--text-dim)]">{t('explore.worldsShown')}</span>
+          <span className="canvas-text text-sm text-[var(--text-dim)]">
+            {t('explore.worldsShown')}
+          </span>
           <NumberStepper
             value={total}
             min={2}
@@ -100,7 +102,7 @@ export default function ExploreView({
       {worlds.length === 0 &&
       !shownSources.some((source) => source.status === 'loading') &&
       !terminalFailure ? (
-        <p className="mt-[var(--space-4)] text-sm text-[var(--text-dim)]">
+        <p className="canvas-text mt-[var(--space-4)] text-sm text-[var(--text-dim)]">
           {t(nothingLoaded ? 'explore.notLoaded' : 'explore.empty')}
         </p>
       ) : null}

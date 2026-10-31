@@ -7,6 +7,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-31
+
+VRX 1.3 reworks light mode so VRChat and ChilloutVR read apart at a glance,
+gives every list the same platform-colored rows, and adds a Report a bug
+button. It is everything from the 1.3.0 dev builds (dev.1 to dev.3) plus a
+final polish round, listed in detail below.
+
+### Added
+
+- **Report a bug.** Settings → About has a Report a bug button. It opens VRX's
+  bug report form on GitHub in your browser with the VRX version, install type
+  and system already filled in. Nothing from your accounts is added. (#481)
+- **Background picture in the welcome setup.** The Pick a look step can set
+  your own background picture, with the same checks and notes as Settings →
+  Appearance. It's optional like the rest of setup. (#478)
+
+### Changed
+
+- **Light mode is reworked.** Cards are white on a slightly darker page,
+  VRChat blue and ChilloutVR orange are much stronger, and platform labels are
+  solid blue or orange with white words. A background picture keeps its
+  colours instead of turning milky white, and words over it stay crisp: page
+  titles and headings sit on a small light backing. Dark mode keeps its look.
+  (#480, #483, #498)
+- **Platform-colored rows everywhere.** Friends, Inbox, and the Dashboard's
+  Wearing now and Latest invites rows use the same soft blue or orange card as
+  Activity, in both themes. A friend linked on both platforms gets a card that
+  runs from blue into orange. (#498)
+
+### Fixed
+
+- On Linux, the background picture no longer shifts slightly in the
+  top-right corner. The live dot next to the online count stays steady on
+  Linux instead of pulsing; its color and shape still show the connection.
+  (#479)
+- Settings → About: the Open logs folder and Report a bug buttons no longer
+  break onto two lines, including in Japanese. (#500)
+- Light mode: the soft shadow around choices that open inside a settings
+  card, such as Picture fade, no longer ends on a hard line. (#500)
+
+## [1.3.0-dev.3] - 2026-10-30
+
+Dev test build. It has everything in 1.3.0-dev.2 plus the changes below.
+
+### Changed
+
+- Friends, Inbox and the Dashboard's Wearing now and Latest invites rows now
+  use the same soft blue or orange card as Activity, so every list shows the
+  platform the same way. A friend linked on both platforms gets a card that
+  runs from blue into orange.
+- Light mode text is sharper. Words over a background picture no longer have
+  a soft white glow around them, which made them look fuzzy. Page titles and
+  headings set straight on the picture sit on a small light backing instead,
+  so they stay readable on a dark picture too.
+
+## [1.3.0-dev.2] - 2026-10-28
+
+Dev test build. It has everything in 1.3.0-dev.1 plus the change below.
+
+### Changed
+
+- Light mode shows each platform much more clearly. Platform labels are now
+  solid VRChat blue or ChilloutVR orange with white words: the strip at the
+  start of each friend row, the VRChat and ChilloutVR pills, and the small
+  VRC / CVR badge on world and avatar pictures. Platform cards and the
+  background glow are also stronger, so you can tell the platform at a glance
+  without reading the label. Dark mode is unchanged.
+
+## [1.3.0-dev.1] - 2026-10-28
+
+Dev test build. It has everything in 1.2.0 plus the changes below.
+
+### Added
+
+- The welcome setup's Pick a look step can now set your own background
+  picture, with the same checks and notes as Settings → Appearance. It's
+  optional like the rest of setup, and the summary says when a picture is
+  set.
+- Settings → About has a Report a bug button. It opens VRX's bug report
+  form on GitHub in your browser with the VRX version, install type and
+  system already filled in. Nothing from your accounts is added. The form
+  on GitHub is now a short set of fields instead of a blank template.
+
+### Changed
+
+- Light mode is reworked. Cards are now white on a slightly darker page so
+  they stand out, VRChat blue and ChilloutVR orange are stronger everywhere
+  (glow, card tints, Activity entries, platform and instance pills), and the
+  platform words read as blue and orange instead of navy and brown. A
+  background picture keeps its colours in light mode instead of turning
+  milky white; page titles and headings over it get a soft halo so they stay
+  readable. Dark mode is unchanged.
+
+### Fixed
+
+- On Linux, the background picture no longer shifts slightly in the top-right
+  corner, around the platform filter. The live dot next to the online count
+  now stays steady on Linux instead of pulsing; its color and shape still
+  show the connection the same way. Windows is unchanged.
+
 ## [1.2.0] - 2026-10-28
 
 VRX 1.2 adds three new pages, a smarter Dashboard, and a few things that make

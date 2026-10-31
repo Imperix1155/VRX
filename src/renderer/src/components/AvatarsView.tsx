@@ -154,7 +154,7 @@ export default function AvatarsView(): React.JSX.Element {
             for (const platform of refreshable) void libraries[platform].refetch()
           }}
           disabled={refreshing || refreshable.length === 0}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 motion-safe:transition-colors"
+          className="canvas-control rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 motion-safe:transition-colors"
         >
           {refreshing ? t('avatars.refreshing') : t('avatars.refresh')}
         </button>
@@ -348,7 +348,7 @@ function SourceNotice({
 
 function SubHeading({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <h2 className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]">
+    <h2 className="canvas-text mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]">
       {children}
     </h2>
   )

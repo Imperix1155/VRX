@@ -202,17 +202,17 @@ export default function InboxView(): React.JSX.Element {
     if (rows.length === 0) return null
     return (
       <section aria-label={t(headingKey)} className="flex flex-col gap-[var(--space-2)]">
-        <h2 className="px-[var(--space-1)] text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">
+        <h2 className="canvas-text px-[var(--space-1)] text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">
           {t(headingKey)}
         </h2>
-        <ul className="glass glass-information divide-y divide-[var(--border)] overflow-hidden">
+        <ul className="flex flex-col gap-[6px]">
           {rows.map((item) => {
             const name = nameOf(item)
             const age = relativeInboxTime(item.receivedAt, now, i18n.language) ?? t('inbox.justNow')
             return (
               <li
                 key={`${item.platform}:${item.id}`}
-                className="flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)]"
+                className={`platform-row platform-row--${item.platform} flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)]`}
               >
                 <InboxAvatar name={name} friend={friendsById[item.platform].get(item.senderId)} />
                 <div className="min-w-0 flex-1">
@@ -251,12 +251,16 @@ export default function InboxView(): React.JSX.Element {
   return (
     <div ref={listRef} className="flex flex-col gap-[var(--space-4)]">
       <div className="flex items-center justify-between gap-[var(--space-4)]">
-        <p className="text-sm text-[var(--text-dim)]" aria-live="polite">
+        <p className="canvas-text text-sm text-[var(--text-dim)]" aria-live="polite">
           {items.length > 0 ? t('inbox.count', { count: items.length }) : null}
         </p>
         <div className="flex shrink-0 items-center gap-[var(--space-2)]">
           {items.length > 0 ? (
-            <button type="button" onClick={() => void hideAll()} className={QUIET_BUTTON}>
+            <button
+              type="button"
+              onClick={() => void hideAll()}
+              className={`canvas-text ${QUIET_BUTTON}`}
+            >
               {t('inbox.hideAll')}
             </button>
           ) : null}

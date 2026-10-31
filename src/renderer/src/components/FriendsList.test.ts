@@ -392,10 +392,10 @@ describe('FriendsList', () => {
 
   // ─── Platform tab + CVR presence ring ────────────────────────────────────────
 
-  it('renders the VRChat platform tab (--vrc tint + VRC acronym) for a VRChat friend', () => {
+  it('renders the VRChat platform tab (platform rail + VRC acronym) for a VRChat friend', () => {
     const markup = render()
-    expect(markup).toContain('var(--vrc)')
-    expect(markup).toContain('var(--plat-vrc-ghost-text)')
+    expect(markup).toContain('var(--plat-vrc-rail-bg)')
+    expect(markup).toContain('var(--plat-vrc-badge-text)')
     expect(markup).toContain('>VRC<')
   })
 
@@ -410,7 +410,7 @@ describe('FriendsList', () => {
       } as Friend
     ])
     const markup = render()
-    expect(markup).toContain('var(--cvr)')
+    expect(markup).toContain('var(--plat-cvr-rail-bg)')
     expect(markup).toContain('>CVR<')
     expect(markup).toContain('aria-label="ChilloutVR"')
     // VRX-207: CVR online = privacy tier 2 — the SAME ring as VRChat status:online,

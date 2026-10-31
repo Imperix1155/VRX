@@ -39,6 +39,15 @@ const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
 }
 
 const STATUS_POLL_MS = 7_500
+
+// Linux keeps the live dot steady (2026-10-28). Each pulse frame redraws the
+// dot, and Chromium widens that redraw to the nearby glass controls' blur area,
+// a large patch of the background picture. Linux desktops at fractional scaling
+// (seen on KDE Plasma) can place such partial redraws a pixel off, so the
+// picture in that corner visibly shifted. Read per render so tests can stub it.
+function holdsLiveDotStill(): boolean {
+  return typeof navigator !== 'undefined' && /\bLinux\b/.test(navigator.userAgent)
+}
 const HEALTH_LABEL_KEYS: Record<ConnectionHealth, string> = {
   live: 'shell.connection.live',
   reconnecting: 'shell.connection.reconnecting',
@@ -272,12 +281,12 @@ export default function TopBar(): React.JSX.Element {
   const status = (
     <div
       data-testid="topbar-status"
-      className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
+      className="canvas-text flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
     >
       {/* Shape repeats the color for colorblind users: a dot is live, a hollow
           ring is reconnecting, a square is down. The live dot pulses only
           while VRX has focus: an endless animation keeps the window redrawing
-          every frame, even behind a game. */}
+          every frame, even behind a game. On Linux it never pulses (above). */}
       <span role="status" className="sr-only">
         {connectionLabel}
       </span>
@@ -287,7 +296,9 @@ export default function TopBar(): React.JSX.Element {
         className={[
           'box-border w-[8px] h-[8px] flex-none',
           worstHealth === 'down' ? 'rounded-[1px]' : 'rounded-full',
-          worstHealth === 'live' && windowFocused ? 'motion-safe:animate-pulse' : ''
+          worstHealth === 'live' && windowFocused && !holdsLiveDotStill()
+            ? 'motion-safe:animate-pulse'
+            : ''
         ].join(' ')}
         style={
           worstHealth === 'reconnecting'
@@ -305,7 +316,7 @@ export default function TopBar(): React.JSX.Element {
       className={`flex flex-wrap items-center gap-[var(--space-2)] ${activeTab === 'settings' ? 'mb-[var(--space-2)]' : 'mb-[22px]'}`}
     >
       {/* View title */}
-      <h1 className="text-[25px] font-extrabold text-[var(--text)] shrink-0">
+      <h1 className="canvas-text text-[25px] font-extrabold text-[var(--text)] shrink-0">
         {t(VIEW_TITLE_KEYS[activeTab])}
       </h1>
 

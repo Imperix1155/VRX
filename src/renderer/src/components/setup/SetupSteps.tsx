@@ -14,6 +14,9 @@ import AccountCard from '../AccountCard'
 import SegmentedControl from '../SegmentedControl'
 import Toggle from '../Toggle'
 import { IconActivity, IconExplore, IconFriends, IconHot, IconInbox } from '../NavIcons'
+import { BackgroundPictureControls, BackgroundPictureMessage } from '../BackgroundPicturePicker'
+import { useBackgroundPicturePicker } from '../../hooks/useBackgroundPicturePicker'
+import { useAppBackground } from '../../queries/appBackground'
 import { SECONDARY_BUTTON, SETUP_ALERTS, SETUP_PLATFORMS } from './setupModel'
 
 /**
@@ -410,6 +413,7 @@ export const LookStep = forwardRef<HTMLHeadingElement>(function LookStep(_props,
   const glow = useSettingsStore((s) => s.settings.backgroundGlow)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const update = useSettingsStore((s) => s.updateSettings)
+  const picker = useBackgroundPicturePicker()
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
       <StepHeading ref={ref} title={t('setup.look.title')} lead={t('setup.look.lead')} />
@@ -468,6 +472,22 @@ export const LookStep = forwardRef<HTMLHeadingElement>(function LookStep(_props,
           onChange={(value) => update({ backgroundGlow: value })}
         />
       </Row>
+      {/* Optional, like the rest of setup (owner, 2026-10-28). The same picker,
+          checks and wording as Settings → Appearance; the fade stays there. */}
+      <div className="setting-card py-[10px]">
+        <div className="setting-row">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-[var(--text)]">
+              {t('settings.backgroundPicture.label')}
+            </p>
+            <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+              {t('settings.backgroundPicture.description')}
+            </p>
+            <BackgroundPictureMessage picker={picker} />
+          </div>
+          <BackgroundPictureControls picker={picker} oneLine />
+        </div>
+      </div>
       {/* Asked here so new users pick their terms (owner, 2026-10-20); leaving
           setup before this step keeps the VRChat default. */}
       <Row label={t('settings.labelScheme.label')} description={t('setup.look.labelsDescription')}>
@@ -491,6 +511,7 @@ export const DoneStep = forwardRef<
 >(function DoneStep({ authStates }, ref) {
   const { t } = useTranslation()
   const s = useSettingsStore((state) => state.settings)
+  const { data: picture } = useAppBackground()
 
   const accounts = SETUP_PLATFORMS.map((platform) => {
     const state = authStates[platform]
@@ -541,7 +562,7 @@ export const DoneStep = forwardRef<
       ? t('setup.done.alertsOff')
       : t('setup.done.alertsSome', { count: alertsOn, total: SETUP_ALERTS.length })
 
-  const look = t('setup.done.lookValue', {
+  const look = t(picture ? 'setup.done.lookValuePicture' : 'setup.done.lookValue', {
     theme: t(THEME_CHOICES.find(([value]) => value === s.theme)?.[1] ?? 'setup.look.system'),
     glow: t(GLOW_LABEL_KEYS[s.backgroundGlow])
   })

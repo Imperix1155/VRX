@@ -17,10 +17,11 @@ function PlatformHeading({ platform }: { platform: Platform }): React.JSX.Elemen
   return (
     <h3>
       <span
-        className="inline-flex h-[22px] items-center rounded-[9px] border bg-transparent px-[var(--space-2)] text-[11px] font-semibold"
+        className="inline-flex h-[22px] items-center rounded-[9px] border px-[var(--space-2)] text-[11px] font-semibold"
         style={{
-          color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
-          borderColor: isVrc ? 'var(--plat-vrc-ghost-border)' : 'var(--plat-cvr-ghost-border)'
+          color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
+          borderColor: isVrc ? 'var(--plat-vrc-badge-border)' : 'var(--plat-cvr-badge-border)',
+          background: isVrc ? 'var(--plat-vrc-badge-bg)' : 'var(--plat-cvr-badge-bg)'
         }}
       >
         {t(isVrc ? 'friends.platform.vrchat' : 'friends.platform.chilloutvr')}

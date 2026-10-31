@@ -34,8 +34,8 @@ export default function PolicySpacePill({
         }
       : {
           color: `var(--policy-${space}-text)`,
-          '--policy-space-pill-bg': `color-mix(in srgb, var(--policy-${space}) 13%, transparent)`,
-          borderColor: `color-mix(in srgb, var(--policy-${space}) 36%, transparent)`
+          '--policy-space-pill-bg': `color-mix(in srgb, var(--policy-${space}) var(--pill-tint), transparent)`,
+          borderColor: `color-mix(in srgb, var(--policy-${space}) var(--pill-edge), transparent)`
         }
 
   return (

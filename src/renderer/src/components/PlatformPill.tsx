@@ -3,11 +3,10 @@
  *
  * The card TINT + top stripe already carry the platform for anyone who can see
  * color; this pill is the §5 NON-COLOR signifier for colorblind / low-vision users.
- * So it's deliberately the lowest-weight element (World → Instance → Who's-here →
- * Platform): the shared pill GEOMETRY (matches the instance pill's footprint, so the
- * two align in the card's shared column), but a DIM ghost outline — no fill, thin
- * border. The LABEL stays legible (WCAG AA: CVR 6.2:1, VRC 5.5:1 dark; re-verified
- * light) — the quietness lives in the pill, never the word.
+ * It shares the instance pill's GEOMETRY (same footprint, so the two align in the
+ * card's shared column). Its colors come from the --plat-*-badge-* tokens: a dim
+ * ghost outline in dark (WCAG AA: CVR 6.2:1, VRC 5.5:1), a solid platform fill
+ * with a white word in light, where an outline alone reads too faint to scan.
  */
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
@@ -30,9 +29,9 @@ export default function PlatformPill({
       data-platform-pill=""
       className={`${PILL_BASE} ${className}`}
       style={{
-        color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
-        borderColor: isVrc ? 'var(--plat-vrc-ghost-border)' : 'var(--plat-cvr-ghost-border)',
-        background: 'transparent'
+        color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
+        borderColor: isVrc ? 'var(--plat-vrc-badge-border)' : 'var(--plat-cvr-badge-border)',
+        background: isVrc ? 'var(--plat-vrc-badge-bg)' : 'var(--plat-cvr-badge-bg)'
       }}
     >
       {isVrc ? t('dashboard.platformVrc') : t('dashboard.platformCvr')}

@@ -157,11 +157,11 @@ export default function ExploreWorldCard({
           aria-hidden="true"
           className="absolute left-[var(--space-2)] top-[var(--space-2)] rounded-[9px] border px-[var(--space-2)] py-[var(--space-0-5)] text-[10px] font-bold"
           style={{
-            color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
-            borderColor: isVrc ? 'var(--plat-vrc-ghost-border)' : 'var(--plat-cvr-ghost-border)',
-            // Same small backing as other pills over a picture (PictureBackedPill),
-            // so the word reads on bright art too.
-            background: 'color-mix(in srgb, var(--glass-information) 78%, transparent)'
+            color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
+            borderColor: isVrc ? 'var(--plat-vrc-badge-border)' : 'var(--plat-cvr-badge-border)',
+            background: isVrc
+              ? 'var(--plat-vrc-picture-badge-bg)'
+              : 'var(--plat-cvr-picture-badge-bg)'
           }}
         >
           {t(isVrc ? 'friends.platform.vrchatShort' : 'friends.platform.chilloutvrShort')}

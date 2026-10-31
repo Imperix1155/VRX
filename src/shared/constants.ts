@@ -85,6 +85,8 @@ export const RELEASES_URL = 'https://github.com/Imperix1155/VRX/releases/latest'
 export const ALL_RELEASES_URL = 'https://github.com/Imperix1155/VRX/releases' as const
 /** Where to report a problem with VRX (Settings → About → Legal). */
 export const ISSUES_URL = 'https://github.com/Imperix1155/VRX/issues' as const
+/** New-issue page; main adds the bug report form and its prefilled fields. */
+export const NEW_BUG_REPORT_URL = 'https://github.com/Imperix1155/VRX/issues/new' as const
 
 /** Where a build that can't update itself finds its next version: a test
  *  build's next version is usually another test build. */
