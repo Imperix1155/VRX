@@ -55,7 +55,10 @@ you press a "Use my sign-in from" button, described below.
   hidden from the sidebar in Settings → Behavior.
 - **Welcome setup**: a new install starts with a short, skippable setup for
   sign-in, pages, the Dashboard, alerts, and the look (including instance
-  labels). Run it again any time from Settings → About.
+  labels and a background picture). Run it again any time from Settings →
+  About.
+- **Report a bug**: Settings → About opens a bug report on GitHub with your
+  VRX version and system filled in. Nothing from your accounts is added.
 - **Tray and updates**: closing the window keeps VRX in the system tray. The
   Windows installer and the Linux AppImage and deb can update from inside VRX;
   the portable Windows build can't.
