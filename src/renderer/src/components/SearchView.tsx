@@ -22,6 +22,7 @@ import { communitySource, interleave, platformName } from '../utils/community'
 import CommunitySheet from './CommunitySheet'
 import { CommunityHeading, CommunityNotices, CommunityTile, TileGrid } from './CommunityParts'
 import ProfileDetails from './ProfileDetails'
+import type { RecoverWorlds } from '../hooks/useExploreWorldSelection'
 import WorldResults from './WorldResults'
 
 export default function SearchView(): React.JSX.Element {
@@ -57,6 +58,12 @@ export default function SearchView(): React.JSX.Element {
     [vrcResult, cvrResult]
   )
   const answered = vrcResult !== null || cvrResult !== null
+  // An expired world card renews its reference by reading these same results
+  // again (main answers from its 5 minute cache when it can).
+  const recover: RecoverWorlds = async (platform) => {
+    const result = await (platform === 'vrchat' ? vrc : cvr).refetch()
+    return result.data?.ok ? result.data.worlds : []
+  }
 
   const [person, setPerson] = useState<PersonSummary | null>(null)
   const openerRef = useRef<HTMLElement | null>(null)
@@ -146,7 +153,7 @@ export default function SearchView(): React.JSX.Element {
             {worlds.length === 0 ? (
               <p className="canvas-text text-sm text-[var(--text-dim)]">{t('search.noWorlds')}</p>
             ) : (
-              <WorldResults worlds={worlds} />
+              <WorldResults worlds={worlds} recover={recover} />
             )}
           </section>
         </div>

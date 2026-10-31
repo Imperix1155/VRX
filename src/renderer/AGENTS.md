@@ -86,7 +86,8 @@ or launch authority.
 **Account-bound data**
 
 - Friend, linked-profile, Explore, note, alert-pick, avatar and community queries cancel
-  old work and clear data and fences at identity or auth boundaries. Avatar
+  old work and clear data and fences at identity or auth boundaries. Community
+  answers kept through a data-path 401 reset when the same account returns. Avatar
   libraries otherwise stay in memory for the session, keyed by account. An old reply never publishes
   under the replacement account.
 - `projectLinkedFriends` projects only qualified people; raw friend caches stay
@@ -113,7 +114,8 @@ or launch authority.
 - Explore reads, selection, and images are fenced by generation, account,
   close, and reference identity. A loading world sheet waits for
   `explore-changed` and a cache-only reread. A manual open or refresh may
-  recover one expired reference. Only typed image deferrals retry, within a
+  recover one expired reference: Popular now from its snapshot, Search and
+  the lists by re-reading their own results. Only typed image deferrals retry, within a
   bound. Sheets distinguish incomplete coverage, verified emptiness, stale
   data, and typed denials.
 

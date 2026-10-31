@@ -7,7 +7,7 @@
 import { useState } from 'react'
 import type { ExploreWorld } from '@shared/explore'
 import { useExploreImage } from '../hooks/useExploreImage'
-import { useExploreWorldSelection } from '../hooks/useExploreWorldSelection'
+import { useExploreWorldSelection, type RecoverWorlds } from '../hooks/useExploreWorldSelection'
 import { useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriendsStore } from '../stores/friends'
 import ExploreWorldCard from './ExploreWorldCard'
@@ -31,13 +31,23 @@ export function ResolvedCard({
   )
 }
 
+/**
+ * `recover` re-reads the results these worlds came from. Main renews a world's
+ * reference only when it hands that world out again, so an expired card is
+ * recovered from its own search or list, never from Popular now.
+ */
 export default function WorldResults({
-  worlds
+  worlds,
+  recover
 }: {
   worlds: readonly ExploreWorld[]
+  recover: RecoverWorlds
 }): React.JSX.Element {
   const platformFilter = useFriendsStore((state) => state.platformFilter)
-  const { selected, sheet, image, open, close, refresh } = useExploreWorldSelection(platformFilter)
+  const { selected, sheet, image, open, close, refresh } = useExploreWorldSelection(
+    platformFilter,
+    recover
+  )
   const { isJoining, joinExplore, joinExploreFailureFor, pendingConfirm } = useJoinInstance()
   const [focusFallback, setFocusFallback] = useState<HTMLDivElement | null>(null)
   return (

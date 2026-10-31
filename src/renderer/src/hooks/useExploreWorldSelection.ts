@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Platform } from '@shared/types'
 import type {
   ExploreFilter,
   ExploreWorld,
@@ -55,10 +56,23 @@ async function readChanges(
   }
 }
 
+/** Where an expired reference finds its replacement: by default Explore's
+ * cached Popular now snapshot. Search and the New / Recently updated lists
+ * pass their own originating read instead, because their worlds never appear
+ * in that snapshot. */
+export type RecoverWorlds = (platform: Platform) => Promise<readonly ExploreWorld[]>
+
+async function popularNowWorlds(platform: Platform): Promise<readonly ExploreWorld[]> {
+  return (await readExploreSnapshot(platform)).worlds
+}
+
 /** Dashboard and Explore share one selected-world lifetime. Every reply belongs
  * to that selection and a request order; an older loading read cannot replace
  * a newer completed snapshot. Shared visible image recovery owns its bounded timer. */
-export function useExploreWorldSelection(filter: ExploreFilter): {
+export function useExploreWorldSelection(
+  filter: ExploreFilter,
+  recoverWorlds: RecoverWorlds = popularNowWorlds
+): {
   selected: Selection | null
   sheet: ExploreWorldSnapshot | null
   image: string | undefined
@@ -67,6 +81,10 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
   refresh: () => void
 } {
   const current = useRef<Selection | null>(null)
+  const recoverRef = useRef(recoverWorlds)
+  useEffect(() => {
+    recoverRef.current = recoverWorlds
+  }, [recoverWorlds])
   const [selected, setSelected] = useState<Selection | null>(null)
   const [sheet, setSheet] = useState<ExploreWorldSnapshot | null>(null)
   const [image, setImage] = useState<string | undefined>()
@@ -138,9 +156,9 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
             selection.recovering = true
             recovering = true
             try {
-              const snapshot = await readExploreSnapshot(selection.world.platform)
+              const worlds = await recoverRef.current(selection.world.platform)
               if (current.current !== selection || request !== selection.request) return
-              const renewed = snapshot.worlds.find(
+              const renewed = worlds.find(
                 (world) =>
                   world.platform === selection.world.platform &&
                   world.worldId === selection.world.worldId &&

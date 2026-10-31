@@ -12,6 +12,7 @@ import { useWorldList } from '../queries/community'
 import { useFriendsStore } from '../stores/friends'
 import { communitySource, interleave } from '../utils/community'
 import { CommunityNotices } from './CommunityParts'
+import type { RecoverWorlds } from '../hooks/useExploreWorldSelection'
 import WorldResults from './WorldResults'
 
 export default function ExploreListPanel({ list }: { list: WorldList }): React.JSX.Element {
@@ -41,6 +42,12 @@ export default function ExploreListPanel({ list }: { list: WorldList }): React.J
     [vrcWorlds, cvrWorlds]
   )
   const anyReady = vrcWorlds !== null || cvrWorlds !== null
+  // An expired world card renews its reference by reading these same results
+  // again (main answers from its 5 minute cache when it can).
+  const recover: RecoverWorlds = async (platform) => {
+    const result = await (platform === 'vrchat' ? vrc : cvr).refetch()
+    return result.data?.ok ? result.data.worlds : []
+  }
 
   return (
     <section aria-label={t(list === 'new' ? 'explore.lists.new' : 'explore.lists.updated')}>
@@ -54,7 +61,7 @@ export default function ExploreListPanel({ list }: { list: WorldList }): React.J
       {anyReady && worlds.length === 0 ? (
         <p className="canvas-text text-sm text-[var(--text-dim)]">{t('explore.lists.empty')}</p>
       ) : null}
-      {worlds.length > 0 ? <WorldResults worlds={worlds} /> : null}
+      {worlds.length > 0 ? <WorldResults worlds={worlds} recover={recover} /> : null}
     </section>
   )
 }

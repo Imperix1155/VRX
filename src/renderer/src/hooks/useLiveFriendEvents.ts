@@ -70,6 +70,10 @@ export function useLiveFriendEvents(): void {
     // Last auth-status state per platform: a recovery from `error` (the check
     // could not reach the platform) must refetch a roster that failed meanwhile.
     const lastAuthState = new Map<Friend['platform'], string | undefined>()
+    // Platforms whose community answers (search, lists, profiles, groups) went
+    // stale at a data-path 401. Main forgot them and their world references, so
+    // the next authenticated status resets them and the shown page reads again.
+    const staleCommunity = new Set<Friend['platform']>()
 
     const applyToCache = (
       platform: Friend['platform'],
@@ -132,6 +136,12 @@ export function useLiveFriendEvents(): void {
           [],
           EMPTY_ROSTER_PLACEHOLDER
         )
+        // Community answers stay on screen until re-auth resets them; stop
+        // any read in flight so it cannot land first.
+        staleCommunity.add(event.platform)
+        for (const communityKey of communityQueryKeysForPlatform(event.platform)) {
+          void queryClient.cancelQueries({ queryKey: communityKey })
+        }
         void queryClient.invalidateQueries({ queryKey: authStatusQueryKey(event.platform) })
         // Persist the corrected cache synchronously: this platform is empty,
         // while the independent platform's legitimate roster stays intact.
@@ -180,6 +190,7 @@ export function useLiveFriendEvents(): void {
         queryClient.removeQueries({ queryKey: avatarKey })
       }
       // Profiles, searches, lists and groups answered for the old account.
+      staleCommunity.delete(platform)
       for (const communityKey of communityQueryKeysForPlatform(platform)) {
         void queryClient.cancelQueries({ queryKey: communityKey })
         queryClient.removeQueries({ queryKey: communityKey })
@@ -222,6 +233,13 @@ export function useLiveFriendEvents(): void {
         const status = cacheEvent.query.state.data as { state?: string } | undefined
         const previousState = lastAuthState.get(platform)
         lastAuthState.set(platform, status?.state)
+        if (status?.state === 'authenticated' && staleCommunity.delete(platform)) {
+          // Same account back after a 401: reset so mounted pages read again
+          // and inactive ones start empty (an identity boundary removes them).
+          for (const communityKey of communityQueryKeysForPlatform(platform)) {
+            void queryClient.resetQueries({ queryKey: communityKey })
+          }
+        }
         if (
           status?.state === 'authenticated' &&
           (quarantined.delete(platform) || previousState === 'error')

@@ -28,14 +28,26 @@ import ProfileDetails from './ProfileDetails'
 
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => null }))
 // World cards and their sheet have their own tests (ExploreRoute.test.tsx).
+const lastRecover = vi.hoisted(() => ({
+  current: null as ((platform: Platform) => Promise<readonly ExploreWorld[]>) | null
+}))
 vi.mock('./WorldResults', () => ({
-  default: ({ worlds }: { worlds: readonly ExploreWorld[] }) => (
-    <ul data-testid="world-results">
-      {worlds.map((world) => (
-        <li key={world.worldRef}>{`${world.platform}:${world.name}`}</li>
-      ))}
-    </ul>
-  )
+  default: ({
+    worlds,
+    recover
+  }: {
+    worlds: readonly ExploreWorld[]
+    recover: (platform: Platform) => Promise<readonly ExploreWorld[]>
+  }) => {
+    lastRecover.current = recover
+    return (
+      <ul data-testid="world-results">
+        {worlds.map((world) => (
+          <li key={world.worldRef}>{`${world.platform}:${world.name}`}</li>
+        ))}
+      </ul>
+    )
+  }
 }))
 const authState = vi.hoisted(() => ({ vrchat: 'authenticated', chilloutvr: 'authenticated' }))
 vi.mock('../queries/auth', async (importOriginal) => ({
@@ -182,6 +194,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   authState.vrchat = 'authenticated'
   authState.chilloutvr = 'authenticated'
+  lastRecover.current = null
   useFriendsStore.setState({ platformFilter: 'all' })
   Reflect.deleteProperty(window, 'vrx')
 })
@@ -216,6 +229,22 @@ describe('SearchView', () => {
     expect(screen.getByTestId('world-results').textContent).toBe(
       'vrchat:vrchat plazachilloutvr:chilloutvr plaza'
     )
+  })
+
+  it('renews an expired world card from the same search, not from Popular now', async () => {
+    renderWith(<SearchView />)
+    const box = screen.getByRole('searchbox', { name: msg('search.aria') })
+    fireEvent.change(box, { target: { value: 'plaza' } })
+    fireEvent.submit(box.closest('form')!)
+    await screen.findByTestId('world-results')
+    expect(bridge.searchCommunity).toHaveBeenCalledTimes(2)
+    const renewed = await lastRecover.current!('chilloutvr')
+    expect(bridge.searchCommunity).toHaveBeenCalledTimes(3)
+    expect(bridge.searchCommunity).toHaveBeenLastCalledWith({
+      platform: 'chilloutvr',
+      query: 'plaza'
+    })
+    expect(renewed.map((item) => item.worldId)).toEqual(['chilloutvr-world-1'])
   })
 
   it('asks for two letters instead of searching for one', () => {
@@ -306,6 +335,14 @@ describe('ExploreListPanel', () => {
       'vrchat:vrchat onechilloutvr:chilloutvr onevrchat:vrchat twochilloutvr:chilloutvr two'
     )
     expect(bridge.getWorldList).toHaveBeenCalledWith({ platform: 'vrchat', list: 'new' })
+  })
+
+  it('renews an expired world card from the same list', async () => {
+    renderWith(<ExploreListPanel list="updated" />)
+    await screen.findByTestId('world-results')
+    const renewed = await lastRecover.current!('vrchat')
+    expect(bridge.getWorldList).toHaveBeenLastCalledWith({ platform: 'vrchat', list: 'updated' })
+    expect(renewed).toHaveLength(2)
   })
 
   it('adds no line under ALL for a platform the user isn’t signed in to', async () => {
