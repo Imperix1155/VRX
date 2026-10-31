@@ -686,6 +686,40 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(value) => updateSettings({ labelScheme: value })}
               />
             </div>
+            {/* The Activity, Inbox, Search and Groups page switches (owner,
+                2026-10-27 and 2026-10-31) live at the bottom of Appearance,
+                which has room, so Behavior and Notifications still fit the
+                900x670 window. Hiding a page keeps its alerts. */}
+            <div className="setting-card grid gap-[var(--space-2)]">
+              <SwitchRow
+                label={t('settings.pages.activity.label')}
+                description={t('settings.pages.activity.description')}
+                ariaLabel={t('settings.pages.activity.label')}
+                checked={showActivityPage}
+                onChange={(checked) => updateSettings({ showActivityPage: checked })}
+              />
+              <SwitchRow
+                label={t('settings.pages.inbox.label')}
+                description={t('settings.pages.inbox.description')}
+                ariaLabel={t('settings.pages.inbox.label')}
+                checked={showInboxPage}
+                onChange={(checked) => updateSettings({ showInboxPage: checked })}
+              />
+              <SwitchRow
+                label={t('settings.pages.search.label')}
+                description={t('settings.pages.search.description')}
+                ariaLabel={t('settings.pages.search.label')}
+                checked={showSearchPage}
+                onChange={(checked) => updateSettings({ showSearchPage: checked })}
+              />
+              <SwitchRow
+                label={t('settings.pages.groups.label')}
+                description={t('settings.pages.groups.description')}
+                ariaLabel={t('settings.pages.groups.label')}
+                checked={showGroupsPage}
+                onChange={(checked) => updateSettings({ showGroupsPage: checked })}
+              />
+            </div>
           </section>
         )}
 
@@ -987,41 +1021,6 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(checked) => updateSettings({ notifyFriendRequests: checked })}
               />
             </FriendAlertsCard>
-
-            {/* The Activity, Inbox, Search and Groups page switches (owner,
-                2026-10-27 and 2026-10-31) live here rather than with the other
-                page switches so Behavior still fits the 900x670 window. Hiding
-                a page keeps its alerts. */}
-            <div className="setting-card grid gap-[var(--space-2)]">
-              <SwitchRow
-                label={t('settings.pages.activity.label')}
-                description={t('settings.pages.activity.description')}
-                ariaLabel={t('settings.pages.activity.label')}
-                checked={showActivityPage}
-                onChange={(checked) => updateSettings({ showActivityPage: checked })}
-              />
-              <SwitchRow
-                label={t('settings.pages.inbox.label')}
-                description={t('settings.pages.inbox.description')}
-                ariaLabel={t('settings.pages.inbox.label')}
-                checked={showInboxPage}
-                onChange={(checked) => updateSettings({ showInboxPage: checked })}
-              />
-              <SwitchRow
-                label={t('settings.pages.search.label')}
-                description={t('settings.pages.search.description')}
-                ariaLabel={t('settings.pages.search.label')}
-                checked={showSearchPage}
-                onChange={(checked) => updateSettings({ showSearchPage: checked })}
-              />
-              <SwitchRow
-                label={t('settings.pages.groups.label')}
-                description={t('settings.pages.groups.description')}
-                ariaLabel={t('settings.pages.groups.label')}
-                checked={showGroupsPage}
-                onChange={(checked) => updateSettings({ showGroupsPage: checked })}
-              />
-            </div>
           </section>
         )}
 

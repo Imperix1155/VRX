@@ -26,10 +26,10 @@ you press a "Use my sign-in from" button, described below.
   connection VRX already has, so it adds no requests, and it is kept only
   while VRX is open. Friends set to Ask Me or Do Not Disturb never show a
   world. Filter it by kind, clear it, or turn it off in Settings →
-  Notifications.
+  Appearance.
 - **Inbox**: invites, invite requests, and friend requests from both
   platforms that arrive while VRX is open. VRX only shows them; you answer in
-  the game. Hide the page in Settings → Notifications if you don't want it.
+  the game. Hide the page in Settings → Appearance if you don't want it.
 - **Explore**: popular, new, and recently updated public worlds from both
   platforms, with room details.
 - **Search**: find people and worlds on both platforms by name. A person opens

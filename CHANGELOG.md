@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dashboard: an optional Playing now line under the counts shows how many
   people are online on each platform (Settings → Dashboard).
 - Search and Groups can be hidden from the sidebar like the other optional
-  pages (Settings → Notifications, or the welcome setup).
+  pages (Settings → Appearance, or the welcome setup).
 
 ### Fixed
 
