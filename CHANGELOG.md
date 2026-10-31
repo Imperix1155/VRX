@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Build and lint tooling pins `minimatch` 11.0.1 and the `@electron/asar` 4.3.1
-  copy of `glob` 14.0.2. That covers a moderate `minimatch` denial-of-service
-  advisory below 11.0.1 and a moderate `glob` advisory through 14.0.1. The
+- Build and lint tooling pins `minimatch` 11.0.1 and `glob` 14.0.2 anywhere
+  the installed copy is inside the moderate `glob` advisory (9.0.0 through
+  14.0.1). `minimatch` below 11.0.1 is the other moderate advisory. The
   running app does not ship these packages.
 
 ## [1.3.0] - 2026-10-31
