@@ -130,8 +130,7 @@ function ProfileBody({ profile }: { profile: PersonProfile }): React.JSX.Element
           </ul>
         )}
       </div>
-      <ProfileWorlds platform={profile.platform} userId={profile.userId} />
-      <ProfileGroups platform={profile.platform} userId={profile.userId} />
+      <ProfileLists platform={profile.platform} userId={profile.userId} />
     </div>
   )
 }
@@ -161,48 +160,74 @@ function BadgeChip({ badge }: { badge: ProfileBadge }): React.JSX.Element {
   )
 }
 
-/** "Show worlds" / "Hide worlds": the list is read on the first press only. */
-function Disclosure({
-  showKey,
-  hideKey,
-  children
-}: {
-  showKey: string
-  hideKey: string
-  children: React.ReactNode
-}): React.JSX.Element {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const regionId = useId()
-  return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={regionId}
-        onClick={() => setOpen((value) => !value)}
-        className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
-      >
-        {t(open ? hideKey : showKey)}
-      </button>
-      <div id={regionId} hidden={!open} className="mt-[var(--space-2)]">
-        {open ? children : null}
-      </div>
-    </div>
-  )
-}
-
-function ProfileWorlds({
+/**
+ * "Show worlds" and "Show groups" side by side; each list is read on its first
+ * press only and stays cached while the profile is open.
+ */
+function ProfileLists({
   platform,
   userId
 }: {
   platform: Platform
   userId: string
 }): React.JSX.Element {
+  const { t } = useTranslation()
+  const [worldsOpen, setWorldsOpen] = useState(false)
+  const [groupsOpen, setGroupsOpen] = useState(false)
+  const worldsId = useId()
+  const groupsId = useId()
+  const button = (
+    open: boolean,
+    toggle: () => void,
+    controls: string,
+    show: string,
+    hide: string
+  ): React.JSX.Element => (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-controls={controls}
+      onClick={toggle}
+      className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
+    >
+      {t(open ? hide : show)}
+    </button>
+  )
   return (
-    <Disclosure showKey="profile.showWorlds" hideKey="profile.hideWorlds">
-      <ProfileWorldsList platform={platform} userId={userId} />
-    </Disclosure>
+    <div className="flex flex-col gap-[var(--space-3)]">
+      <div className="flex flex-wrap gap-[var(--space-2)]">
+        {button(
+          worldsOpen,
+          () => setWorldsOpen((v) => !v),
+          worldsId,
+          'profile.showWorlds',
+          'profile.hideWorlds'
+        )}
+        {button(
+          groupsOpen,
+          () => setGroupsOpen((v) => !v),
+          groupsId,
+          'profile.showGroups',
+          'profile.hideGroups'
+        )}
+      </div>
+      <div id={worldsId} hidden={!worldsOpen}>
+        {worldsOpen ? (
+          <>
+            <h3 className={SMALL_HEADING}>{t('profile.worlds')}</h3>
+            <ProfileWorldsList platform={platform} userId={userId} />
+          </>
+        ) : null}
+      </div>
+      <div id={groupsId} hidden={!groupsOpen}>
+        {groupsOpen ? (
+          <>
+            <h3 className={SMALL_HEADING}>{t('profile.groups')}</h3>
+            <ProfileGroupsList platform={platform} userId={userId} />
+          </>
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -244,20 +269,6 @@ function ProfileWorldsList({
         <p className="mt-[var(--space-2)] text-xs text-[var(--text-dim)]">{t('profile.partial')}</p>
       ) : null}
     </>
-  )
-}
-
-function ProfileGroups({
-  platform,
-  userId
-}: {
-  platform: Platform
-  userId: string
-}): React.JSX.Element {
-  return (
-    <Disclosure showKey="profile.showGroups" hideKey="profile.hideGroups">
-      <ProfileGroupsList platform={platform} userId={userId} />
-    </Disclosure>
   )
 }
 

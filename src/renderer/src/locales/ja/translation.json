@@ -308,6 +308,25 @@
         "aria": "フレンドリクエストが届いたときに通知"
       }
     },
+    "vrAlerts": {
+      "label": "VR での通知",
+      "description": "上の通知を XSOverlay でヘッドセットにも表示します。",
+      "aria": "XSOverlay で VR に通知を表示",
+      "duration": {
+        "label": "表示時間",
+        "description": "1件ごとの表示時間です。",
+        "short": "短い",
+        "medium": "普通",
+        "long": "長い",
+        "aria": "VR の通知の表示時間"
+      },
+      "test": {
+        "send": "テスト送信",
+        "sending": "送信中…",
+        "sent": "送信しました。XSOverlay は起動中ですか？",
+        "failed": "送信できませんでした。"
+      }
+    },
     "accounts": {
       "heading": "アカウント",
       "connectedAs": "{{name}} として接続中",
@@ -460,6 +479,10 @@
       "groups": {
         "label": "グループのページ",
         "description": "参加しているグループ。表示のみです。"
+      },
+      "sidebar": {
+        "label": "サイドバーのページ",
+        "description": "使わないページはオフにできます。通知はそのままです。"
       }
     },
     "setup": {
@@ -1098,7 +1121,9 @@
       "not-authenticated": "プロフィールを見るにはもう一度サインインしてください。",
       "unknown-person": "プロフィールを見るにはこの人をもう一度検索してください。",
       "not-found": "このプロフィールはもう表示できません。"
-    }
+    },
+    "worlds": "ワールド",
+    "groups": "グループ"
   },
   "groups": {
     "heading": "参加しているグループ",

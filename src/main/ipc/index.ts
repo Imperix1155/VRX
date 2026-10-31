@@ -28,6 +28,8 @@ import type { FriendAlertPicks } from '../services/friendAlertPicks'
 import { registerLinksHandlers, type LinksHandlerOptions } from './links'
 import { registerSettingsHandlers } from './settings'
 import { registerUpdaterHandlers } from './updater'
+import { registerVrAlertHandlers } from './vr-alerts'
+import type { VrOverlayAlerts } from '../vrOverlayAlerts'
 import { isTrustedIpcSender } from './security'
 import type { AuthHandlerOptions } from './auth'
 import type { LocationAuthority } from '../services/locationAuthority'
@@ -65,6 +67,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   community: CommunityService
   appBackground: AppBackgroundHandlerOptions
   inbox: InboxService
+  vrOverlayAlerts: Pick<VrOverlayAlerts, 'test'>
   onRendererHydrated: (event: IpcMainEvent) => void
   /** Each roster read, after the location authority is seeded. */
   onFriendRoster?: (platform: Platform, friends: Friend[]) => void
@@ -149,6 +152,7 @@ export function registerIpcHandlers(
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)
     registerInboxHandlers(options.inbox)
+    registerVrAlertHandlers(options.vrOverlayAlerts)
     registerUpdaterHandlers()
   } finally {
     if (originalHandleDescriptor === undefined) Reflect.deleteProperty(ipcMain, 'handle')

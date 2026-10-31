@@ -283,9 +283,7 @@ describe('GroupsView', () => {
     })
     expect(within(sheet).getByText('Meadow description')).toBeTruthy()
     expect(within(sheet).getByText('TAG')).toBeTruthy()
-    expect(
-      within(sheet).getByText(msg('groups.members', { count: 1200, formatted: '1,200' }))
-    ).toBeTruthy()
+    expect(within(sheet).getByText('1,200')).toBeTruthy()
   })
 
   it('asks main for a fresh list only on Refresh', async () => {

@@ -65,7 +65,7 @@ through `@shared`.
   `dashboardSections` (same version) owns the Dashboard section order;
   `parseSettings` derives it from `dashboardSectionOrder` when missing and
   then rewrites `dashboardSectionOrder` from it, so every order change must
-  write both fields. `SETTINGS_VERSION` 22 adds `showSearchPage`,
+  write both fields. `SETTINGS_VERSION` 23 adds `showSearchPage`,
   `showGroupsPage` and `dashboardPlayersOnline` (all on). Missing or invalid `setupPending` is `false`, so
   only `freshInstallSettings` (a brand-new install) starts the welcome setup.
 - The renderer sends friend IDs and opaque Explore references, never a launch

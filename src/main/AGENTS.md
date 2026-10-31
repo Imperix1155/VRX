@@ -158,6 +158,11 @@ etiquette rules apply in full; this file adds local detail.
   friends never count toward hot alerts, and
   no alert names their world (`friendNotificationPrivacy.test.ts`). Failure
   logs carry no names or locations.
+- `vrOverlayAlerts.ts` repeats each alert that fired in the VR headset through
+  XSOverlay while `vrOverlayAlerts` is on (default off), with the same words as
+  the desktop alert and the same treatment for both platforms. It talks only
+  to this computer: a UDP socket bound to `127.0.0.1` sends one datagram to
+  `127.0.0.1:42069` and closes. Never listen, read replies, or widen the host.
 - `ActivityFeed` keeps the Activity page's list: its own `FriendAlerts`
   engine without the toast rate limit, memory only, bounded per platform,
   gated by `showActivityPage` at each transition. It never records a world or

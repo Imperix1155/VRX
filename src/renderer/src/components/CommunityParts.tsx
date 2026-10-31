@@ -127,13 +127,22 @@ export function CommunityHeading({ children }: { children: React.ReactNode }): R
 }
 
 /** The short platform badge drawn over a picture (VRC / CVR). */
-export function PictureBadge({ platform }: { platform: Platform }): React.JSX.Element {
+export function PictureBadge({
+  platform,
+  inline = false
+}: {
+  platform: Platform
+  /** In the text beside a small picture instead of over a large one. */
+  inline?: boolean
+}): React.JSX.Element {
   const { t } = useTranslation()
   const isVrc = platform === 'vrchat'
   return (
     <span
       aria-hidden="true"
-      className="absolute left-[var(--space-2)] top-[var(--space-2)] rounded-[9px] border px-[var(--space-2)] py-[var(--space-0-5)] text-[10px] font-bold"
+      className={`${
+        inline ? 'inline-block shrink-0' : 'absolute left-[var(--space-2)] top-[var(--space-2)]'
+      } rounded-[9px] border px-[var(--space-2)] py-[var(--space-0-5)] text-[10px] font-bold`}
       style={{
         color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
         borderColor: isVrc ? 'var(--plat-vrc-badge-border)' : 'var(--plat-cvr-badge-border)',
@@ -151,7 +160,7 @@ export interface CommunityTileProps {
   /** Quiet second line (a group code, "Friend", a member count). */
   detail?: string | null
   imageUrl: string | null
-  /** `square` for people and groups, `wide` for worlds. */
+  /** `square`: a small picture beside the name (people, groups). `wide`: the picture on top (worlds). */
   shape?: 'square' | 'wide'
   /** Opens a sheet; omitted for display-only tiles. */
   onOpen?: (opener: HTMLElement) => void
@@ -176,49 +185,81 @@ export const CommunityTile = memo(function CommunityTile({
   const image = useAvatar(imageUrl, pictureRef)
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const isVrc = platform === 'vrchat'
-  const body = (
-    <>
-      <div
-        aria-hidden="true"
-        className="h-[4px] w-full shrink-0"
-        style={{
-          background: isVrc
-            ? 'linear-gradient(90deg, var(--vrc), transparent)'
-            : 'linear-gradient(90deg, var(--cvr), transparent)'
-        }}
-      />
-      <div
-        ref={pictureRef}
-        className={`relative shrink-0 overflow-hidden bg-[var(--surface-hover)] ${
-          shape === 'square' ? 'aspect-square' : 'aspect-[4/3]'
-        }`}
-      >
-        {image && failedImage !== image ? (
-          <img
-            src={image}
-            alt=""
-            decoding="async"
-            className="h-full w-full object-cover"
-            onError={() => setFailedImage(image)}
-          />
-        ) : null}
-        <PictureBadge platform={platform} />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-[var(--space-0-5)] p-[var(--space-3)]">
-        <span
-          className="block truncate text-[14px] font-bold leading-[1.35] text-[var(--text)]"
-          title={title}
-        >
-          {title}
-        </span>
-        {detail ? (
-          <span className="block truncate text-xs text-[var(--text-dim)]" title={detail}>
-            {detail}
-          </span>
-        ) : null}
-      </div>
-    </>
+  const stripe = (
+    <div
+      aria-hidden="true"
+      className="h-[4px] w-full shrink-0"
+      style={{
+        background: isVrc
+          ? 'linear-gradient(90deg, var(--vrc), transparent)'
+          : 'linear-gradient(90deg, var(--cvr), transparent)'
+      }}
+    />
   )
+  const picture =
+    image && failedImage !== image ? (
+      <img
+        src={image}
+        alt=""
+        decoding="async"
+        className="h-full w-full object-cover"
+        onError={() => setFailedImage(image)}
+      />
+    ) : null
+  const name = (
+    <span
+      className="block truncate text-[14px] font-bold leading-[1.35] text-[var(--text)]"
+      title={title}
+    >
+      {title}
+    </span>
+  )
+  // People and groups: a small square picture beside the name, so a page of
+  // them stays scannable. Worlds: the picture on top, like Explore.
+  const body =
+    shape === 'square' ? (
+      <>
+        {stripe}
+        <div className="flex min-w-0 flex-1 items-center gap-[var(--space-3)] p-[var(--space-2)]">
+          <div
+            ref={pictureRef}
+            className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[10px] bg-[var(--surface-hover)]"
+          >
+            {picture}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-[var(--space-1)]">
+            {name}
+            <span className="flex min-w-0 items-center gap-[var(--space-2)] text-xs text-[var(--text-dim)]">
+              <PictureBadge platform={platform} inline />
+              {detail ? (
+                <span className="truncate" title={detail}>
+                  {detail}
+                </span>
+              ) : null}
+            </span>
+          </div>
+        </div>
+      </>
+    ) : (
+      <>
+        {stripe}
+        <div
+          ref={pictureRef}
+          className="relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)]"
+        >
+          {picture}
+          <PictureBadge platform={platform} />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-[var(--space-0-5)] p-[var(--space-3)]">
+          {name}
+          {detail ? (
+            <span className="block truncate text-xs text-[var(--text-dim)]" title={detail}>
+              {detail}
+            </span>
+          ) : null}
+        </div>
+      </>
+    )
   const className = `glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left`
   if (!onOpen) {
     return (

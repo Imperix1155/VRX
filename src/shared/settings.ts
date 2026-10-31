@@ -49,6 +49,9 @@
  *   activityFilter         → which kind the Activity page lists (owner, 2026-10-27; all)
  *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v20)
  *   notifyInvites, notifyFriendRequests → inbox alerts (owner, 2026-10-27; opt-in like every alert, v20)
+ *   vrOverlayAlerts, vrOverlayAlertDuration → the same alerts in the VR headset through
+ *                            XSOverlay, which VRCX and CVRX both support (owner, 2026-10-31;
+ *                            default off, v22)
  *   backgroundPictureFade  → how much the user's own background picture fades (owner, 2026-10-26)
  *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
  *                            only for a brand-new settings file or "Run setup again")
@@ -75,6 +78,7 @@ import {
   RECONCILE_INTERVALS,
   THEMES,
   UPDATE_CHANNELS,
+  VR_ALERT_DURATIONS,
   VRCHAT_OPEN_GAME_JOINS
 } from './types'
 import { ACTIVITY_FILTERS } from './activity'
@@ -83,7 +87,7 @@ import { ACTIVITY_FILTERS } from './activity'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 22 as const
+export const SETTINGS_VERSION = 23 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -169,6 +173,11 @@ export const SettingsSchema = z.object({
   /** Native alerts for a new invite or invite request, and a new friend request. Off by default. */
   notifyInvites: z.boolean().catch(false),
   notifyFriendRequests: z.boolean().catch(false),
+  /** Also show every alert switched on above in the VR headset through XSOverlay,
+   *  over this computer only. Off by default; the switches above still pick which alerts fire. */
+  vrOverlayAlerts: z.boolean().catch(false),
+  /** How long each VR alert stays in view. */
+  vrOverlayAlertDuration: z.enum(VR_ALERT_DURATIONS).catch('medium'),
   /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default;
    *  `off` hides the glow (owner, 2026-10-26). */
   backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard'),
@@ -214,7 +223,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v22 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v23 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -269,9 +278,12 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   // and `dashboardHideEmpty` are additive. The
   // version boundary stops an older build from stripping a user's Off.
   20: (prev) => ({ ...prev }),
-  // v21 → v22: `showSearchPage`, `showGroupsPage` and `dashboardPlayersOnline`
+  // v21 → v22: `vrOverlayAlerts` and `vrOverlayAlertDuration` are additive. The
+  // version boundary stops an older build from stripping a user's choice.
+  21: (prev) => ({ ...prev }),
+  // v22 → v23: `showSearchPage`, `showGroupsPage` and `dashboardPlayersOnline`
   // are additive. The version boundary stops an older build from stripping them.
-  21: (prev) => ({ ...prev })
+  22: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

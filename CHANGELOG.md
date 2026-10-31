@@ -23,6 +23,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   people are online on each platform (Settings → Dashboard).
 - Search and Groups can be hidden from the sidebar like the other optional
   pages (Settings → Appearance, or the welcome setup).
+- Alerts in VR: Settings → Notifications can also show your alerts inside
+  your VR headset through XSOverlay, the same way VRCX and CVRX do, for
+  VRChat and ChilloutVR alike. It is off until you turn it on, uses the same
+  alert switches and words as your desktop alerts, and has a Time on screen
+  choice and a Send a test button. VRX only talks to XSOverlay on your own
+  computer.
+
+### Changed
+
+- The Activity page and Inbox page switches moved from Settings →
+  Notifications to the bottom of Settings → Appearance, to make room for
+  Alerts in VR. They now sit with the Search and Groups switches in one
+  compact Sidebar pages card.
 
 ### Fixed
 

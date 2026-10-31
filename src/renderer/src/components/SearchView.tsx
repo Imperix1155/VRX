@@ -127,7 +127,7 @@ export default function SearchView(): React.JSX.Element {
             {people.length === 0 ? (
               <p className="canvas-text text-sm text-[var(--text-dim)]">{t('search.noPeople')}</p>
             ) : (
-              <TileGrid min={140}>
+              <TileGrid min={220}>
                 {people.map((item) => (
                   <PersonTile
                     key={`${item.platform}:${item.userId}`}

@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   BackgroundGlow,
@@ -9,7 +9,8 @@ import type {
   LabelScheme,
   ReconcileInterval,
   Theme,
-  UpdateChannel
+  UpdateChannel,
+  VrAlertDuration
 } from '@shared/types'
 import {
   BACKGROUND_GLOWS,
@@ -20,6 +21,7 @@ import {
   RECONCILE_INTERVALS,
   THEMES,
   UPDATE_CHANNELS,
+  VR_ALERT_DURATIONS,
   VRCHAT_OPEN_GAME_JOINS
 } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
@@ -168,6 +170,49 @@ function SwitchRow({
   )
 }
 
+/** The hideable sidebar pages as one compact two-column card: the page name
+ *  beside its On/Off, with the longer note behind the name (depth on demand). */
+function SidebarPagesCard({
+  pages
+}: {
+  pages: ReadonlyArray<{
+    labelKey: string
+    ariaKey: string
+    noteKey: string
+    checked: boolean
+    onChange: (checked: boolean) => void
+  }>
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  return (
+    <div className="setting-card" data-sidebar-pages="">
+      {/* Name and note share one line so Appearance still fits the window
+          with a background picture and its size note showing. */}
+      <p className="flex flex-wrap items-baseline gap-x-[var(--space-2)]">
+        <span className="text-sm font-medium text-[var(--text)]">
+          {t('settings.pages.sidebar.label')}
+        </span>
+        <span className="text-xs text-[var(--text-dim)]">
+          {t('settings.pages.sidebar.description')}
+        </span>
+      </p>
+      <div className="mt-[var(--space-1)] grid grid-cols-2 gap-x-[var(--space-6)] gap-y-[var(--space-1)]">
+        {pages.map((page) => (
+          <div
+            key={page.labelKey}
+            className="flex min-w-0 items-center justify-between gap-[var(--space-3)]"
+          >
+            <span className="min-w-0 truncate text-sm text-[var(--text)]" title={t(page.noteKey)}>
+              {t(page.labelKey)}
+            </span>
+            <Toggle checked={page.checked} ariaLabel={t(page.ariaKey)} onChange={page.onChange} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** Who the friend alerts cover, then those alerts (`scoped`) and, past a
  *  divider, the alerts the scope never limits (`children`), all in one card.
  *  Picked friends are chosen in each friend's details panel; the list behind
@@ -229,6 +274,111 @@ function FriendAlertsCard({
       </div>
       {showList && <PickedFriendsDialog onClose={() => setShowList(false)} />}
     </>
+  )
+}
+
+const VR_ALERT_DURATION_LABEL_KEYS: Record<VrAlertDuration, string> = {
+  short: 'settings.vrAlerts.duration.short',
+  medium: 'settings.vrAlerts.duration.medium',
+  long: 'settings.vrAlerts.duration.long'
+}
+
+type VrAlertTest = 'idle' | 'sending' | 'sent' | 'failed'
+
+const VR_ALERT_TEST_KEYS: Record<Exclude<VrAlertTest, 'idle'>, string> = {
+  sending: 'settings.vrAlerts.test.sending',
+  sent: 'settings.vrAlerts.test.sent',
+  failed: 'settings.vrAlerts.test.failed'
+}
+
+/** The alerts switched on above, also in the VR headset through XSOverlay
+ *  (owner, 2026-10-31). Same words and switches for both platforms; main sends
+ *  them to this computer only. Time on screen and a test sit under the switch. */
+function VrAlertsCard(): React.JSX.Element {
+  const { t } = useTranslation()
+  const on = useSettingsStore((s) => s.settings.vrOverlayAlerts)
+  const duration = useSettingsStore((s) => s.settings.vrOverlayAlertDuration)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const [test, setTest] = useState<VrAlertTest>('idle')
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+    }
+  }, [])
+  const sendTest = (): void => {
+    if (test === 'sending') return
+    if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+    setTest('sending')
+    const settle = (result: VrAlertTest): void => {
+      if (!mounted.current) return
+      setTest(result)
+      resetTimer.current = setTimeout(() => setTest('idle'), 6_000)
+    }
+    const sending = window.vrx?.testVrAlert?.()
+    if (!sending) {
+      settle('failed')
+      return
+    }
+    sending.then(
+      (result) => settle(result.ok ? 'sent' : 'failed'),
+      () => settle('failed')
+    )
+  }
+  return (
+    <SettingCard
+      expanded={on}
+      parent={
+        <div className="setting-row">
+          <div>
+            <p className="text-sm font-medium text-[var(--text)]">{t('settings.vrAlerts.label')}</p>
+            <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+              {t('settings.vrAlerts.description')}
+            </p>
+          </div>
+          <Toggle
+            checked={on}
+            ariaLabel={t('settings.vrAlerts.aria')}
+            onChange={(checked) => updateSettings({ vrOverlayAlerts: checked })}
+          />
+        </div>
+      }
+    >
+      <div className="setting-row">
+        <div>
+          <p className="text-sm font-medium text-[var(--text)]">
+            {t('settings.vrAlerts.duration.label')}
+          </p>
+          {/* The result takes the explanation's place for a few seconds. The
+              button stays put so keyboard focus stays on it, and only the
+              result is announced. */}
+          <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+            {test === 'idle' && <span>{t('settings.vrAlerts.duration.description')}</span>}
+            <span role="status" aria-live="polite">
+              {test === 'idle' ? '' : t(VR_ALERT_TEST_KEYS[test])}
+            </span>{' '}
+            <button
+              type="button"
+              onClick={sendTest}
+              aria-disabled={test === 'sending'}
+              className="whitespace-nowrap text-[var(--text)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] cursor-pointer"
+            >
+              {t('settings.vrAlerts.test.send')}
+            </button>
+          </p>
+        </div>
+        <SegmentedControl<VrAlertDuration>
+          values={VR_ALERT_DURATIONS}
+          active={duration}
+          labelKeys={VR_ALERT_DURATION_LABEL_KEYS}
+          ariaLabel={t('settings.vrAlerts.duration.aria')}
+          onChange={(value) => updateSettings({ vrOverlayAlertDuration: value })}
+        />
+      </div>
+    </SettingCard>
   )
 }
 
@@ -687,39 +837,42 @@ export default function SettingsView(): React.JSX.Element {
               />
             </div>
             {/* The Activity, Inbox, Search and Groups page switches (owner,
-                2026-10-27 and 2026-10-31) live at the bottom of Appearance,
-                which has room, so Behavior and Notifications still fit the
-                900x670 window. Hiding a page keeps its alerts. */}
-            <div className="setting-card grid gap-[var(--space-2)]">
-              <SwitchRow
-                label={t('settings.pages.activity.label')}
-                description={t('settings.pages.activity.description')}
-                ariaLabel={t('settings.pages.activity.label')}
-                checked={showActivityPage}
-                onChange={(checked) => updateSettings({ showActivityPage: checked })}
-              />
-              <SwitchRow
-                label={t('settings.pages.inbox.label')}
-                description={t('settings.pages.inbox.description')}
-                ariaLabel={t('settings.pages.inbox.label')}
-                checked={showInboxPage}
-                onChange={(checked) => updateSettings({ showInboxPage: checked })}
-              />
-              <SwitchRow
-                label={t('settings.pages.search.label')}
-                description={t('settings.pages.search.description')}
-                ariaLabel={t('settings.pages.search.label')}
-                checked={showSearchPage}
-                onChange={(checked) => updateSettings({ showSearchPage: checked })}
-              />
-              <SwitchRow
-                label={t('settings.pages.groups.label')}
-                description={t('settings.pages.groups.description')}
-                ariaLabel={t('settings.pages.groups.label')}
-                checked={showGroupsPage}
-                onChange={(checked) => updateSettings({ showGroupsPage: checked })}
-              />
-            </div>
+                2026-10-27 and 2026-10-31) sit at the bottom of Appearance in
+                one compact grid, so every Settings page still fits the
+                900x670 window. Hiding a page keeps its alerts; each switch's
+                longer note is its label's tooltip. */}
+            <SidebarPagesCard
+              pages={[
+                {
+                  labelKey: 'shell.nav.activity',
+                  ariaKey: 'settings.pages.activity.label',
+                  noteKey: 'settings.pages.activity.description',
+                  checked: showActivityPage,
+                  onChange: (checked) => updateSettings({ showActivityPage: checked })
+                },
+                {
+                  labelKey: 'shell.nav.inbox',
+                  ariaKey: 'settings.pages.inbox.label',
+                  noteKey: 'settings.pages.inbox.description',
+                  checked: showInboxPage,
+                  onChange: (checked) => updateSettings({ showInboxPage: checked })
+                },
+                {
+                  labelKey: 'shell.nav.search',
+                  ariaKey: 'settings.pages.search.label',
+                  noteKey: 'settings.pages.search.description',
+                  checked: showSearchPage,
+                  onChange: (checked) => updateSettings({ showSearchPage: checked })
+                },
+                {
+                  labelKey: 'shell.nav.groups',
+                  ariaKey: 'settings.pages.groups.label',
+                  noteKey: 'settings.pages.groups.description',
+                  checked: showGroupsPage,
+                  onChange: (checked) => updateSettings({ showGroupsPage: checked })
+                }
+              ]}
+            />
           </section>
         )}
 
@@ -1021,6 +1174,10 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(checked) => updateSettings({ notifyFriendRequests: checked })}
               />
             </FriendAlertsCard>
+
+            {/* Alerts in VR (owner, 2026-10-31): the alerts above, also in
+                the headset through XSOverlay. */}
+            <VrAlertsCard />
           </section>
         )}
 

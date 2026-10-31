@@ -119,7 +119,7 @@ export default function GroupsView(): React.JSX.Element {
           {groups.length === 0 ? (
             <p className="canvas-text text-sm text-[var(--text-dim)]">{t('groups.empty')}</p>
           ) : (
-            <TileGrid min={150}>
+            <TileGrid min={220}>
               {groups.map((group) => (
                 <CommunityTile
                   key={`${group.platform}:${group.groupId}`}
@@ -164,7 +164,16 @@ export default function GroupsView(): React.JSX.Element {
         })}
         onClose={close}
       >
-        {(group) => <GroupDetails group={group} members={members(group)} />}
+        {(group) => (
+          <GroupDetails
+            group={group}
+            members={
+              group.memberCount === null
+                ? null
+                : new Intl.NumberFormat(i18n.language).format(group.memberCount)
+            }
+          />
+        )}
       </CommunitySheet>
     </div>
   )

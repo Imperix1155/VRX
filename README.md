@@ -47,6 +47,8 @@ you press a "Use my sign-in from" button, described below.
   invite or friend request. All are off until you turn them on in Settings →
   Notifications, where Who alerts you can limit friend alerts to the friends
   you pick. The bell in a friend's details shows whether they can alert you.
+  Alerts in VR, also off until you turn it on, shows the same alerts inside
+  your headset through XSOverlay, as VRCX and CVRX do.
 - **Your look**: Theme (System, Light, or Dark), Background glow (or none),
   your own background picture, and which platform's words the instance labels
   use. Hot Instances and Explore can be
@@ -109,7 +111,8 @@ report a problem.
 - Friends set to Ask Me or Do Not Disturb keep their location hidden
   everywhere in VRX, notifications included.
 - VRX has no telemetry or analytics. It talks to VRChat, ChilloutVR, and
-  GitHub (for updates) only.
+  GitHub (for updates) only. With Alerts in VR on, it also hands each alert
+  to XSOverlay on your own computer; that never leaves the PC.
 
 ## For developers
 

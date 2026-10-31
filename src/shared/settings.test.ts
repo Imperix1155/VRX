@@ -55,6 +55,8 @@ describe('settings schema', () => {
       friendAlertScope: 'everyone',
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
@@ -313,6 +315,8 @@ describe('migration runner', () => {
       dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -369,6 +373,8 @@ describe('migration runner', () => {
       dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -426,6 +432,8 @@ describe('migration runner', () => {
       dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       backgroundPictureFade: 'medium',
       friendAlertScope: 'everyone',
@@ -485,6 +493,8 @@ describe('migration runner', () => {
       dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       drawerOpener: 'card',
       confirmJoin: true,
@@ -542,6 +552,8 @@ describe('migration runner', () => {
       dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
@@ -600,6 +612,8 @@ describe('migration runner', () => {
       dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       joinOpenGame: true,
       vrchatOpenGameJoin: 'go',
@@ -1197,6 +1211,8 @@ describe('Optional pages and first-run setup', () => {
       dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false
     })
     expect(shouldPersistSettings({ version: 13, showExplorePage: false }, 12)).toBe(false)
@@ -1223,7 +1239,7 @@ describe('Optional pages and first-run setup', () => {
 
 describe('Search, Groups and players-online settings', () => {
   it('defaults all three on and keeps explicit choices', () => {
-    expect(parseSettings({ version: 21 })).toMatchObject({
+    expect(parseSettings({ version: 22 })).toMatchObject({
       version: SETTINGS_VERSION,
       showSearchPage: true,
       showGroupsPage: true,
@@ -1234,20 +1250,20 @@ describe('Search, Groups and players-online settings', () => {
     ).toMatchObject({ showSearchPage: false, showGroupsPage: true, dashboardPlayersOnline: false })
   })
 
-  it('prevents a v21 build from stripping them during a round-trip', () => {
+  it('prevents a v22 build from stripping them during a round-trip', () => {
     let disk: Record<string, unknown> = {
       ...DEFAULT_SETTINGS,
-      version: 22,
+      version: 23,
       showSearchPage: false,
       showGroupsPage: false,
       dashboardPlayersOnline: false
     }
-    const oldNormalized = { ...disk, version: 21 }
+    const oldNormalized = { ...disk, version: 22 }
     Reflect.deleteProperty(oldNormalized, 'showSearchPage')
     Reflect.deleteProperty(oldNormalized, 'showGroupsPage')
     Reflect.deleteProperty(oldNormalized, 'dashboardPlayersOnline')
 
-    if (shouldPersistSettings(disk, 21)) disk = oldNormalized
+    if (shouldPersistSettings(disk, 22)) disk = oldNormalized
 
     expect(parseSettings(disk)).toMatchObject({
       showSearchPage: false,
