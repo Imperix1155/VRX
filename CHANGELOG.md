@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Build and lint tooling pins `minimatch` 11.0.1 and the `@electron/asar` 4.3.1
+  copy of `glob` 14.0.2. That covers a moderate `minimatch` denial-of-service
+  advisory below 11.0.1 and a moderate `glob` advisory through 14.0.1. The
+  running app does not ship these packages.
+
 ## [1.3.0] - 2026-10-31
 
 VRX 1.3 reworks light mode so VRChat and ChilloutVR read apart at a glance,

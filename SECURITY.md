@@ -102,6 +102,23 @@ shipped the fixed release yet. Remove a pin when the parent does.
   `node-gyp` 12.4.0 still resolves `undici` 6.29.0, which is development-only.
   jsdom already uses `undici` 8.12.3, outside the advisory range. Remove the
   pins when those parents depend on a patched release themselves.
+- **`minimatch` 11.0.1 everywhere, and `glob` 14.0.2 under `@electron/asar`
+  4.3.1:** [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249)
+  (moderate) covers every `minimatch` below 11.0.1, and
+  [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4)
+  (moderate) covers `glob` 9.0.0 through 14.0.1. The lockfile had `minimatch`
+  3.1.5, 5.1.9, 9.0.9, and 10.2.5, plus `glob` 13.0.6 under `@electron/asar`
+  4.3.1. The `glob` pin is limited to that asar release. The `"."` entry keeps
+  the direct `@electron/asar` spec at `^4.3.1`; npm rejects a versioned
+  override of a direct dependency when the spec changes. `glob` 7.2.3 stays
+  because it is outside the glob advisory, and a global `glob` pin would
+  replace the callback API that `@electron/asar` 3.4.1 and `rimraf` 2 still
+  call. That remaining `glob` 7.2.3 now resolves `minimatch` 11.0.1. A
+  leading-`**` pattern such as `**/*.md` throws in `glob` 7's walker;
+  packaging does not call that walker. It matches unpack patterns with
+  `Minimatch` and writes the archive through `createPackageFromStreams`.
+  These packages are build and lint tools, not the running app. Remove the
+  pins when every parent requests a patched release itself.
 
 The policy fails the audit on any high or critical advisory, including
 production findings, and on a malformed report. No advisory is excluded.
