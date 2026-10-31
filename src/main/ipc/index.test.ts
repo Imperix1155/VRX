@@ -102,6 +102,9 @@ vi.mock('./app-background', () => ({
     electron.ipcMain.handle('clear-app-background', () => undefined)
   }
 }))
+vi.mock('./vr-alerts', () => ({
+  registerVrAlertHandlers: () => electron.ipcMain.handle('test-vr-alert', () => ({ ok: true }))
+}))
 vi.mock('./inbox', () => ({
   registerInboxHandlers: () => {
     electron.ipcMain.handle('get-inbox', () => ({ items: [] }))
@@ -148,6 +151,7 @@ function options(): IpcHandlerOptions {
     appStatus: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
     inbox: {} as IpcHandlerOptions['inbox'],
+    vrOverlayAlerts: { test: async () => undefined },
     explore: {
       setActive: vi.fn(),
       getSnapshot: vi.fn(),
@@ -208,7 +212,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(45)
+    expect(electron.invokeHandlers.size).toBe(46)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -262,6 +266,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'self-invite',
         'set-alert-pick',
         'set-friend-note',
+        'test-vr-alert',
         'updater:check',
         'updater:download',
         'updater:get-state',

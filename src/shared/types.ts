@@ -223,6 +223,10 @@ export type BackgroundGlow = (typeof BACKGROUND_GLOWS)[number]
 export const FRIEND_ALERT_SCOPES = ['everyone', 'picked'] as const
 export type FriendAlertScope = (typeof FRIEND_ALERT_SCOPES)[number]
 
+/** How long an alert stays in view in the VR headset (XSOverlay). */
+export const VR_ALERT_DURATIONS = ['short', 'medium', 'long'] as const
+export type VrAlertDuration = (typeof VR_ALERT_DURATIONS)[number]
+
 // ─── Background picture fade ─────────────────────────────────────────────────
 /** How strongly the user's own background picture fades toward the theme's
  *  base colour so text over it stays readable. Single source for both the

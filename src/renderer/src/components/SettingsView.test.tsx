@@ -437,6 +437,62 @@ describe('SettingsView — Notifications section (VRX-84/85)', () => {
   })
 })
 
+describe('SettingsView — Alerts in VR (owner, 2026-10-31)', () => {
+  function bridgeWith(testVrAlert: MockFn): void {
+    setBridge({
+      getAuthStatus: vi.fn(),
+      login: vi.fn(),
+      verify2fa: vi.fn(),
+      logout: vi.fn(),
+      testVrAlert
+    } as unknown as VrxBridge)
+  }
+
+  it('is off by default and keeps Time on screen folded away until turned on', () => {
+    useUiStore.setState({ settingsCategory: 'notifications' })
+    renderSettings()
+    const vr = screen.getByRole('radiogroup', { name: msg('settings.vrAlerts.aria') })
+    expect(
+      within(vr)
+        .getByRole('radio', { name: msg('settings.boolean.off') })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+    expect(
+      screen.queryByRole('radiogroup', { name: msg('settings.vrAlerts.duration.aria') })
+    ).toBeNull()
+
+    fireEvent.click(within(vr).getByRole('radio', { name: msg('settings.boolean.on') }))
+    expect(useSettingsStore.getState().settings.vrOverlayAlerts).toBe(true)
+    const duration = screen.getByRole('radiogroup', {
+      name: msg('settings.vrAlerts.duration.aria')
+    })
+    fireEvent.click(
+      within(duration).getByRole('radio', { name: msg('settings.vrAlerts.duration.long') })
+    )
+    expect(useSettingsStore.getState().settings.vrOverlayAlertDuration).toBe('long')
+  })
+
+  it('sends a test with no input and says it was sent', async () => {
+    const testVrAlert = vi.fn().mockResolvedValue({ ok: true })
+    bridgeWith(testVrAlert)
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, vrOverlayAlerts: true } })
+    useUiStore.setState({ settingsCategory: 'notifications' })
+    renderSettings()
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.vrAlerts.test.send') }))
+    expect(testVrAlert).toHaveBeenCalledWith()
+    expect(await screen.findByText(msg('settings.vrAlerts.test.sent'))).toBeTruthy()
+  })
+
+  it('says when the test could not be sent', async () => {
+    bridgeWith(vi.fn().mockResolvedValue({ ok: false, reason: 'failed' }))
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, vrOverlayAlerts: true } })
+    useUiStore.setState({ settingsCategory: 'notifications' })
+    renderSettings()
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.vrAlerts.test.send') }))
+    expect(await screen.findByText(msg('settings.vrAlerts.test.failed'))).toBeTruthy()
+  })
+})
+
 describe('SettingsView — Accounts section (VRX-191)', () => {
   function renderAccountsPage(): void {
     useUiStore.setState({ settingsCategory: 'accounts' })
@@ -825,8 +881,10 @@ describe('Accounts sign-in from this PC', () => {
 })
 
 describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)', () => {
-  it('keeps Appearance to the look: page switches sit in Behavior, setup in About', () => {
+  it('puts the Hot Instances and Explore switches in Behavior, Activity and Inbox in Appearance, setup in About', () => {
     renderSettings()
+    expect(screen.getByText(msg('settings.pages.activity.label'))).toBeTruthy()
+    expect(screen.getByText(msg('settings.pages.inbox.label'))).toBeTruthy()
     expect(screen.queryByText(msg('settings.pages.hot.label'))).toBeNull()
     expect(screen.queryByText(msg('settings.pages.explore.label'))).toBeNull()
     expect(screen.queryByRole('button', { name: msg('settings.setup.run') })).toBeNull()
@@ -835,6 +893,10 @@ describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)'
     expect(screen.getByText(msg('settings.pages.hot.label'))).toBeTruthy()
     expect(screen.getByText(msg('settings.pages.explore.label'))).toBeTruthy()
     expect(screen.queryByRole('button', { name: msg('settings.setup.run') })).toBeNull()
+
+    act(() => useUiStore.setState({ settingsCategory: 'notifications' }))
+    expect(screen.queryByText(msg('settings.pages.activity.label'))).toBeNull()
+    expect(screen.queryByText(msg('settings.pages.inbox.label'))).toBeNull()
 
     act(() => useUiStore.setState({ settingsCategory: 'about' }))
     expect(screen.getByRole('button', { name: msg('settings.setup.run') })).toBeTruthy()

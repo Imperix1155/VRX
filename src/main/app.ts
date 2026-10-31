@@ -75,10 +75,12 @@ import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import {
   createFriendNotificationNotifier,
+  type NativeAlert,
   isFriendAlertEnabled,
   isFriendAlertIncluded,
   isInboxAlertEnabled
 } from './friendNotifications'
+import { createVrOverlayAlerts } from './vrOverlayAlerts'
 import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
 import { importCvrSession } from './services/cvrSessionImport'
@@ -541,9 +543,29 @@ app
       // friend's display name.
       logFailure: () => log.warn('friend notification failed')
     })
+    // The same alerts in the VR headset through XSOverlay when the user turned
+    // that on (vrOverlayAlerts.ts). Loopback only; the icon is made once.
+    let vrAlertIcon: string | null | undefined
+    const vrOverlayAlerts = createVrOverlayAlerts({
+      getSettings: getSettingsSnapshot,
+      iconBase64: () => {
+        if (vrAlertIcon === undefined) {
+          const image = nativeImage
+            .createFromPath(icon)
+            .resize({ width: 64, height: 64, quality: 'best' })
+          vrAlertIcon = image.isEmpty() ? null : image.toPNG().toString('base64')
+        }
+        return vrAlertIcon
+      },
+      logFailure: () => log.warn('VR alert failed')
+    })
+    const showAlert = (alert: NativeAlert): void => {
+      showFriendAlert(alert)
+      vrOverlayAlerts.notify(alert)
+    }
 
     const friendAlerts = new FriendAlerts({
-      notify: showFriendAlert,
+      notify: showAlert,
       // Monotonic time keeps limiter windows correct across wall-clock adjustments.
       clock: () => performance.now(),
       isEnabled: (type) => isFriendAlertEnabled(type, getSettingsSnapshot()),
@@ -587,7 +609,7 @@ app
           if (!window.isDestroyed()) window.webContents.send('inbox-changed')
         }
       },
-      notify: (item) => showFriendAlert({ type: 'inbox', item }),
+      notify: (item) => showAlert({ type: 'inbox', item }),
       isAlertEnabled: (kind) => isInboxAlertEnabled(kind, getSettingsSnapshot())
     })
     inboxBoundary.current = inbox
@@ -672,6 +694,7 @@ app
     registerIpcHandlers(adapters, {
       explore,
       inbox,
+      vrOverlayAlerts,
       avatarLibrary,
       currentAvatar,
       // Settings → Appearance background picture (appBackground.ts).

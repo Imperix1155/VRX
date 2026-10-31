@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   BackgroundGlow,
@@ -9,7 +9,8 @@ import type {
   LabelScheme,
   ReconcileInterval,
   Theme,
-  UpdateChannel
+  UpdateChannel,
+  VrAlertDuration
 } from '@shared/types'
 import {
   BACKGROUND_GLOWS,
@@ -20,6 +21,7 @@ import {
   RECONCILE_INTERVALS,
   THEMES,
   UPDATE_CHANNELS,
+  VR_ALERT_DURATIONS,
   VRCHAT_OPEN_GAME_JOINS
 } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
@@ -229,6 +231,111 @@ function FriendAlertsCard({
       </div>
       {showList && <PickedFriendsDialog onClose={() => setShowList(false)} />}
     </>
+  )
+}
+
+const VR_ALERT_DURATION_LABEL_KEYS: Record<VrAlertDuration, string> = {
+  short: 'settings.vrAlerts.duration.short',
+  medium: 'settings.vrAlerts.duration.medium',
+  long: 'settings.vrAlerts.duration.long'
+}
+
+type VrAlertTest = 'idle' | 'sending' | 'sent' | 'failed'
+
+const VR_ALERT_TEST_KEYS: Record<Exclude<VrAlertTest, 'idle'>, string> = {
+  sending: 'settings.vrAlerts.test.sending',
+  sent: 'settings.vrAlerts.test.sent',
+  failed: 'settings.vrAlerts.test.failed'
+}
+
+/** The alerts switched on above, also in the VR headset through XSOverlay
+ *  (owner, 2026-10-31). Same words and switches for both platforms; main sends
+ *  them to this computer only. Time on screen and a test sit under the switch. */
+function VrAlertsCard(): React.JSX.Element {
+  const { t } = useTranslation()
+  const on = useSettingsStore((s) => s.settings.vrOverlayAlerts)
+  const duration = useSettingsStore((s) => s.settings.vrOverlayAlertDuration)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const [test, setTest] = useState<VrAlertTest>('idle')
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+    },
+    []
+  )
+  const sendTest = (): void => {
+    if (test === 'sending') return
+    if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+    setTest('sending')
+    const settle = (result: VrAlertTest): void => {
+      setTest(result)
+      resetTimer.current = setTimeout(() => setTest('idle'), 6_000)
+    }
+    const sending = window.vrx?.testVrAlert?.()
+    if (!sending) {
+      settle('failed')
+      return
+    }
+    sending.then(
+      (result) => settle(result.ok ? 'sent' : 'failed'),
+      () => settle('failed')
+    )
+  }
+  return (
+    <SettingCard
+      expanded={on}
+      parent={
+        <div className="setting-row">
+          <div>
+            <p className="text-sm font-medium text-[var(--text)]">{t('settings.vrAlerts.label')}</p>
+            <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+              {t('settings.vrAlerts.description')}
+            </p>
+          </div>
+          <Toggle
+            checked={on}
+            ariaLabel={t('settings.vrAlerts.aria')}
+            onChange={(checked) => updateSettings({ vrOverlayAlerts: checked })}
+          />
+        </div>
+      }
+    >
+      <div className="setting-row">
+        <div>
+          <p className="text-sm font-medium text-[var(--text)]">
+            {t('settings.vrAlerts.duration.label')}
+          </p>
+          <p
+            className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]"
+            role="status"
+            aria-live="polite"
+          >
+            {test === 'idle' ? (
+              <>
+                <span>{t('settings.vrAlerts.duration.description')}</span>{' '}
+                <button
+                  type="button"
+                  onClick={sendTest}
+                  className="whitespace-nowrap text-[var(--text)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] cursor-pointer"
+                >
+                  {t('settings.vrAlerts.test.send')}
+                </button>
+              </>
+            ) : (
+              t(VR_ALERT_TEST_KEYS[test])
+            )}
+          </p>
+        </div>
+        <SegmentedControl<VrAlertDuration>
+          values={VR_ALERT_DURATIONS}
+          active={duration}
+          labelKeys={VR_ALERT_DURATION_LABEL_KEYS}
+          ariaLabel={t('settings.vrAlerts.duration.aria')}
+          onChange={(value) => updateSettings({ vrOverlayAlertDuration: value })}
+        />
+      </div>
+    </SettingCard>
   )
 }
 
@@ -683,6 +790,27 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(value) => updateSettings({ labelScheme: value })}
               />
             </div>
+
+            {/* The Activity and Inbox page switches (owner, 2026-10-27) live
+                here rather than with the other page switches so Behavior and
+                Notifications (which gained Alerts in VR) still fit the 900x670
+                window. Hiding either keeps its alerts. */}
+            <div className="setting-card grid gap-[var(--space-2)]">
+              <SwitchRow
+                label={t('settings.pages.activity.label')}
+                description={t('settings.pages.activity.description')}
+                ariaLabel={t('settings.pages.activity.label')}
+                checked={showActivityPage}
+                onChange={(checked) => updateSettings({ showActivityPage: checked })}
+              />
+              <SwitchRow
+                label={t('settings.pages.inbox.label')}
+                description={t('settings.pages.inbox.description')}
+                ariaLabel={t('settings.pages.inbox.label')}
+                checked={showInboxPage}
+                onChange={(checked) => updateSettings({ showInboxPage: checked })}
+              />
+            </div>
           </section>
         )}
 
@@ -969,25 +1097,9 @@ export default function SettingsView(): React.JSX.Element {
               />
             </FriendAlertsCard>
 
-            {/* The Activity and Inbox page switches (owner, 2026-10-27) live
-                here rather than with the other page switches so Behavior
-                still fits the 900x670 window. Hiding either keeps its alerts. */}
-            <div className="setting-card grid gap-[var(--space-2)]">
-              <SwitchRow
-                label={t('settings.pages.activity.label')}
-                description={t('settings.pages.activity.description')}
-                ariaLabel={t('settings.pages.activity.label')}
-                checked={showActivityPage}
-                onChange={(checked) => updateSettings({ showActivityPage: checked })}
-              />
-              <SwitchRow
-                label={t('settings.pages.inbox.label')}
-                description={t('settings.pages.inbox.description')}
-                ariaLabel={t('settings.pages.inbox.label')}
-                checked={showInboxPage}
-                onChange={(checked) => updateSettings({ showInboxPage: checked })}
-              />
-            </div>
+            {/* Alerts in VR (owner, 2026-10-31): the alerts above, also in
+                the headset through XSOverlay. */}
+            <VrAlertsCard />
           </section>
         )}
 
