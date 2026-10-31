@@ -323,8 +323,8 @@
       "test": {
         "send": "Send a test",
         "sending": "Sending…",
-        "sent": "Sent. Nothing in your headset? Open XSOverlay first.",
-        "failed": "Couldn't send the test. Try again."
+        "sent": "Sent. Is XSOverlay open?",
+        "failed": "Couldn't send."
       }
     },
     "accounts": {

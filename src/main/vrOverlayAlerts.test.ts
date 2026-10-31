@@ -71,6 +71,17 @@ describe('xsOverlayPayload', () => {
   })
 })
 
+describe('xsOverlayPayload text safety', () => {
+  it('keeps names from restyling the alert and never cuts an emoji in half', () => {
+    const message = parse(xsOverlayPayload('<b>Hi', `<color=red>Bob ${'😀'.repeat(300)}`, 5, null))
+    expect(message.title).toBe('‹b>Hi')
+    const content = message.content as string
+    expect(content.startsWith('‹color=red>Bob ')).toBe(true)
+    expect(Array.from(content)).toHaveLength(240)
+    expect(content.endsWith('😀…')).toBe(true)
+  })
+})
+
 describe('createVrOverlayAlerts', () => {
   it('sends nothing while VR alerts are off, which is the default', () => {
     expect(DEFAULT_SETTINGS.vrOverlayAlerts).toBe(false)

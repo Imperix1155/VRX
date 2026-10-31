@@ -478,9 +478,13 @@ describe('SettingsView — Alerts in VR (owner, 2026-10-31)', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, vrOverlayAlerts: true } })
     useUiStore.setState({ settingsCategory: 'notifications' })
     renderSettings()
-    fireEvent.click(screen.getByRole('button', { name: msg('settings.vrAlerts.test.send') }))
+    const send = screen.getByRole('button', { name: msg('settings.vrAlerts.test.send') })
+    send.focus()
+    fireEvent.click(send)
     expect(testVrAlert).toHaveBeenCalledWith()
-    expect(await screen.findByText(msg('settings.vrAlerts.test.sent'))).toBeTruthy()
+    expect((await screen.findByRole('status')).textContent).toBe(msg('settings.vrAlerts.test.sent'))
+    // The button stays, so keyboard focus is not lost.
+    expect(document.activeElement).toBe(send)
   })
 
   it('says when the test could not be sent', async () => {

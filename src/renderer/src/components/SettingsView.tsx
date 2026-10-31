@@ -258,17 +258,20 @@ function VrAlertsCard(): React.JSX.Element {
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   const [test, setTest] = useState<VrAlertTest>('idle')
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(
-    () => () => {
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
       if (resetTimer.current !== null) clearTimeout(resetTimer.current)
-    },
-    []
-  )
+    }
+  }, [])
   const sendTest = (): void => {
     if (test === 'sending') return
     if (resetTimer.current !== null) clearTimeout(resetTimer.current)
     setTest('sending')
     const settle = (result: VrAlertTest): void => {
+      if (!mounted.current) return
       setTest(result)
       resetTimer.current = setTimeout(() => setTest('idle'), 6_000)
     }
@@ -306,25 +309,22 @@ function VrAlertsCard(): React.JSX.Element {
           <p className="text-sm font-medium text-[var(--text)]">
             {t('settings.vrAlerts.duration.label')}
           </p>
-          <p
-            className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]"
-            role="status"
-            aria-live="polite"
-          >
-            {test === 'idle' ? (
-              <>
-                <span>{t('settings.vrAlerts.duration.description')}</span>{' '}
-                <button
-                  type="button"
-                  onClick={sendTest}
-                  className="whitespace-nowrap text-[var(--text)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] cursor-pointer"
-                >
-                  {t('settings.vrAlerts.test.send')}
-                </button>
-              </>
-            ) : (
-              t(VR_ALERT_TEST_KEYS[test])
-            )}
+          {/* The result takes the explanation's place for a few seconds. The
+              button stays put so keyboard focus stays on it, and only the
+              result is announced. */}
+          <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+            {test === 'idle' && <span>{t('settings.vrAlerts.duration.description')}</span>}
+            <span role="status" aria-live="polite">
+              {test === 'idle' ? '' : t(VR_ALERT_TEST_KEYS[test])}
+            </span>{' '}
+            <button
+              type="button"
+              onClick={sendTest}
+              aria-disabled={test === 'sending'}
+              className="whitespace-nowrap text-[var(--text)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] cursor-pointer"
+            >
+              {t('settings.vrAlerts.test.send')}
+            </button>
           </p>
         </div>
         <SegmentedControl<VrAlertDuration>

@@ -26,10 +26,10 @@ you press a "Use my sign-in from" button, described below.
   connection VRX already has, so it adds no requests, and it is kept only
   while VRX is open. Friends set to Ask Me or Do Not Disturb never show a
   world. Filter it by kind, clear it, or turn it off in Settings →
-  Notifications.
+  Appearance.
 - **Inbox**: invites, invite requests, and friend requests from both
   platforms that arrive while VRX is open. VRX only shows them; you answer in
-  the game. Hide the page in Settings → Notifications if you don't want it.
+  the game. Hide the page in Settings → Appearance if you don't want it.
 - **Explore**: popular public worlds from both platforms, with room details.
 - **Avatars**: the avatars you uploaded on both platforms, the one you are
   wearing now, their details, and a Wear button to switch.
@@ -41,6 +41,8 @@ you press a "Use my sign-in from" button, described below.
   invite or friend request. All are off until you turn them on in Settings →
   Notifications, where Who alerts you can limit friend alerts to the friends
   you pick. The bell in a friend's details shows whether they can alert you.
+  Alerts in VR, also off until you turn it on, shows the same alerts inside
+  your headset through XSOverlay, as VRCX and CVRX do.
 - **Your look**: Theme (System, Light, or Dark), Background glow (or none),
   your own background picture, and which platform's words the instance labels
   use. Hot Instances and Explore can be
@@ -103,7 +105,8 @@ report a problem.
 - Friends set to Ask Me or Do Not Disturb keep their location hidden
   everywhere in VRX, notifications included.
 - VRX has no telemetry or analytics. It talks to VRChat, ChilloutVR, and
-  GitHub (for updates) only.
+  GitHub (for updates) only. With Alerts in VR on, it also hands each alert
+  to XSOverlay on your own computer; that never leaves the PC.
 
 ## For developers
 

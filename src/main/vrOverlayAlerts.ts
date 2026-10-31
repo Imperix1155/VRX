@@ -42,8 +42,15 @@ export interface VrOverlayAlerts {
   test: () => Promise<void>
 }
 
-const clip = (text: string, max: number): string =>
-  text.length <= max ? text : `${text.slice(0, max - 1)}…`
+/** Cap by whole characters, so an emoji is never cut in half. XSOverlay draws
+ *  rich-text tags, so a `<` in a name or world becomes a look-alike and can't
+ *  restyle the alert. */
+function clip(text: string, max: number): string {
+  const characters = Array.from(text.replaceAll('<', '‹'))
+  return characters.length <= max
+    ? characters.join('')
+    : `${characters.slice(0, max - 1).join('')}…`
+}
 
 /** XSOverlay's notification message (messageType 1), the same fields VRCX sends. */
 export function xsOverlayPayload(
@@ -95,8 +102,12 @@ export function sendToXsOverlay(
     socket.on('error', (error) => finish(error))
     try {
       socket.bind({ address: XSOVERLAY_HOST, port: 0 }, () => {
-        socket.unref()
-        socket.send(payload, XSOVERLAY_PORT, XSOVERLAY_HOST, (error) => finish(error))
+        try {
+          socket.unref()
+          socket.send(payload, XSOVERLAY_PORT, XSOVERLAY_HOST, (error) => finish(error))
+        } catch (error) {
+          finish(error instanceof Error ? error : new Error('send failed'))
+        }
       })
     } catch (error) {
       finish(error instanceof Error ? error : new Error('bind failed'))
