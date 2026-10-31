@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Settings → About: the Open logs folder and Report a bug buttons no longer
+  break onto two lines when the description beside them is long, including
+  in Japanese.
+- Light mode: the soft shadow around choices that open inside a settings
+  card, such as Picture fade, no longer ends on a hard line.
+
 ## [1.3.0-dev.3] - 2026-10-30
 
 Dev test build. It has everything in 1.3.0-dev.2 plus the changes below.

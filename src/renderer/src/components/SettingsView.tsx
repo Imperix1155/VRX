@@ -390,7 +390,7 @@ function BugReportSettingsRow(): React.JSX.Element {
         type="button"
         onClick={openReport}
         className={[
-          'shrink-0 inline-flex items-center gap-[var(--space-1)]',
+          'shrink-0 inline-flex items-center gap-[var(--space-1)] whitespace-nowrap',
           'px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
           'border border-[var(--border)]',
           'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
@@ -437,7 +437,7 @@ function LogsSettingsRow(): React.JSX.Element {
           type="button"
           onClick={openLogs}
           className={[
-            'inline-flex items-center gap-[var(--space-1)]',
+            'inline-flex items-center gap-[var(--space-1)] whitespace-nowrap',
             'px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
             'border border-[var(--border)]',
             'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',

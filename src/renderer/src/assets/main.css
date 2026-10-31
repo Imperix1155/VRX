@@ -1138,6 +1138,14 @@ body::after {
     min-height: 0;
     overflow: hidden;
   }
+  /* Clip, not hide: the clip margin lets a light control's soft shadow reach
+     past the rows instead of ending on a hard line. */
+  @supports (overflow-clip-margin: 8px) {
+    .setting-disclosure-clip {
+      overflow: clip;
+      overflow-clip-margin: 8px;
+    }
+  }
   .setting-children {
     display: grid;
     gap: var(--space-2);
