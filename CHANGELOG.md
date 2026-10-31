@@ -7,13 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-31
+
+VRX 1.3 reworks light mode so VRChat and ChilloutVR read apart at a glance,
+gives every list the same platform-colored rows, and adds a Report a bug
+button. It is everything from the 1.3.0 dev builds (dev.1 to dev.3) plus a
+final polish round, listed in detail below.
+
+### Added
+
+- **Report a bug.** Settings → About has a Report a bug button. It opens VRX's
+  bug report form on GitHub in your browser with the VRX version, install type
+  and system already filled in. Nothing from your accounts is added. (#481)
+- **Background picture in the welcome setup.** The Pick a look step can set
+  your own background picture, with the same checks and notes as Settings →
+  Appearance. It's optional like the rest of setup. (#478)
+
+### Changed
+
+- **Light mode is reworked.** Cards are white on a slightly darker page,
+  VRChat blue and ChilloutVR orange are much stronger, and platform labels are
+  solid blue or orange with white words. A background picture keeps its
+  colours instead of turning milky white, and words over it stay crisp: page
+  titles and headings sit on a small light backing. Dark mode keeps its look.
+  (#480, #483, #498)
+- **Platform-colored rows everywhere.** Friends, Inbox, and the Dashboard's
+  Wearing now and Latest invites rows use the same soft blue or orange card as
+  Activity, in both themes. A friend linked on both platforms gets a card that
+  runs from blue into orange. (#498)
+
 ### Fixed
 
+- On Linux, the background picture no longer shifts slightly in the
+  top-right corner. The live dot next to the online count stays steady on
+  Linux instead of pulsing; its color and shape still show the connection.
+  (#479)
 - Settings → About: the Open logs folder and Report a bug buttons no longer
-  break onto two lines when the description beside them is long, including
-  in Japanese.
+  break onto two lines, including in Japanese. (#500)
 - Light mode: the soft shadow around choices that open inside a settings
-  card, such as Picture fade, no longer ends on a hard line.
+  card, such as Picture fade, no longer ends on a hard line. (#500)
 
 ## [1.3.0-dev.3] - 2026-10-30
 
