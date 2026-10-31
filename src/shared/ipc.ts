@@ -197,6 +197,12 @@ export interface IpcInvoke {
   /** Open GitHub's bug report form in the browser. Main fills in the app
    *  version, install type and system; nothing from the user's accounts. */
   'open-bug-report': { req: void; res: void }
+  /** Send one test alert to XSOverlay on this computer. VRX cannot know whether
+   *  it showed: `ok` means the alert left VRX. */
+  'test-vr-alert': {
+    req: void
+    res: { ok: true } | { ok: false; reason: 'failed' | 'rate-limited' }
+  }
   /** The user's own background picture as a `data:` URL, or null when none is set. */
   'get-app-background': { req: void; res: { dataUrl: string } | null }
   /** Open the native picture dialog; main reads, re-encodes, and keeps the picked file. */

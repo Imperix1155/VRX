@@ -40,6 +40,7 @@ async function exposedBridge(): Promise<{
   clearActivity: () => Promise<unknown>
   onActivityChanged: (callback: () => void) => () => void
   onInboxChanged: (callback: () => void) => () => void
+  testVrAlert: () => Promise<unknown>
 }> {
   Object.defineProperty(process, 'contextIsolated', { configurable: true, value: true })
   await import('./index')
@@ -77,6 +78,15 @@ describe('preload identity-boundary bridge', () => {
 
     unsubscribe()
     expect(electron.removeListener).toHaveBeenCalledWith('identity-boundary', listener)
+  })
+})
+
+describe('preload VR alert bridge', () => {
+  it('sends the test through its typed channel with no payload', async () => {
+    electron.invoke.mockResolvedValue({ ok: true })
+    const bridge = await exposedBridge()
+    await expect(bridge.testVrAlert()).resolves.toEqual({ ok: true })
+    expect(electron.invoke).toHaveBeenCalledWith('test-vr-alert', undefined)
   })
 })
 

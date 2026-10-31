@@ -57,6 +57,8 @@ Persistence, network, cache, and account-transition policy stay in services.
   only from main-built join paths. `open-logs-folder` takes no input.
   `open-bug-report` takes no input; main builds the GitHub link from the app
   version, install type and system only, and still checks `isAllowedUrl`.
+  `test-vr-alert` takes no input; main writes the test alert and sends it to
+  XSOverlay on this computer only, returning a typed result with no error text.
 - `get-activity` and `clear-activity` take no input and only read or clear
   `ActivityFeed`; neither makes a platform request.
 - `get-avatar` accepts a length-capped URL string, delegates to `AvatarCache`,

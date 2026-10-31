@@ -308,6 +308,25 @@
         "aria": "Notify when you get a friend request"
       }
     },
+    "vrAlerts": {
+      "label": "Alerts in VR",
+      "description": "Also show the alerts above in your headset with XSOverlay.",
+      "aria": "Show alerts in VR with XSOverlay",
+      "duration": {
+        "label": "Time on screen",
+        "description": "How long each one stays in view.",
+        "short": "Short",
+        "medium": "Medium",
+        "long": "Long",
+        "aria": "How long VR alerts stay in view"
+      },
+      "test": {
+        "send": "Send a test",
+        "sending": "Sending…",
+        "sent": "Sent. Is XSOverlay open?",
+        "failed": "Couldn't send."
+      }
+    },
     "accounts": {
       "heading": "Accounts",
       "connectedAs": "Connected as {{name}}",

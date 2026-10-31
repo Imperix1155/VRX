@@ -80,6 +80,7 @@ const vrx = {
   openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
   openLogsFolder: () => invoke('open-logs-folder', undefined),
   openBugReport: () => invoke('open-bug-report', undefined),
+  testVrAlert: () => invoke('test-vr-alert', undefined),
   getAppBackground: () => invoke('get-app-background', undefined),
   chooseAppBackground: () => invoke('choose-app-background', undefined),
   clearAppBackground: () => invoke('clear-app-background', undefined),

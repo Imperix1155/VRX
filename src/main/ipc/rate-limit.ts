@@ -91,6 +91,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'open-logs-folder': { max: 6, windowMs: 60_000 },
   // A deliberate button press that opens a browser tab.
   'open-bug-report': { max: 6, windowMs: 60_000 },
+  // A deliberate button press that sends one local datagram.
+  'test-vr-alert': { max: 10, windowMs: 60_000 },
   // The picture is read once per renderer load, with reload/remount headroom.
   'get-app-background': { max: 12, windowMs: 30_000 },
   // Deliberate button presses; choosing opens a native dialog.
@@ -118,6 +120,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'set-alert-pick':
     case 'get-linked-profiles':
     case 'change-linked-profile':
+    case 'test-vr-alert':
       return { ok: false, reason: 'rate-limited' }
     default:
       throw new Error('rate_limited')

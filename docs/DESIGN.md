@@ -321,7 +321,7 @@ Don't design a mobile layout from a narrow documentation viewport.
 
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
 Explore, Settings. Hot Instances and Explore can be hidden in Settings →
-Behavior, Activity and Inbox in Settings → Notifications, and all four in the
+Behavior, Activity and Inbox in Settings → Appearance, and all four in the
 welcome setup; a hidden page leaves the sidebar and its links, while its
 Dashboard section and alerts keep their own switches. A hidden page that is
 open, or that a hot-instance alert asks for, falls back to the Dashboard.
@@ -360,6 +360,10 @@ Accounts, and About. Each setting sits on a compact neutral card.
   card), and Instance labels. A picture too small, too tall or too wide to
   fill the landscape window is refused with a plain reason; a usable one that
   will be cropped hard or look soft gets one short warning line in the card.
+  Last, one pages card: Activity page and Inbox page (both on by default).
+  They sit here, not with the other page switches, so Behavior and
+  Notifications fit without scrolling. Hiding either keeps its alerts;
+  Activity off also stops VRX keeping activity and forgets what it kept.
 - Dashboard: Hide empty sections, then Wearing now, Latest invites, Section
   order, Popular now, Hot Instances, and Hot instance threshold, as separate
   rows in Dashboard order.
@@ -381,11 +385,12 @@ Accounts, and About. Each setting sits on a compact neutral card.
   Invite received (invites and invite requests) and Friend request received.
   Each alert is independent and off by default. While Picked friends is on,
   the bell in the friend details panel holds Alert me about this friend; a
-  linked person is one pick. Below it, one pages card: Activity
-  page and Inbox page (both on by default). They sit here, not with the
-  other page switches, so Behavior fits without scrolling. Hiding either keeps
-  its alerts; Activity off also stops VRX keeping activity and forgets what it
-  kept.
+  linked person is one pick. Below it, Alerts in VR (off by default) shows
+  the alerts switched on above in the headset through XSOverlay, the overlay
+  VRCX and CVRX both use, with the same words for both platforms. On opens
+  Time on screen (Short, Medium or Long) with a Send a test link after its
+  explanation; for a few seconds after a test, the explanation becomes a short
+  sent or failed line beside the link.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
