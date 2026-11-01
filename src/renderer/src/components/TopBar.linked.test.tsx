@@ -9,6 +9,22 @@ import { useFriendsStore } from '../stores/friends'
 import { fullFriend } from '../test-utils/friendFixture'
 import TopBar from './TopBar'
 
+// The top bar's player counts read through their own queries (TopBarCounts.test.tsx).
+vi.mock('../queries/community', () => ({
+  usePlayersOnline: () => ({ data: undefined, fetchStatus: 'idle', dataUpdatedAt: 0 })
+}))
+
+/** The visible friend count, without the bold markup around the number. */
+function friendsText(count: number): string {
+  return i18n.t('shell.friendCount', { count }).replace(/<\/?b>/g, '')
+}
+
+/** Finds the friend count line; the number sits in its own bold element. */
+function friendsMatcher(count: number): (content: string, element: Element | null) => boolean {
+  return (_content, element) =>
+    element?.tagName === 'SPAN' && element.textContent === friendsText(count)
+}
+
 const friends = vi.hoisted(() => vi.fn())
 const auth = vi.hoisted(() => vi.fn())
 const profiles = vi.hoisted(() => vi.fn())
@@ -93,19 +109,19 @@ describe('TopBar linked people count', () => {
             : { platform, state: 'authenticated', accountId: `${platform}-account` }
       }))
       view.rerender(<TopBar />)
-      expect(screen.getByText(i18n.t('shell.onlineCount', { count: 1 }))).toBeTruthy()
+      expect(screen.getByText(friendsMatcher(1))).toBeTruthy()
     }
   )
   it('counts a linked active pair as one person in Friends across every platform filter', () => {
     useFriendsStore.setState({ search: 'no matching account name' })
     const view = render(<TopBar />)
-    expect(screen.getByText(i18n.t('shell.onlineCount', { count: 1 }))).toBeTruthy()
+    expect(screen.getByText(friendsMatcher(1))).toBeTruthy()
     useFriendsStore.setState({ platformFilter: 'vrchat' })
     view.rerender(<TopBar />)
-    expect(screen.getByText(i18n.t('shell.onlineCount', { count: 1 }))).toBeTruthy()
+    expect(screen.getByText(friendsMatcher(1))).toBeTruthy()
     useFriendsStore.setState({ platformFilter: 'chilloutvr' })
     view.rerender(<TopBar />)
-    expect(screen.getByText(i18n.t('shell.onlineCount', { count: 1 }))).toBeTruthy()
+    expect(screen.getByText(friendsMatcher(1))).toBeTruthy()
   })
   it('does not count offline linked people as online', () => {
     friends.mockImplementation((platform: Platform) => ({
@@ -115,7 +131,7 @@ describe('TopBar linked people count', () => {
           : [{ ...online('chilloutvr', 'cvr'), presence: { state: 'offline' } }]
     }))
     render(<TopBar />)
-    expect(screen.getByText(i18n.t('shell.onlineCount', { count: 0 }))).toBeTruthy()
+    expect(screen.getByText(friendsMatcher(0))).toBeTruthy()
   })
   it('does not link accounts owned by a different authenticated user', () => {
     const wrongOwner = profile()
@@ -130,12 +146,12 @@ describe('TopBar linked people count', () => {
       }
     })
     render(<TopBar />)
-    expect(screen.getByText(i18n.t('shell.onlineCount', { count: 2 }))).toBeTruthy()
+    expect(screen.getByText(friendsMatcher(2))).toBeTruthy()
   })
   it('keeps Dashboard account based and ignores search', () => {
     useFriendsStore.setState({ search: 'no match' })
     useUiStore.setState({ activeTab: 'dashboard' })
     render(<TopBar />)
-    expect(screen.getByText(i18n.t('shell.onlineCount', { count: 2 }))).toBeTruthy()
+    expect(screen.getByText(friendsMatcher(2))).toBeTruthy()
   })
 })

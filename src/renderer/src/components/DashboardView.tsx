@@ -35,7 +35,6 @@ import HotInstanceSheet from './HotInstanceSheet'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
-import PlayersOnline from './PlayersOnline'
 import DashboardGlance from './DashboardGlance'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
@@ -112,7 +111,6 @@ function DashboardContent(): React.JSX.Element {
   // useSettingsPersistence (VRX-184).
   const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
-  const playersOnline = useSettingsStore((s) => s.settings.dashboardPlayersOnline)
   const sections = useSettingsStore((s) => s.settings.dashboardSections)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   // "See all" leads to the Hot Instances page, so it goes when that page is off.
@@ -287,7 +285,7 @@ function DashboardContent(): React.JSX.Element {
 
   return (
     <div>
-      {/* Stat cards row, then the optional "Playing now" line */}
+      {/* Stat cards row. Player counts live in the top bar (owner, 2026-11-01). */}
       <div style={{ marginBottom: '26px' }}>
         <div
           style={{
@@ -300,7 +298,6 @@ function DashboardContent(): React.JSX.Element {
           <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" />
           {hotEnabled && <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" />}
         </div>
-        {playersOnline ? <PlayersOnline platforms={scopedPlatforms} /> : null}
       </div>
 
       {/* Every section joins one keyed array in the user's order, so Popular

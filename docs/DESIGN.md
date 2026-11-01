@@ -343,8 +343,17 @@ its label names each platform. The live dot pulses only while VRX has focus;
 an endless animation would keep the window redrawing behind a game. On Linux
 it stays steady: some Linux desktops draw the pulse's redraw a pixel off, which
 shifted the background picture around the filter. Settings replaces the filter with
-its category control, on its own row under the title, so the online count
-stays on the title row as on every other page.
+its category control, on its own row under the title, so the counts stay on
+the title row as on every other page.
+
+**Top bar counts** (owner, 2026-11-01) sit right of the filter as one
+right-aligned block: "13 friends" with the connection indicator, and under it
+how many people play each shown platform ("VRC 48,213 CVR 1,876", each number
+beside its platform word). Both follow the platform filter; a platform with no
+answer drops out. Hovering or focusing the block opens a small glass panel
+that spells out friends online, each platform's connection, the full platform
+names and where the numbers come from; Escape or leaving closes it. Settings →
+Dashboard → Player counts turns the player numbers off.
 
 **Segmented controls.** Use
 [`SegmentedControl`](../src/renderer/src/components/SegmentedControl.tsx) and
@@ -687,9 +696,8 @@ no line under ALL for a platform the user isn't signed in to.
   (Code, Members, Your role). View only.
 - **Explore** has a segmented Popular now · New · Recently updated control.
   The two lists alternate platforms like Search and open the same world sheet.
-- **Playing now** is one quiet line under the Dashboard stat cards: each count
-  sits beside its platform word (the dot only reinforces it) and a "?" explains
-  the number. A platform with no answer drops out of the line.
+- **Player counts** moved from a line under the Dashboard stat cards to the
+  top bar (§8, owner, 2026-11-01).
 
 ## §10 Linked friends
 
