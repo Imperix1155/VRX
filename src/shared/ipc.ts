@@ -40,6 +40,7 @@ import type {
   WorldList,
   WorldListResult
 } from './community'
+import type { OwnProfileChanges, OwnProfileResult, SaveOwnProfileResult } from './ownProfile'
 import type { SetHomeWorldResult } from './homeWorld'
 import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
@@ -197,6 +198,13 @@ export interface IpcInvoke {
   'get-players-online': { req: { platform: Platform }; res: PlayersOnlineResult }
   /** The signed-in user's groups. `refresh` is a Refresh press. */
   'get-my-groups': { req: { platform: Platform; refresh?: boolean }; res: MyGroupsResult }
+  /** The signed-in user's own bio, pronouns and (VRChat) status, for the editor. */
+  'get-own-profile': { req: { platform: Platform }; res: OwnProfileResult }
+  /** Save the fields the user changed. One Save per platform, 5 s apart. */
+  'save-own-profile': {
+    req: { platform: Platform; changes: OwnProfileChanges }
+    res: SaveOwnProfileResult
+  }
   /** Whether a friend or searched person is a friend and blocked, read when the profile's options open. */
   'get-relationship': { req: { platform: Platform; userId: string }; res: RelationshipResult }
   /** One confirmed Unfriend, Block or Unblock for one person. */

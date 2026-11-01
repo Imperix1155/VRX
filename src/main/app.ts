@@ -4,7 +4,9 @@ import { ExploreService } from './services/exploreService'
 import { AvatarLibraryService } from './services/avatarLibraryService'
 import { CurrentAvatarService } from './services/currentAvatarService'
 import { CommunityService } from './services/communityService'
+import { OwnProfileService } from './services/ownProfileService'
 import type { CommunityAdapter } from './services/adapters/CommunityAdapter'
+import type { OwnProfileAdapter } from './services/adapters/OwnProfileAdapter'
 import type { SocialActionAdapter } from './services/adapters/SocialActionAdapter'
 import { SocialActionService } from './services/socialActionService'
 import { AccountNoteService } from './services/accountNotes'
@@ -421,6 +423,7 @@ app
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
     const communityBoundary: { current?: CommunityService } = {}
+    const ownProfileBoundary: { current?: OwnProfileService } = {}
     const socialBoundary: { current?: SocialActionService } = {}
     const accountNotesBoundary: { current?: AccountNoteService } = {}
     const homeWorldBoundary: { current?: HomeWorldService } = {}
@@ -462,6 +465,7 @@ app
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
         communityBoundary.current?.clearPlatform('vrchat')
+        ownProfileBoundary.current?.clearPlatform('vrchat')
         socialBoundary.current?.clearPlatform('vrchat')
         accountNotesBoundary.current?.clearPlatform('vrchat')
         homeWorldBoundary.current?.clearPlatform('vrchat')
@@ -541,6 +545,7 @@ app
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
         communityBoundary.current?.clearPlatform('chilloutvr')
+        ownProfileBoundary.current?.clearPlatform('chilloutvr')
         socialBoundary.current?.clearPlatform('chilloutvr')
         accountNotesBoundary.current?.clearPlatform('chilloutvr')
         homeWorldBoundary.current?.clearPlatform('chilloutvr')
@@ -731,6 +736,16 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     communityBoundary.current = community
+    // Settings → Accounts: the user's own bio, pronouns and VRChat status.
+    // Read when the editor opens, written only on Save.
+    const ownProfile = new OwnProfileService({
+      adapters: new Map<Platform, OwnProfileAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    ownProfileBoundary.current = ownProfile
     // Friend notes on the user's own accounts: a check when a drawer opens,
     // a save after an edit, and the user's choice when both copies changed.
     const accountNotes = new AccountNoteService({
@@ -776,6 +791,7 @@ app
       avatarLibrary,
       currentAvatar,
       community,
+      ownProfile,
       social,
       // Settings → Appearance background picture (appBackground.ts).
       appBackground: {
@@ -881,6 +897,7 @@ app
         explore.clearPlatform(event.platform)
         avatarLibrary.clearPlatform(event.platform)
         community.clearPlatform(event.platform)
+        ownProfile.clearPlatform(event.platform)
         social.clearPlatform(event.platform)
         accountNotes.clearPlatform(event.platform)
         homeWorld.clearPlatform(event.platform)

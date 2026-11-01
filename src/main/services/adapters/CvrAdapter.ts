@@ -25,6 +25,9 @@ import { parseCvrPrivacy } from './cvr/parseCvrPrivacy'
 import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resolveCvrInstance'
 import { AuthSessionPendingError, CVRAuthError, CVRNetworkError } from './errors'
 import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
+import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
+import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
+import { parseCvrOwnProfile } from './cvr/parseOwnProfile'
 import { extractCvrPlatformUserId } from './cvr/cvrPlatformUserId'
 import { hasUnsafeCredentialCharacters, isValidCvrSession } from './credentialValidation'
 import type {
@@ -191,6 +194,7 @@ export class CvrAdapter
     ExploreAdapter,
     AvatarLibraryAdapter,
     CommunityAdapter,
+    OwnProfileAdapter,
     SocialActionAdapter,
     AccountNoteAdapter,
     HomeWorldAdapter
@@ -940,6 +944,38 @@ export class CvrAdapter
       throw new CommunityDataError('Invalid ChilloutVR user id')
     }
     return userId.toLowerCase()
+  }
+
+  // ── Own profile (read when the editor opens, written on Save) ───────────────
+
+  captureOwnProfileLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnProfile(lease: RequestLease): Promise<OwnProfile> {
+    const accountId = this.accountId
+    if (accountId === null) throw new CVRAuthError()
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const profile = parseCvrOwnProfile(raw, accountId)
+    if (!profile) throw new OwnProfileDataError('ChilloutVR profile response was malformed')
+    return profile
+  }
+
+  async saveOwnProfile(changes: OwnProfileChanges, lease: RequestLease): Promise<null> {
+    // CVRX sends each field as its own form to `/users/self`; VRX does the
+    // same, one request per changed field, in the shared line, never resent.
+    const fields: Array<[string, string]> = []
+    if (changes.bio !== undefined) fields.push(['ProfileBio', changes.bio])
+    if (changes.pronouns !== undefined) fields.push(['ProfilePronouns', changes.pronouns])
+    for (const [name, value] of fields) {
+      await this.runCommunityRequest(lease, () =>
+        this.postForm('/users/self', { [name]: value }, z.unknown(), this.communityOptions(lease))
+      )
+    }
+    // The reply carries no profile; the service keeps what was sent.
+    return null
   }
 
   private communityOptions(lease: RequestLease): AdapterRequestOptions {

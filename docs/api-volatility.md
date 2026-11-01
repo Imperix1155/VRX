@@ -132,6 +132,7 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 | `GET /groups/{groupId}`                  | Group name and icon                        | Source-derived                    | No group metadata                       |
 | Explore routes                           | Public-world discovery                     | Synthetic                         | Explore problem state                   |
 | `POST /invite/myself/to/{location}`      | Self-invite                                | Source-derived                    | `invite-failed`                         |
+| `GET`/`PUT /users/{me}`                  | Own profile editor                         | Source-derived                    | Editor shows a retry; text kept         |
 | Image endpoint and hosts                 | Pictures                                   | Live                              | Placeholder                             |
 | Pipeline WebSocket                       | Live presence                              | Source-derived                    | REST reconcile only                     |
 | `vrchat://launch` link                   | Join                                       | Source-derived                    | Join denied before launch               |
@@ -524,6 +525,31 @@ against a real account.
 - **Uncertain:** whether VRChat also ends a friendship when the user blocks a
   friend. VRX does not assume it either way; the roster follows the Pipeline.
 
+### Own profile: `GET` and `PUT /users/{me}`
+
+Settings → Accounts → Edit profile
+([parseOwnProfile.ts](../src/main/services/adapters/vrchat/parseOwnProfile.ts)).
+Source-derived from the community
+[specification](https://github.com/vrchatapi/specification) (`updateUser`) and
+VRCX; no real response or write has been captured yet.
+
+- **Assumes:** `GET /users/{me}` returns the user with string `bio`,
+  `pronouns`, `status` and `statusDescription`. `PUT /users/{me}` takes a JSON
+  body with only the changed fields among `bio`, `pronouns`, `status` and
+  `statusDescription`, leaves the rest as they are, and answers with the
+  updated user. Status words are `join me`, `active` (Online), `ask me` and
+  `busy` (Do Not Disturb). Limits follow VRChat's own editor: bio 512,
+  pronouns 32, status text 32.
+- **Parses:** the reply's `id` must be the signed-in account. A missing or
+  `null` text field reads as empty; any other type makes the reply unreadable,
+  so a changed format never shows as an empty bio the user might save over. An
+  unknown status word reads as no status picked, and nothing is sent for it
+  unless the user picks one. A PUT reply that cannot be read keeps the last
+  read plus what was sent.
+- **When it breaks:** a 401 emits `auth-invalidated`; a 429 is rate-limited
+  and never retried; anything else is unavailable and the editor keeps the
+  user's text.
+
 ### Self-invite: `POST /invite/myself/to/{location}`
 
 - **Assumes (Source-derived):** body `{}`. The response is ignored.
@@ -684,6 +710,7 @@ main-only base `https://api.chilloutvr.net`. The WebSocket is
 | `{ message, data }` envelope      | Every REST reply                         | Live 2026-07-08                       | Request fails                 |
 | `POST /users/auth`                | Sign-in, restore check, 403 confirmation | Live                                  | Error result or `error` state |
 | `GET /friends`                    | Friend roster                            | Live                                  | Partial roster                |
+| `POST /users/self`                | Own profile editor (bio, pronouns)       | Source-derived                        | Editor keeps the text         |
 | `GET /instances/{id}`             | World, group and player count            | Live 2026-08-12                       | Socket values kept            |
 | Privacy values                    | Access labels                            | Partly Live 2026-07-08 and 2026-08-12 | Unknown access, restrictive   |
 | Explore routes                    | Public-world discovery                   | Synthetic                             | Explore problem state         |
@@ -933,6 +960,26 @@ Source-derived from CVRX; no real response has been captured yet.
   is unknown and blocks a write. Ids compare in lower case.
 - **When it breaks:** VRX keeps its own copy and offers a Retry. Auth errors
   follow the data-path rules above; a 429 surfaces as rate-limited.
+
+### Own profile: `GET /users/{me}` and `POST /users/self`
+
+Settings → Accounts → Edit profile
+([parseOwnProfile.ts](../src/main/services/adapters/cvr/parseOwnProfile.ts)).
+Source-derived from CVRX (`SetMyProfileBio`, `SetMyProfilePronouns`); no real
+response or write has been captured yet.
+
+- **Assumes:** `GET /users/{me}` carries `profileBio` and `profilePronouns`.
+  `POST /users/self` (API v1) takes a multipart form with one field,
+  `ProfileBio` or `ProfilePronouns`, and answers with the usual
+  `{ message, data }` envelope; `data` is not read. CVRX sends each field
+  separately, so VRX does too: at most two requests for one Save. Limits follow
+  CVRX's editor: bio 512, pronouns 32. ChilloutVR has no status to set.
+- **Parses:** the reply's `id` (any case) must be the signed-in account. Text
+  fields read as for VRChat above.
+- **When it breaks:** the first failed field stops the Save; the editor keeps
+  the user's text and the next open reads the profile again, since the first
+  field may already have saved. Auth errors follow the data-path rules above;
+  a 429 is rate-limited and never retried.
 
 ### WebSocket `/users/ws`
 

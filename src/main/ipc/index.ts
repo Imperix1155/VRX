@@ -17,6 +17,8 @@ import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers, registerHomeWorldHandler } from './explore'
 import { registerAvatarLibraryHandlers, registerCurrentAvatarHandler } from './avatar-library'
 import { registerCommunityHandlers } from './community'
+import { registerOwnProfileHandlers } from './own-profile'
+import type { OwnProfileService } from '../services/ownProfileService'
 import type { CommunityService } from '../services/communityService'
 import { registerSocialHandlers } from './social'
 import type { SocialActionService } from '../services/socialActionService'
@@ -74,6 +76,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   avatarLibrary: AvatarLibraryService
   currentAvatar: CurrentAvatarService
   community: CommunityService
+  ownProfile: OwnProfileService
   social: SocialActionService
   appBackground: AppBackgroundHandlerOptions
   inbox: InboxService
@@ -159,6 +162,7 @@ export function registerIpcHandlers(
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerCurrentAvatarHandler(options.currentAvatar)
     registerCommunityHandlers(options.community)
+    registerOwnProfileHandlers(options.ownProfile)
     registerSocialHandlers(options.social)
     registerAppStatusHandlers(options.appStatus)
     registerActivityHandlers(options.activity)

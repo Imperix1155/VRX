@@ -15,7 +15,8 @@ request transport, and published adapter events.
   `resolveCvrInstance.ts`, `buildCvrJoinUrl.ts`, `parseExplore.ts`, and
   `parseAvatars.ts` (own uploads only: `authorGuid` or the `avtrmine` category),
   and `parseCommunity.ts` (people, profiles, search, worlds, groups, player
-  count; IDs lower-cased GUIDs).
+  count; IDs lower-cased GUIDs), and `parseOwnProfile.ts` (own bio and
+  pronouns; the write is one multipart `POST /users/self` per field).
 - Symbols and the adapter contract: [`docs/INTERNAL-API.md`](../../../../../docs/INTERNAL-API.md).
 
 ## Local Contracts

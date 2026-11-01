@@ -64,6 +64,12 @@ type VrxBridge = {
   getMyGroups: (
     req: IpcInvoke['get-my-groups']['req']
   ) => Promise<IpcInvoke['get-my-groups']['res']>
+  getOwnProfile: (
+    req: IpcInvoke['get-own-profile']['req']
+  ) => Promise<IpcInvoke['get-own-profile']['res']>
+  saveOwnProfile: (
+    req: IpcInvoke['save-own-profile']['req']
+  ) => Promise<IpcInvoke['save-own-profile']['res']>
   getRelationship: (
     req: IpcInvoke['get-relationship']['req']
   ) => Promise<IpcInvoke['get-relationship']['res']>

@@ -139,7 +139,7 @@ etiquette rules apply in full; this file adds local detail.
   stamps `rosterRevision` from the same monotonic counter as roster seeds;
   event revisions never move per-friend location fences.
 - A session boundary clears that platform's alerts, location authority, inbox
-  (unless `identityRetained`), Explore and community state, then sends `identity-boundary`. A VRChat data-path 401 sets
+  (unless `identityRetained`), Explore, community and own-profile state, then sends `identity-boundary`. A VRChat data-path 401 sets
   `identityRetained`: clear main state but send no identity boundary; the
   following `auth-invalidated` quarantines the renderer.
 - `CommunityService` (profiles, search, world lists, players online, own
@@ -149,6 +149,11 @@ etiquette rules apply in full; this file adds local detail.
   friend or someone a search listed, so the renderer cannot walk profiles.
   Search and list worlds become Explore references through
   `ExploreService.adoptWorlds`, which makes no request.
+- `OwnProfileService` edits only the signed-in user's own profile: a read when
+  the editor opens (reused 30 s) and a write only on Save, one per platform at
+  a time and 5 s after any attempt, never retried. Main checks the fields
+  (status on VRChat only), sends only what differs from its last read, and
+  supplies the account itself. Logs never carry profile text.
 - `SocialActionService` owns the profile's Unfriend, Block and Unblock: one
   confirmed person per call, only a friend, someone a search listed
   (`CommunityService.knowsPerson`) or someone it already answered for; one

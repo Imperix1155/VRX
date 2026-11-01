@@ -51,6 +51,10 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-world-list': { max: 60, windowMs: 60_000 },
   'get-players-online': { max: 30, windowMs: 60_000 },
   'get-my-groups': { max: 30, windowMs: 60_000 },
+  // The profile editor reads when it opens; main reuses an answer for 30 s.
+  'get-own-profile': { max: 30, windowMs: 60_000 },
+  // Save presses; main allows one per platform every 5 s.
+  'save-own-profile': { max: 12, windowMs: 60_000 },
   // Read when a profile's Unfriend and block options open; main caches 5 minutes.
   'get-relationship': { max: 30, windowMs: 60_000 },
   // Confirmed presses; main allows one per platform at a time, then a 3 s pause.
@@ -140,6 +144,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-explore-room':
     case 'self-invite':
     case 'switch-avatar':
+    case 'save-own-profile':
     case 'social-action':
     case 'set-home-world':
     case 'set-friend-note':

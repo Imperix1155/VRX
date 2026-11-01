@@ -387,7 +387,32 @@
         "looking": "Looking on this PC…"
       },
       "needsCode": "{{platform}} needs a sign-in code.",
-      "openAccounts": "Go to Accounts"
+      "openAccounts": "Go to Accounts",
+      "profile": {
+        "edit": "Edit profile",
+        "title": "Your {{platform}} profile",
+        "intro": "What you save here changes your profile in {{platform}}.",
+        "loading": "Loading your profile…",
+        "bio": "Bio",
+        "bioPlaceholder": "Tell people a little about yourself",
+        "pronouns": "Pronouns",
+        "pronounsPlaceholder": "For example, they/them",
+        "status": "Status",
+        "statusText": "Status text",
+        "statusTextPlaceholder": "For example, Hanging out",
+        "counter": "{{current}}/{{max}}",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Profile saved to {{platform}}.",
+        "error": {
+          "load": "Couldn't load your {{platform}} profile. Check your connection and try again.",
+          "unavailable": "Couldn't save to {{platform}}. Check your connection and try again.",
+          "wait": "Saving too often. Wait a few seconds, then try again.",
+          "invalid": "Some text is too long to save.",
+          "signedOut": "{{platform}} signed you out. Sign in again, then try again."
+        }
+      }
     },
     "about": {
       "heading": "About"

@@ -14,7 +14,8 @@ transport, and published adapter events.
 - `fetchFriends.ts` (paginated roster), `VrcPipeline.ts` (receive-only live
   events), the world and group resolvers and batch fetchers, the `parse*.ts`
   converters, `buildJoinUrl.ts`, `parseExplore.ts`, `parseAvatars.ts`, and
-  `parseCommunity.ts`.
+  `parseCommunity.ts`, and `parseOwnProfile.ts` (the own-profile editor's
+  fields and the `PUT /users/{me}` body).
 - Symbols and the adapter contract: [`docs/INTERNAL-API.md`](../../../../../docs/INTERNAL-API.md).
 
 ## Local Contracts
