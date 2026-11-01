@@ -104,8 +104,10 @@ export class OwnProfileService {
         state.readAt = this.clock()
         return { ok: true, profile }
       } catch (error) {
-        // Part of a ChilloutVR Save may have gone through, so opening the
-        // editor again reads the profile instead of reusing this answer.
+        // Part of a ChilloutVR Save may have gone through, so the last read no
+        // longer says what the platform holds: the next open, and the next
+        // Save, read it again before comparing.
+        state.profile = null
         state.readAt = null
         return { ok: false, reason: this.failure(platform, error) }
       } finally {

@@ -309,8 +309,8 @@ invalidated session.
 
 Main compares the request with what it last read and sends only what differs.
 After a failed Save (part of a ChilloutVR Save may have gone through) the next
-editor open reads the profile again. The renderer names only a platform and the
-changed fields; main supplies the account.
+editor open and the next Save read the profile again before comparing. The editor sends every field it shows and main
+sends only what differs; the renderer never names an account.
 
 ## Local action limits
 

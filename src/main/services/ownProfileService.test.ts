@@ -230,6 +230,28 @@ describe('OwnProfileService saves', () => {
     expect(cvr.getOwnProfile).toHaveBeenCalledTimes(2)
   })
 
+  it('after a partly failed Save, reads again and sends a field put back to its old text', async () => {
+    const { service, cvr, tick } = setup()
+    await service.getOwnProfile('chilloutvr')
+    // The bio goes through, then the pronouns fail.
+    cvr.saveOwnProfile.mockImplementationOnce(async () => {
+      cvr.current = { ...cvr.current, bio: 'B' }
+      throw new NetworkError('down')
+    })
+    await service.saveOwnProfile('chilloutvr', { bio: 'B', pronouns: 'Y' })
+    tick(OWN_PROFILE_SAVE_COOLDOWN_MS)
+    // The user puts the bio back and tries again.
+    await expect(
+      service.saveOwnProfile('chilloutvr', { bio: 'Old bio', pronouns: 'Y' })
+    ).resolves.toEqual({ ok: true, profile: profile('chilloutvr', { pronouns: 'Y' }) })
+    expect(cvr.getOwnProfile).toHaveBeenCalledTimes(2)
+    expect(cvr.saveOwnProfile).toHaveBeenLastCalledWith(
+      { bio: 'Old bio', pronouns: 'Y' },
+      expect.anything()
+    )
+    expect(cvr.current).toMatchObject({ bio: 'Old bio', pronouns: 'Y' })
+  })
+
   it('reads first when the session renewed after the editor opened', async () => {
     const { service, vrc } = setup()
     await service.getOwnProfile('vrchat')

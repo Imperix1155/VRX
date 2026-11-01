@@ -44,16 +44,29 @@ interface Draft {
   statusText: string
 }
 
-/** Only the fields that differ from what the platform holds now. */
-function changesFrom(draft: Draft, profile: OwnProfile): OwnProfileChanges {
-  const changes: OwnProfileChanges = {}
-  if (draft.bio !== profile.bio) changes.bio = draft.bio
-  if (draft.pronouns !== profile.pronouns) changes.pronouns = draft.pronouns
-  if (profile.platform === 'vrchat') {
-    if (draft.status !== null && draft.status !== profile.status) changes.status = draft.status
-    if (draft.statusText !== (profile.statusText ?? '')) changes.statusText = draft.statusText
+/** Whether any field differs from what the editor loaded. */
+function hasChanges(draft: Draft, profile: OwnProfile): boolean {
+  return (
+    draft.bio !== profile.bio ||
+    draft.pronouns !== profile.pronouns ||
+    (profile.platform === 'vrchat' &&
+      ((draft.status !== null && draft.status !== profile.status) ||
+        draft.statusText !== (profile.statusText ?? '')))
+  )
+}
+
+/**
+ * Every field as the editor shows it. Main compares them with what the
+ * platform holds and sends only the differences, so a field restored after a
+ * partly failed Save still goes out.
+ */
+function fieldsOf(draft: Draft, platform: Platform): OwnProfileChanges {
+  const fields: OwnProfileChanges = { bio: draft.bio, pronouns: draft.pronouns }
+  if (platform === 'vrchat') {
+    if (draft.status !== null) fields.status = draft.status
+    fields.statusText = draft.statusText
   }
-  return changes
+  return fields
 }
 
 /** A field's label with its character count on the same line. */
@@ -159,12 +172,14 @@ function ProfileForm({
     statusText: profile.statusText ?? ''
   })
   const [failure, setFailure] = useState<SaveFailure | null>(null)
-  const changes = changesFrom(draft, profile)
+  // After a failed Save the platform may hold part of it, so Save stays
+  // available even when the text matches what the editor first loaded.
+  const [failedOnce, setFailedOnce] = useState(false)
   const tooLong =
     draft.bio.length > OWN_BIO_MAX_LENGTH ||
     draft.pronouns.length > OWN_PRONOUNS_MAX_LENGTH ||
     draft.statusText.length > OWN_STATUS_TEXT_MAX_LENGTH
-  const canSave = !saving && !tooLong && Object.keys(changes).length > 0
+  const canSave = !saving && !tooLong && (failedOnce || hasChanges(draft, profile))
 
   const update = (patch: Partial<Draft>): void => {
     setFailure(null)
@@ -176,10 +191,13 @@ function ProfileForm({
     if (!canSave) return
     setFailure(null)
     onSaving(true)
-    const result = await saveOwnProfile(platform, changes)
+    const result = await saveOwnProfile(platform, fieldsOf(draft, platform))
     onSaving(false)
     if (result.ok) onSaved()
-    else setFailure(result.reason)
+    else {
+      setFailure(result.reason)
+      if (result.reason !== 'invalid' && result.reason !== 'cooldown') setFailedOnce(true)
+    }
   }
 
   const inputClass = `${AUTH_INPUT_CLASS} ${config.focusClass}`

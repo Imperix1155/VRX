@@ -85,7 +85,7 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
     ).toHaveProperty('disabled', true)
   })
 
-  it('sends only the changed field, closes, and says it saved', async () => {
+  it('sends the fields for main to compare, closes, and says it saved', async () => {
     const { saveOwnProfile } = setup(platform)
     const dialog = await openEditor()
     fireEvent.change(within(dialog).getByLabelText(msg('settings.accounts.profile.bio')), {
@@ -95,7 +95,13 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
       within(dialog).getByRole('button', { name: msg('settings.accounts.profile.save') })
     )
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(saveOwnProfile).toHaveBeenCalledWith({ platform, changes: { bio: 'New bio' } })
+    expect(saveOwnProfile).toHaveBeenCalledWith({
+      platform,
+      changes:
+        platform === 'vrchat'
+          ? { bio: 'New bio', pronouns: 'they/them', status: 'online', statusText: '' }
+          : { bio: 'New bio', pronouns: 'they/them' }
+    })
     expect(
       await screen.findByText(
         msg('settings.accounts.profile.saved', {
@@ -122,6 +128,29 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
       'value',
       'she/her'
     )
+  })
+
+  it('keeps Save available after a failed Save, even with the text put back', async () => {
+    const { saveOwnProfile } = setup(platform)
+    saveOwnProfile.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+    const dialog = await openEditor()
+    const bio = within(dialog).getByLabelText(msg('settings.accounts.profile.bio'))
+    const save = within(dialog).getByRole('button', { name: msg('settings.accounts.profile.save') })
+    fireEvent.change(bio, { target: { value: 'New bio' } })
+    fireEvent.click(save)
+    expect(
+      await within(dialog).findByText(
+        msg('settings.accounts.profile.error.unavailable', {
+          platform: msg(`settings.accounts.${platform}.label`)
+        })
+      )
+    ).toBeTruthy()
+    // Part of it may have saved: putting the old text back must still send it.
+    fireEvent.change(bio, { target: { value: 'Old bio' } })
+    expect(save).toHaveProperty('disabled', false)
+    fireEvent.click(save)
+    await waitFor(() => expect(saveOwnProfile).toHaveBeenCalledTimes(2))
+    expect(saveOwnProfile.mock.calls[1]![0]).toMatchObject({ changes: { bio: 'Old bio' } })
   })
 
   it('offers a retry when the profile cannot be read', async () => {
@@ -189,7 +218,12 @@ describe('Edit profile — status', () => {
     await waitFor(() =>
       expect(saveOwnProfile).toHaveBeenCalledWith({
         platform: 'vrchat',
-        changes: { status: 'dnd', statusText: 'Heads down' }
+        changes: {
+          bio: 'Old bio',
+          pronouns: 'they/them',
+          status: 'dnd',
+          statusText: 'Heads down'
+        }
       })
     )
   })
