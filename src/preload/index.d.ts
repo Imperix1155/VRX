@@ -70,6 +70,12 @@ type VrxBridge = {
   saveOwnProfile: (
     req: IpcInvoke['save-own-profile']['req']
   ) => Promise<IpcInvoke['save-own-profile']['res']>
+  getRelationship: (
+    req: IpcInvoke['get-relationship']['req']
+  ) => Promise<IpcInvoke['get-relationship']['res']>
+  socialAction: (
+    req: IpcInvoke['social-action']['req']
+  ) => Promise<IpcInvoke['social-action']['res']>
   getAccounts: () => Promise<IpcInvoke['get-accounts']['res']>
   getAuthStatus: (
     req: IpcInvoke['get-auth-status']['req']

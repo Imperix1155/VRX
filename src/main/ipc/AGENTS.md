@@ -100,6 +100,11 @@ Persistence, network, cache, and account-transition policy stay in services.
   accept only a platform, a bounded user ID or search text, a list name and an
   optional `refresh` flag, and delegate to `CommunityService`. They never write
   to a platform.
+- `get-relationship` and `social-action` (`social.ts`) accept only a platform,
+  one bounded user ID and, for the action, `unfriend`, `block` or `unblock`.
+  They delegate to `SocialActionService`, which decides who may be acted on
+  and paces the writes; `social-action` keeps the `{ ok: false, reason }`
+  denial shape.
 
 - `get-own-profile` takes only a platform; `save-own-profile` takes a platform
   and the changed fields under a strict schema (an invalid request answers

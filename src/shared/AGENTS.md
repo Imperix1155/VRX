@@ -23,6 +23,8 @@ through `@shared`.
   selection.
 - `community.ts`: read-only profile, search, world-list, players-online and
   group values, their limits, and the user-ID and search-text guards.
+- `socialActions.ts`: the profile's Unfriend, Block and Unblock vocabulary,
+  the relationship result, and the action pause and cache times.
 - `linkedProfiles.ts`: versioned linked-person values, changes, and snapshots.
 - `activity.ts`: Activity entry values and the page's Show filter. Entries
   carry no location, only a world name that is null for hidden worlds.

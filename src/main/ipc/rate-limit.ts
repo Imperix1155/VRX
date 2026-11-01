@@ -55,6 +55,10 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-own-profile': { max: 30, windowMs: 60_000 },
   // Save presses; main allows one per platform every 5 s.
   'save-own-profile': { max: 12, windowMs: 60_000 },
+  // Read when a profile's Unfriend and block options open; main caches 5 minutes.
+  'get-relationship': { max: 30, windowMs: 60_000 },
+  // Confirmed presses; main allows one per platform at a time, then a 3 s pause.
+  'social-action': { max: 20, windowMs: 60_000 },
   // Account settings normally loads once; repeated tab mounts stay harmless.
   'get-accounts': { max: 12, windowMs: 30_000 },
   // Two platforms can mount, invalidate, and retry without approaching this cap.
@@ -141,6 +145,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'self-invite':
     case 'switch-avatar':
     case 'save-own-profile':
+    case 'social-action':
     case 'set-home-world':
     case 'set-friend-note':
     case 'sync-friend-note':

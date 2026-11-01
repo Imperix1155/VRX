@@ -60,6 +60,8 @@ import { parseVrcAvatar, parseVrcAvatarPage } from './vrchat/parseAvatars'
 import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
 import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
 import { parseVrcOwnProfile, vrcOwnProfileBody } from './vrchat/parseOwnProfile'
+import { SocialDataError, type SocialActionAdapter } from './SocialActionAdapter'
+import { parseVrcBlocked } from './vrchat/parseBlocked'
 import {
   COMMUNITY_LIST_MAX_WORLDS,
   COMMUNITY_MY_GROUPS_MAX,
@@ -268,6 +270,7 @@ export class VrcAdapter
     AvatarLibraryAdapter,
     CommunityAdapter,
     OwnProfileAdapter,
+    SocialActionAdapter,
     AccountNoteAdapter,
     HomeWorldAdapter
 {
@@ -1273,6 +1276,67 @@ export class VrcAdapter
       )
     )
     return parseVrcOwnProfile(raw, accountId)
+  }
+
+  // ── Unfriend, block and unblock (one confirmed write for one person) ─────────
+
+  captureSocialLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
+    const id = this.socialUserId(userId)
+    const query = new URLSearchParams({ type: 'block', targetUserId: id })
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/auth/user/playermoderations?${query.toString()}`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const blocked = parseVrcBlocked(raw, id)
+    if (blocked === null) throw new SocialDataError('VRChat block list response was malformed')
+    return blocked
+  }
+
+  async unfriend(userId: string, lease: RequestLease): Promise<void> {
+    const id = this.socialUserId(userId)
+    await this.runCommunityRequest(lease, () =>
+      this.delete(
+        `/auth/user/friends/${encodeURIComponent(id)}`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  async block(userId: string, lease: RequestLease): Promise<void> {
+    const id = this.socialUserId(userId)
+    await this.runCommunityRequest(lease, () =>
+      this.post(
+        '/auth/user/playermoderations',
+        { moderated: id, type: 'block' },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  async unblock(userId: string, lease: RequestLease): Promise<void> {
+    const id = this.socialUserId(userId)
+    await this.runCommunityRequest(lease, () =>
+      this.putJson(
+        '/auth/user/unplayermoderate',
+        { moderated: id, type: 'block' },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  private socialUserId(userId: string): string {
+    if (!isCommunityUserId('vrchat', userId)) throw new SocialDataError('Invalid VRChat user id')
+    return userId
   }
 
   // ── Account notes (the user's private note on a friend) ─────────────────────
