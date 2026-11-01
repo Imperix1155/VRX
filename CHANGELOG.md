@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.2] - 2026-11-01
+
+Dev test build. It has everything in 1.4.0-dev.1 plus the change below.
+
 ### Fixed
 
 - Friends list: the VRC and CVR tab on each friend card no longer touches the
