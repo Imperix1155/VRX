@@ -335,4 +335,76 @@ describe('HotInstanceSheet', () => {
     expect(screen.getByText('Alex')).toBeTruthy()
     expect(screen.queryByRole('img', { name: 'Alex' })).toBeNull()
   })
+
+  it('the grab bar expands the sheet into instance details, the same on both platforms', () => {
+    stubIntersectionObserver()
+    for (const instance of [makeHotInstance(), makeCvrHotInstance()]) {
+      render(<HotInstanceSheet instance={instance} onClose={vi.fn()} />)
+      const bar = screen.getByRole('button', { name: 'Show more' })
+      expect(bar.getAttribute('aria-expanded')).toBe('false')
+      expect(screen.queryByRole('region', { name: 'About this instance' })).toBeNull()
+
+      fireEvent.click(bar)
+      expect(bar.getAttribute('aria-expanded')).toBe('true')
+      const more = screen.getByRole('region', { name: 'About this instance' })
+      const labels = within(more)
+        .getAllByRole('term')
+        .map((term) => term.textContent)
+      // Same fields in the same order on both platforms.
+      expect(labels).toEqual([
+        'People here',
+        'Friends here',
+        'Region',
+        'Access',
+        'Group',
+        'Instance ID'
+      ])
+      // The full instance ID moves into the details instead of the truncated line.
+      expect(within(more).getByText(instance.instanceId)).toBeTruthy()
+      expect(screen.queryByTestId('hot-sheet-instance-id')).toBeNull()
+      expect(within(more).getByText(instance.groupName!)).toBeTruthy()
+
+      fireEvent.keyDown(bar, { key: 'ArrowDown' })
+      expect(screen.queryByRole('region', { name: 'About this instance' })).toBeNull()
+      cleanup()
+    }
+  })
+
+  it('shows the head count and region the members carry, never fewer people than friends', () => {
+    stubIntersectionObserver()
+    render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    const more = screen.getByRole('region', { name: 'About this instance' })
+    const value = (label: string): string | null =>
+      within(more).getByText(label).nextElementSibling?.textContent ?? null
+    expect(value('People here')).toBe('4')
+    expect(value('Friends here')).toBe('1')
+    expect(value('Region')).toBe('US West')
+    cleanup()
+
+    render(<HotInstanceSheet instance={makeCvrHotInstance()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    const cvr = screen.getByRole('region', { name: 'About this instance' })
+    expect(within(cvr).getByText('Region').nextElementSibling?.textContent).toBe('Not shown')
+  })
+
+  it('says a group hosts it even when the group name is unknown, and None only for no group', () => {
+    stubIntersectionObserver()
+    const groupValue = (): string | null =>
+      within(screen.getByRole('region', { name: 'About this instance' })).getByText('Group')
+        .nextElementSibling?.textContent ?? null
+    render(<HotInstanceSheet instance={makeHotInstance({ groupName: null })} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(groupValue()).toBe('Not shown')
+    cleanup()
+
+    render(
+      <HotInstanceSheet
+        instance={makeHotInstance({ isGroup: false, groupName: null, groupId: null })}
+        onClose={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(groupValue()).toBe('None')
+  })
 })

@@ -7,6 +7,9 @@ import type {
   ExploreWorldSnapshot
 } from '@shared/explore'
 import PlatformPill from './PlatformPill'
+import SheetGrabBar from './SheetGrabBar'
+import { SheetFacts, type SheetFact } from './SheetFacts'
+import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { joinFailureMessageKey, type JoinFeedback } from '../hooks/useJoinInstance'
 import { formatCount, regionLabelKey } from '../utils/exploreFormat'
 
@@ -146,7 +149,7 @@ export default function ExploreWorldSheet({
   joinFailureFor,
   consumeFocusRestoreSuppression
 }: ExploreWorldSheetProps): React.JSX.Element {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [retained, setRetained] = useState<ExploreWorldSnapshot | null>(null)
   if (snapshot !== null && snapshot !== retained) setRetained(snapshot)
   const shown = snapshot ?? retained
@@ -158,6 +161,12 @@ export default function ExploreWorldSheet({
   const panelRef = useRef<HTMLDivElement>(null)
   const openerRef = useRef<HTMLElement | null>(null)
   const wasOpenRef = useRef(false)
+  const expansion = useSheetExpansion({
+    open,
+    onClose,
+    panelRef,
+    collapsed: { minHeight: '0px', maxHeight: '55vh' }
+  })
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const [expiredFreshnessKey, setExpiredFreshnessKey] = useState<string | null>(null)
   const freshnessKey =
@@ -220,6 +229,34 @@ export default function ExploreWorldSheet({
   // empty list keeps its own line, and Refresh stays available beside it.
   const showStaleNote =
     isStale && shown.rooms.length > 0 && shown.status !== 'error' && shown.status !== 'unavailable'
+  const notShown = t('sheet.notShown')
+  const regions = [
+    ...new Set(
+      shown.rooms
+        .map((room) => regionLabelKey(room.platform, room.region))
+        .filter((key): key is string => key !== null)
+        .map((key) => t(key))
+    )
+  ]
+  const moreFacts: SheetFact[] = [
+    {
+      label: t('explore.more.people'),
+      value:
+        world.activity.state === 'complete'
+          ? formatCount(world.activity.value, i18n.language)
+          : t('explore.unknownCount')
+    },
+    { label: t('explore.more.regions'), value: regions.length > 0 ? regions.join(', ') : notShown },
+    {
+      label: t('explore.more.checked'),
+      value:
+        shown.updatedAt === null
+          ? notShown
+          : new Intl.DateTimeFormat(i18n.language, { timeStyle: 'short' }).format(
+              new Date(shown.updatedAt)
+            )
+    }
+  ]
   return (
     <div inert={!open} aria-hidden={!open}>
       <div
@@ -233,11 +270,13 @@ export default function ExploreWorldSheet({
           world: world.name,
           platform: t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
         })}
-        className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex max-h-[55vh] flex-col rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-transform ${open ? 'translate-y-0' : 'translate-y-full'}`}
+        data-sheet-expanded={expansion.expanded ? '' : undefined}
+        className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${open ? 'translate-y-0' : 'translate-y-full'}`}
         style={{
           // Opaque backing: a backdrop blur would never show (main.css .glass-information).
           backgroundColor: 'var(--glass-information)',
-          backgroundImage: 'var(--glass-bg)'
+          backgroundImage: 'var(--glass-bg)',
+          ...expansion.panelStyle
         }}
       >
         <button
@@ -261,15 +300,15 @@ export default function ExploreWorldSheet({
           />
           {/* Same grab bar as the Hot Instance sheet: it gives the close button
               its own row, so the world picture never sits under it. */}
-          <div className="flex shrink-0 justify-center pt-[var(--space-3)] pb-[var(--space-2)]">
-            <div aria-hidden="true" className="h-[4px] w-[44px] rounded-full bg-[var(--border)]" />
-          </div>
-          <div className="min-h-0 overflow-y-auto p-[var(--space-4)]">
+          <SheetGrabBar expansion={expansion} />
+          <div className="min-h-0 flex-1 overflow-y-auto p-[var(--space-4)]">
             {image && failedImage !== image ? (
               <img
                 src={image}
                 alt=""
-                className="h-[120px] w-full rounded-[13px] object-cover"
+                className={`w-full rounded-[13px] object-cover motion-safe:transition-[height] motion-safe:duration-[220ms] ${
+                  expansion.expanded ? 'h-[220px]' : 'h-[120px]'
+                }`}
                 onError={() => setFailedImage(image)}
               />
             ) : null}
@@ -297,6 +336,11 @@ export default function ExploreWorldSheet({
                 </div>
               ) : null}
             </div>
+            {expansion.expanded ? (
+              <div className="mt-[var(--space-4)]">
+                <SheetFacts heading={t('explore.more.heading')} facts={moreFacts} />
+              </div>
+            ) : null}
             <h3 className="mt-[var(--space-4)] text-sm font-semibold text-[var(--text)]">
               {t('explore.visiblePublicRooms')}
             </h3>

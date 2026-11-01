@@ -170,7 +170,8 @@ export default function SearchView(): React.JSX.Element {
             name: item.displayName,
             platform: platformName(t, item.platform)
           }),
-          tags: item.isFriend ? [t('search.friend')] : []
+          tags: item.isFriend ? [t('search.friend')] : [],
+          more: [{ label: t('profile.userId'), value: item.userId, mono: true }]
         })}
         onClose={closePerson}
       >

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Bottom panels: the grab bar at the top of every panel that slides up (Hot
+  Instances, Explore and Popular now worlds, Avatars, Search people and
+  Groups) now works. Drag it up for a taller panel with a bigger picture and
+  more details, drag it down to shrink it again, or keep pulling down to
+  close. A click on the bar, Enter, or the arrow keys do the same. The extra
+  details are: for a hot instance, how many people are there, the region,
+  access, group and the full instance ID; for a world, people now, the room
+  regions and when it was last checked; for an avatar, its full description
+  and avatar ID; for a person or group, their user or group ID. Nothing new is
+  loaded from VRChat or ChilloutVR to show them.
+
 ### Changed
 
 - Dashboard: the Friends online, In game and Hot instances cards now look like

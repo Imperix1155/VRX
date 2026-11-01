@@ -552,6 +552,15 @@ the same small card-colored backing as other pills over a picture. Escape, a cli
 return focus to the opener or a stable fallback. A confirmation modal owns
 dismissal while open, and the Dashboard never shows both sheet types at once.
 
+Every bottom sheet (Hot Instance, Explore world, Avatar, person, group) opens
+collapsed, and its grab bar is a real control (`SheetGrabBar`): drag up to
+expand to nearly the window height, drag down to collapse, and pull a
+collapsed sheet down to close it. A press on the bar, Enter or Space toggles;
+Arrow Up and Arrow Down expand and collapse. Expanding grows the banner and
+adds the sheet's "more" details (`SheetFacts`) from data already on hand,
+never a new platform request. Both platforms show the same extra fields in
+the same order. Each reopen starts collapsed.
+
 ### §9.4 Explore and loading states
 
 Explore and the Dashboard's Popular now use the same world card. Equivalent
