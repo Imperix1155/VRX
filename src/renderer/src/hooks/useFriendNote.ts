@@ -68,6 +68,34 @@ const latestDrafts = coordinator.latestDrafts
 const boundaryEpochs = coordinator.boundaryEpochs
 const boundaryListeners = coordinator.boundaryListeners
 
+export interface FriendNoteSaved {
+  platform: Platform
+  friendId: string
+  note: string
+  revision: { platformAccountId: string; epoch: number }
+}
+
+// A saved note can outlive its drawer (closing it or picking another friend
+// flushes the save), so listeners hear about it here rather than through a
+// mounted component. Renderer-lifetime only.
+const savedListeners = new Set<(saved: FriendNoteSaved) => void>()
+
+/** Hear about every note VRX saved locally, whether or not its drawer is open. */
+export function subscribeFriendNoteSaved(listener: (saved: FriendNoteSaved) => void): () => void {
+  savedListeners.add(listener)
+  return () => savedListeners.delete(listener)
+}
+
+function notifyFriendNoteSaved(saved: FriendNoteSaved): void {
+  for (const listener of savedListeners) {
+    try {
+      listener(saved)
+    } catch {
+      // A listener's failure never undoes or blocks the local save.
+    }
+  }
+}
+
 function epochFor(platform: Platform): number {
   return boundaryEpochs.get(platform) ?? 0
 }
@@ -389,6 +417,12 @@ export function useFriendNote({
             }
             if (result?.ok) {
               queryClient.setQueryData(saveQueryKey, { note, revision })
+              notifyFriendNoteSaved({
+                platform: save.platform,
+                friendId: save.friendId,
+                note,
+                revision
+              })
               // A late completion may only dismiss feedback when it saved the
               // draft still visible for this friend/account boundary.
               const currentDraft = latestDrafts.get(save.key)

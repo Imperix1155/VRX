@@ -2,7 +2,7 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import type { AccountNoteSyncMode, AccountNoteSyncResult } from '@shared/accountNotes'
 import type { Platform } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
-import type { UseAccountFriendNoteResult } from './useFriendNote'
+import { subscribeFriendNoteSaved, type UseAccountFriendNoteResult } from './useFriendNote'
 
 /** A drawer that stays open this long checks the account copy. Flicking
  *  through friends never sends a read. */
@@ -23,8 +23,12 @@ export type AccountNoteView =
 interface Entry {
   view: AccountNoteView
   at: number
-  /** VRX's saved copy as this entry last saw it; a different one is an edit. */
-  seenNote: string | null
+}
+
+interface Target {
+  platform: Platform
+  friendId: string
+  revision: { platformAccountId: string; epoch: number }
 }
 
 // Renderer-lifetime only. Keys carry the account and its epoch, so nothing
@@ -37,12 +41,73 @@ function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
-function update(key: string, change: Partial<Entry>): void {
-  const current = entries.get(key) ?? { view: { kind: 'idle' }, at: 0, seenNote: null }
-  entries.set(key, { ...current, ...change })
+function update(key: string, entry: Entry): void {
+  entries.set(key, entry)
   version += 1
   listeners.forEach((listener) => listener())
 }
+function keyFor({ platform, friendId, revision }: Target): string {
+  return `${platform}:${revision.platformAccountId}:${revision.epoch}:${friendId}`
+}
+function bridge(): NonNullable<Window['vrx']>['syncFriendNote'] | null {
+  return typeof window !== 'undefined' && typeof window.vrx?.syncFriendNote === 'function'
+    ? window.vrx.syncFriendNote
+    : null
+}
+
+/**
+ * One call to main for one friend. Results land in the shared map, so a call
+ * that outlives its drawer (a save flushed by closing it) still shows when the
+ * drawer opens again. `adopt` shows the copy main saved after `use-account`.
+ */
+async function runSync(
+  target: Target,
+  mode: AccountNoteSyncMode,
+  adopt?: (note: string) => void
+): Promise<void> {
+  const sync = bridge()
+  if (sync === null) return
+  const key = keyFor(target)
+  update(key, { view: { kind: 'working', mode }, at: entries.get(key)?.at ?? 0 })
+  let result: AccountNoteSyncResult
+  try {
+    result = await sync({ ...target, mode })
+  } catch {
+    result = { ok: false, reason: 'unavailable' }
+  }
+  const at = performance.now()
+  if (!result.ok) {
+    // Nothing to say about someone who is no longer a friend, or after an
+    // account change; the drawer moves on.
+    const quiet = result.reason === 'not-friend' || result.reason === 'stale'
+    update(key, { view: quiet ? { kind: 'idle' } : { kind: 'failed', mode }, at })
+    return
+  }
+  if (mode === 'use-account') adopt?.(result.note)
+  switch (result.state) {
+    case 'off':
+      update(key, { view: { kind: 'idle' }, at })
+      return
+    case 'account-changed':
+      update(key, {
+        view: { kind: 'account-changed', accountNote: result.accountNote, localNote: result.note },
+        at
+      })
+      return
+    case 'conflict':
+      update(key, { view: { kind: 'conflict', accountNote: result.accountNote }, at })
+      return
+    default:
+      update(key, { view: { kind: result.state }, at })
+  }
+}
+
+// Every saved edit goes to the account, including one flushed as its drawer
+// closes or moves to another friend.
+subscribeFriendNoteSaved(({ platform, friendId, revision }) => {
+  if (!useSettingsStore.getState().settings.saveNotesToAccounts) return
+  void runSync({ platform, friendId, revision }, 'save')
+})
 
 /** Test-only cleanup. */
 export function resetAccountNotesForTests(): void {
@@ -60,9 +125,9 @@ export interface UseAccountNoteResult {
 
 /**
  * Keeps one friend's note in step with the copy on the signed-in account.
- * Checks after the drawer has been open a moment, saves after each saved edit,
- * takes the account copy on its own only when VRX's copy did not change, and
- * otherwise leaves the choice to the user.
+ * Checks after the drawer has been open a moment, takes the account copy on
+ * its own only when VRX's copy did not change, and otherwise leaves the
+ * choice to the user. Saves after an edit run from the module listener above.
  */
 export function useAccountNote(
   platform: Platform,
@@ -71,14 +136,11 @@ export function useAccountNote(
 ): UseAccountNoteResult {
   const enabled = useSettingsStore((s) => s.settings.saveNotesToAccounts)
   const { persisted, isEditing, adoptPersisted } = note
-  const sync =
-    typeof window !== 'undefined' && typeof window.vrx?.syncFriendNote === 'function'
-      ? window.vrx.syncFriendNote
-      : null
-  const active = enabled && sync !== null && friendId !== '' && persisted !== null
-  const key = active
-    ? `${platform}:${persisted.revision.platformAccountId}:${persisted.revision.epoch}:${friendId}`
-    : null
+  const active = enabled && bridge() !== null && friendId !== '' && persisted !== null
+  const revision = persisted?.revision
+  const target: Target | null =
+    active && revision !== undefined ? { platform, friendId, revision } : null
+  const key = target === null ? null : keyFor(target)
   useSyncExternalStore(
     subscribe,
     () => version,
@@ -87,66 +149,12 @@ export function useAccountNote(
   const entry = key === null ? undefined : entries.get(key)
 
   const run = useCallback(
-    async (mode: AccountNoteSyncMode): Promise<void> => {
-      if (key === null || sync === null || persisted === null) return
-      update(key, { view: { kind: 'working', mode } })
-      let result: AccountNoteSyncResult
-      try {
-        result = await sync({ platform, friendId, revision: persisted.revision, mode })
-      } catch {
-        result = { ok: false, reason: 'unavailable' }
-      }
-      const at = performance.now()
-      if (!result.ok) {
-        // Nothing to say about someone who is no longer a friend, or after an
-        // account change; the drawer moves on.
-        const quiet = result.reason === 'not-friend' || result.reason === 'stale'
-        update(key, { view: quiet ? { kind: 'idle' } : { kind: 'failed', mode }, at })
-        return
-      }
-      const seenNote = entries.get(key)?.seenNote ?? persisted.note
-      if (result.note.trimEnd() !== seenNote.trimEnd()) {
-        // Main saved the account copy as VRX's copy; show it without counting
-        // it as an edit.
-        update(key, { seenNote: result.note })
-        adoptPersisted(result.note)
-      }
-      switch (result.state) {
-        case 'off':
-          update(key, { view: { kind: 'idle' }, at })
-          return
-        case 'account-changed':
-          update(key, {
-            view: {
-              kind: 'account-changed',
-              accountNote: result.accountNote,
-              localNote: result.note
-            },
-            at
-          })
-          return
-        case 'conflict':
-          update(key, { view: { kind: 'conflict', accountNote: result.accountNote }, at })
-          return
-        default:
-          update(key, { view: { kind: result.state }, at })
-      }
+    (mode: AccountNoteSyncMode): void => {
+      if (key === null || revision === undefined) return
+      void runSync({ platform, friendId, revision }, mode, adoptPersisted)
     },
-    [adoptPersisted, friendId, key, persisted, platform, sync]
+    [adoptPersisted, friendId, key, platform, revision]
   )
-
-  // A saved edit: VRX's copy changed under the same key.
-  useEffect(() => {
-    if (key === null || persisted === null) return
-    const current = entries.get(key)
-    if (current === undefined || current.seenNote === null) {
-      update(key, { seenNote: persisted.note })
-      return
-    }
-    if (current.seenNote.trimEnd() === persisted.note.trimEnd()) return
-    update(key, { seenNote: persisted.note })
-    void run('save')
-  }, [key, persisted, run])
 
   // The first look once the drawer stays open, and again after 5 minutes.
   useEffect(() => {
@@ -156,9 +164,8 @@ export function useAccountNote(
       return
     if (current?.view.kind === 'working') return
     const timer = setTimeout(() => {
-      const latest = entries.get(key)
-      if (latest?.view.kind === 'working') return
-      void run('check')
+      if (entries.get(key)?.view.kind === 'working') return
+      run('check')
     }, ACCOUNT_NOTE_CHECK_DWELL_MS)
     return () => clearTimeout(timer)
   }, [key, run])
@@ -170,16 +177,16 @@ export function useAccountNote(
     const current = entries.get(key)?.view
     if (current?.kind !== 'account-changed') return
     if (current.localNote.trimEnd() !== persisted.note.trimEnd()) return
-    void run('use-account')
+    run('use-account')
   }, [entry, isEditing, key, persisted, run])
 
   const view: AccountNoteView = key === null ? { kind: 'idle' } : (entry?.view ?? { kind: 'idle' })
   const lastMode = view.kind === 'failed' ? view.mode : 'check'
   return {
     view,
-    saveNow: useCallback(() => void run('save'), [run]),
-    keepMine: useCallback(() => void run('keep-mine'), [run]),
-    useAccountCopy: useCallback(() => void run('use-account'), [run]),
-    retry: useCallback(() => void run(lastMode), [lastMode, run])
+    saveNow: useCallback(() => run('save'), [run]),
+    keepMine: useCallback(() => run('keep-mine'), [run]),
+    useAccountCopy: useCallback(() => run('use-account'), [run]),
+    retry: useCallback(() => run(lastMode), [lastMode, run])
   }
 }

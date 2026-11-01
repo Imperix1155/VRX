@@ -181,6 +181,7 @@ export class AccountNoteService {
         if (mode === 'check') return { ok: true, state: 'local-only', note: local }
         const sent = accountNoteToSend(platform, local)
         const written = await this.writeAccount(adapter, friendId, sent, lease)
+        if (written === 'off') return { ok: true, state: 'off', note: local }
         if (!written.ok) return written
         this.remember(key, { generation: lease.generation, note: sent, at: this.clock() })
         return this.storeAgreed(context, friendId, localForm, local)
@@ -274,7 +275,7 @@ export class AccountNoteService {
     friendId: string,
     note: string,
     lease: RequestLease
-  ): Promise<{ ok: true } | { ok: false; reason: AccountNoteSyncFailure }> {
+  ): Promise<{ ok: true } | { ok: false; reason: AccountNoteSyncFailure } | 'off'> {
     const platform = adapter.platform
     const previous = this.writes.get(platform) ?? Promise.resolve()
     const run = previous.then(async () => {
@@ -282,8 +283,11 @@ export class AccountNoteService {
       const wait = last === undefined ? 0 : last + ACCOUNT_NOTE_WRITE_SPACING_MS - this.clock()
       if (wait > 0) await this.sleep(wait)
       if (!lease.isCurrent() || lease.signal.aborted) throw new RequestCancelledError()
+      // The user may have turned account notes off while this write waited.
+      if (!this.options.isEnabled()) return 'off' as const
       try {
         await adapter.writeAccountNote(friendId, note, lease)
+        return 'sent' as const
       } finally {
         this.lastWriteAt.set(platform, this.clock())
       }
@@ -293,8 +297,7 @@ export class AccountNoteService {
       run.catch(() => undefined)
     )
     try {
-      await run
-      return { ok: true }
+      return (await run) === 'off' ? 'off' : { ok: true }
     } catch (error) {
       return this.failure(platform, 'write', this.reason(error))
     }

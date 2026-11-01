@@ -133,6 +133,24 @@ describe('FriendDrawer account notes', () => {
     expect(setFriendNote).toHaveBeenCalledTimes(1)
   })
 
+  it('still saves to the account when closing the drawer flushes the edit', async () => {
+    render(<FriendsList />)
+    const scoped = within(open())
+    const textarea = await waitFor(() => scoped.getByDisplayValue('Plays drums'))
+    fireEvent.change(textarea, { target: { value: 'Plays bass' } })
+    fireEvent.click(scoped.getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(syncFriendNote).toHaveBeenCalledWith({
+        platform: 'vrchat',
+        friendId: 'usr_alex',
+        revision,
+        mode: 'save'
+      })
+    )
+  })
+
   it('offers a save for a note that is only on this PC', async () => {
     syncFriendNote.mockResolvedValueOnce({ ok: true, state: 'local-only', note: 'Plays drums' })
     render(<FriendsList />)

@@ -267,6 +267,31 @@ describe('AccountNoteService', () => {
     expect(slept).toEqual([ACCOUNT_NOTE_WRITE_SPACING_MS])
   })
 
+  it('drops a queued write when the setting is turned off while it waits', async () => {
+    setLocal('one')
+    await service.sync(request('save'))
+    setLocal('two')
+    let releaseSleep: () => void = () => undefined
+    const asleep = new Promise<void>((resolve) => (releaseSleep = resolve))
+    service = new AccountNoteService({
+      adapters: new Map([['vrchat', adapter]]),
+      socialStore: store,
+      accountSession: session,
+      isFriend: () => true,
+      isEnabled: () => enabled,
+      clock: () => now,
+      sleep: () => asleep
+    })
+    await service.sync(request('save'))
+    setLocal('three')
+    const pending = service.sync(request('save'))
+    await vi.waitFor(() => expect(adapter.reads).toBe(3))
+    enabled = false
+    releaseSleep()
+    await expect(pending).resolves.toEqual({ ok: true, state: 'off', note: 'three' })
+    expect(adapter.writes).toEqual(['one', 'two'])
+  })
+
   it('does nothing when the setting is off, for non-friends, or across accounts', async () => {
     setLocal('mine')
     enabled = false
