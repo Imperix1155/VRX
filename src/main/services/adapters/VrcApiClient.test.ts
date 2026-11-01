@@ -22,8 +22,11 @@ class TestClient extends VrcApiClient {
   callPost<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
     return this.post(path, body, schema)
   }
-  callPut<T>(path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
-    return this.put(path, schema, undefined, body)
+  callPut<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+    return this.put(path, schema)
+  }
+  callPutJson<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+    return this.putJson(path, body, schema)
   }
   callDelete<T>(path: string, schema: z.ZodType<T>): Promise<T> {
     return this.delete(path, schema)
@@ -76,16 +79,17 @@ describe('VrcApiClient', () => {
     expect(options.headers.Cookie).toBeUndefined()
   })
 
-  it('PUTs without a body by default and with a JSON body when given one', async () => {
+  it('PUTs without a body, or with a JSON body through putJson', async () => {
     const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({ ok: true })))
     vi.stubGlobal('fetch', fetchMock)
     const client = new TestClient()
 
     await client.callPut('/avatars/avtr_1/select', z.unknown())
-    await client.callPut('/auth/user/unplayermoderate', z.unknown(), {
-      moderated: 'usr_1',
-      type: 'block'
-    })
+    await client.callPutJson(
+      '/auth/user/unplayermoderate',
+      { moderated: 'usr_1', type: 'block' },
+      z.unknown()
+    )
 
     const [, bare] = fetchMock.mock.calls[0]! as unknown as [string, SentRequest]
     expect(bare.method).toBe('PUT')

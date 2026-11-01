@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Worlds: a **Set as home world** button on every world panel (Explore's
+  Popular now, New and Recently updated, and Search results), for VRChat and
+  ChilloutVR alike. VRX asks once before it changes anything, because the new
+  home replaces the one you have now, then sends a single request. The panel
+  then says "Your home world".
 - Unfriend and block: every full profile (in friend details and in Search)
   now ends with an "Unfriend or block" button, on VRChat and ChilloutVR
   alike. Press it and VRX checks whether you've blocked that person, then

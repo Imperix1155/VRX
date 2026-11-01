@@ -43,21 +43,23 @@ confirmation (see [Unfriend and block](#unfriend-and-block)). It launches
 the game through local URL schemes, or, when the game is already open, hands
 the Join to that copy (see
 [Joining a game that is already open](#joining-a-game-that-is-already-open)).
+When the user presses **Set as home world** on a world sheet and confirms, it
+makes that world their home (see [Home world limits](#home-world-limits)).
 
-| Area                  | VRChat                                                                                                                                                                                                                                                                                                                          | ChilloutVR                                                                                                                       |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| REST base             | `https://api.vrchat.cloud/api/1`                                                                                                                                                                                                                                                                                                | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net`                                                |
-| Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                                                                                                                                                                                                                                                                 | `wss://api.chilloutvr.net/1/users/ws`                                                                                            |
-| Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie                                                                                                                                                                                                                                              | `Username` and `AccessKey` upgrade headers, the same headers REST uses                                                           |
-| Socket traffic        | Receive-only                                                                                                                                                                                                                                                                                                                    | Receive-only, except the profile's confirmed Unfriend, Block and Unblock (`RequestType` 8, 30, 31)                               |
-| Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline                                                                                                                                                                                                                                               | One `GET /friends`                                                                                                               |
-| Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                                                                                                                                                                          | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                                                    |
-| Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                                                                                                                                                                             | Username and access key                                                                                                          |
-| Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                                                                                                                                           | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open                                  |
-| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`; whether the user blocks someone, `GET /auth/user/playermoderations?type=block&targetUserId=`                                                                                                              | `GET /users/{id}` (also whether the user blocks them), `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats` |
-| Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`; from a profile, unfriend `DELETE /auth/user/friends/{id}`, block `POST /auth/user/playermoderations`, unblock `PUT /auth/user/unplayermoderate` | Avatar switch, `GET /avatars/{id}/switchAvatar`; from a profile, unfriend, block and unblock over `/users/ws`                    |
-| Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                                                                                                                                                                           | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                                                  |
-| API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days. World and avatar pictures ask for the full picture in place of the 256 px thumbnail: still one request each                                                                                                                         | None; ChilloutVR images come from CDN hosts                                                                                      |
+| Area                  | VRChat                                                                                                                                                                                                                                                                                                                                                         | ChilloutVR                                                                                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REST base             | `https://api.vrchat.cloud/api/1`                                                                                                                                                                                                                                                                                                                               | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net`                                                                     |
+| Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                                                                                                                                                                                                                                                                                                | `wss://api.chilloutvr.net/1/users/ws`                                                                                                                 |
+| Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie                                                                                                                                                                                                                                                                             | `Username` and `AccessKey` upgrade headers, the same headers REST uses                                                                                |
+| Socket traffic        | Receive-only                                                                                                                                                                                                                                                                                                                                                   | Receive-only, except the profile's confirmed Unfriend, Block and Unblock (`RequestType` 8, 30, 31)                                                    |
+| Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline                                                                                                                                                                                                                                                                              | One `GET /friends`                                                                                                                                    |
+| Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                                                                                                                                                                                                         | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                                                                         |
+| Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                                                                                                                                                                                                            | Username and access key                                                                                                                               |
+| Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                                                                                                                                                                          | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open                                                       |
+| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`; whether the user blocks someone, `GET /auth/user/playermoderations?type=block&targetUserId=`                                                                                                                                             | `GET /users/{id}` (also whether the user blocks them), `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`                      |
+| Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`; home world, `PUT /users/{me}`; from a profile, unfriend `DELETE /auth/user/friends/{id}`, block `POST /auth/user/playermoderations`, unblock `PUT /auth/user/unplayermoderate` | Avatar switch, `GET /avatars/{id}/switchAvatar`; home world, `GET /worlds/{id}/sethome`; from a profile, unfriend, block and unblock over `/users/ws` |
+| Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                                                                                                                                                                                                          | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                                                                       |
+| API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days. World and avatar pictures ask for the full picture in place of the 256 px thumbnail: still one request each                                                                                                                                                        | None; ChilloutVR images come from CDN hosts                                                                                                           |
 
 VRX never stores a password. A sign-in exchanges the password once for the
 session material in the table, which [`credentials.ts`](../src/main/services/credentials.ts)
@@ -77,9 +79,11 @@ before it saves anything.
   request reads them, and VRX never accepts, declines or replies. Hide only
   removes a row inside VRX.
 - **No mass actions.** No bulk invites, friend requests, messages, unfriends
-  or blocks. The only platform writes are one user-initiated VRChat
-  self-invite at a time, one user-initiated avatar switch per platform at a
-  time, to an avatar VRX listed for that signed-in account, and one confirmed
+  or blocks.
+  The only platform writes are one user-initiated VRChat self-invite at a time,
+  one user-initiated avatar switch per platform at a time, to an avatar VRX
+  listed for that signed-in account, one confirmed home-world change per
+  platform at a time, to a world VRX showed that account, and one confirmed
   unfriend, block or unblock of one person per platform at a time.
 - **No avatar crawling.** VRX lists only the user's own uploads and the avatar
   they wear. It never searches other people's avatars or uses third-party
@@ -288,6 +292,20 @@ invalidated session.
 | Explore list tab  | 1 read per platform                                                        |
 | Player counts     | 1 read per shown platform at start and on a page switch; none within 5 min |
 
+## Home world limits
+
+**Set as home world** on a world sheet (Explore's Popular now, New and
+Recently updated, and Search results) changes the signed-in account's home
+world. It asks first ("It replaces the one you have now"), so a stray click
+sends nothing.
+
+| Limit       | Value                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| Requests    | 1 per confirmed press, at interactive priority, never retried                                      |
+| Pacing      | One change at a time per platform; 5 s after any attempt, failed or not (`HOME_WORLD_COOLDOWN_MS`) |
+| Which world | Only one main issued a reference for, for the current account; the renderer never names an ID      |
+| Reads       | None. VRX remembers a success for the session; it never reads the home world back                  |
+
 ## Unfriend and block
 
 A full profile (friend details or a Search result) ends with **Unfriend or
@@ -335,13 +353,14 @@ Main also rate-limits the renderer's requests before any network work starts.
 | Avatar list              | 30 per minute; concurrent reads share one run                                                                                            |
 | Avatar details           | 60 per minute                                                                                                                            |
 | Avatar switch            | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
+| Set as home world        | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
+| Unfriend or block check  | 30 per minute; cached 5 min per person                                                                                                   |
+| Unfriend, block, unblock | 20 per minute; one per platform at a time; 3 s after each answer                                                                         |
 | Profile                  | 60 per minute; a person's worlds and groups 30 per minute each                                                                           |
 | Search                   | 60 per minute; one platform search every 2 s                                                                                             |
 | World lists              | 60 per minute                                                                                                                            |
 | Players online, groups   | 30 per minute each                                                                                                                       |
 | Join from Explore        | 20 per minute; one launch per platform at a time; 3 s cooldown per destination                                                           |
-| Unfriend or block check  | 30 per minute; cached 5 min per person                                                                                                   |
-| Unfriend, block, unblock | 20 per minute; one per platform at a time; 3 s after each answer                                                                         |
 
 The full table is `IPC_RATE_LIMIT_BUDGETS` in
 [`rate-limit.ts`](../src/main/ipc/rate-limit.ts). Every join also respects the
@@ -380,8 +399,9 @@ account. VRX limits that risk by:
 - using the platforms' own sockets for live data instead of polling;
 - limiting writes to one user-initiated VRChat self-invite at a time, sent
   only from a Join the user pressed, one user-initiated avatar switch per
-  platform at a time, and one confirmed unfriend, block or unblock of one
-  person per platform at a time;
+  platform at a time, one confirmed home-world change per platform at a time,
+  and one confirmed unfriend, block or unblock of one person per platform at a
+  time;
 - never storing passwords, and keeping session material in main, encrypted at
   rest and invisible to the renderer;
 - validating a restored ChilloutVR session once per launch, and confirming a

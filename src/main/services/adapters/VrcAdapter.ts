@@ -70,12 +70,14 @@ import {
   type PersonProfile,
   type WorldList
 } from '@shared/community'
+import { isHomeWorldId } from '@shared/homeWorld'
 import {
   CommunityDataError,
   type CommunityAdapter,
   type CommunityList,
   type CommunitySearchPage
 } from './CommunityAdapter'
+import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
 import {
   parseVrcGroups,
   parseVrcPeople,
@@ -259,7 +261,12 @@ const VRC_WORLD_LIST_SORT: Record<WorldList, string> = {
 
 export class VrcAdapter
   extends VrcApiClient
-  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter, SocialActionAdapter
+  implements
+    ExploreAdapter,
+    AvatarLibraryAdapter,
+    CommunityAdapter,
+    SocialActionAdapter,
+    HomeWorldAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -1089,6 +1096,31 @@ export class VrcAdapter
     )
   }
 
+  // ── Home world (one user-pressed write at a time) ───────────────────────────
+
+  captureHomeWorldLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async setHomeWorld(worldId: string, lease: RequestLease): Promise<void> {
+    if (!isHomeWorldId('vrchat', worldId)) throw new HomeWorldIdError('Invalid VRChat world id')
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    // VRCX sends the same one-field update to the signed-in user.
+    await this.runCommunityRequest(lease, () =>
+      this.putJson(
+        `/users/${encodeURIComponent(accountId)}`,
+        { homeLocation: worldId },
+        z.unknown(),
+        {
+          ...this.communityOptions(lease),
+          // A write is never sent twice on its own; the user can press again.
+          retry: 'none'
+        }
+      )
+    )
+  }
+
   // ── Community reads (profiles, search, lists, players online, groups) ───────
   // Read-only; each one follows a user action and waits in the shared line.
 
@@ -1251,10 +1283,12 @@ export class VrcAdapter
   async unblock(userId: string, lease: RequestLease): Promise<void> {
     const id = this.socialUserId(userId)
     await this.runCommunityRequest(lease, () =>
-      this.put('/auth/user/unplayermoderate', z.unknown(), this.communityOptions(lease), {
-        moderated: id,
-        type: 'block'
-      })
+      this.putJson(
+        '/auth/user/unplayermoderate',
+        { moderated: id, type: 'block' },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
     )
   }
 

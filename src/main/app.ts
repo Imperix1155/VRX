@@ -7,6 +7,8 @@ import { CommunityService } from './services/communityService'
 import type { CommunityAdapter } from './services/adapters/CommunityAdapter'
 import type { SocialActionAdapter } from './services/adapters/SocialActionAdapter'
 import { SocialActionService } from './services/socialActionService'
+import { HomeWorldService } from './services/homeWorldService'
+import type { HomeWorldAdapter } from './services/adapters/HomeWorldAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
@@ -417,6 +419,7 @@ app
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
     const communityBoundary: { current?: CommunityService } = {}
     const socialBoundary: { current?: SocialActionService } = {}
+    const homeWorldBoundary: { current?: HomeWorldService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
@@ -454,6 +457,7 @@ app
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
         communityBoundary.current?.clearPlatform('vrchat')
         socialBoundary.current?.clearPlatform('vrchat')
+        homeWorldBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
         // boundary too would read as an account switch: it refetched the dead
@@ -531,6 +535,7 @@ app
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
         communityBoundary.current?.clearPlatform('chilloutvr')
         socialBoundary.current?.clearPlatform('chilloutvr')
+        homeWorldBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -718,6 +723,16 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     communityBoundary.current = community
+    // "Set as home world" from a world sheet: one write, by Explore reference.
+    const homeWorld = new HomeWorldService({
+      adapters: new Map<Platform, HomeWorldAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      resolveWorld: (platform, worldRef) => explore.worldIdFor(platform, worldRef),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    homeWorldBoundary.current = homeWorld
 
     // The profile's Unfriend, Block and Unblock: confirmed, one person at a time.
     const social = new SocialActionService({
@@ -733,6 +748,7 @@ app
 
     registerIpcHandlers(adapters, {
       explore,
+      homeWorld,
       inbox,
       vrOverlayAlerts,
       avatarLibrary,
@@ -842,6 +858,7 @@ app
         avatarLibrary.clearPlatform(event.platform)
         community.clearPlatform(event.platform)
         social.clearPlatform(event.platform)
+        homeWorld.clearPlatform(event.platform)
       }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }
       for (const window of BrowserWindow.getAllWindows()) {

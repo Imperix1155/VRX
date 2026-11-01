@@ -40,6 +40,8 @@ const vrx = {
     ipcRenderer.on('explore-changed', listener)
     return () => ipcRenderer.removeListener('explore-changed', listener)
   },
+  // World references only: main resolves them to the platform's world ID.
+  setHomeWorld: (req: IpcInvoke['set-home-world']['req']) => invoke('set-home-world', req),
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
   getAvatar: (url: string, rendition?: 'avatar' | 'picture') =>
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),

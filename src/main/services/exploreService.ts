@@ -274,6 +274,18 @@ export class ExploreService {
     return adopted
   }
 
+  /**
+   * The platform world ID behind a reference main issued to the current
+   * account, or null once it expired or the account changed. Lets another
+   * main service act on a world the user opened without trusting an ID from
+   * the renderer. Makes no request.
+   */
+  worldIdFor(platform: Platform, worldRef: string): string | null {
+    const state = this.state(platform)
+    if (!this.current(platform, state)) return null
+    return this.findWorld(state, worldRef)?.evidence.worldId ?? null
+  }
+
   async getImage(platform: Platform, worldRef: string): Promise<ExploreImageResult> {
     const state = this.state(platform)
     const world = this.findWorld(state, worldRef)
