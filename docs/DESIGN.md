@@ -495,6 +495,13 @@ the platform tint on top, so the platform color still reads at a glance;
 pills over a picture get a small backing in the card color. Card grids follow
 the card style, not the section order: picture cards sit two across when the
 area is at least 440 px wide (as in Explore), and bars two across from 620 px.
+On wide windows picture grids (Explore, Popular now, world results, Hot
+Instances) add a column each time a column would pass about 730 px: three
+from 1,480 px, four from 2,200 px, up to eight. A picture card never stretches
+far past its picture, so an ultrawide, a TV or a fullscreen 1080p window shows
+more cards instead of blurry ones; a short row keeps card-sized cards rather
+than filling the width. The rule lives in `main.css` (`.picture-grid`,
+`.hot-grid--picture`).
 The Hot Instances
 section adds a quiet "See all N" button, shown only while the page is, that
 opens the Hot Instances page,

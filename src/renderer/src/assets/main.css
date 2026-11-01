@@ -1006,6 +1006,74 @@ body::after {
 }
 
 /**
+ * Picture card grids (Explore, Popular now, world results; Hot Instances via
+ * `.hot-grid--picture`). Two columns from the window floor, then one more
+ * column each time a column would pass about 730px (owner, 2026-11-01:
+ * pictures looked blurry on an ultrawide, a TV and 1080p fullscreen because
+ * two columns stretched each picture far past its source). Narrower columns
+ * keep pictures close to their real size and use the extra width for more
+ * cards. `.picture-gridwrap` is the grid-only query container, like
+ * `.hotwrap`, so it never wraps a heading.
+ */
+.picture-gridwrap {
+  container-type: inline-size;
+}
+
+.picture-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@container (min-width: 440px) {
+  .picture-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1480px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 2200px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 2920px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 3640px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 4360px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 5080px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+/**
  * Dashboard glance row (owner, 2026-10-27): "Wearing now" and "Latest invites"
  * side by side under the numbers, one column on a narrow pane. A lone section
  * fills the row. The wrapper is the query container, like `.hotwrap`.

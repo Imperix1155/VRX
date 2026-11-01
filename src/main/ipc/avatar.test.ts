@@ -17,7 +17,7 @@ vi.mock('./security', () => ({
   isTrustedIpcSender: vi.fn(() => trusted.value)
 }))
 
-const service = vi.hoisted(() => ({ get: vi.fn() }))
+const service = vi.hoisted(() => ({ get: vi.fn(), getPicture: vi.fn() }))
 vi.mock('../services/avatarCache', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/avatarCache')>()),
   avatarCache: service
@@ -32,6 +32,7 @@ beforeEach(() => {
   handlers.clear()
   trusted.value = true
   service.get.mockReset().mockResolvedValue(null)
+  service.getPicture.mockReset().mockResolvedValue(null)
   registerAvatarHandlers()
 })
 
@@ -88,6 +89,17 @@ describe('get-avatar handler boundary', () => {
     for (const rendition of ['original', 'full', 42, null, {}]) {
       await expect(call({ url, rendition })).rejects.toThrow('Invalid avatar rendition')
     }
+    expect(service.get).not.toHaveBeenCalled()
+  })
+
+  it('sends the picture rendition to getPicture, the sharp card-sized path', async () => {
+    const url = 'https://api.vrchat.cloud/api/1/image/file_1/1/256'
+    service.getPicture.mockResolvedValue('data:image/jpeg;base64,eA==')
+    await expect(call({ url, rendition: 'picture' })).resolves.toEqual({
+      ok: true,
+      dataUrl: 'data:image/jpeg;base64,eA=='
+    })
+    expect(service.getPicture).toHaveBeenCalledWith(url)
     expect(service.get).not.toHaveBeenCalled()
   })
 })

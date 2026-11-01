@@ -154,7 +154,7 @@ function SheetCloseButton({
 
 function SheetBanner({ header }: { header: CommunitySheetHeader }): React.JSX.Element {
   const bannerRef = useRef<HTMLDivElement>(null)
-  const bannerDataUrl = useAvatar(header.imageUrl, bannerRef)
+  const bannerDataUrl = useAvatar(header.imageUrl, bannerRef, 'picture')
   const [failedBanner, setFailedBanner] = useState<string | null>(null)
   const showImage = bannerDataUrl !== null && bannerDataUrl !== failedBanner
   return (

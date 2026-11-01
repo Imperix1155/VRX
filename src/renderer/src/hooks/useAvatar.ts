@@ -62,11 +62,15 @@ export class AvatarDataCache {
 const avatarData = new AvatarDataCache()
 const avatarRequests = new Map<string, Promise<string | null>>()
 
-/** `avatar` is the small copy for round friend pictures; banners keep the original. */
-export type AvatarRendition = 'original' | 'avatar'
+/**
+ * `avatar` is the small copy for round friend pictures. `picture` is the sharp,
+ * card-sized copy for world and avatar pictures on cards, tiles and banners.
+ * Everything else keeps the original.
+ */
+export type AvatarRendition = 'original' | 'avatar' | 'picture'
 
 function requestAvatar(url: string, rendition: AvatarRendition): Promise<string | null> {
-  const key = rendition === 'avatar' ? `avatar\u0000${url}` : url
+  const key = rendition === 'original' ? url : `${rendition}\u0000${url}`
   const cached = avatarData.get(key)
   if (cached) return Promise.resolve(cached)
 
@@ -76,7 +80,10 @@ function requestAvatar(url: string, rendition: AvatarRendition): Promise<string 
   const request =
     typeof window === 'undefined' || typeof window.vrx === 'undefined'
       ? Promise.resolve(null)
-      : (rendition === 'avatar' ? window.vrx.getAvatar(url, 'avatar') : window.vrx.getAvatar(url))
+      : (rendition === 'original'
+          ? window.vrx.getAvatar(url)
+          : window.vrx.getAvatar(url, rendition)
+        )
           .then((result) => {
             const dataUrl = result?.dataUrl ?? null
             if (dataUrl !== null) avatarData.set(key, dataUrl)

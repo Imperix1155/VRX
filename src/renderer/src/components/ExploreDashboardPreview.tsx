@@ -44,8 +44,8 @@ export function PopularNowSection({
           <div className="hot-grid hot-grid--flush">{cards}</div>
         </div>
       ) : (
-        <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-          {cards}
+        <div className="picture-gridwrap mt-[var(--space-3)]">
+          <div className="picture-grid">{cards}</div>
         </div>
       )}
       {children}

@@ -52,10 +52,12 @@ export default function WorldResults({
   const [focusFallback, setFocusFallback] = useState<HTMLDivElement | null>(null)
   return (
     <div ref={setFocusFallback} tabIndex={-1} className="focus:outline-none">
-      <div className="grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-        {worlds.map((world) => (
-          <ResolvedCard key={`${world.platform}:${world.worldId}`} world={world} onOpen={open} />
-        ))}
+      <div className="picture-gridwrap">
+        <div className="picture-grid">
+          {worlds.map((world) => (
+            <ResolvedCard key={`${world.platform}:${world.worldId}`} world={world} onOpen={open} />
+          ))}
+        </div>
       </div>
       <ExploreWorldSheet
         snapshot={sheet}

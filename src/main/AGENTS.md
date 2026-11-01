@@ -195,6 +195,12 @@ etiquette rules apply in full; this file adds local detail.
   copy built locally from already validated bytes (`avatarRendition.ts`). It
   never changes which URLs are requested or how often; any failure keeps the
   original.
+- World and avatar pictures on cards, tiles and banners ask for the `picture`
+  rendition (`AvatarCache.getPicture`). It swaps a VRChat sized thumbnail for
+  the same file's full picture, one request either way, and keeps a copy at
+  most 1,440 px wide. Only an outright refusal falls back to the thumbnail;
+  keep that bounded (remembered refusals, the refusal streak pause) so a
+  picture never costs more than two requests.
 
 **Network and logging**
 

@@ -59,7 +59,7 @@ export default function HotInstanceCard({
   // World thumbnail through the shared main-issued image pipeline (the same
   // one the detail sheet's banner uses). A failed image falls back to the plain
   // card rather than a broken picture.
-  const imageDataUrl = useAvatar(instance.thumbnailUrl, cardRef)
+  const imageDataUrl = useAvatar(instance.thumbnailUrl, cardRef, 'picture')
   const [failedImageKey, setFailedImageKey] = useState<string | null>(null)
   const imageKey = imageDataUrl ? `${instance.thumbnailUrl ?? ''}\u0000${imageDataUrl}` : null
   const image = imageKey !== null && imageKey !== failedImageKey ? imageDataUrl : null

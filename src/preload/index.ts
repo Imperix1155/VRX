@@ -41,7 +41,7 @@ const vrx = {
     return () => ipcRenderer.removeListener('explore-changed', listener)
   },
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
-  getAvatar: (url: string, rendition?: 'avatar') =>
+  getAvatar: (url: string, rendition?: 'avatar' | 'picture') =>
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
   getAvatarLibrary: (req: IpcInvoke['get-avatar-library']['req']) =>
     invoke('get-avatar-library', req),

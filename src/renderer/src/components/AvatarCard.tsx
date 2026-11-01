@@ -25,7 +25,7 @@ export interface AvatarCardProps {
 function AvatarCard({ avatar, worn, onOpen, layout = 'card' }: AvatarCardProps): React.JSX.Element {
   const { t } = useTranslation()
   const pictureRef = useRef<HTMLDivElement>(null)
-  const image = useAvatar(avatar.imageUrl, pictureRef)
+  const image = useAvatar(avatar.imageUrl, pictureRef, 'picture')
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const wornId = useId()
   const isVrc = avatar.platform === 'vrchat'
