@@ -25,6 +25,8 @@ import type { HomeWorldService } from '../services/homeWorldService'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
 import { registerAlertPicksHandlers } from './alert-picks'
+import { registerFavoritesHandlers } from './favorites'
+import type { Favorites } from '../services/favorites'
 import type { FriendAlertPicks } from '../services/friendAlertPicks'
 import { registerLinksHandlers, type LinksHandlerOptions } from './links'
 import { registerSettingsHandlers } from './settings'
@@ -58,6 +60,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   locationAuthority: LocationAuthority
   socialStore: SocialStore
   alertPicks: FriendAlertPicks
+  favorites: Favorites
   links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
   activity: ActivityFeed
@@ -145,6 +148,7 @@ export function registerIpcHandlers(
       accountSession: options.accountSession
     })
     registerExploreHandlers(options.explore)
+    registerFavoritesHandlers(options.favorites, options.explore)
     registerHomeWorldHandler(options.homeWorld)
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerCurrentAvatarHandler(options.currentAvatar)

@@ -320,6 +320,11 @@ export function withDashboardSectionOrder(
  *  `collapsedFriendSections` array element enum. */
 export const FRIEND_SECTIONS = ['in-game', 'online', 'offline'] as const
 export type FriendSection = (typeof FRIEND_SECTIONS)[number]
+/** Every friends-list section in display order: Favorites (starred friends
+ *  who are on now, owner 2026-11-01) leads the presence sections. Element
+ *  enum of the settings schema's `collapsedFriendSections`. */
+export const FRIEND_LIST_SECTIONS = ['favorites', ...FRIEND_SECTIONS] as const
+export type FriendListSection = (typeof FRIEND_LIST_SECTIONS)[number]
 
 // ─── Auth (VRX-16/18 — direct login + hybrid import) ─────────────────────────
 export type AuthState = 'authenticated' | 'unauthenticated' | 'needs-2fa' | 'error'

@@ -16,6 +16,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import { useFriendsStore } from '../stores/friends'
+import { queryClient } from '../queries/queryClient'
 import FriendsList from './FriendsList'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
@@ -53,12 +54,79 @@ function mk(name: string, state: Friend['presence']['state']): Friend {
 
 afterEach(() => {
   cleanup()
+  queryClient.clear()
   useFriendsMock.mockReset()
   useFriendsStore.setState({ platformFilter: 'all' })
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
 })
 
 describe('FriendsList presence sections — interaction (VRX-67)', () => {
+  it('leads with starred friends who are on now; a starred offline friend keeps Offline', () => {
+    // Favorites read the signed-in account from the shared client's auth cache.
+    queryClient.setQueryData(['auth-status', 'vrchat'], {
+      platform: 'vrchat',
+      state: 'authenticated',
+      accountId: 'vrchat-test',
+      displayName: 'Test User'
+    })
+    queryClient.setQueryData(['favorite-friends', 'vrchat', 'vrchat-test'], {
+      friendIds: ['usr_Ben', 'usr_Zed'],
+      revision: { platformAccountId: 'vrchat-test', epoch: 1 }
+    })
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, collapsedFriendSections: [] },
+      dirty: false
+    })
+    useFriendsMock.mockImplementation((platform: string) =>
+      platform === 'vrchat'
+        ? {
+            data: [mk('Anna', 'in-game'), mk('Ben', 'active'), mk('Zed', 'offline')],
+            isPending: false,
+            isError: false,
+            isFetching: false,
+            refetch: vi.fn()
+          }
+        : { data: [], isPending: false, isError: false, isFetching: false, refetch: vi.fn() }
+    )
+    render(<FriendsList />)
+    const headers = screen
+      .getAllByRole('button', { expanded: true })
+      .map((button) => button.textContent)
+    expect(headers).toEqual(['Favorites (1)', 'In-Game (1)', 'Online (0)', 'Offline (1)'])
+    const favorites = screen.getByRole('button', { name: 'Favorites (1)' })
+    const ben = screen.getByText('Ben')
+    const anna = screen.getByText('Anna')
+    // Ben sits under Favorites, before In-Game's Anna, and carries the star.
+    expect(favorites.compareDocumentPosition(ben) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(ben.compareDocumentPosition(anna) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(ben.closest('li')!.querySelector('[data-favorite-mark]')).not.toBeNull()
+    expect(anna.closest('li')!.querySelector('[data-favorite-mark]')).toBeNull()
+    expect(
+      screen.getByText('Zed').closest('li')!.querySelector('[data-favorite-mark]')
+    ).not.toBeNull()
+
+    // Collapsing Favorites is remembered like any other section.
+    fireEvent.click(favorites)
+    expect(useSettingsStore.getState().settings.collapsedFriendSections).toEqual(['favorites'])
+    expect(screen.queryByText('Ben')).toBeNull()
+  })
+
+  it('shows no Favorites section while nobody starred is on', () => {
+    useFriendsMock.mockImplementation((platform: string) =>
+      platform === 'vrchat'
+        ? {
+            data: [mk('Anna', 'in-game')],
+            isPending: false,
+            isError: false,
+            isFetching: false,
+            refetch: vi.fn()
+          }
+        : { data: [], isPending: false, isError: false, isFetching: false, refetch: vi.fn() }
+    )
+    render(<FriendsList />)
+    expect(screen.queryByRole('button', { name: /^Favorites/ })).toBeNull()
+  })
+
   it('starts with the Offline section collapsed by default (the persisted-settings default)', () => {
     useFriendsMock.mockImplementation((platform: string) =>
       platform === 'vrchat'
