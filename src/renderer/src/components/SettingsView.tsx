@@ -742,6 +742,7 @@ export default function SettingsView(): React.JSX.Element {
   const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
   const saveNotesToAccounts = useSettingsStore((s) => s.settings.saveNotesToAccounts)
+  const useGameFavorites = useSettingsStore((s) => s.settings.useGameFavorites)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const joinOpenGame = useSettingsStore((s) => s.settings.joinOpenGame)
@@ -1019,6 +1020,18 @@ export default function SettingsView(): React.JSX.Element {
                 ariaLabel={t('settings.saveNotesToAccounts.aria')}
                 checked={saveNotesToAccounts}
                 onChange={(checked) => updateSettings({ saveNotesToAccounts: checked })}
+              />
+            </div>
+
+            {/* Favorites in the user's own VRChat and ChilloutVR accounts, as in
+                VRCX and CVRX (owner, 2026-11-01). Off keeps stars in VRX only. */}
+            <div className="setting-card">
+              <SwitchRow
+                label={t('settings.useGameFavorites.label')}
+                description={t('settings.useGameFavorites.description')}
+                ariaLabel={t('settings.useGameFavorites.aria')}
+                checked={useGameFavorites}
+                onChange={(checked) => updateSettings({ useGameFavorites: checked })}
               />
             </div>
 

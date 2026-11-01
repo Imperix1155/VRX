@@ -227,12 +227,13 @@ describe('ExploreService adopted worlds', () => {
 
   it('stays bounded, forgets at an account boundary, and adopts nothing without a session', async () => {
     const h = make()
-    const many = Array.from({ length: 170 }, (_, n) => world(100 + n))
+    const many = Array.from({ length: 650 }, (_, n) => world(1000 + n))
     const first = h.service.adoptWorlds('vrchat', many.slice(0, 100))[0]!.worldRef
-    h.service.adoptWorlds('vrchat', many.slice(100))
-    // 160 kept: the oldest uses went first.
+    h.service.adoptWorlds('vrchat', many.slice(100, 400))
+    h.service.adoptWorlds('vrchat', many.slice(400))
+    // 640 kept: the oldest uses went first.
     expect(await h.service.getWorld('vrchat', first, 'snapshot')).toBeNull()
-    const kept = h.service.adoptWorlds('vrchat', [many[169]!])[0]!.worldRef
+    const kept = h.service.adoptWorlds('vrchat', [many[649]!])[0]!.worldRef
     h.service.clearPlatform('vrchat')
     expect(await h.service.getWorld('vrchat', kept, 'snapshot')).toBeNull()
     h.account.setIdentity('vrchat', null)

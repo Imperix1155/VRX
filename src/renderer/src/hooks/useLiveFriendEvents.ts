@@ -40,6 +40,7 @@ import {
 import { authStatusQueryKey } from '../queries/auth'
 import { alertPicksPlatformKey } from '../queries/alertPicks'
 import { favoritesPlatformKeys } from '../queries/favorites'
+import { gameFavoritesPlatformKey } from '../queries/gameFavorites'
 import { avatarQueryKeysForPlatform } from '../queries/avatarLibrary'
 import { homeWorldQueryKeyForPlatform } from '../queries/homeWorld'
 import { communityQueryKeysForPlatform } from '../queries/community'
@@ -191,6 +192,9 @@ export function useLiveFriendEvents(): void {
         void queryClient.cancelQueries({ queryKey: favoritesKey })
         queryClient.removeQueries({ queryKey: favoritesKey })
       }
+      // And the favorites from its own game account.
+      void queryClient.cancelQueries({ queryKey: gameFavoritesPlatformKey(platform) })
+      queryClient.removeQueries({ queryKey: gameFavoritesPlatformKey(platform) })
       // So do its avatars, which stay in memory for the whole session.
       for (const avatarKey of avatarQueryKeysForPlatform(platform)) {
         void queryClient.cancelQueries({ queryKey: avatarKey })

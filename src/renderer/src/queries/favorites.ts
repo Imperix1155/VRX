@@ -41,7 +41,7 @@ function worldsKey(
  * the auth queries; favorites only observe them, so a star never starts a
  * sign-in check, and every favorites read uses that same shared client.
  */
-function useSignedInAccount(platform: Platform): string | null {
+export function useSignedInAccount(platform: Platform): string | null {
   const auth = useSyncExternalStore(
     (listener) => queryClient.getQueryCache().subscribe(listener),
     () => queryClient.getQueryData<AuthStatus>(authStatusQueryKey(platform)),

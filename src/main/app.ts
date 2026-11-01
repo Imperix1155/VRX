@@ -11,6 +11,8 @@ import type { SocialActionAdapter } from './services/adapters/SocialActionAdapte
 import { SocialActionService } from './services/socialActionService'
 import { AccountNoteService } from './services/accountNotes'
 import type { AccountNoteAdapter } from './services/adapters/AccountNoteAdapter'
+import { GameFavoritesService } from './services/gameFavorites'
+import type { GameFavoritesAdapter } from './services/adapters/GameFavoritesAdapter'
 import { HomeWorldService } from './services/homeWorldService'
 import type { HomeWorldAdapter } from './services/adapters/HomeWorldAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
@@ -426,6 +428,7 @@ app
     const ownProfileBoundary: { current?: OwnProfileService } = {}
     const socialBoundary: { current?: SocialActionService } = {}
     const accountNotesBoundary: { current?: AccountNoteService } = {}
+    const gameFavoritesBoundary: { current?: GameFavoritesService } = {}
     const homeWorldBoundary: { current?: HomeWorldService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
@@ -468,6 +471,7 @@ app
         ownProfileBoundary.current?.clearPlatform('vrchat')
         socialBoundary.current?.clearPlatform('vrchat')
         accountNotesBoundary.current?.clearPlatform('vrchat')
+        gameFavoritesBoundary.current?.clearPlatform('vrchat')
         homeWorldBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
@@ -548,6 +552,7 @@ app
         ownProfileBoundary.current?.clearPlatform('chilloutvr')
         socialBoundary.current?.clearPlatform('chilloutvr')
         accountNotesBoundary.current?.clearPlatform('chilloutvr')
+        gameFavoritesBoundary.current?.clearPlatform('chilloutvr')
         homeWorldBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
@@ -760,6 +765,19 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     accountNotesBoundary.current = accountNotes
+    // Favorites in the user's own accounts, beside VRX's stars: one read per
+    // sign-in and one write per press, as VRCX and CVRX do.
+    const gameFavorites = new GameFavoritesService({
+      adapters: new Map<Platform, GameFavoritesAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      accountSession,
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      isEnabled: () => getSettingsSnapshot().useGameFavorites,
+      log: (message, meta) => log.warn(message, meta)
+    })
+    gameFavoritesBoundary.current = gameFavorites
     // "Set as home world" from a world sheet: one write, by Explore reference.
     const homeWorld = new HomeWorldService({
       adapters: new Map<Platform, HomeWorldAdapter>([
@@ -826,6 +844,7 @@ app
       accountSession,
       socialStore,
       accountNotes,
+      gameFavorites,
       alertPicks,
       favorites,
       links: {
@@ -900,6 +919,7 @@ app
         ownProfile.clearPlatform(event.platform)
         social.clearPlatform(event.platform)
         accountNotes.clearPlatform(event.platform)
+        gameFavorites.clearPlatform(event.platform)
         homeWorld.clearPlatform(event.platform)
       }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }

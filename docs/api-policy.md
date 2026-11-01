@@ -50,6 +50,9 @@ the Join to that copy (see
 [Joining a game that is already open](#joining-a-game-that-is-already-open)).
 When the user presses **Set as home world** on a world sheet and confirms, it
 makes that world their home (see [Home world limits](#home-world-limits)).
+It reads the favorite groups in the user's own account once per sign-in and,
+when the user picks a group in a star's panel, puts a friend or world in it or
+takes it out, as VRCX and CVRX do (see [Favorite limits](#favorite-limits)).
 
 | Area                  | VRChat                                                                                                                                                                                                                                                                                                                                                                                                         | ChilloutVR                                                                                                                                                                                                                                              |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -63,6 +66,7 @@ makes that world their home (see [Home world limits](#home-world-limits)).
 | Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                                                                                                                                                                                                                          | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open                                                                                                                                                         |
 | Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`; whether the user blocks someone, `GET /auth/user/playermoderations?type=block&targetUserId=`                                                                                                                                                                                             | `GET /users/{id}` (also whether the user blocks them), `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`                                                                                                                        |
 | Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`; home world and own profile, `PUT /users/{me}`; friend note, `POST /userNotes`; from a profile, unfriend `DELETE /auth/user/friends/{id}`, block `POST /auth/user/playermoderations`, unblock `PUT /auth/user/unplayermoderate` | Avatar switch, `GET /avatars/{id}/switchAvatar`; home world, `GET /worlds/{id}/sethome`; friend note, `POST /users/{id}/note`; from a profile, unfriend, block and unblock over `/users/ws`; own profile, multipart `POST /users/self` (one field each) |
+| Game favorites        | Once per sign-in: `GET /auth/user/favoritelimits`, `GET /favorite/groups?n=50`, `GET /favorites?type=friend` and `GET /worlds/favorites`, pages of 100. Per press: `POST /favorites` to add, `DELETE /favorites/{id}` to remove                                                                                                                                                                                | Once per sign-in: `GET /categories`, then `GET /2/worlds/list/{category}` pages for each of the user's world categories. Per press: `GET /users/{id}` or `GET /1/worlds/{id}`, then `POST /categories/assign`                                           |
 | Own profile read      | `GET /users/{me}` when the editor opens                                                                                                                                                                                                                                                                                                                                                                        | `GET /users/{me}` when the editor opens                                                                                                                                                                                                                 |
 | Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                                                                                                                                                                                                                                                          | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                                                                                                                                                                         |
 | API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days. World and avatar pictures ask for the full picture in place of the 256 px thumbnail: still one request each                                                                                                                                                                                                        | None; ChilloutVR images come from CDN hosts                                                                                                                                                                                                             |
@@ -84,11 +88,12 @@ before it saves anything.
   friend requests that the sockets already deliver. It is view-only: no extra
   request reads them, and VRX never accepts, declines or replies. Hide only
   removes a row inside VRX.
-- **No platform favorites.** Favorite friends and worlds (the stars) live only
-  in VRX on the user's computer, per signed-in account. Starring, unstarring
-  and showing Explore → Favorites send nothing to either platform and never
-  touch the games' own favorites. A favorite world's picture and sheet load
-  exactly like any other Explore world's, only when shown or opened.
+- **No favorite changes VRX was not asked for.** VRX's own star lives only on
+  the user's computer and sends nothing. The game's own favorite groups change
+  only when the user picks a group in a star's panel, one group for one friend
+  or world per press. VRX never creates, renames, clears or reorders a group,
+  and never copies stars into the game. A favorite world's picture and sheet
+  load exactly like any other Explore world's, only when shown or opened.
 - **No mass actions.** No bulk invites, friend requests, messages, unfriends
   or blocks.
   The only platform writes are one user-initiated VRChat self-invite at a time,
@@ -98,8 +103,10 @@ before it saves anything.
   note on one friend after they edit it (see
   [Friend note limits](#friend-note-limits)), and one confirmed unfriend, block
   or unblock of one person per platform at a time, and one user-initiated Save
-  of the user's own profile per platform at a time. VRX never sends existing
-  notes in bulk and never changes anyone else's profile.
+  of the user's own profile per platform at a time, and one favorite group
+  change for one friend or world per press (see
+  [Favorite limits](#favorite-limits)). VRX never sends existing notes in bulk
+  and never changes anyone else's profile.
 - **No avatar crawling.** VRX lists only the user's own uploads and the avatar
   they wear. It never searches other people's avatars or uses third-party
   avatar databases.
@@ -345,6 +352,34 @@ off; it is on by default. With it off VRX sends nothing for notes.
 - A linked person's shared note stays in VRX.
 - What VRX saw on an account is forgotten at every sign-out, account change and
   invalidated session.
+
+## Favorite limits
+
+A star's panel shows VRX's own star and the favorite groups in the user's own
+VRChat or ChilloutVR account, as VRCX's and CVRX's pickers do. Settings →
+Behavior → **Use my game favorites** turns the account side off; it is on by
+default. With it off VRX reads and writes no favorites on either platform.
+
+The two apps differ, and VRX takes the stricter choice each time:
+
+| Point                 | VRCX (VRChat)                         | CVRX (ChilloutVR)                           | VRX, both platforms                                                                                                                         |
+| --------------------- | ------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| When it reads         | At sign-in                            | At sign-in                                  | The first time a page needs them after a sign-in, then from memory. A Refresh press in Explore → Favorites reads again after 60 s at most   |
+| After a failed read   | Retries with its bulk reader          | Logs it                                     | Waits 5 minutes before reading on its own; never retried within a read                                                                      |
+| Groups offered        | Every slot the limits allow, VRC+ too | The user's own categories                   | VRChat's regular slots, VRC+ world groups only when the account already has them; ChilloutVR's own categories. Never creates or renames one |
+| What a write replaces | One favorite record                   | The item's whole category list, from memory | ChilloutVR: reads the item's categories right before the write and keeps every one of the user's categories it did not change               |
+| Writes                | One per pick                          | One per Apply                               | One per press, at interactive priority, never retried; 2 s apart per platform (`GAME_FAVORITE_WRITE_SPACING_MS`)                            |
+
+- VRChat keeps a favorite in one group, so VRX offers the other groups only
+  after the item leaves its group, and refuses a group at its limit before
+  sending anything.
+- A friend change goes only to a current friend. A world is named by the
+  Explore reference main issued, never by an id from the renderer.
+- A reply that does not say which categories a ChilloutVR item has blocks the
+  write. Built-in categories (online, offline, active and the like) are never
+  sent.
+- What VRX read is forgotten at every sign-out, account change and invalidated
+  session.
 
 ## Unfriend and block
 

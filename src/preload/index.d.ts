@@ -156,6 +156,13 @@ type VrxBridge = {
   setFavoriteWorld: (
     req: IpcInvoke['set-favorite-world']['req']
   ) => Promise<IpcInvoke['set-favorite-world']['res']>
+  /** Favorites in the user's own VRChat or ChilloutVR account. */
+  getGameFavorites: (
+    req: IpcInvoke['get-game-favorites']['req']
+  ) => Promise<IpcInvoke['get-game-favorites']['res']>
+  setGameFavorite: (
+    req: IpcInvoke['set-game-favorite']['req']
+  ) => Promise<IpcInvoke['set-game-favorite']['res']>
   /** The settings-backed document attributes are ready for the first reveal. */
   notifyRendererHydrated: () => void
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */

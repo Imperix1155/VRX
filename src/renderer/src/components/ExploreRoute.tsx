@@ -24,6 +24,7 @@ import ExploreListPanel from './ExploreLists'
 import ExploreFavorites from './ExploreFavorites'
 import SegmentedControl from './SegmentedControl'
 import { useRefreshWorldList } from '../queries/community'
+import { refreshGameFavorites } from '../queries/gameFavorites'
 import { shownPlatforms } from '../utils/community'
 import ExploreWorldSheet from './ExploreWorldSheet'
 import { PopularNowSection } from './ExploreDashboardPreview'
@@ -155,6 +156,10 @@ export default function ExploreRoute(): React.JSX.Element {
     for (const platform of shownPlatforms(platformFilter))
       void refreshList(platform, tab).catch(() => undefined)
   }, [platformFilter, refreshList, tab])
+  const gameFavoritesOn = useSettingsStore((s) => s.settings.useGameFavorites) === true
+  const refreshFavorites = useCallback(() => {
+    for (const platform of shownPlatforms(platformFilter)) void refreshGameFavorites(platform)
+  }, [platformFilter])
   const refresh = useCallback(() => {
     const platforms =
       platformFilter === 'all' ? (['vrchat', 'chilloutvr'] as const) : ([platformFilter] as const)
@@ -196,11 +201,18 @@ export default function ExploreRoute(): React.JSX.Element {
             setTab(next)
           }}
         />
-        {/* Favorites are kept in VRX, so there is nothing to refresh. */}
-        {tab !== 'favorites' ? (
+        {/* On Favorites, Refresh reads the account's own favorites again
+            (VRX's stars need none); hidden while game favorites are off. */}
+        {tab !== 'favorites' || gameFavoritesOn ? (
           <button
             type="button"
-            onClick={tab === 'popular' ? refresh : refreshShownList}
+            onClick={
+              tab === 'popular'
+                ? refresh
+                : tab === 'favorites'
+                  ? refreshFavorites
+                  : refreshShownList
+            }
             className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text-dim)] hover:bg-[var(--surface-hover)]"
           >
             {t('explore.refresh')}

@@ -46,6 +46,7 @@ import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type { ActivityEntry } from './activity'
 import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
+import type { GameFavoritesResult, GameFavoriteWriteResult } from './gameFavorites'
 import type {
   ExplorePlatformSnapshot,
   ExploreImageResult,
@@ -351,6 +352,40 @@ export interface IpcInvoke {
       | { platform: Platform; favorite: true; worldRef: string; revision: FavoritesRevision }
       | { platform: Platform; favorite: false; worldId: string; revision: FavoritesRevision }
     res: FavoriteWriteResult
+  }
+  /**
+   * The favorites in the signed-in user's own game account: groups, who and
+   * what sits in them, and the favorite worlds as Explore worlds. Read once
+   * per sign-in; `refresh` (a Refresh press) may read again after a cooldown.
+   */
+  'get-game-favorites': {
+    req: { platform: Platform; refresh?: boolean }
+    res: GameFavoritesResult
+  }
+  /**
+   * Put a friend or world in one of the account's own favorite groups, or
+   * take it out: one write. A world is named by the reference main handed
+   * out; echo the read's revision.
+   */
+  'set-game-favorite': {
+    req:
+      | {
+          platform: Platform
+          kind: 'friend'
+          friendId: string
+          groupKey: string
+          on: boolean
+          revision: FavoritesRevision
+        }
+      | {
+          platform: Platform
+          kind: 'world'
+          worldRef: string
+          groupKey: string
+          on: boolean
+          revision: FavoritesRevision
+        }
+    res: GameFavoriteWriteResult
   }
 }
 

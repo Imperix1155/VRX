@@ -468,7 +468,8 @@ nothing.
 The Friends list uses virtual rows and sticky, collapsible In-Game, Online,
 and Offline sections; Offline starts collapsed. Above them, a Favorites
 section (owner, 2026-11-01) holds the starred friends who are on now, In-Game
-first, and shows only while it has someone in it. A starred friend who is
+first, and shows only while it has someone in it. A friend in one of the
+account's own favorite groups counts as starred too. A starred friend who is
 offline stays under Offline. Every starred row carries a small filled star
 after the name in `--favorite` yellow (yellow, not amber, so it reads apart
 from ChilloutVR orange), and the row's accessible name says favorite. A pinned section header sits
@@ -553,8 +554,16 @@ its own dismissal.
 The order is: header, written status, Where, actions, Notes, and Trust. A
 footer pinned below the scrolling area holds Identities on the left and, on
 the right, the favorite star and the alerts bell. The star is an outline when
-off and a filled `--favorite` star when on, so its state never rests on color;
-a linked person is one star across both accounts. Stars stay in VRX. The bell shows whether this friend can alert you by
+off and a filled `--favorite` star when on, so its state never rests on color.
+It is filled while the friend is starred in VRX or sits in one of the
+account's own favorite groups. Pressing it springs the favorite panel out of
+it, the same way as the bell's: a VRX row (a linked person is one VRX star
+across both accounts, kept on this PC), then one section per account with its
+game favorite groups as check rows (a ticked box, the group name, and the
+count, with VRChat's cap). VRChat keeps a favorite in one group, so the other
+groups wait until it leaves and a short line says why; ChilloutVR allows
+several. The panel says when game favorites are off, still loading, could not
+load (with Try again), or have no groups yet. It never creates a group. The bell shows whether this friend can alert you by
 shape, not color: sound waves when on, a slash when off, and the button's
 name says On or Off. Pressing it springs a small panel out of the bell
 (scale and fade with a slight overshoot, rows following one after another,
@@ -746,9 +755,11 @@ no line under ALL for a platform the user isn't signed in to.
   (Code, Members, Your role). View only.
 - **Explore** has a segmented Popular now · New · Recently updated ·
   Favorites control. The lists alternate platforms like Search and open the
-  same world sheet. Favorites (owner, 2026-11-01) lists the starred worlds,
-  newest first, with no Refresh because nothing is fetched for it. The world
-  sheet's star follows the world name.
+  same world sheet. Favorites (owner, 2026-11-01) lists the worlds starred in
+  VRX, newest first, then the account's own favorite worlds. Its Refresh reads
+  the account's favorites again (hidden while game favorites are off). The
+  world sheet's star follows the world name and opens the same favorite panel
+  as a friend's, below the title.
 - **Set as home world** sits beside the platform pill on every world sheet,
   the same small house-and-label button on both platforms. A press asks once in
   an inline panel (Make home, Cancel), because it replaces the user's current

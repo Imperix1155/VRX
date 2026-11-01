@@ -31,6 +31,7 @@ import {
 } from '../utils/projectLinkedFriends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
 import { isFavoriteAccount, useFavoriteFriendKeys } from '../queries/favorites'
+import { useGameFavoriteFriendKeys } from '../queries/gameFavorites'
 import { StarGlyph } from './FavoriteStar'
 import { useProfileSelection } from '../stores/profileSelection'
 import { useStableLinkedRows } from '../hooks/useStableLinkedRows'
@@ -821,8 +822,17 @@ export default function FriendsList(): React.JSX.Element {
   // Favorites (owner, 2026-11-01): starred friends who are on now lead the
   // list, In-Game first, and leave their presence section. A starred friend
   // who is offline stays under Offline with the row's star. The section only
-  // shows while it has someone in it.
-  const favoriteKeys = useFavoriteFriendKeys()
+  // shows while it has someone in it. A friend in one of the account's own
+  // favorite groups counts the same as VRX's star.
+  const localFavoriteKeys = useFavoriteFriendKeys()
+  const gameFavoriteKeys = useGameFavoriteFriendKeys()
+  const favoriteKeys = useMemo(
+    () =>
+      gameFavoriteKeys.size === 0
+        ? localFavoriteKeys
+        : new Set([...localFavoriteKeys, ...gameFavoriteKeys]),
+    [localFavoriteKeys, gameFavoriteKeys]
+  )
   const sections = useMemo(() => {
     if (filteredFriends === undefined) return undefined
     const leadsFavorites = (row: LinkedRow): boolean =>

@@ -29,7 +29,8 @@
  *      "Full profile" (owner, 2026-10-31): bio, pronouns, rank, badges, and
  *      worlds and groups on demand, read only after the press.
  *   6. Pinned footer: Identities, and across from it the favorite star
- *      (FriendFavoriteStar, kept only in VRX) and the alerts bell
+ *      (FriendFavoriteStar: VRX's star plus the account's own favorite
+ *      groups) and the alerts bell
  *      (FriendAlertBell) with "Alert me about this friend" while Settings
  *      limits alerts to picked friends. A linked person is one star and
  *      one pick.
@@ -622,6 +623,8 @@ export default function FriendDrawer({
               <FriendFavoriteStar
                 accounts={shownAccounts}
                 name={profileName || t('linking.unknownName')}
+                drawerOpen={open}
+                onLeave={onNoteBlur}
               />
               <FriendAlertBell
                 accounts={shownAccounts}

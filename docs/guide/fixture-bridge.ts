@@ -2,6 +2,7 @@ import type { UpdaterSnapshot } from '@shared/ipc'
 import type { AuthStatus, Platform } from '@shared/types'
 import type { AvatarItem } from '@shared/avatarLibrary'
 import type { OwnProfile } from '@shared/ownProfile'
+import type { GameFavoriteGroup, GameFavorites } from '@shared/gameFavorites'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import {
   activityEntries,
@@ -71,6 +72,66 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     platformAccountId: fixtureAuth(platform).accountId ?? '',
     epoch: 1
   })
+  // The account's own favorite groups: VRChat's fixed groups with caps, and
+  // two ChilloutVR categories. The second sample friend and world sit in one.
+  const gameGroup = (key: string, name: string, capacity: number | null): GameFavoriteGroup => ({
+    key,
+    name,
+    capacity,
+    count: 0
+  })
+  const gameFavorites: Record<Platform, GameFavorites> = {
+    vrchat: {
+      oneGroupPerItem: true,
+      groups: {
+        friend: [
+          gameGroup('friend:group_0', 'Close friends', 150),
+          gameGroup('friend:group_1', 'Group 2', 150),
+          gameGroup('friend:group_2', 'Group 3', 150)
+        ],
+        world: [
+          gameGroup('world:worlds1', 'Hangouts', 100),
+          gameGroup('world:worlds2', 'Worlds 2', 100),
+          gameGroup('world:worlds3', 'Worlds 3', 100),
+          gameGroup('world:worlds4', 'Worlds 4', 100)
+        ]
+      },
+      friends: Object.fromEntries(
+        friends.vrchat.slice(1, 2).map((friend) => [friend.platformUserId, ['friend:group_0']])
+      ),
+      worlds: Object.fromEntries(
+        worlds.vrchat.slice(2, 3).map((world) => [world.worldId, ['world:worlds1']])
+      ),
+      worldList: structuredClone(worlds.vrchat.slice(2, 3))
+    },
+    chilloutvr: {
+      oneGroupPerItem: false,
+      groups: {
+        friend: [gameGroup('friends_besties', 'Besties', null)],
+        world: [
+          gameGroup('worlds_chill', 'Chill spots', null),
+          gameGroup('worlds_games', 'Game nights', null)
+        ]
+      },
+      friends: Object.fromEntries(
+        friends.chilloutvr.slice(1, 2).map((friend) => [friend.platformUserId, ['friends_besties']])
+      ),
+      worlds: Object.fromEntries(
+        worlds.chilloutvr.slice(1, 2).map((world) => [world.worldId, ['worlds_chill']])
+      ),
+      worldList: structuredClone(worlds.chilloutvr.slice(1, 2))
+    }
+  }
+  const countGameGroups = (favorites: GameFavorites): void => {
+    for (const kind of ['friend', 'world'] as const) {
+      const items = kind === 'friend' ? favorites.friends : favorites.worlds
+      for (const group of favorites.groups[kind]) {
+        group.count = Object.values(items).filter((keys) => keys.includes(group.key)).length
+      }
+    }
+  }
+  countGameGroups(gameFavorites.vrchat)
+  countGameGroups(gameFavorites.chilloutvr)
   const denied = { ok: false, reason: 'launch-failed' } as const
   // The visitor's own profile; a Save changes only this memory.
   const ownProfiles: Record<Platform, OwnProfile> = {
@@ -438,6 +499,34 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         favoriteWorlds[req.platform] = ids.filter((worldId) => worldId !== req.worldId)
       }
       return Promise.resolve({ ok: true })
+    },
+    getGameFavorites: ({ platform }) =>
+      Promise.resolve({
+        state: 'ready',
+        favorites: structuredClone(gameFavorites[platform]),
+        revision: favoriteRevision(platform)
+      }),
+    setGameFavorite: (req) => {
+      const favorites = gameFavorites[req.platform]
+      const world =
+        req.kind === 'world'
+          ? worlds[req.platform].find((item) => item.worldRef === req.worldRef)
+          : undefined
+      const id = req.kind === 'friend' ? req.friendId : world?.worldId
+      if (id === undefined) return Promise.resolve({ ok: false, reason: 'stale' })
+      const items = req.kind === 'friend' ? favorites.friends : favorites.worlds
+      const current = items[id] ?? []
+      const next = req.on
+        ? [...current.filter((key) => key !== req.groupKey), req.groupKey]
+        : current.filter((key) => key !== req.groupKey)
+      if (next.length > 0) items[id] = next
+      else delete items[id]
+      if (req.kind === 'world' && world) {
+        favorites.worldList = favorites.worldList.filter((item) => item.worldId !== id)
+        if (next.length > 0) favorites.worldList.unshift(structuredClone(world))
+      }
+      countGameGroups(favorites)
+      return Promise.resolve({ ok: true, groups: next })
     },
     notifyRendererHydrated: noop,
     onFriendEvent: unsubscribe,

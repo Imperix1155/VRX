@@ -83,6 +83,24 @@ import {
 import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
 import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
 import {
+  buildVrcGroups,
+  GameFavoritesDataError,
+  isGameFavoriteId,
+  parseVrcAddedFavorite,
+  parseVrcFavoriteGroups,
+  parseVrcFavoriteLimits,
+  parseVrcFriendFavoritePage,
+  parseVrcGroupKey,
+  parseVrcWorldFavoritePage,
+  vrcGroupKey,
+  type GameFavoriteChange,
+  type GameFavoriteMembership,
+  type GameFavoritesAdapter,
+  type GameFavoritesRead
+} from './GameFavoritesAdapter'
+import { GAME_FAVORITE_FRIENDS_MAX, GAME_FAVORITE_WORLDS_MAX } from '@shared/gameFavorites'
+import type { RequestPriority } from './ApiAdmissionController'
+import {
   parseVrcGroups,
   parseVrcPeople,
   parseVrcPlayersOnline,
@@ -258,6 +276,9 @@ function isInstanceLocation(location: string): boolean {
 const VRC_AVATAR_PAGE_SIZE = 100
 
 /** Sort for each Explore list (VRCX's world search uses the same ones). */
+/** VRChat's page size for favorites, as in the roster reads. */
+const VRC_FAVORITE_PAGE = 100
+
 const VRC_WORLD_LIST_SORT: Record<WorldList, string> = {
   new: 'publicationDate',
   updated: 'updated'
@@ -272,7 +293,8 @@ export class VrcAdapter
     OwnProfileAdapter,
     SocialActionAdapter,
     AccountNoteAdapter,
-    HomeWorldAdapter
+    HomeWorldAdapter,
+    GameFavoritesAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -1337,6 +1359,113 @@ export class VrcAdapter
   private socialUserId(userId: string): string {
     if (!isCommunityUserId('vrchat', userId)) throw new SocialDataError('Invalid VRChat user id')
     return userId
+  }
+
+  // ── Game favorites (the account's own VRChat favorite groups) ───────────────
+  // VRCX's requests: the limits, the groups and the favorites once per
+  // sign-in; one POST to add and one DELETE to remove, never resent.
+
+  captureFavoritesLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async readGameFavorites(
+    lease: RequestLease,
+    priority: RequestPriority = 'background'
+  ): Promise<GameFavoritesRead> {
+    const options = { ...this.communityOptions(lease), priority }
+    const limits = parseVrcFavoriteLimits(
+      await this.runCommunityRequest(lease, () =>
+        this.get('/auth/user/favoritelimits', z.unknown(), options)
+      )
+    )
+    const server = parseVrcFavoriteGroups(
+      await this.runCommunityRequest(lease, () =>
+        this.get('/favorite/groups?n=50&offset=0', z.unknown(), options)
+      )
+    )
+    const groups = buildVrcGroups(limits, server)
+
+    const friends = new Map<string, GameFavoriteMembership[]>()
+    const friendMax = Math.min(
+      limits.friend.groups * limits.friend.perGroup,
+      GAME_FAVORITE_FRIENDS_MAX
+    )
+    for (let offset = 0; offset < friendMax; offset += VRC_FAVORITE_PAGE) {
+      const query = new URLSearchParams({
+        type: 'friend',
+        n: String(VRC_FAVORITE_PAGE),
+        offset: String(offset)
+      })
+      const page = await this.runCommunityRequest(lease, () =>
+        this.get(`/favorites?${query.toString()}`, z.unknown(), options)
+      )
+      for (const entry of parseVrcFriendFavoritePage(page)) {
+        const memberships = friends.get(entry.userId) ?? []
+        memberships.push({ key: vrcGroupKey('friend', entry.groupName), entryId: entry.entryId })
+        friends.set(entry.userId, memberships)
+      }
+      if (!Array.isArray(page) || page.length < VRC_FAVORITE_PAGE) break
+    }
+
+    const worlds = new Map<string, GameFavoriteMembership[]>()
+    const worldEvidence: ExploreWorldEvidence[] = []
+    const typeOf = new Map(groups.world.map((group) => [group.key.split(':')[1], group.key]))
+    for (let offset = 0; offset < GAME_FAVORITE_WORLDS_MAX; offset += VRC_FAVORITE_PAGE) {
+      const query = new URLSearchParams({ n: String(VRC_FAVORITE_PAGE), offset: String(offset) })
+      const page = await this.runCommunityRequest(lease, () =>
+        this.get(`/worlds/favorites?${query.toString()}`, z.unknown(), options)
+      )
+      for (const entry of parseVrcWorldFavoritePage(page)) {
+        if (worlds.has(entry.worldId)) continue
+        const key = typeOf.get(entry.groupName) ?? vrcGroupKey('world', entry.groupName)
+        worlds.set(entry.worldId, [{ key, entryId: entry.entryId }])
+      }
+      for (const world of parseVrcExploreCandidates(page)) {
+        if (worldEvidence.some((known) => known.worldId === world.worldId)) continue
+        worldEvidence.push({ ...world, sourceOrder: worldEvidence.length })
+      }
+      if (!Array.isArray(page) || page.length < VRC_FAVORITE_PAGE) break
+    }
+    return { oneGroupPerItem: true, groups, friends, worlds, worldEvidence }
+  }
+
+  async writeGameFavorite(
+    change: GameFavoriteChange,
+    lease: RequestLease
+  ): Promise<GameFavoriteMembership[]> {
+    const { kind, id, group, on, current } = change
+    const target = parseVrcGroupKey(group.key)
+    if (
+      !target ||
+      !isGameFavoriteId('vrchat', kind, id) ||
+      (kind === 'friend') !== (target.type === 'friend')
+    ) {
+      throw new GameFavoritesDataError('Invalid VRChat favorite')
+    }
+    // A write is never sent twice on its own; the user can press again.
+    const options: AdapterRequestOptions = { ...this.communityOptions(lease), retry: 'none' }
+    if (on) {
+      const reply = await this.runCommunityRequest(lease, () =>
+        this.post(
+          '/favorites',
+          { type: target.type, favoriteId: id, tags: [target.name] },
+          z.unknown(),
+          options
+        )
+      )
+      return [
+        ...current.filter((m) => m.key !== group.key),
+        { key: group.key, entryId: parseVrcAddedFavorite(reply, id) }
+      ]
+    }
+    // VRCX removes by the friend's or world's own id; the record id from the
+    // read is the documented form and is used when VRX has it.
+    const entryId = current.find((m) => m.key === group.key)?.entryId ?? id
+    await this.runCommunityRequest(lease, () =>
+      this.delete(`/favorites/${encodeURIComponent(entryId)}`, z.unknown(), options)
+    )
+    return current.filter((m) => m.key !== group.key)
   }
 
   // ── Account notes (the user's private note on a friend) ─────────────────────

@@ -315,8 +315,9 @@ export default function ExploreWorldSheet({
               />
             ) : null}
             <div className="mt-[var(--space-3)]">
-              {/* The star follows the name (favorites, owner 2026-11-01). */}
-              <div className="flex min-w-0 flex-wrap items-center gap-x-[var(--space-1)] pr-[var(--space-8)]">
+              {/* The star follows the name (favorites, owner 2026-11-01); its
+                  panel lines up under the whole title row. */}
+              <div className="relative flex min-w-0 flex-wrap items-center gap-x-[var(--space-1)] pr-[var(--space-8)]">
                 <h2
                   className="min-w-0 max-w-[calc(100%-32px)] truncate text-xl font-bold text-[var(--text)]"
                   title={world.name}

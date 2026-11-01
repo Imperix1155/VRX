@@ -148,6 +148,7 @@ function options(): IpcHandlerOptions {
     socialStore: {},
     alertPicks: {},
     favorites: {},
+    gameFavorites: {},
     links: { linkGraph: {} },
     appStatus: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
@@ -225,7 +226,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(62)
+    expect(electron.invokeHandlers.size).toBe(64)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -293,6 +294,8 @@ describe('registerIpcHandlers rate limiting', () => {
         'set-favorite-friend',
         'get-favorite-worlds',
         'set-favorite-world',
+        'get-game-favorites',
+        'set-game-favorite',
         'set-friend-note',
         'set-home-world',
         'test-vr-alert',
