@@ -468,10 +468,10 @@ The instance pill's Join stays a separate control with the normal
 confirmation and denial behavior.
 
 Dashboard statistic cards are one set (owner, 2026-11-01): each card has the
-same layout, a VT323 number in `--text`, its label in `--text-dim` and the
-page's nav icon in a small neutral chip (a VR headset for In game). Numbers
-take no presence color: Friends online counts active and in-game friends
-together, and the label and icon already name each number.
+same layout, a VT323 number in `--text` and its label in `--text-dim`, with no
+icons (the owner turned down corner icons). Numbers take no presence color:
+Friends online counts active and in-game friends together, and the label
+already names each number.
 
 Dashboard statistics count accounts. Hot instances group by the exact
 platform instance, never just the world name or ID, and need at least the

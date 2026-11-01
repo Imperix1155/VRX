@@ -37,47 +37,26 @@ import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
 import PlayersOnline from './PlayersOnline'
 import DashboardGlance from './DashboardGlance'
-import { IconFriends, IconHot, IconInGame } from './NavIcons'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
-
-/** Which statistic a card shows; picks its icon. */
-type StatKind = 'online' | 'ingame' | 'hot'
-
-const STAT_ICONS: Record<StatKind, () => React.JSX.Element> = {
-  online: IconFriends,
-  ingame: IconInGame,
-  hot: IconHot
-}
 
 interface StatCardProps {
   value: number
   labelKey: string
-  kind: StatKind
 }
 
 /**
  * One Dashboard statistic (owner, 2026-11-01: the three cards must read as one
- * set). Every card is built the same way: an icon chip, the number in VT323
- * (§7) and its label. The number stays neutral: "Friends online" counts in-game
- * and active friends together, so neither presence color would be honest, and
- * the label and icon already say what each number is.
+ * set). Every card is the same: the number in VT323 (§7) and its label, both
+ * neutral. "Friends online" counts in-game and active friends together, so
+ * neither presence color would be honest, and the label says what it is.
  */
-function StatCard({ value, labelKey, kind }: StatCardProps): React.JSX.Element {
+function StatCard({ value, labelKey }: StatCardProps): React.JSX.Element {
   const { t } = useTranslation()
-  const Icon = STAT_ICONS[kind]
   return (
-    <div data-stat={kind} className="glass glass-information min-w-0 p-[16px_16px_16px_18px]">
-      <div className="flex items-start justify-between gap-[var(--space-2)]">
-        <div className="font-[family-name:var(--font-mono)] text-[38px] leading-none tabular-nums text-[var(--text)]">
-          {value}
-        </div>
-        <span
-          aria-hidden="true"
-          className="grid h-[32px] w-[32px] flex-none place-items-center rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] text-[var(--text-dim)]"
-        >
-          <Icon />
-        </span>
+    <div className="glass glass-information min-w-0 p-[16px_18px]">
+      <div className="font-[family-name:var(--font-mono)] text-[38px] leading-none tabular-nums text-[var(--text)]">
+        {value}
       </div>
       <div className="mt-[var(--space-1)] text-[12.5px] text-[var(--text-dim)]">{t(labelKey)}</div>
     </div>
@@ -317,11 +296,9 @@ function DashboardContent(): React.JSX.Element {
             gap: '14px'
           }}
         >
-          <StatCard value={stats.onlineCount} labelKey="dashboard.statOnlineLabel" kind="online" />
-          <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" kind="ingame" />
-          {hotEnabled && (
-            <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" kind="hot" />
-          )}
+          <StatCard value={stats.onlineCount} labelKey="dashboard.statOnlineLabel" />
+          <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" />
+          {hotEnabled && <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" />}
         </div>
         {playersOnline ? <PlayersOnline platforms={scopedPlatforms} /> : null}
       </div>
