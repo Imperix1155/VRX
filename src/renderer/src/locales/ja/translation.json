@@ -553,7 +553,8 @@
     "section": {
       "inGame": "ゲーム中 ({{count}})",
       "online": "オンライン ({{count}})",
-      "offline": "オフライン ({{count}})"
+      "offline": "オフライン ({{count}})",
+      "favorites": "お気に入り ({{count}})"
     },
     "instance": {
       "unknownWorld": "不明なワールド",
@@ -856,7 +857,10 @@
       "updated": "最近の更新",
       "newHint": "各プラットフォームの最新の公開ワールド。",
       "updatedHint": "作者が最近更新した公開ワールド。",
-      "empty": "いま表示できるワールドはありません。"
+      "empty": "いま表示できるワールドはありません。",
+      "favorites": "お気に入り",
+      "favoritesHint": "星を付けたワールド。星はこのパソコンの VRX にだけ保存されます。",
+      "favoritesEmpty": "お気に入りのワールドはまだありません。ワールドを開いて星を押すと、ここに残ります。"
     },
     "more": {
       "heading": "このワールドについて",
@@ -1234,5 +1238,15 @@
       "member": "メンバー"
     },
     "groupId": "グループ ID"
+  },
+  "favorites": {
+    "friendLabel": "{{name}} をお気に入り",
+    "worldLabel": "{{world}} をお気に入り",
+    "add": "お気に入りに追加",
+    "remove": "お気に入りから外す",
+    "saveFailed": "保存できませんでした。もう一度お試しください。",
+    "friendsFull": "VRX が保存できる上限までお気に入りのフレンドがいます。",
+    "worldsFull": "お気に入りのワールドが上限の {{count}} 件です。追加するには、どれかを外してください。",
+    "rowLabel": "お気に入り"
   }
 }

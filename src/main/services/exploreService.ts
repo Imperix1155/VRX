@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type {
+  ExploreCount,
   ExplorePlatformSnapshot,
   ExploreImageResult,
   ExploreRefreshReason,
@@ -42,8 +43,12 @@ const IMAGE_RETRY_JITTER_MS = 750
 const IMAGE_RETRY_MIN_MS = 250
 const IMAGE_RETRY_MAX_MS = 60_000
 const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
-/** Worlds adopted from search and the other lists, per platform (oldest use drops first). */
-const ADOPTED_LIMIT = 60
+/**
+ * Worlds adopted from search, the other lists and favorites, per platform
+ * (oldest use drops first). Room for a full favorites list (100) plus a
+ * search and a list beside it.
+ */
+const ADOPTED_LIMIT = 160
 type MainAdapter = ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>
 type LoadStatus = ExplorePlatformSnapshot['status']
 type Problem = ExplorePlatformSnapshot['problem']
@@ -255,8 +260,9 @@ export class ExploreService {
           // Re-insert so the most recently used world is the last to go.
           state.adopted.delete(item.worldId)
           // Display values may change between reads; a world sheet's own read
-          // (detail) stays the fresher source while it lasts.
-          if (!world.detail) world.evidence = { ...item }
+          // (detail) stays the fresher source while it lasts. A read that
+          // knows no counts at all (a favorite) keeps the counts already shown.
+          if (!world.detail) world.evidence = this.mergedEvidence(world.evidence, item)
         } else {
           world = this.newWorld({ ...item })
         }
@@ -272,6 +278,17 @@ export class ExploreService {
     }
     this.pruneSelections(state)
     return adopted
+  }
+
+  /**
+   * What main knows about a world it handed out, for starring it. Only a live
+   * reference answers, so the renderer can never name a world's picture.
+   */
+  worldEvidence(platform: Platform, worldRef: string): ExploreWorldEvidence | null {
+    const state = this.state(platform)
+    if (!this.current(platform, state)) return null
+    const world = this.findWorld(state, worldRef)
+    return world ? { ...world.evidence } : null
   }
 
   /**
@@ -870,6 +887,22 @@ export class ExploreService {
     if (job) {
       job.controller.abort()
       this.finishJob(job)
+    }
+  }
+
+  private mergedEvidence(
+    previous: ExploreWorldEvidence,
+    next: ExploreWorldEvidence
+  ): ExploreWorldEvidence {
+    const knowsNothing = (count: ExploreCount): boolean =>
+      count.state === 'unknown' && count.source === 'unknown'
+    return {
+      ...next,
+      activity: knowsNothing(next.activity) ? previous.activity : next.activity,
+      visibleRoomCount: knowsNothing(next.visibleRoomCount)
+        ? previous.visibleRoomCount
+        : next.visibleRoomCount,
+      popularity: next.popularity ?? previous.popularity
     }
   }
 
