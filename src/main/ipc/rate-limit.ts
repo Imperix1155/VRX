@@ -87,6 +87,11 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   // Alert picks follow the same human-paced drawer and Settings use as notes.
   'get-alert-picks': { max: 90, windowMs: 60_000 },
   'set-alert-pick': { max: 60, windowMs: 60_000 },
+  // Favorites: the Friends list, drawer and Explore read them; stars are clicks.
+  'get-favorite-friends': { max: 90, windowMs: 60_000 },
+  'set-favorite-friend': { max: 60, windowMs: 60_000 },
+  'get-favorite-worlds': { max: 90, windowMs: 60_000 },
+  'set-favorite-world': { max: 60, windowMs: 60_000 },
   'get-linked-profiles': { max: 90, windowMs: 60_000 },
   'change-linked-profile': { max: 60, windowMs: 60_000 },
   // Hydration is once per renderer load; three allows dev remount/reload churn.
@@ -128,6 +133,8 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'switch-avatar':
     case 'set-friend-note':
     case 'set-alert-pick':
+    case 'set-favorite-friend':
+    case 'set-favorite-world':
     case 'get-linked-profiles':
     case 'change-linked-profile':
     case 'test-vr-alert':

@@ -20,15 +20,17 @@
  *      privacy-safe Hidden layers. No policy-space pill or raw instance ID here.
  *   4. Join: linked people choose a reviewed destination before the existing
  *      bridge flow, confirmation and in-flight guard (VRX-166).
- *      Copy link / self-invite / favorite remain separate issues; no
- *      placeholders here.
+ *      Copy link and self-invite remain separate issues; no placeholders
+ *      here.
  *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
  *      explicit Retry after failure, then quiet VRChat trust when known, then
  *      "Full profile" (owner, 2026-10-31): bio, pronouns, rank, badges, and
  *      worlds and groups on demand, read only after the press.
- *   6. Pinned footer: Identities, and across from it the alerts bell
+ *   6. Pinned footer: Identities, and across from it the favorite star
+ *      (FriendFavoriteStar, kept only in VRX) and the alerts bell
  *      (FriendAlertBell) with "Alert me about this friend" while Settings
- *      limits alerts to picked friends. A linked person is one pick.
+ *      limits alerts to picked friends. A linked person is one star and
+ *      one pick.
  *
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
  * card stays fully interactive — the soft scrim (`--scrim-soft`) is
@@ -58,6 +60,7 @@ import LinkedDestinationChooser from './LinkedDestinationChooser'
 import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
 import IdentitiesDialog from './IdentitiesDialog'
 import FriendAlertBell from './FriendAlertBell'
+import FriendFavoriteStar from './FriendFavoriteStar'
 import PlatformPill from './PlatformPill'
 import ProfileDetails from './ProfileDetails'
 
@@ -586,7 +589,11 @@ export default function FriendDrawer({
                 </span>
               </button>
             )}
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-[var(--space-2)]">
+              <FriendFavoriteStar
+                accounts={shownAccounts}
+                name={profileName || t('linking.unknownName')}
+              />
               <FriendAlertBell
                 accounts={shownAccounts}
                 name={profileName || t('linking.unknownName')}

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Favorites: star a friend or a world to keep them close. Press the star at
+  the bottom of a friend's details (next to the bell), or beside a world's
+  name on its panel. Starred friends who are on now get their own Favorites
+  group at the top of the Friends page, and every starred friend has a small
+  star after their name. Starred worlds are listed under Explore → Favorites.
+  A linked friend is one star for both platforms. Stars are kept only in VRX
+  on this computer, for each signed-in account; nothing is sent to VRChat or
+  ChilloutVR, and the games' own favorites are not changed.
+
 ## [1.4.0-dev.3] - 2026-11-01
 
 Dev test build. It has everything in 1.4.0-dev.2 plus the changes below.

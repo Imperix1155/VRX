@@ -74,6 +74,11 @@ before it saves anything.
   friend requests that the sockets already deliver. It is view-only: no extra
   request reads them, and VRX never accepts, declines or replies. Hide only
   removes a row inside VRX.
+- **No platform favorites.** Favorite friends and worlds (the stars) live only
+  in VRX on the user's computer, per signed-in account. Starring, unstarring
+  and showing Explore → Favorites send nothing to either platform and never
+  touch the games' own favorites. A favorite world's picture and sheet load
+  exactly like any other Explore world's, only when shown or opened.
 - **No mass actions.** No bulk invites, friend requests, messages, or blocks.
   The only platform writes are one user-initiated VRChat self-invite at a time
   and one user-initiated avatar switch per platform at a time, to an avatar VRX

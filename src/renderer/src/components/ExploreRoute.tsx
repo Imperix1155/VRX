@@ -21,6 +21,7 @@ import { usePictureColumns } from '../hooks/usePictureColumns'
 import ExploreView from './ExploreView'
 import { ResolvedCard } from './WorldResults'
 import ExploreListPanel from './ExploreLists'
+import ExploreFavorites from './ExploreFavorites'
 import SegmentedControl from './SegmentedControl'
 import { useRefreshWorldList } from '../queries/community'
 import { shownPlatforms } from '../utils/community'
@@ -82,13 +83,15 @@ function shownUnderFilter(
   return snapshot.platform === platformFilter
 }
 
-/** Popular now, then the two lists every platform offers (owner, 2026-10-31). */
-const EXPLORE_TABS = ['popular', 'new', 'updated'] as const
+/** Popular now, then the two lists every platform offers (owner, 2026-10-31),
+ *  then the worlds you starred (owner, 2026-11-01). */
+const EXPLORE_TABS = ['popular', 'new', 'updated', 'favorites'] as const
 type ExploreTab = (typeof EXPLORE_TABS)[number]
 const EXPLORE_TAB_KEYS: Record<ExploreTab, string> = {
   popular: 'explore.popularNow',
   new: 'explore.lists.new',
-  updated: 'explore.lists.updated'
+  updated: 'explore.lists.updated',
+  favorites: 'explore.lists.favorites'
 }
 
 /** Production Explore route. Data fetching is intentionally delegated to AppShell's coordinator. */
@@ -148,7 +151,7 @@ export default function ExploreRoute(): React.JSX.Element {
   const [tab, setTab] = useState<ExploreTab>('popular')
   const refreshList = useRefreshWorldList()
   const refreshShownList = useCallback(() => {
-    if (tab === 'popular') return
+    if (tab === 'popular' || tab === 'favorites') return
     for (const platform of shownPlatforms(platformFilter))
       void refreshList(platform, tab).catch(() => undefined)
   }, [platformFilter, refreshList, tab])
@@ -193,15 +196,19 @@ export default function ExploreRoute(): React.JSX.Element {
             setTab(next)
           }}
         />
-        <button
-          type="button"
-          onClick={tab === 'popular' ? refresh : refreshShownList}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text-dim)] hover:bg-[var(--surface-hover)]"
-        >
-          {t('explore.refresh')}
-        </button>
+        {/* Favorites are kept in VRX, so there is nothing to refresh. */}
+        {tab !== 'favorites' ? (
+          <button
+            type="button"
+            onClick={tab === 'popular' ? refresh : refreshShownList}
+            className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text-dim)] hover:bg-[var(--surface-hover)]"
+          >
+            {t('explore.refresh')}
+          </button>
+        ) : null}
       </div>
-      {tab !== 'popular' ? <ExploreListPanel list={tab} /> : null}
+      {tab === 'new' || tab === 'updated' ? <ExploreListPanel list={tab} /> : null}
+      {tab === 'favorites' ? <ExploreFavorites /> : null}
       {tab === 'popular' ? (
         <ExploreView
           worlds={worlds}
