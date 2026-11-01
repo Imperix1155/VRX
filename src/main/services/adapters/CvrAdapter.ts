@@ -77,6 +77,7 @@ import {
   type CommunityList,
   type CommunitySearchPage
 } from './CommunityAdapter'
+import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
 import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
 import {
   parseCvrGroups,
@@ -191,6 +192,7 @@ export class CvrAdapter
     AvatarLibraryAdapter,
     CommunityAdapter,
     SocialActionAdapter,
+    AccountNoteAdapter,
     HomeWorldAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
@@ -903,6 +905,34 @@ export class CvrAdapter
       throw new SocialDataError('Invalid ChilloutVR user id')
     }
     return userId.toLowerCase()
+  }
+
+  // ── Account notes (the user's private note on a friend) ─────────────────────
+  // A read and a write each follow a user action; a write is never resent.
+
+  captureNoteLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async readAccountNote(userId: string, lease: RequestLease): Promise<string | null> {
+    const id = this.communityUserId(userId)
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+    )
+    return parseAccountNoteReply(raw, id, (left, right) => left.toLowerCase() === right)
+  }
+
+  async writeAccountNote(userId: string, note: string, lease: RequestLease): Promise<void> {
+    const id = this.communityUserId(userId)
+    // CVRX sends the same route and body.
+    await this.runCommunityRequest(lease, () =>
+      this.post(
+        `/users/${encodeURIComponent(id)}/note`,
+        { note },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
   }
 
   private communityUserId(userId: string): string {

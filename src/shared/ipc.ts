@@ -29,6 +29,7 @@ import type {
 } from './avatarLibrary'
 import type { BackgroundPictureRefusal } from './backgroundPicture'
 import type { RelationshipResult, SocialAction, SocialActionResult } from './socialActions'
+import type { AccountNoteSyncMode, AccountNoteSyncResult } from './accountNotes'
 import type {
   CommunitySearchResult,
   MyGroupsResult,
@@ -281,6 +282,17 @@ export interface IpcInvoke {
     res:
       | { ok: true }
       | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'rate-limited' }
+  }
+  /** Compare (and, on a save or a choice, update) the note on the user's own
+   *  account with VRX's copy. Echo the note read's revision. */
+  'sync-friend-note': {
+    req: {
+      platform: Platform
+      friendId: string
+      revision: { platformAccountId: string; epoch: number }
+      mode: AccountNoteSyncMode
+    }
+    res: AccountNoteSyncResult
   }
   /** The signed-in account's friends picked for alerts. Local only. */
   'get-alert-picks': {

@@ -90,6 +90,9 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-friend-note': { max: 90, windowMs: 60_000 },
   // Blur-triggered note saves are human-paced; one/second is generous.
   'set-friend-note': { max: 60, windowMs: 60_000 },
+  // One check per drawer opened (reused for 5 minutes in main), one after each
+  // saved edit, and the user's choices. Main spaces the writes 2 s apart.
+  'sync-friend-note': { max: 60, windowMs: 60_000 },
   // Alert picks follow the same human-paced drawer and Settings use as notes.
   'get-alert-picks': { max: 90, windowMs: 60_000 },
   'set-alert-pick': { max: 60, windowMs: 60_000 },
@@ -140,6 +143,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'social-action':
     case 'set-home-world':
     case 'set-friend-note':
+    case 'sync-friend-note':
     case 'set-alert-pick':
     case 'set-favorite-friend':
     case 'set-favorite-world':

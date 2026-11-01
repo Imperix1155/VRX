@@ -297,4 +297,61 @@ describe('notes handlers', () => {
 
     expect(setNote('vrchat', 'usr_a', 'hello', revision)).toEqual({ ok: false, reason: 'invalid' })
   })
+
+  describe('sync-friend-note', () => {
+    const sync = (req: unknown): unknown => handlers.get('sync-friend-note')!(event, req)
+
+    it('rejects an untrusted sender and malformed requests', () => {
+      trusted.value = false
+      expect(() =>
+        sync({ platform: 'vrchat', friendId: 'usr_a', revision: {}, mode: 'check' })
+      ).toThrow('Untrusted IPC sender')
+      trusted.value = true
+      expect(() =>
+        sync({ platform: 'steam', friendId: 'usr_a', revision: {}, mode: 'check' })
+      ).toThrow('Invalid sync-friend-note request')
+      expect(() =>
+        sync({ platform: 'vrchat', friendId: 'usr_a', revision: {}, mode: 'push-all' })
+      ).toThrow('Invalid sync-friend-note request')
+      expect(
+        sync({ platform: 'vrchat', friendId: '__proto__', revision: {}, mode: 'check' })
+      ).toEqual({ ok: false, reason: 'invalid' })
+      expect(
+        sync({ platform: 'vrchat', friendId: 'usr_a', revision: null, mode: 'check' })
+      ).toEqual({ ok: false, reason: 'invalid' })
+    })
+
+    it('passes a well-formed request to the account note service', async () => {
+      handlers.clear()
+      const accountNotes = { sync: vi.fn(async () => ({ ok: true, state: 'saved', note: '' })) }
+      registerNotesHandlers({
+        accountSession,
+        socialStore,
+        accountNotes: accountNotes as unknown as NonNullable<
+          Parameters<typeof registerNotesHandlers>[0]['accountNotes']
+        >
+      })
+      const revision = { platformAccountId: 'usr_self', epoch: 1 }
+      await expect(
+        sync({ platform: 'vrchat', friendId: 'usr_a', revision, mode: 'save', extra: 1 })
+      ).resolves.toEqual({ ok: true, state: 'saved', note: '' })
+      expect(accountNotes.sync).toHaveBeenCalledWith({
+        platform: 'vrchat',
+        friendId: 'usr_a',
+        revision,
+        mode: 'save'
+      })
+    })
+
+    it('answers unavailable when main has no account note service', () => {
+      expect(
+        sync({
+          platform: 'vrchat',
+          friendId: 'usr_a',
+          revision: { platformAccountId: 'usr_self', epoch: 1 },
+          mode: 'check'
+        })
+      ).toEqual({ ok: false, reason: 'unavailable' })
+    })
+  })
 })

@@ -221,6 +221,11 @@
       "card": "カード全体",
       "avatar": "アバターのみ"
     },
+    "saveNotesToAccounts": {
+      "label": "メモをアカウントにも保存",
+      "description": "フレンドのメモを VRChat・ChilloutVR のアカウントにも保存します。オフにすると、この PC のみに保存します。",
+      "aria": "フレンドのメモを VRChat と ChilloutVR のアカウントにも保存"
+    },
     "behavior": {
       "heading": "動作"
     },
@@ -659,7 +664,19 @@
       "counter": "{{current}}/500",
       "loadFailed": "このメモを読み込めませんでした。変更を安全に保存できるよう、編集する前に再試行してください。",
       "saveFailed": "このメモを保存できませんでした。最新の下書きはこの端末に残りますが、VRX を閉じると失われます。",
-      "retry": "再試行"
+      "retry": "再試行",
+      "account": {
+        "saved": "{{platform}} アカウントにも保存済み",
+        "saving": "{{platform}} アカウントに保存中…",
+        "localOnly": "今はこの PC のみに保存されています。",
+        "save": "{{platform}} に保存",
+        "tooLong": "この PC のみに保存: {{platform}} のメモは {{max}} 文字までです。",
+        "failed": "{{platform}} に接続できませんでした。この PC には保存済みです。",
+        "conflict": "{{platform}} アカウントには、このフレンドの別のメモがあります:",
+        "empty": "（メモなし）",
+        "useTheirs": "{{platform}} のメモを使う",
+        "keepMine": "自分のメモを残す"
+      }
     },
     "fullProfile": {
       "show": "プロフィールをすべて表示",
