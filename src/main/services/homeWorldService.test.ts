@@ -150,6 +150,12 @@ describe('HomeWorldService', () => {
       reason: 'not-authenticated'
     })
     now.value += HOME_WORLD_COOLDOWN_MS
+    // A 403 refuses this change; the session itself is still good.
+    vrc.error = new AuthError('Forbidden', 403)
+    await expect(service.setHomeWorld('vrchat', 'ref-a')).resolves.toMatchObject({
+      reason: 'failed'
+    })
+    now.value += HOME_WORLD_COOLDOWN_MS
     vrc.error = new RateLimitError(1_000)
     await expect(service.setHomeWorld('vrchat', 'ref-a')).resolves.toMatchObject({
       reason: 'rate-limited'

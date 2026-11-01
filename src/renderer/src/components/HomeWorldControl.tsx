@@ -40,7 +40,7 @@ function IconHome(): React.JSX.Element {
 }
 
 const BUTTON =
-  'inline-flex items-center gap-[var(--space-1)] rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:text-[var(--text-faint)]'
+  'inline-flex items-center gap-[var(--space-1)] rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:text-[var(--text-faint)] aria-disabled:cursor-default aria-disabled:text-[var(--text-faint)]'
 
 export interface HomeWorldControlProps {
   platform: Platform
@@ -68,8 +68,15 @@ export default function HomeWorldControl({
   const accountId = useHomeWorldAccount(platform)
   const homeId = useHomeWorldId(platform, accountId)
   const [step, setStep] = useState<Step>({ state: 'idle' })
+  // A confirm step or a result line belongs to the account it was shown for.
+  const [stepAccount, setStepAccount] = useState(accountId)
+  if (stepAccount !== accountId) {
+    setStepAccount(accountId)
+    setStep({ state: 'idle' })
+  }
   const confirmRef = useRef<HTMLButtonElement>(null)
   const openerRef = useRef<HTMLButtonElement>(null)
+  const chipRef = useRef<HTMLSpanElement>(null)
   const returnFocusRef = useRef(false)
   const platformName = t(platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
   const isHome = homeId === worldId
@@ -77,9 +84,11 @@ export default function HomeWorldControl({
 
   useEffect(() => {
     if (step.state === 'confirm') confirmRef.current?.focus()
-    if (step.state === 'idle' && returnFocusRef.current) {
+    // After Cancel or an answer, focus goes back to what replaced the
+    // confirm panel, so keyboard and screen-reader users never land on the page.
+    if (step.state !== 'confirm' && step.state !== 'pending' && returnFocusRef.current) {
       returnFocusRef.current = false
-      openerRef.current?.focus()
+      ;(chipRef.current ?? openerRef.current)?.focus()
     }
   }, [step.state])
 
@@ -90,6 +99,7 @@ export default function HomeWorldControl({
 
   function confirm(): void {
     if (accountId === null || pending) return
+    returnFocusRef.current = true
     setStep({ state: 'pending' })
     setHomeWorld({ platform, worldRef, accountId }).then(
       (result) =>
@@ -106,7 +116,9 @@ export default function HomeWorldControl({
   const control =
     accountId === null ? null : isHome ? (
       <span
-        className="inline-flex items-center gap-[var(--space-1)] rounded-[10px] border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)]"
+        ref={chipRef}
+        tabIndex={-1}
+        className="inline-flex items-center gap-[var(--space-1)] rounded-[10px] border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
         aria-label={t('explore.home.isHomeAria', { world: worldName, platform: platformName })}
       >
         <IconHome />
@@ -145,13 +157,21 @@ export default function HomeWorldControl({
               ref={confirmRef}
               type="button"
               onClick={confirm}
-              disabled={pending}
+              // Not `disabled`: a disabled button drops keyboard focus.
+              aria-disabled={pending}
               className={BUTTON}
             >
               <IconHome />
               {pending ? t('explore.home.setting') : t('explore.home.makeHome')}
             </button>
-            <button type="button" onClick={cancel} disabled={pending} className={BUTTON}>
+            <button
+              type="button"
+              onClick={() => {
+                if (!pending) cancel()
+              }}
+              aria-disabled={pending}
+              className={BUTTON}
+            >
               {t('explore.home.cancel')}
             </button>
           </div>

@@ -108,7 +108,9 @@ export class HomeWorldService {
 }
 
 function failureOf(error: unknown): SetHomeWorldFailure {
-  if (error instanceof AuthError) return 'not-authenticated'
+  // A 403 can refuse one change while the session stays valid; only a 401
+  // means the user has to sign in again.
+  if (error instanceof AuthError && error.status !== 403) return 'not-authenticated'
   if (error instanceof RateLimitError || error instanceof RequestQueueFullError) {
     return 'rate-limited'
   }

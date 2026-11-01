@@ -64,7 +64,10 @@ describe('HomeWorldControl', () => {
     })
     expect(setHomeWorld).toHaveBeenCalledTimes(1)
     expect(setHomeWorld).toHaveBeenCalledWith({ platform: 'vrchat', worldRef: 'ref-a' })
-    expect(screen.getByLabelText('Sunset Lounge is your VRChat home world')).toBeTruthy()
+    // Focus moves to the chip that replaced the confirm panel.
+    expect(document.activeElement).toBe(
+      screen.getByLabelText('Sunset Lounge is your VRChat home world')
+    )
     expect(screen.getByRole('status').textContent).toBe(
       'Done. VRChat will start you here next time.'
     )
@@ -99,9 +102,47 @@ describe('HomeWorldControl', () => {
     expect(screen.getByRole('status').textContent).toBe(
       'Wait a few seconds before changing your home world again.'
     )
-    expect(
+    expect(document.activeElement).toBe(
       screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
-    ).toBeTruthy()
+    )
+  })
+
+  it('keeps focus on the confirm button while the write is out, and ignores a second press', async () => {
+    let finish!: (result: SetHomeWorldResult) => void
+    setHomeWorld.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
+    render(control())
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+    )
+    const confirm = screen.getByRole('button', { name: 'Make home' })
+    fireEvent.click(confirm)
+    const pending = screen.getByRole('button', { name: 'Setting…' })
+    expect(pending.getAttribute('aria-disabled')).toBe('true')
+    expect(pending.hasAttribute('disabled')).toBe(false)
+    expect(document.activeElement).toBe(pending)
+    fireEvent.click(pending)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(setHomeWorld).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      finish({ ok: true, platform: 'vrchat', worldId: WORLD })
+      await Promise.resolve()
+    })
+    expect(screen.getByLabelText('Sunset Lounge is your VRChat home world')).toBeTruthy()
+  })
+
+  it('drops a result line when the account changes', async () => {
+    setHomeWorld.mockResolvedValueOnce({ ok: false, reason: 'failed' })
+    render(control())
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Make home' }))
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('status').textContent).not.toBe('')
+    act(() => signIn('usr_someone_else'))
+    expect(screen.getByRole('status').textContent).toBe('')
   })
 
   it('remembers the home per account, and another world still offers the button', async () => {

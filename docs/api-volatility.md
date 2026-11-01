@@ -498,9 +498,9 @@ cached in main for 5 minutes; nothing runs on a timer.
   renderer.
 - **Reachability:** **Set as home world** on an Explore, New, Recently updated
   or search world sheet, after the user confirms. One request, no retry.
-- **When it breaks:** a 401 emits `auth-invalidated`. A 429 reports
-  `rate-limited`; any other failure reports `failed`, and the home world is
-  unchanged.
+- **When it breaks:** a 401 emits `auth-invalidated` and reports
+  `not-authenticated`. A 429 reports `rate-limited`; any other failure,
+  including a 403, reports `failed`, and the home world is unchanged.
 
 ### Images
 
@@ -844,7 +844,10 @@ every 5 s.
 - **Reachability:** the same **Set as home world** press as VRChat. One
   request, no retry.
 - **When it breaks:** a 401 signs out; a 403 runs the usual one confirming
-  re-auth. A 429 reports `rate-limited`; anything else reports `failed`.
+  re-auth and reports `failed`. A 429 reports `rate-limited`; anything else
+  reports `failed`. A 200 whose body is not the `{ message, data }` envelope
+  also reports `failed`, though the change may have landed: check this on the
+  first live press.
 
 ### Profiles, search, lists, players online and groups
 
