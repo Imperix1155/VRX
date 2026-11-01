@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.3] - 2026-11-01
+
+Dev test build. It has everything in 1.4.0-dev.2 plus the changes below.
+
 ### Added
 
 - Bottom panels: the grab bar at the top of every panel that slides up (Hot
