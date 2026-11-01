@@ -106,6 +106,25 @@ export abstract class VrcApiClient extends BaseAdapter {
     )
   }
 
+  /**
+   * A write with no body and no reply worth reading (`PUT` an answer, `POST` a
+   * friend request). Returns the HTTP status so the caller can tell a refusal
+   * (4xx) from a failure; 429 handling and admission stay in `rawRequest`.
+   */
+  protected async sendWrite(
+    method: 'PUT' | 'POST',
+    path: string,
+    options?: AdapterRequestOptions
+  ): Promise<number> {
+    const response = await this.rawRequest(
+      VRC_API_BASE + path,
+      () => ({ method, headers: this.headers() }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+    await response.body?.cancel().catch(() => {})
+    return response.status
+  }
+
   /** DELETE `path` (relative to VRC_API_BASE), validated against `schema`. */
   protected delete<T>(
     path: string,

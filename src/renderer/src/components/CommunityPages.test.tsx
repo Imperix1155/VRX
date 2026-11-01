@@ -140,6 +140,8 @@ const bridge = {
     })
   ),
   getProfileGroups: vi.fn(() => Promise.resolve({ ok: true, groups: [], complete: true })),
+  sendFriendRequest: vi.fn(() => Promise.resolve({ ok: true })),
+  answerFriendRequest: vi.fn(() => Promise.resolve({ ok: true })),
   getMyGroups: vi.fn(({ platform }: { platform: Platform }): Promise<MyGroupsResult> =>
     Promise.resolve({
       ok: true,
@@ -512,5 +514,114 @@ describe('ProfileDetails', () => {
     renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
     expect(await screen.findByText(msg('profile.error.not-found'))).toBeTruthy()
     expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
+  })
+
+  it('offers no friend action to a friend', async () => {
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    await screen.findByText('Hello there')
+    // Unfriend or block (the profile's last section) is not a friend action.
+    expect(screen.queryByRole('button', { name: /friend request/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^(accept|decline)\b/i })).toBeNull()
+  })
+
+  it.each(['vrchat', 'chilloutvr'] as const)(
+    'sends one friend request from a %s profile and says it went out',
+    async (platform) => {
+      bridge.getProfile.mockResolvedValueOnce({
+        ok: true,
+        profile: { ...profile(platform), isFriend: false }
+      })
+      const userId = platform === 'vrchat' ? VRC_ID : CVR_ID
+      const name = platform === 'vrchat' ? 'Lumen' : 'Ember'
+      renderWith(<ProfileDetails platform={platform} userId={userId} />)
+      const add = await screen.findByRole('button', {
+        name: msg('friendActions.addAria', {
+          name,
+          platform: platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
+        })
+      })
+      fireEvent.click(add)
+      await waitFor(() =>
+        expect(screen.getByRole('status').textContent).toContain(msg('friendActions.sent'))
+      )
+      expect(bridge.sendFriendRequest).toHaveBeenCalledExactlyOnceWith({ platform, userId })
+      expect(screen.queryByRole('button', { name: /friend request/i })).toBeNull()
+    }
+  )
+
+  it('says why a friend request did not go out and lets the user press again', async () => {
+    bridge.getProfile.mockResolvedValueOnce({
+      ok: true,
+      profile: { ...profile('vrchat'), isFriend: false }
+    })
+    bridge.sendFriendRequest.mockResolvedValueOnce({ ok: false, reason: 'rate-limited' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: msg('friendActions.addAria', { name: 'Lumen', platform: 'VRChat' })
+      })
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        msg('friendActions.error.rate-limited', { platform: 'VRChat' })
+      )
+    )
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', {
+        name: msg('friendActions.addAria', { name: 'Lumen', platform: 'VRChat' })
+      }).disabled
+    ).toBe(false)
+  })
+
+  it('answers a waiting request instead of sending a new one', async () => {
+    bridge.getProfile.mockResolvedValueOnce({
+      ok: true,
+      profile: { ...profile('chilloutvr'), isFriend: false }
+    })
+    const withInbox = Object.assign(bridge, {
+      getInbox: vi.fn(() =>
+        Promise.resolve({
+          items: [
+            {
+              id: `friend-request:${CVR_ID}`,
+              platform: 'chilloutvr',
+              kind: 'friend-request',
+              senderId: CVR_ID.toUpperCase(),
+              senderName: 'Ember',
+              worldName: null,
+              receivedAt: 1
+            }
+          ]
+        })
+      )
+    })
+    try {
+      renderWith(<ProfileDetails platform="chilloutvr" userId={CVR_ID} />)
+      expect(await screen.findByText(msg('friendActions.incoming'))).toBeTruthy()
+      expect(screen.queryByText(msg('friendActions.add'))).toBeNull()
+      fireEvent.click(
+        screen.getByRole('button', { name: msg('friendActions.acceptAria', { name: 'Ember' }) })
+      )
+      await waitFor(() =>
+        expect(bridge.answerFriendRequest).toHaveBeenCalledWith({
+          platform: 'chilloutvr',
+          id: `friend-request:${CVR_ID}`,
+          answer: 'accept'
+        })
+      )
+      expect(bridge.sendFriendRequest).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(withInbox, 'getInbox')
+    }
+  })
+
+  it('shows no friend action on the signed-in user’s own profile', async () => {
+    bridge.getProfile.mockResolvedValueOnce({
+      ok: true,
+      profile: { ...profile('vrchat'), userId: 'vrchat-me', isFriend: false }
+    })
+    renderWith(<ProfileDetails platform="vrchat" userId="vrchat-me" />)
+    await screen.findByText('Hello there')
+    expect(screen.queryByText(msg('friendActions.add'))).toBeNull()
   })
 })

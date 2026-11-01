@@ -23,7 +23,14 @@ import { CvrPipeline } from './cvr/CvrPipeline'
 import { fetchCvrFriends } from './cvr/fetchCvrFriends'
 import { parseCvrPrivacy } from './cvr/parseCvrPrivacy'
 import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resolveCvrInstance'
-import { AuthSessionPendingError, CVRAuthError, CVRNetworkError } from './errors'
+import { AuthSessionPendingError, CVRAuthError, CVRNetworkError, CVRRateLimitError } from './errors'
+import {
+  FriendActionRefusedError,
+  FriendActionUnavailableError,
+  type FriendActionsAdapter,
+  type FriendRequestRecord
+} from './FriendActionsAdapter'
+import type { FriendRequestAnswer } from '@shared/friendActions'
 import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
 import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
 import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
@@ -213,7 +220,8 @@ export class CvrAdapter
     SocialActionAdapter,
     AccountNoteAdapter,
     HomeWorldAdapter,
-    GameFavoritesAdapter
+    GameFavoritesAdapter,
+    FriendActionsAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -763,6 +771,71 @@ export class CvrAdapter
         retry: 'none'
       })
     )
+  }
+
+  // ── Friend actions (one press, one socket frame, never resent) ──────────────
+  // ChilloutVR takes friend actions over `/users/ws`, as CVRX sends them:
+  // `{ RequestType: 6 | 7 | 5, Data: { id } }`. The socket sends no reply, so a
+  // sent frame is the success; the roster-changed push confirms an accept.
+
+  captureFriendActionLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  /** A press is refused at once while the live socket is closed, never held. */
+  canSendFriendAction(): boolean {
+    return this.pipeline?.isConnected() ?? false
+  }
+
+  answerFriendRequest(
+    record: FriendRequestRecord,
+    answer: FriendRequestAnswer,
+    lease: RequestLease
+  ): Promise<void> {
+    return this.sendFriendFrame(lease, record.senderId, (pipeline, id) =>
+      answer === 'accept' ? pipeline.acceptFriendRequest(id) : pipeline.declineFriendRequest(id)
+    )
+  }
+
+  sendFriendRequest(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendFriendFrame(lease, userId, (pipeline, id) => pipeline.sendFriendRequest(id))
+  }
+
+  private sendFriendFrame(
+    lease: RequestLease,
+    userId: string,
+    send: (pipeline: CvrPipeline, id: string) => boolean
+  ): Promise<void> {
+    try {
+      this.sendFriendFrameNow(lease, userId, send)
+      return Promise.resolve()
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  }
+
+  private sendFriendFrameNow(
+    lease: RequestLease,
+    userId: string,
+    send: (pipeline: CvrPipeline, id: string) => boolean
+  ): void {
+    if (!isCommunityUserId('chilloutvr', userId)) {
+      throw new FriendActionRefusedError('Invalid ChilloutVR user id')
+    }
+    const id = userId.toLowerCase()
+    if (id === this.accountId?.toLowerCase()) {
+      throw new FriendActionRefusedError('A friend action cannot name the signed-in user')
+    }
+    assertRequestLease(lease)
+    // A socket frame takes no admission slot, but it still honors a 429 cooldown.
+    const cooldown = this.admission.cooldownRemainingMs
+    if (cooldown > 0) throw new CVRRateLimitError(cooldown)
+    // The pipeline is replaced at every session boundary, so a current lease
+    // means this socket belongs to the same account.
+    const pipeline = this.pipeline
+    if (pipeline === null || !send(pipeline, id)) {
+      throw new FriendActionUnavailableError('ChilloutVR live connection is not open')
+    }
   }
 
   // ── Home world (one user-pressed write at a time) ───────────────────────────

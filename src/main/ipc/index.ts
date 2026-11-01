@@ -12,6 +12,8 @@ import { registerAvatarHandlers } from './avatar'
 import { registerAppBackgroundHandlers, type AppBackgroundHandlerOptions } from './app-background'
 import { registerFriendsHandlers } from './friends'
 import { registerInboxHandlers } from './inbox'
+import { registerFriendActionHandlers } from './friend-actions'
+import type { FriendActionsService } from '../services/friendActions'
 import type { InboxService } from '../services/inbox'
 import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers, registerHomeWorldHandler } from './explore'
@@ -83,6 +85,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   social: SocialActionService
   appBackground: AppBackgroundHandlerOptions
   inbox: InboxService
+  friendActions: FriendActionsService
   vrOverlayAlerts: Pick<VrOverlayAlerts, 'test'>
   onRendererHydrated: (event: IpcMainEvent) => void
   /** Each roster read, after the location authority is seeded. */
@@ -174,6 +177,7 @@ export function registerIpcHandlers(
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)
     registerInboxHandlers(options.inbox)
+    registerFriendActionHandlers(options.friendActions)
     registerVrAlertHandlers(options.vrOverlayAlerts)
     registerUpdaterHandlers()
   } finally {

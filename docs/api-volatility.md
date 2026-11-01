@@ -648,7 +648,11 @@ VRCX; no real response or write has been captured yet.
   leave the world unnamed. Other notification types (messages, votes to kick,
   responses, group notices) are ignored. `hide-notification` and
   `see-notification` carry a bare, non-JSON ID, so those types skip the second
-  JSON parse. The inbox is view-only: VRX never answers, accepts or declines.
+  JSON parse. VRX answers only friend requests, and only on a press:
+  `PUT /auth/user/notifications/{id}/accept` or `/hide` (decline), with no
+  body, as VRCX sends them (Source-derived, not yet seen live). A 4xx (for
+  example a request already answered elsewhere) counts as a refusal. Add
+  friend is `POST /user/{id}/friendRequest` with no body, as VRCX sends it.
   VRX makes no REST read of pending notifications, so only what arrives while
   VRX is open is listed.
 - **Parses:** `user` uses the roster record schema and the same normalizer.
@@ -1056,6 +1060,11 @@ response or write has been captured yet.
   records are skipped. A frame never removes rows, because it is unconfirmed
   whether a frame lists everything still open. A friend request clears when that
   person shows up on the roster.
+- **Friend action frames (🟡 Source-derived from CVRX, not yet seen live):**
+  VRX sends `{ RequestType: 6, Data: { id } }` to accept, `7` to decline and
+  `5` to add, where `id` is the other user's GUID in lower case. The socket
+  sends no reply to them, so a sent frame counts as done; an accept is
+  confirmed by the usual `11 FRIEND_LIST_UPDATED` and roster read.
 
 - **Live 2026-07-07:** entries use PascalCase `Id`, `IsOnline` and
   `Instance: { Id, Name, Privacy }` with a numeric `Privacy`. The first

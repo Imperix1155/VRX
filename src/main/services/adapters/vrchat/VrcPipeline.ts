@@ -23,7 +23,7 @@
  *   socket — TCP keepalive only (VRCX-verified note).
  *
  * Invites, invite requests and friend requests (`notification`) feed the
- * view-only inbox, and `hide-notification`, `response-notification` and
+ * inbox, and `hide-notification`, `response-notification` and
  * `clear-notification` remove them again. Other notification, self and group
  * events are decoded (so drift is visible in logs) but not routed.
  */

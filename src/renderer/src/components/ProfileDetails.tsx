@@ -5,13 +5,23 @@
  * read once when this mounts; the worlds and groups only after a press. Both
  * platforms show the same fields in the same order, with "Not shown" where a
  * platform has nothing, so neither looks emptier by design.
+ *
+ * Someone who is not a friend yet gets one friend action on top (owner,
+ * 2026-11-01): Accept and Decline when their request is waiting in the Inbox,
+ * otherwise Add friend. Main sends it only to someone a search listed.
  */
 import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CommunityGroup, PersonProfile, ProfileBadge, ProfileResult } from '@shared/community'
+import type { FriendActionResult, FriendRequestAnswer } from '@shared/friendActions'
 import type { Platform, TrustRank } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
+import { useAuthStatus } from '../queries/auth'
 import { useProfile, useProfileGroups, useProfileWorlds } from '../queries/community'
+import { sendFriendRequest, useAnswerFriendRequest } from '../queries/friendActions'
+import { useInbox } from '../queries/inbox'
+import { platformName } from '../utils/community'
+import { FRIEND_ACTION_BUTTON, FRIEND_ACTION_ERROR_KEYS } from '../utils/friendActions'
 import { CommunityTile, TileGrid } from './CommunityParts'
 import ProfileActions from './ProfileActions'
 
@@ -104,6 +114,13 @@ function ProfileBody({ profile }: { profile: PersonProfile }): React.JSX.Element
   ]
   return (
     <div className="flex flex-col gap-[var(--space-4)]" data-profile-details={profile.platform}>
+      {profile.isFriend === false ? (
+        <FriendAction
+          platform={profile.platform}
+          userId={profile.userId}
+          name={profile.displayName}
+        />
+      ) : null}
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-[var(--space-3)] gap-y-[var(--space-1)] text-[13px]">
         {facts.map(([labelKey, value]) => (
           <div key={labelKey} className="contents">
@@ -139,6 +156,130 @@ function ProfileBody({ profile }: { profile: PersonProfile }): React.JSX.Element
         userId={profile.userId}
         name={profile.displayName}
       />
+    </div>
+  )
+}
+
+type FriendActionState =
+  | { kind: 'idle' }
+  | { kind: 'sending'; action: FriendRequestAnswer | 'add' }
+  | { kind: 'done'; action: FriendRequestAnswer | 'add' }
+  | { kind: 'failed'; result: Extract<FriendActionResult, { ok: false }> }
+
+/**
+ * One friend action for someone who is not a friend yet. A request of theirs
+ * waiting in the Inbox gets Accept and Decline (the same answer as there);
+ * otherwise Add friend. Never shown on the signed-in user's own profile.
+ */
+function FriendAction({
+  platform,
+  userId,
+  name
+}: {
+  platform: Platform
+  userId: string
+  name: string
+}): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const self = useAuthStatus(platform).data?.accountId ?? null
+  const inbox = useInbox()
+  const answerFriendRequest = useAnswerFriendRequest()
+  const [state, setState] = useState<FriendActionState>({ kind: 'idle' })
+  const sameId = (a: string, b: string): boolean =>
+    platform === 'chilloutvr' ? a.toLowerCase() === b.toLowerCase() : a === b
+  if (self !== null && sameId(self, userId)) return null
+  const request = inbox.data?.items.find(
+    (item) =>
+      item.platform === platform && item.kind === 'friend-request' && sameId(item.senderId, userId)
+  )
+
+  const run = async (
+    action: FriendRequestAnswer | 'add',
+    send: () => Promise<FriendActionResult>
+  ): Promise<void> => {
+    setState({ kind: 'sending', action })
+    const result = await send()
+    setState(result.ok ? { kind: 'done', action } : { kind: 'failed', result })
+  }
+  const sending = state.kind === 'sending' ? state.action : null
+  const status =
+    state.kind === 'done'
+      ? t(
+          state.action === 'add'
+            ? 'friendActions.sent'
+            : state.action === 'accept'
+              ? 'friendActions.accepted'
+              : 'friendActions.declined',
+          { name }
+        )
+      : state.kind === 'failed'
+        ? t(FRIEND_ACTION_ERROR_KEYS[state.result.reason], {
+            platform: platformName(t, platform)
+          })
+        : null
+
+  let buttons: React.JSX.Element | null = null
+  if (state.kind !== 'done' && request) {
+    buttons = (
+      <>
+        <button
+          type="button"
+          onClick={() =>
+            void run('accept', () => answerFriendRequest(platform, request.id, 'accept'))
+          }
+          disabled={sending !== null}
+          aria-label={t('friendActions.acceptAria', { name })}
+          className={FRIEND_ACTION_BUTTON}
+        >
+          {sending === 'accept' ? t('friendActions.accepting') : t('friendActions.accept')}
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void run('decline', () => answerFriendRequest(platform, request.id, 'decline'))
+          }
+          disabled={sending !== null}
+          aria-label={t('friendActions.declineAria', { name })}
+          className="shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-colors cursor-pointer"
+        >
+          {sending === 'decline' ? t('friendActions.declining') : t('friendActions.decline')}
+        </button>
+      </>
+    )
+  } else if (state.kind !== 'done') {
+    buttons = (
+      <button
+        type="button"
+        onClick={() => void run('add', () => sendFriendRequest(platform, userId))}
+        disabled={sending !== null}
+        aria-label={t('friendActions.addAria', { name, platform: platformName(t, platform) })}
+        className={FRIEND_ACTION_BUTTON}
+      >
+        {sending === 'add' ? t('friendActions.adding') : t('friendActions.add')}
+      </button>
+    )
+  }
+
+  return (
+    // The row keeps a button's height once the button gives way to words.
+    <div className="flex min-h-[28px] flex-wrap items-center gap-x-[var(--space-2)] gap-y-[var(--space-1)]">
+      {request && state.kind !== 'done' ? (
+        <p className="text-[13px] text-[var(--text)]">{t('friendActions.incoming')}</p>
+      ) : null}
+      {buttons}
+      <p
+        role="status"
+        className={`min-w-0 text-[13px] empty:hidden ${
+          state.kind === 'failed' ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'
+        }`}
+      >
+        {state.kind === 'done' ? (
+          <span aria-hidden="true" className="mr-[var(--space-1)]">
+            ✓
+          </span>
+        ) : null}
+        {status}
+      </p>
     </div>
   )
 }

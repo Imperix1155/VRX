@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
- * Inbox page (owner, 2026-10-27): view-only rows for both platforms, scoped by
- * the platform filter, with Hide acting in VRX only.
+ * Inbox page (owner, 2026-10-27): rows for both platforms, scoped by the
+ * platform filter, with Hide acting in VRX only. Friend requests can be
+ * accepted or declined (owner, 2026-11-01).
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
@@ -50,6 +51,7 @@ let bridge: {
   getInbox: ReturnType<typeof vi.fn>
   dismissInboxItem: ReturnType<typeof vi.fn>
   clearInbox: ReturnType<typeof vi.fn>
+  answerFriendRequest: ReturnType<typeof vi.fn>
 }
 
 function renderInbox(friends: { vrchat?: Friend[]; chilloutvr?: Friend[] } = {}): QueryClient {
@@ -94,7 +96,13 @@ beforeEach(() => {
   bridge = {
     getInbox: vi.fn(async () => snapshot),
     dismissInboxItem: vi.fn(async () => undefined),
-    clearInbox: vi.fn(async () => undefined)
+    clearInbox: vi.fn(async () => undefined),
+    answerFriendRequest: vi.fn(async ({ platform, id }: { platform: string; id: string }) => {
+      snapshot = {
+        items: snapshot.items.filter((row) => !(row.platform === platform && row.id === id))
+      }
+      return { ok: true }
+    })
   }
   vi.stubGlobal('vrx', bridge)
 })
@@ -206,6 +214,52 @@ describe('InboxView', () => {
     fireEvent.click(help)
     expect(help.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByText(msg('inbox.help.answer'))).toBeTruthy()
+  })
+
+  it('offers Accept and Decline on friend requests only, and sends one answer', async () => {
+    const client = renderInbox()
+    const requests = await screen.findByRole('region', { name: msg('inbox.requestsHeading') })
+    const invites = screen.getByRole('region', { name: msg('inbox.invitesHeading') })
+    expect(within(invites).queryByRole('button', { name: /accept/i })).toBeNull()
+
+    fireEvent.click(
+      within(requests).getByRole('button', {
+        name: msg('friendActions.acceptAria', { name: 'Bob' })
+      })
+    )
+    await waitFor(() =>
+      expect(bridge.answerFriendRequest).toHaveBeenCalledWith({
+        platform: 'chilloutvr',
+        id: 'friend-request:g-1',
+        answer: 'accept'
+      })
+    )
+    expect((await screen.findByRole('status')).textContent).toBe(
+      msg('friendActions.accepted', { name: 'Bob' })
+    )
+    // Main pushes inbox-changed; the row leaves on the re-read.
+    await client.invalidateQueries({ queryKey: inboxKey })
+    await waitFor(() => expect(screen.queryByText('Bob')).toBeNull())
+    expect(bridge.answerFriendRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the row and names the platform when an answer fails', async () => {
+    bridge.answerFriendRequest.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+    renderInbox()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: msg('friendActions.declineAria', { name: 'Bob' })
+      })
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        msg('friendActions.error.unavailable', { platform: 'ChilloutVR' })
+      )
+    )
+    expect(screen.getByText('Bob')).toBeTruthy()
+    expect(bridge.answerFriendRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ answer: 'decline' })
+    )
   })
 
   it('offers Accounts when the filtered platform is not connected', async () => {

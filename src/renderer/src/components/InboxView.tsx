@@ -2,16 +2,22 @@
  * Inbox page (owner, 2026-10-27): invites, invite requests and friend requests
  * the platform sockets delivered while VRX was open, for both platforms alike.
  *
- * View-only by design. Answering stays in the game or on the platform's site;
- * Hide only takes a row out of VRX and sends nothing. Rows follow the platform
- * filter, carry the platform as a word (PlatformPill) beside its color, and
- * show a known friend's current name and picture. The TopBar owns the heading.
+ * Friend requests can be accepted or declined here (owner, 2026-11-01): one
+ * press sends one answer, and the row leaves once the platform took it.
+ * Invites stay view-only; Hide only takes a row out of VRX and sends nothing.
+ * Rows follow the platform filter, carry the platform as a word (PlatformPill)
+ * beside its color, and show a known friend's current name and picture. The
+ * TopBar owns the heading.
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { FriendRequestAnswer } from '@shared/friendActions'
 import type { InboxItem, InboxKind } from '@shared/inbox'
 import type { Friend, Platform } from '@shared/types'
 import { useInbox, dismissInboxItem, clearInbox } from '../queries/inbox'
+import { useAnswerFriendRequest } from '../queries/friendActions'
+import { platformName } from '../utils/community'
+import { FRIEND_ACTION_ERROR_KEYS, FRIEND_ACTION_BUTTON } from '../utils/friendActions'
 import { useFriends } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useAvatar } from '../hooks/useAvatar'
@@ -80,6 +86,12 @@ export default function InboxView(): React.JSX.Element {
     useNotConnectedGate(platformFilter)
   const [helpOpen, setHelpOpen] = useState(false)
   const [hideFailed, setHideFailed] = useState(false)
+  /** Rows whose answer is on its way, by row key. */
+  const [answering, setAnswering] = useState<ReadonlyMap<string, FriendRequestAnswer>>(
+    () => new Map()
+  )
+  const answerFriendRequest = useAnswerFriendRequest()
+  const [notice, setNotice] = useState<{ tone: 'done' | 'error'; text: string } | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const helpId = useId()
   const listRef = useRef<HTMLDivElement>(null)
@@ -147,6 +159,40 @@ export default function InboxView(): React.JSX.Element {
     setHideFailed(!ok)
   }
 
+  const answer = async (item: InboxItem, choice: FriendRequestAnswer): Promise<void> => {
+    const key = `${item.platform}:${item.id}`
+    const name = nameOf(item)
+    const index = Math.max(
+      0,
+      ordered.findIndex((row) => row.id === item.id)
+    )
+    setNotice(null)
+    setAnswering((prev) => new Map(prev).set(key, choice))
+    focusAfterHide.current = { ids: new Set([key]), index }
+    const result = await answerFriendRequest(item.platform, item.id, choice)
+    setAnswering((prev) => {
+      const next = new Map(prev)
+      next.delete(key)
+      return next
+    })
+    if (result.ok) {
+      setNotice({
+        tone: 'done',
+        text: t(choice === 'accept' ? 'friendActions.accepted' : 'friendActions.declined', {
+          name
+        })
+      })
+      return
+    }
+    focusAfterHide.current = null
+    setNotice({
+      tone: 'error',
+      text: t(FRIEND_ACTION_ERROR_KEYS[result.reason], {
+        platform: platformName(t, item.platform)
+      })
+    })
+  }
+
   const hideAll = async (): Promise<void> => {
     const platforms = [...new Set(items.map((item) => item.platform))]
     focusAfterHide.current = {
@@ -203,6 +249,7 @@ export default function InboxView(): React.JSX.Element {
           {rows.map((item) => {
             const name = nameOf(item)
             const age = relativeInboxTime(item.receivedAt, now, i18n.language) ?? t('inbox.justNow')
+            const sending = answering.get(`${item.platform}:${item.id}`)
             return (
               <li
                 key={`${item.platform}:${item.id}`}
@@ -225,10 +272,37 @@ export default function InboxView(): React.JSX.Element {
                     <time dateTime={new Date(item.receivedAt).toISOString()}>{age}</time>
                   </p>
                 </div>
+                {item.kind === 'friend-request' ? (
+                  <div className="flex shrink-0 items-center gap-[var(--space-1)]">
+                    <button
+                      type="button"
+                      onClick={() => void answer(item, 'accept')}
+                      disabled={sending !== undefined}
+                      aria-label={t('friendActions.acceptAria', { name })}
+                      className={FRIEND_ACTION_BUTTON}
+                    >
+                      {sending === 'accept'
+                        ? t('friendActions.accepting')
+                        : t('friendActions.accept')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void answer(item, 'decline')}
+                      disabled={sending !== undefined}
+                      aria-label={t('friendActions.declineAria', { name })}
+                      className={QUIET_BUTTON}
+                    >
+                      {sending === 'decline'
+                        ? t('friendActions.declining')
+                        : t('friendActions.decline')}
+                    </button>
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   data-inbox-hide=""
                   onClick={() => void hide(item)}
+                  disabled={sending !== undefined}
                   aria-label={t(HIDE_ARIA_KEYS[item.kind], { name })}
                   className={QUIET_BUTTON}
                 >
@@ -285,6 +359,14 @@ export default function InboxView(): React.JSX.Element {
           {t('inbox.hideFailed')}
         </p>
       ) : null}
+      <p
+        role="status"
+        className={`canvas-text text-sm empty:hidden ${
+          notice?.tone === 'error' ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'
+        }`}
+      >
+        {notice?.text}
+      </p>
       {items.length === 0 ? (
         <div className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
           <p className="text-sm font-semibold text-[var(--text-dim)]">{t('inbox.emptyHeading')}</p>

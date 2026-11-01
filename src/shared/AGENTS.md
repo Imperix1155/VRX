@@ -15,8 +15,9 @@ through `@shared`.
   choice, and adapter event vocabulary.
 - `settings.ts`: schema, defaults, `SETTINGS_VERSION`, migrations,
   `parseSettings`, and `shouldPersistSettings`.
-- `inbox.ts`: view-only inbox vocabulary (kinds, entries, changes, rows), its
-  size bounds, and the ID and text guards the parsers share.
+- `inbox.ts`: inbox vocabulary (kinds, entries, changes, rows), its size
+  bounds, and the ID and text guards the parsers share. `friendActions.ts`:
+  friend request answers and sends, their pacing values and typed results.
 - `explore.ts`: display-only discovery values, opaque main-issued `worldRef`
   and `selectionRef`, typed refresh reasons, and the 2/4/6 world totals.
   `exploreRanking.ts`: pure per-platform ranking and balanced cross-platform
