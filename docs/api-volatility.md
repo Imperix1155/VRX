@@ -345,7 +345,8 @@ group id.
 
 - **Assumes (Source-derived):** `name` is a non-empty string after trimming.
   `iconUrl` is optional. The group id is URI-encoded. A `/api/1/file/` icon is
-  rewritten to its 256-wide `/api/1/image/` rendition (see Group pictures).
+  rewritten to its 512-wide `/api/1/image/` rendition (see Group pictures),
+  also when an older build stored the full-size link.
 - **Cache:** 24 h for success, 60 s for failure, at most 512 entries. Answers
   emit `group-metadata` events for friends still in that group.
 - **Uncertain:** the response shape has not been captured live, and the same
@@ -451,8 +452,9 @@ cached in main for 5 minutes; nothing runs on a timer.
   come first, at most 8. Text is cut at 2,048 characters; image URLs must be
   `https`.
 - **Group pictures:** a group's `iconUrl` and `bannerUrl` point at the full
-  uploaded file (`/api/1/file/<file_id>/<version>[/file]`), which is often over
-  the 3 MiB image limit, so the icon never showed. They are rewritten to the
+  uploaded file (`/api/1/file/<file_id>/<version>[/file]`), which can be over
+  the 3 MiB image limit; the most likely reason some icons never showed (not
+  captured live). They are rewritten to the
   `/api/1/image/<file_id>/<version>/<width>` rendition, 256 wide for the icon
   and 1024 for the banner, like friend pictures (VRCX does the same). Same
   number of requests, smaller downloads. A group with no usable picture shows

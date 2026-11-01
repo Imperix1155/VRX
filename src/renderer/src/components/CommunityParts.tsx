@@ -253,24 +253,25 @@ export const CommunityTile = memo(function CommunityTile({
             />
           )}
           <div
-            className="relative flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-[18px] shadow-[0_4px_14px_rgb(0_0_0/0.28)]"
+            className="relative flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-[18px] shadow-[var(--group-icon-shadow)]"
             style={{
               background: isVrc ? 'var(--plat-vrc-rail-bg)' : 'var(--plat-cvr-rail-bg)',
               color: isVrc ? 'var(--plat-vrc-rail-text)' : 'var(--plat-cvr-rail-text)'
             }}
           >
-            <span aria-hidden="true" className="text-[34px] font-bold leading-none">
-              {initialOf(title)}
-            </span>
             {shown ? (
               <img
                 src={shown}
                 alt=""
                 decoding="async"
-                className="absolute inset-0 h-full w-full object-cover"
+                className="h-full w-full object-cover"
                 onError={() => setFailedImage(shown)}
               />
-            ) : null}
+            ) : (
+              <span aria-hidden="true" className="text-[34px] font-bold leading-none">
+                {initialOf(title)}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--space-1)] px-[var(--space-3)] py-[var(--space-2)]">

@@ -675,8 +675,11 @@ no line under ALL for a platform the user isn't signed in to.
   one order on both platforms: Pronouns, Rank, Bio, Badges, then Show worlds
   and Show groups, which read only when pressed. A missing field says "Not
   shown"; VRChat trust uses the friend-details rank words.
-- **Groups** is one name-sorted grid (neutral across platforms) of square
-  tiles: name, then "Owner" or the group code. A group opens the bottom sheet
+- **Groups** is one name-sorted grid (neutral across platforms) of cards that
+  are wider than tall: the group's square icon centered on top over a blurred
+  copy of itself (never cropped), then the name, and the VRC/CVR badge with
+  "Owner" or the group code. No picture, or one that fails, shows the name's
+  first letter on the platform color instead of an empty box. A group opens the bottom sheet
   with its banner, platform pill and role pill, description, and Details
   (Code, Members, Your role). View only.
 - **Explore** has a segmented Popular now · New · Recently updated control.
