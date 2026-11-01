@@ -286,9 +286,21 @@ export class ExploreService {
    */
   worldEvidence(platform: Platform, worldRef: string): ExploreWorldEvidence | null {
     const state = this.state(platform)
-    if (this.disposed) return null
+    if (!this.current(platform, state)) return null
     const world = this.findWorld(state, worldRef)
     return world ? { ...world.evidence } : null
+  }
+
+  /**
+   * The platform world ID behind a reference main issued to the current
+   * account, or null once it expired or the account changed. Lets another
+   * main service act on a world the user opened without trusting an ID from
+   * the renderer. Makes no request.
+   */
+  worldIdFor(platform: Platform, worldRef: string): string | null {
+    const state = this.state(platform)
+    if (!this.current(platform, state)) return null
+    return this.findWorld(state, worldRef)?.evidence.worldId ?? null
   }
 
   async getImage(platform: Platform, worldRef: string): Promise<ExploreImageResult> {

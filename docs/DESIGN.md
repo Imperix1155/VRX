@@ -728,6 +728,12 @@ no line under ALL for a platform the user isn't signed in to.
   same world sheet. Favorites (owner, 2026-11-01) lists the starred worlds,
   newest first, with no Refresh because nothing is fetched for it. The world
   sheet's star follows the world name.
+- **Set as home world** sits beside the platform pill on every world sheet,
+  the same small house-and-label button on both platforms. A press asks once in
+  an inline panel (Make home, Cancel), because it replaces the user's current
+  home. A success turns the button into a quiet "Your home world" chip for the
+  session; a failure is one line of text under it. It is hidden while that
+  platform is signed out.
 - **Player counts** moved from a line under the Dashboard stat cards to the
   top bar (§8, owner, 2026-11-01).
 

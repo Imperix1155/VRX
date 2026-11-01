@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Worlds: a **Set as home world** button on every world panel (Explore's
+  Popular now, New and Recently updated, and Search results), for VRChat and
+  ChilloutVR alike. VRX asks once before it changes anything, because the new
+  home replaces the one you have now, then sends a single request. The panel
+  then says "Your home world".
 - Favorites: star a friend or a world to keep them close. Press the star at
   the bottom of a friend's details (next to the bell), or beside a world's
   name on its panel. Starred friends who are on now get their own Favorites

@@ -38,6 +38,7 @@ import type {
   WorldList,
   WorldListResult
 } from './community'
+import type { SetHomeWorldResult } from './homeWorld'
 import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type { ActivityEntry } from './activity'
@@ -142,6 +143,11 @@ export interface IpcInvoke {
   'join-explore-room': {
     req: { platform: Platform; selectionRef: string; mode: JoinMode }
     res: InstanceActionResult
+  }
+  /** Make an Explore world the signed-in account's home; by main's reference only. */
+  'set-home-world': {
+    req: { platform: Platform; worldRef: string }
+    res: SetHomeWorldResult
   }
   'get-linked-profiles': { req: void; res: LinkResult<LinkSnapshot> }
   'change-linked-profile': {

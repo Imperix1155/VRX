@@ -26,6 +26,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'cancel-explore-world': { max: 120, windowMs: 60_000 },
   'get-explore-image': { max: 120, windowMs: 60_000 },
   'join-explore-room': { max: 20, windowMs: 60_000 },
+  // The 5 s per-platform cooldown in main allows at most 24 changes/minute.
+  'set-home-world': { max: 24, windowMs: 60_000 },
   // Fixed process-lifetime guard; repeated dual-platform retry/reconnect cycles
   // can exhaust this headroom. Budget sizing/recovery is a deferred follow-up.
   'get-friends': { max: 12, windowMs: 30_000 },
@@ -131,6 +133,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-explore-room':
     case 'self-invite':
     case 'switch-avatar':
+    case 'set-home-world':
     case 'set-friend-note':
     case 'set-alert-pick':
     case 'set-favorite-friend':

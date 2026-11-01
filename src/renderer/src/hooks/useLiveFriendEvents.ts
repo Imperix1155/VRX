@@ -41,6 +41,7 @@ import { authStatusQueryKey } from '../queries/auth'
 import { alertPicksPlatformKey } from '../queries/alertPicks'
 import { favoritesPlatformKeys } from '../queries/favorites'
 import { avatarQueryKeysForPlatform } from '../queries/avatarLibrary'
+import { homeWorldQueryKeyForPlatform } from '../queries/homeWorld'
 import { communityQueryKeysForPlatform } from '../queries/community'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
@@ -195,6 +196,8 @@ export function useLiveFriendEvents(): void {
         void queryClient.cancelQueries({ queryKey: avatarKey })
         queryClient.removeQueries({ queryKey: avatarKey })
       }
+      // A home world VRX set for the old account.
+      queryClient.removeQueries({ queryKey: homeWorldQueryKeyForPlatform(platform) })
       // Profiles, searches, lists and groups answered for the old account.
       staleCommunity.delete(platform)
       for (const communityKey of communityQueryKeysForPlatform(platform)) {
