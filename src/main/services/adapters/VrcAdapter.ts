@@ -69,6 +69,13 @@ import {
   type WorldList
 } from '@shared/community'
 import {
+  FriendActionRefusedError,
+  type FriendActionsAdapter,
+  type FriendRequestRecord
+} from './FriendActionsAdapter'
+import type { FriendRequestAnswer } from '@shared/friendActions'
+import { isInboxId } from '@shared/inbox'
+import {
   CommunityDataError,
   type CommunityAdapter,
   type CommunityList,
@@ -257,7 +264,7 @@ const VRC_WORLD_LIST_SORT: Record<WorldList, string> = {
 
 export class VrcAdapter
   extends VrcApiClient
-  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter
+  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter, FriendActionsAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -1085,6 +1092,64 @@ export class VrcAdapter
         retry: 'none'
       })
     )
+  }
+
+  // ── Friend actions (one press, one write, never resent) ─────────────────────
+
+  captureFriendActionLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  /**
+   * Accept answers the friend-request notification
+   * (`PUT /auth/user/notifications/{id}/accept`); decline hides it
+   * (`PUT /auth/user/notifications/{id}/hide`), as VRChat and VRCX do.
+   */
+  async answerFriendRequest(
+    record: FriendRequestRecord,
+    answer: FriendRequestAnswer,
+    lease: RequestLease
+  ): Promise<void> {
+    if (!isInboxId(record.sourceId)) {
+      throw new FriendActionRefusedError('Invalid VRChat notification id')
+    }
+    const verb = answer === 'accept' ? 'accept' : 'hide'
+    await this.friendWrite(
+      lease,
+      'PUT',
+      `/auth/user/notifications/${encodeURIComponent(record.sourceId)}/${verb}`
+    )
+  }
+
+  /** `POST /user/{id}/friendRequest`, no body, as VRCX sends it. */
+  async sendFriendRequest(userId: string, lease: RequestLease): Promise<void> {
+    if (!isCommunityUserId('vrchat', userId) || userId === this.accountId) {
+      throw new FriendActionRefusedError('Not a VRChat user VRX can send a request to')
+    }
+    await this.friendWrite(lease, 'POST', `/user/${encodeURIComponent(userId)}/friendRequest`)
+  }
+
+  private async friendWrite(
+    lease: RequestLease,
+    method: 'PUT' | 'POST',
+    path: string
+  ): Promise<void> {
+    const status = await this.sendWrite(method, path, {
+      lease,
+      priority: 'interactive',
+      // A write is never sent twice on its own; the user can press again.
+      retry: 'none'
+    })
+    assertRequestLease(lease)
+    if (status >= 200 && status < 300) return
+    if (status === 401) {
+      if (lease.isCurrent()) this.invalidateDataPathSession()
+      throw new AuthError(undefined, status)
+    }
+    if (status >= 400 && status < 500) {
+      throw new FriendActionRefusedError(`VRChat refused the friend action (HTTP ${status})`)
+    }
+    throw new NetworkError(`HTTP ${status}`)
   }
 
   // ── Community reads (profiles, search, lists, players online, groups) ───────

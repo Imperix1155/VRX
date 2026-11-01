@@ -39,6 +39,7 @@ import type {
   WorldListResult
 } from './community'
 import type { InboxSnapshot } from './inbox'
+import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type { ActivityEntry } from './activity'
 import type {
@@ -239,12 +240,16 @@ export interface IpcInvoke {
   'choose-app-background': { req: void; res: AppBackgroundResult }
   /** Forget the background picture. */
   'clear-app-background': { req: void; res: void }
-  /** Invites and requests that arrived while VRX was open. View-only. */
+  /** Invites and requests that arrived while VRX was open. */
   'get-inbox': { req: void; res: InboxSnapshot }
   /** Hide one row in VRX. Never answers or declines anything on the platform. */
   'dismiss-inbox-item': { req: { platform: Platform; id: string }; res: void }
   /** Hide every row for these platforms, in VRX only. */
   'clear-inbox': { req: { platforms: Platform[] }; res: void }
+  /** Accept or decline one friend request row. Main looks the row up itself. */
+  'answer-friend-request': { req: AnswerFriendRequest; res: FriendActionResult }
+  /** Send a friend request to someone a search listed this session. */
+  'send-friend-request': { req: SendFriendRequest; res: FriendActionResult }
   'get-settings': { req: void; res: Settings & { unsaved?: true; fallback?: true } }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }

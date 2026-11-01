@@ -170,6 +170,18 @@ describe('CommunityService profiles', () => {
     expect(cvr.getProfile).toHaveBeenCalledWith(CVR_PERSON.toLowerCase(), expect.anything())
   })
 
+  it('says whether a search listed a person, for friend requests', async () => {
+    const { cvr, service } = setup()
+    expect(service.wasListed('chilloutvr', CVR_PERSON)).toBe(false)
+    cvr.people = [person('chilloutvr', CVR_PERSON.toLowerCase())]
+    expect((await service.search('chilloutvr', 'lop')).ok).toBe(true)
+    expect(service.wasListed('chilloutvr', CVR_PERSON)).toBe(true)
+    expect(service.wasListed('vrchat', CVR_PERSON)).toBe(false)
+    expect(service.wasListed('chilloutvr', '../users')).toBe(false)
+    service.clearPlatform('chilloutvr')
+    expect(service.wasListed('chilloutvr', CVR_PERSON)).toBe(false)
+  })
+
   it('reports a missing person as not found', async () => {
     const { service } = setup()
     expect(await service.getProfile('vrchat', MISSING)).toEqual({ ok: false, reason: 'not-found' })

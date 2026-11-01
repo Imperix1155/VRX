@@ -673,11 +673,12 @@ list is plain text.
 ### §9.6 Inbox
 
 The Inbox page lists invites, invite requests and friend requests that the two
-platform sockets deliver while VRX is open. It is view-only: VRX never
-accepts, declines or replies, and the "?" help says to answer in the game or
-on the platform's site. Hide removes a row inside VRX only; Hide all hides
-every row in the current platform filter. Nothing is stored, so the list
-starts empty each launch.
+platform sockets deliver while VRX is open. Friend requests can be answered
+here (owner, 2026-11-01): Accept and Decline each send one answer to that
+platform, and the row leaves once the platform took it. Invites and invite
+requests stay view-only, and the "?" help says to answer those in the game.
+Hide removes a row inside VRX only; Hide all hides every row in the current
+platform filter. Nothing is stored, so the list starts empty each launch.
 
 - Two sections, Invites (invites and invite requests) and Friend requests,
   each newest first, and both platforms mixed in one list with equal weight.
@@ -686,6 +687,12 @@ starts empty each launch.
   platform sent, else "Someone"), a platform pill with the platform word, the
   action ("Invited you to Pug Lounge", "Asked you for an invite", "Sent you a
   friend request"), a relative age ("Just now" under a minute) and a Hide button.
+- A friend request row adds Accept (the one filled button) and Decline (quiet,
+  like Hide) before Hide, the same on both platforms. While an answer is on
+  its way that button says "Accepting…" or "Declining…" and the row's buttons
+  wait. A line above the list says what happened ("Accepted Bob's friend
+  request.") or, in the error color with words, why it did not ("Couldn't
+  reach ChilloutVR. Try again."); a failed answer keeps the row.
 - It follows the platform filter, offers Accounts when the filtered platform
   is not connected, and has a short empty state.
 - The sidebar shows a neutral count badge (text, never color alone) of rows
@@ -695,7 +702,8 @@ starts empty each launch.
 
 ### §9.7 Search, profiles, Groups and world lists
 
-Read-only community views (owner, 2026-10-31). Every one follows the platform
+Community views (owner, 2026-10-31); the only write is the profile's friend
+action below. Every one follows the platform
 filter, offers Accounts when the filtered platform is not connected, and adds
 no line under ALL for a platform the user isn't signed in to.
 
@@ -709,6 +717,14 @@ no line under ALL for a platform the user isn't signed in to.
   one order on both platforms: Pronouns, Rank, Bio, Badges, then Show worlds
   and Show groups, which read only when pressed. A missing field says "Not
   shown"; VRChat trust uses the friend-details rank words.
+- **Friend action** (owner, 2026-11-01): a profile of someone who is not a
+  friend yet starts with one row, the same on both platforms. If their friend
+  request waits in the Inbox it reads "Sent you a friend request." with Accept
+  and Decline, exactly as in the Inbox. Otherwise it is one filled Add friend
+  button; after the press it reads "Sending…", then a check mark and "Friend
+  request sent." in place of the button. A refusal says why in the error color
+  and keeps the button. Friends and the signed-in user's own profile show no
+  friend action.
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
   are wider than tall: the group's square icon centered on top over a blurred
   copy of itself (never cropped), then the name, and the VRC/CVR badge with

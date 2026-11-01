@@ -64,6 +64,8 @@ import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
 import { ActivityFeed } from './services/activityFeed'
 import { InboxService } from './services/inbox'
+import { FriendActionsService } from './services/friendActions'
+import type { FriendActionsAdapter } from './services/adapters/FriendActionsAdapter'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
@@ -414,6 +416,7 @@ app
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
     const communityBoundary: { current?: CommunityService } = {}
+    const friendActionsBoundary: { current?: FriendActionsService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
@@ -450,6 +453,7 @@ app
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
         communityBoundary.current?.clearPlatform('vrchat')
+        friendActionsBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
         // boundary too would read as an account switch: it refetched the dead
@@ -526,6 +530,7 @@ app
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
         communityBoundary.current?.clearPlatform('chilloutvr')
+        friendActionsBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -605,7 +610,7 @@ app
       }
     })
     activityBoundary.current = activityFeed
-    // View-only inbox: socket-delivered invites and requests, memory only.
+    // The inbox: socket-delivered invites and requests, memory only.
     const inbox = new InboxService({
       now: () => Date.now(),
       clock: () => performance.now(),
@@ -713,10 +718,23 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     communityBoundary.current = community
+    // Accept or decline a friend request, or send one: one press, one write.
+    const friendActions = new FriendActionsService({
+      adapters: new Map<Platform, FriendActionsAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      inbox,
+      wasListed: (platform, userId) => community.wasListed(platform, userId),
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    friendActionsBoundary.current = friendActions
 
     registerIpcHandlers(adapters, {
       explore,
       inbox,
+      friendActions,
       vrOverlayAlerts,
       avatarLibrary,
       currentAvatar,
@@ -823,6 +841,7 @@ app
         explore.clearPlatform(event.platform)
         avatarLibrary.clearPlatform(event.platform)
         community.clearPlatform(event.platform)
+        friendActions.clearPlatform(event.platform)
       }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }
       for (const window of BrowserWindow.getAllWindows()) {

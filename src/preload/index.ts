@@ -98,6 +98,11 @@ const vrx = {
   dismissInboxItem: (req: IpcInvoke['dismiss-inbox-item']['req']) =>
     invoke('dismiss-inbox-item', req),
   clearInbox: (req: IpcInvoke['clear-inbox']['req']) => invoke('clear-inbox', req),
+  // A row ID or a listed person only: main decides whether and what to send.
+  answerFriendRequest: (req: IpcInvoke['answer-friend-request']['req']) =>
+    invoke('answer-friend-request', req),
+  sendFriendRequest: (req: IpcInvoke['send-friend-request']['req']) =>
+    invoke('send-friend-request', req),
   onInboxChanged: (callback: () => void) => {
     const listener = (): void => callback()
     ipcRenderer.on('inbox-changed', listener)

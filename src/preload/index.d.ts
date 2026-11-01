@@ -94,13 +94,21 @@ type VrxBridge = {
   getAppBackground: () => Promise<IpcInvoke['get-app-background']['res']>
   chooseAppBackground: () => Promise<IpcInvoke['choose-app-background']['res']>
   clearAppBackground: () => Promise<IpcInvoke['clear-app-background']['res']>
-  /** View-only inbox: rows the sockets delivered while VRX was open. */
+  /** The inbox: rows the sockets delivered while VRX was open. */
   getInbox: () => Promise<IpcInvoke['get-inbox']['res']>
   /** Hide a row in VRX only; nothing reaches the platform. */
   dismissInboxItem: (
     req: IpcInvoke['dismiss-inbox-item']['req']
   ) => Promise<IpcInvoke['dismiss-inbox-item']['res']>
   clearInbox: (req: IpcInvoke['clear-inbox']['req']) => Promise<IpcInvoke['clear-inbox']['res']>
+  /** Accept or decline one friend request row; main looks the row up itself. */
+  answerFriendRequest: (
+    req: IpcInvoke['answer-friend-request']['req']
+  ) => Promise<IpcInvoke['answer-friend-request']['res']>
+  /** Send a friend request to someone a search listed this session. */
+  sendFriendRequest: (
+    req: IpcInvoke['send-friend-request']['req']
+  ) => Promise<IpcInvoke['send-friend-request']['res']>
   /** The inbox changed; read it again. Returns an unsubscribe. */
   onInboxChanged: (callback: () => void) => () => void
   getSettings: () => Promise<IpcInvoke['get-settings']['res']>

@@ -20,12 +20,13 @@
  *   entries never fabricate them.
  * - `11` FRIEND_LIST_UPDATED → `roster-changed` (trigger-only; consumer
  *   refetches the roster over REST).
- * - Invites, invite requests and friend requests (15/20/25) feed the view-only
+ * - Invites, invite requests and friend requests (15/20/25) feed the
  *   inbox (`parseInbox.ts`). Other notices (0/1/2/30/50) are decoded + logged
  *   but deliberately unrouted.
  * - BIDIRECTIONAL: outgoing `{ RequestType, Data }` senders for the friend-
- *   request/invite/block action family. 🟡 The Data payload shapes are
- *   mock-verified against CVRX notes — confirm on first live use.
+ *   request/invite/block action family. Only the friend request senders
+ *   (5/6/7) have a caller: `CvrAdapter`'s pressed friend actions. 🟡 The Data
+ *   payload shapes follow CVRX's `{ id }` — confirm on first live use.
  * - Unknown ResponseTypes / malformed payloads: logged, ignored, never throw.
  *
  * NOTE: no application-level keepalive is sent. The server pings (~60s) and
@@ -80,9 +81,9 @@ export const CVR_RESPONSE = {
 } as const
 
 /**
- * Deliberately unwired until the future invites feature: these mock-verified
- * RequestType values and senders are retained so invite work needn't re-derive
- * their wire shapes.
+ * Outgoing RequestType values (CVRX source). Friend request send, accept and
+ * decline are wired to `CvrAdapter`'s friend actions; the rest stay unwired
+ * until a feature needs them, so that work needn't re-derive the wire shapes.
  */
 export const CVR_REQUEST = {
   FRIEND_REQUEST_SEND: 5,

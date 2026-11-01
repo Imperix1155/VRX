@@ -28,13 +28,15 @@ you press a "Use my sign-in from" button, described below.
   world. Filter it by kind, clear it, or turn it off in Settings →
   Appearance.
 - **Inbox**: invites, invite requests, and friend requests from both
-  platforms that arrive while VRX is open. VRX only shows them; you answer in
-  the game. Hide the page in Settings → Appearance if you don't want it.
+  platforms that arrive while VRX is open. Accept or decline friend requests
+  right there; invites you answer in the game. Hide the page in Settings →
+  Appearance if you don't want it.
 - **Explore**: popular, new, and recently updated public worlds from both
   platforms, with room details.
 - **Search**: find people and worlds on both platforms by name. A person opens
   their full profile (bio, pronouns, rank, badges, worlds, and groups), which
-  you can also open from a friend's details.
+  you can also open from a friend's details. Someone who isn't your friend yet
+  has an Add friend button.
 - **Groups**: the groups you belong to on both platforms, with their details.
   View only.
 - **Avatars**: the avatars you uploaded on both platforms, the one you are

@@ -37,7 +37,9 @@ the one they wear, and switches avatar when the user presses Wear. The
 Dashboard reads only the worn avatar. On request it also reads a person's
 profile, searches people and worlds by name, lists New and Recently updated
 worlds, the user's own groups, and each platform's player count (see
-[Search, profile and group limits](#search-profile-and-group-limits)). It launches
+[Search, profile and group limits](#search-profile-and-group-limits)). On a
+press it accepts or declines a friend request from the Inbox, or sends one from
+a profile (see [Friend action limits](#friend-action-limits)). It launches
 the game through local URL schemes, or, when the game is already open, hands
 the Join to that copy (see
 [Joining a game that is already open](#joining-a-game-that-is-already-open)).
@@ -47,13 +49,14 @@ the Join to that copy (see
 | REST base             | `https://api.vrchat.cloud/api/1`                                                                                                                                                                        | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net`               |
 | Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                                                                                                                                         | `wss://api.chilloutvr.net/1/users/ws`                                                           |
 | Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie                                                                                                                      | `Username` and `AccessKey` upgrade headers, the same headers REST uses                          |
-| Socket traffic        | Receive-only                                                                                                                                                                                            | Receive-only today; outgoing sender methods exist but nothing calls them                        |
+| Socket traffic        | Receive-only                                                                                                                                                                                            | Receives; sends only a pressed friend action (`RequestType` 5, 6 or 7)                          |
 | Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline                                                                                                                       | One `GET /friends`                                                                              |
 | Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                                                  | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                   |
 | Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                                                     | Username and access key                                                                         |
 | Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                   | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open |
 | Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`                                                                                    | `GET /users/{id}`, `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`    |
 | Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`                          | Avatar switch, `GET /avatars/{id}/switchAvatar`                                                 |
+| Friend actions        | Accept `PUT /auth/user/notifications/{id}/accept`, decline `PUT /auth/user/notifications/{id}/hide`, add `POST /user/{id}/friendRequest`; no body                                                       | Socket frames `{ RequestType, Data: { id } }`: 6 accept, 7 decline, 5 add, as CVRX sends them   |
 | Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                                                   | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                 |
 | API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days. World and avatar pictures ask for the full picture in place of the 256 px thumbnail: still one request each | None; ChilloutVR images come from CDN hosts                                                     |
 
@@ -71,13 +74,16 @@ before it saves anything.
 - **No presence polling.** Live presence comes only from the two sockets above.
   VRX never polls a friend's status or location.
 - **No answering for the user.** The Inbox lists invites, invite requests and
-  friend requests that the sockets already deliver. It is view-only: no extra
-  request reads them, and VRX never accepts, declines or replies. Hide only
-  removes a row inside VRX.
-- **No mass actions.** No bulk invites, friend requests, messages, or blocks.
-  The only platform writes are one user-initiated VRChat self-invite at a time
-  and one user-initiated avatar switch per platform at a time, to an avatar VRX
-  listed for that signed-in account.
+  friend requests that the sockets already deliver; no extra request reads
+  them. VRX answers a friend request only when the user presses Accept or
+  Decline on that row, and never answers invites. Hide only removes a row
+  inside VRX.
+- **No mass actions.** No bulk invites, friend requests, messages, or blocks,
+  and no Accept all. The only platform writes are one user-initiated VRChat
+  self-invite at a time, one user-initiated avatar switch per platform at a
+  time, to an avatar VRX listed for that signed-in account, and one pressed
+  friend action at a time per platform (see
+  [Friend action limits](#friend-action-limits)).
 - **No avatar crawling.** VRX lists only the user's own uploads and the avatar
   they wear. It never searches other people's avatars or uses third-party
   avatar databases.
@@ -285,6 +291,34 @@ invalidated session.
 | Explore list tab  | 1 read per platform                                                        |
 | Player counts     | 1 read per shown platform at start and on a page switch; none within 5 min |
 
+## Friend action limits
+
+Accept, Decline and Add friend are the only friend writes. Each follows one
+press, goes out once, and is never retried; the user can press again.
+[`FriendActionsService`](../src/main/services/friendActions.ts) decides what
+goes out:
+
+- **Accept and Decline** name an Inbox friend-request row that main holds. Main
+  looks up the platform record itself (VRChat's notification ID, ChilloutVR's
+  sender ID), and hides the row once the answer went out. VRChat confirms an
+  accept with its usual friend-added push; ChilloutVR with its roster-changed
+  push and one roster read, as for any new friend.
+- **Add friend** goes only to someone a search listed in the current session
+  who is not already a friend and is not the signed-in user. A second press
+  for the same person in the same session reports "sent" again without a
+  request.
+- **Pacing:** one action at a time per platform, at least 2 seconds after the
+  last attempt (`FRIEND_ACTION_SPACING_MS`), failed ones included. Up to 5
+  presses wait their turn (`FRIEND_ACTION_MAX_WAITING`); more are refused as
+  busy. A waiting press is dropped at an account change.
+- **VRChat** writes use the admission queue at interactive priority with no
+  429 retry. A 4xx answer is a refusal; a 401 ends the session as for any
+  data request.
+- **ChilloutVR** writes are one frame on the live `/users/ws` socket, which
+  takes no admission slot, but none is sent during a 429 cooldown. A closed
+  socket fails the action instead of queueing it. 🟡 The frame shape follows
+  CVRX and is not yet confirmed live.
+
 ## Local action limits
 
 Main also rate-limits the renderer's requests before any network work starts.
@@ -300,6 +334,8 @@ Main also rate-limits the renderer's requests before any network work starts.
 | Avatar list              | 30 per minute; concurrent reads share one run                                                                                            |
 | Avatar details           | 60 per minute                                                                                                                            |
 | Avatar switch            | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
+| Answer a friend request  | 30 per minute; one friend action at a time per platform, 2 s apart, at most 5 waiting                                                    |
+| Send a friend request    | 20 per minute; same pacing; only to someone a search listed, once per session                                                            |
 | Profile                  | 60 per minute; a person's worlds and groups 30 per minute each                                                                           |
 | Search                   | 60 per minute; one platform search every 2 s                                                                                             |
 | World lists              | 60 per minute                                                                                                                            |

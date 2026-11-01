@@ -786,15 +786,24 @@ export const communityGroups: Record<Platform, CommunityGroup[]> = {
 }
 
 /** The full profile of a sample friend: the same fields on both platforms. */
+/** Not friends yet: each one's friend request waits in the sample inbox. */
+const REQUEST_SENDERS: Record<Platform, { userId: string; displayName: string }> = {
+  vrchat: { userId: 'usr_fixture_guest_2', displayName: 'Starlight Courier' },
+  chilloutvr: { userId: 'fixture-guest-1', displayName: 'Pixel Wanderer' }
+}
+
 export function profileFor(platform: Platform, userId: string): PersonProfile | null {
-  const friend = friends[platform].find((item) => item.platformUserId === userId)
-  if (!friend) return null
+  const sender = REQUEST_SENDERS[platform]
+  const index = friends[platform].findIndex((item) => item.platformUserId === userId)
+  const friend = friends[platform][index]
+  if (!friend && sender.userId !== userId) return null
   return {
     platform,
     userId,
-    displayName: friend.displayName,
-    imageUrl: friend.avatarUrl,
-    isFriend: true,
+    displayName: friend?.displayName ?? sender.displayName,
+    imageUrl: friend?.avatarUrl ?? null,
+    // The same people the sample search marks as friends.
+    isFriend: friend !== undefined && index < 2,
     pronouns: platform === 'vrchat' ? 'they/them' : null,
     bio: 'Builds small worlds and collects sunsets.\nUsually around in the evening.',
     rank:
@@ -811,13 +820,17 @@ export function profileFor(platform: Platform, userId: string): PersonProfile | 
   }
 }
 
-/** People a sample search finds: two friends per platform. */
+/** People a sample search finds: two friends per platform, one person who is
+ *  not a friend yet, and one whose friend request waits in the inbox. */
 export function searchPeople(platform: Platform): PersonSummary[] {
-  return friends[platform].slice(0, 3).map((friend, index) => ({
+  const people: PersonSummary[] = friends[platform].slice(0, 3).map((friend, index) => ({
     platform,
     userId: friend.platformUserId,
     displayName: friend.displayName,
     imageUrl: friend.avatarUrl,
     isFriend: index < 2
   }))
+  const sender = REQUEST_SENDERS[platform]
+  people.push({ platform, ...sender, imageUrl: null, isFriend: false })
+  return people
 }

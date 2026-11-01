@@ -2,9 +2,10 @@
  * The inbox: invites, invite requests and friend requests the two sockets
  * delivered while VRX was open.
  *
- * View-only and memory-only. Nothing here talks to a platform: dismissing or
- * clearing hides a row in VRX and never answers, declines or marks anything on
- * the user's account. Rows are bounded per platform, deduped by sender, and
+ * Memory-only, and nothing here talks to a platform: dismissing or clearing
+ * hides a row in VRX and never answers, declines or marks anything on the
+ * user's account. Answering a friend request is `FriendActionsService`'s job;
+ * it looks the row up here and hides it once the platform took the answer. Rows are bounded per platform, deduped by sender, and
  * cleared at every account boundary. Dismissed record IDs are remembered (also
  * bounded) so a socket replay after a reconnect stays hidden.
  *
@@ -110,6 +111,13 @@ export class InboxService {
       }
     }
     if (changed) this.options.onChanged()
+  }
+
+  /** The platform record behind a friend request row, or null when there is none. */
+  friendRequest(platform: Platform, id: string): { sourceId: string; senderId: string } | null {
+    const stored = this.platforms[platform].items.get(id)
+    if (!stored || stored.item.kind !== 'friend-request') return null
+    return { sourceId: stored.sourceId, senderId: stored.item.senderId }
   }
 
   /** Hide one row in VRX. False when it is already gone. */
