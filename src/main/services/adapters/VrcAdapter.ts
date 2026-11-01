@@ -57,6 +57,11 @@ import {
   type OwnAvatarsPage
 } from './AvatarLibraryAdapter'
 import { parseVrcAvatar, parseVrcAvatarPage } from './vrchat/parseAvatars'
+import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
+import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
+import { parseVrcOwnProfile, vrcOwnProfileBody } from './vrchat/parseOwnProfile'
+import { SocialDataError, type SocialActionAdapter } from './SocialActionAdapter'
+import { parseVrcBlocked } from './vrchat/parseBlocked'
 import {
   COMMUNITY_LIST_MAX_WORLDS,
   COMMUNITY_MY_GROUPS_MAX,
@@ -68,6 +73,7 @@ import {
   type PersonProfile,
   type WorldList
 } from '@shared/community'
+import { isHomeWorldId } from '@shared/homeWorld'
 import {
   FriendActionRefusedError,
   type FriendActionsAdapter,
@@ -81,6 +87,8 @@ import {
   type CommunityList,
   type CommunitySearchPage
 } from './CommunityAdapter'
+import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
+import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
 import {
   parseVrcGroups,
   parseVrcPeople,
@@ -264,7 +272,15 @@ const VRC_WORLD_LIST_SORT: Record<WorldList, string> = {
 
 export class VrcAdapter
   extends VrcApiClient
-  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter, FriendActionsAdapter
+  implements
+    ExploreAdapter,
+    AvatarLibraryAdapter,
+    CommunityAdapter,
+    OwnProfileAdapter,
+    SocialActionAdapter,
+    AccountNoteAdapter,
+    HomeWorldAdapter,
+    FriendActionsAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -1157,6 +1173,31 @@ export class VrcAdapter
     throw new NetworkError(`HTTP ${status}`)
   }
 
+  // ── Home world (one user-pressed write at a time) ───────────────────────────
+
+  captureHomeWorldLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async setHomeWorld(worldId: string, lease: RequestLease): Promise<void> {
+    if (!isHomeWorldId('vrchat', worldId)) throw new HomeWorldIdError('Invalid VRChat world id')
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    // VRCX sends the same one-field update to the signed-in user.
+    await this.runCommunityRequest(lease, () =>
+      this.putJson(
+        `/users/${encodeURIComponent(accountId)}`,
+        { homeLocation: worldId },
+        z.unknown(),
+        {
+          ...this.communityOptions(lease),
+          // A write is never sent twice on its own; the user can press again.
+          retry: 'none'
+        }
+      )
+    )
+  }
+
   // ── Community reads (profiles, search, lists, players online, groups) ───────
   // Read-only; each one follows a user action and waits in the shared line.
 
@@ -1270,6 +1311,130 @@ export class VrcAdapter
     const parsed = parseVrcGroups(raw, accountId, COMMUNITY_MY_GROUPS_MAX)
     if (!parsed) throw new CommunityDataError('VRChat group list response was malformed')
     return parsed
+  }
+
+  // ── Own profile (read when the editor opens, written on Save) ───────────────
+
+  captureOwnProfileLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnProfile(lease: RequestLease): Promise<OwnProfile> {
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const profile = parseVrcOwnProfile(raw, accountId)
+    if (!profile) throw new OwnProfileDataError('VRChat profile response was malformed')
+    return profile
+  }
+
+  async saveOwnProfile(
+    changes: OwnProfileChanges,
+    lease: RequestLease
+  ): Promise<OwnProfile | null> {
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    // One PUT carries every changed field; VRChat leaves the others as they are.
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.putJson(
+        `/users/${encodeURIComponent(accountId)}`,
+        vrcOwnProfileBody(changes),
+        z.unknown(),
+        // A write is never sent twice on its own; the user can press again.
+        this.communityOptions(lease)
+      )
+    )
+    return parseVrcOwnProfile(raw, accountId)
+  }
+
+  // ── Unfriend, block and unblock (one confirmed write for one person) ─────────
+
+  captureSocialLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
+    const id = this.socialUserId(userId)
+    const query = new URLSearchParams({ type: 'block', targetUserId: id })
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/auth/user/playermoderations?${query.toString()}`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const blocked = parseVrcBlocked(raw, id)
+    if (blocked === null) throw new SocialDataError('VRChat block list response was malformed')
+    return blocked
+  }
+
+  async unfriend(userId: string, lease: RequestLease): Promise<void> {
+    const id = this.socialUserId(userId)
+    await this.runCommunityRequest(lease, () =>
+      this.delete(
+        `/auth/user/friends/${encodeURIComponent(id)}`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  async block(userId: string, lease: RequestLease): Promise<void> {
+    const id = this.socialUserId(userId)
+    await this.runCommunityRequest(lease, () =>
+      this.post(
+        '/auth/user/playermoderations',
+        { moderated: id, type: 'block' },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  async unblock(userId: string, lease: RequestLease): Promise<void> {
+    const id = this.socialUserId(userId)
+    await this.runCommunityRequest(lease, () =>
+      this.putJson(
+        '/auth/user/unplayermoderate',
+        { moderated: id, type: 'block' },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  private socialUserId(userId: string): string {
+    if (!isCommunityUserId('vrchat', userId)) throw new SocialDataError('Invalid VRChat user id')
+    return userId
+  }
+
+  // ── Account notes (the user's private note on a friend) ─────────────────────
+  // A read and a write each follow a user action; a write is never resent.
+
+  captureNoteLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async readAccountNote(userId: string, lease: RequestLease): Promise<string | null> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(userId)}`, z.unknown(), this.communityOptions(lease))
+    )
+    return parseAccountNoteReply(raw, userId, (left, right) => left === right)
+  }
+
+  async writeAccountNote(userId: string, note: string, lease: RequestLease): Promise<void> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    await this.runCommunityRequest(lease, () =>
+      this.post(
+        '/userNotes',
+        { targetUserId: userId, note },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
   }
 
   private communityOptions(lease: RequestLease): AdapterRequestOptions {

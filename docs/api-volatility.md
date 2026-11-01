@@ -132,6 +132,7 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 | `GET /groups/{groupId}`                  | Group name and icon                        | Source-derived                    | No group metadata                       |
 | Explore routes                           | Public-world discovery                     | Synthetic                         | Explore problem state                   |
 | `POST /invite/myself/to/{location}`      | Self-invite                                | Source-derived                    | `invite-failed`                         |
+| `GET`/`PUT /users/{me}`                  | Own profile editor                         | Source-derived                    | Editor shows a retry; text kept         |
 | Image endpoint and hosts                 | Pictures                                   | Live                              | Placeholder                             |
 | Pipeline WebSocket                       | Live presence                              | Source-derived                    | REST reconcile only                     |
 | `vrchat://launch` link                   | Join                                       | Source-derived                    | Join denied before launch               |
@@ -476,6 +477,79 @@ cached in main for 5 minutes; nothing runs on a timer.
   unavailable; a 404 profile is not found. A 401 emits `auth-invalidated`; a
   429 surfaces as rate-limited.
 
+### Friend notes: `GET /users/{userId}` and `POST /userNotes`
+
+The private note the user keeps on a friend
+([AccountNoteAdapter.ts](../src/main/services/adapters/AccountNoteAdapter.ts),
+[accountNotes.ts](../src/shared/accountNotes.ts)). Source-derived from VRCX and
+the community specification; no real response has been captured yet.
+
+- **Assumes:** `GET /users/{userId}` carries `note`, a string (`""` when there
+  is none). `POST /userNotes` takes `{ targetUserId, note }` and replaces the
+  note; `""` clears it. The response is ignored. Notes are one line of at most
+  256 characters (VRCX's editor cap). VRChat swaps symbols such as `#`, `(` and
+  `.` for look-alikes (`＃`, `（`, `․`), as it does in bios; VRX maps them back
+  using VRCX's `replaceBioSymbols` table before it compares or shows a note.
+- **Parses:** a reply for another id, or without a `note` key, is unknown, not
+  empty, and VRX then refuses to write. `null` reads as no note. VRX sends its
+  own copy as one line (line breaks become spaces) and counts that line and its
+  multi-line copy as the same note.
+- **When it breaks:** VRX keeps its own copy and shows that it could not reach
+  the account, with a Retry. A note over 256 characters stays on this PC with a
+  note saying why. A 401 emits `auth-invalidated`; a 429 surfaces as
+  rate-limited.
+
+### Unfriend and block
+
+The profile's Unfriend, Block and Unblock
+([VrcAdapter.ts](../src/main/services/adapters/VrcAdapter.ts),
+[parseBlocked.ts](../src/main/services/adapters/vrchat/parseBlocked.ts)).
+Routes and bodies follow the community specification and VRCX
+(`src/api/playerModeration.ts`, `friend.ts`). Source-derived; not yet run
+against a real account.
+
+| Route                                                                   | Assumed shape                                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `GET /auth/user/playermoderations?type=block&targetUserId={userId}`     | Array of the user's own moderations, each with `type` and `targetUserId`. |
+| `DELETE /auth/user/friends/{userId}`                                    | Unfriends; the body is ignored. 400 when not friends.                     |
+| `POST /auth/user/playermoderations` with `{ moderated, type: "block" }` | Blocks; the reply (the new moderation) is ignored.                        |
+| `PUT /auth/user/unplayermoderate` with `{ moderated, type: "block" }`   | Unblocks; the body is ignored.                                            |
+
+- **Blocked:** true only for a record whose `type` is `block` and whose
+  `targetUserId` is that person, so a reply that ignores the filter still
+  answers correctly. A reply that is not an array is unavailable, never "not
+  blocked".
+- **Writes** are sent once (`retry: 'none'`). A 401 emits `auth-invalidated`;
+  a 429 or any other failure shows in the confirmation and changes nothing in
+  VRX. The friend leaves the roster through the Pipeline's `friend-delete`.
+- **Uncertain:** whether VRChat also ends a friendship when the user blocks a
+  friend. VRX does not assume it either way; the roster follows the Pipeline.
+
+### Own profile: `GET` and `PUT /users/{me}`
+
+Settings → Accounts → Edit profile
+([parseOwnProfile.ts](../src/main/services/adapters/vrchat/parseOwnProfile.ts)).
+Source-derived from the community
+[specification](https://github.com/vrchatapi/specification) (`updateUser`) and
+VRCX; no real response or write has been captured yet.
+
+- **Assumes:** `GET /users/{me}` returns the user with string `bio`,
+  `pronouns`, `status` and `statusDescription`. `PUT /users/{me}` takes a JSON
+  body with only the changed fields among `bio`, `pronouns`, `status` and
+  `statusDescription`, leaves the rest as they are, and answers with the
+  updated user. Status words are `join me`, `active` (Online), `ask me` and
+  `busy` (Do Not Disturb). Limits follow VRChat's own editor: bio 512,
+  pronouns 32, status text 32.
+- **Parses:** the reply's `id` must be the signed-in account. A missing or
+  `null` text field reads as empty; any other type makes the reply unreadable,
+  so a changed format never shows as an empty bio the user might save over. An
+  unknown status word reads as no status picked, and nothing is sent for it
+  unless the user picks one. A PUT reply that cannot be read keeps the last
+  read plus what was sent.
+- **When it breaks:** a 401 emits `auth-invalidated`; a 429 is rate-limited
+  and never retried; anything else is unavailable and the editor keeps the
+  user's text.
+
 ### Self-invite: `POST /invite/myself/to/{location}`
 
 - **Assumes (Source-derived):** body `{}`. The response is ignored.
@@ -487,6 +561,20 @@ cached in main for 5 minutes; nothing runs on a timer.
   have no renderer control.
 - **When it breaks:** a 401 emits `auth-invalidated`. Any failure returns
   `invite-failed`.
+
+### Home world: `PUT /users/{userId}`
+
+- **Assumes (Source-derived, VRCX):** a JSON body `{ "homeLocation": "<worldId>" }`
+  sent to the signed-in user's own ID changes only the home world. The reply
+  (the updated user) is ignored.
+- **Parses:** the world ID must match `^wrld_<GUID>$` before the body is
+  built, and it comes from a world reference main issued, never from the
+  renderer.
+- **Reachability:** **Set as home world** on an Explore, New, Recently updated
+  or search world sheet, after the user confirms. One request, no retry.
+- **When it breaks:** a 401 emits `auth-invalidated` and reports
+  `not-authenticated`. A 429 reports `rate-limited`; any other failure,
+  including a 403, reports `failed`, and the home world is unchanged.
 
 ### Images
 
@@ -626,6 +714,7 @@ main-only base `https://api.chilloutvr.net`. The WebSocket is
 | `{ message, data }` envelope      | Every REST reply                         | Live 2026-07-08                       | Request fails                 |
 | `POST /users/auth`                | Sign-in, restore check, 403 confirmation | Live                                  | Error result or `error` state |
 | `GET /friends`                    | Friend roster                            | Live                                  | Partial roster                |
+| `POST /users/self`                | Own profile editor (bio, pronouns)       | Source-derived                        | Editor keeps the text         |
 | `GET /instances/{id}`             | World, group and player count            | Live 2026-08-12                       | Socket values kept            |
 | Privacy values                    | Access labels                            | Partly Live 2026-07-08 and 2026-08-12 | Unknown access, restrictive   |
 | Explore routes                    | Public-world discovery                   | Synthetic                             | Explore problem state         |
@@ -823,6 +912,22 @@ every 5 s.
 - **When it breaks:** a non-array list is unavailable. Auth errors follow the
   data-path rules above; a 429 surfaces as rate-limited.
 
+### Home world: `GET /worlds/{worldId}/sethome`
+
+- **Assumes (Source-derived, CVRX `SetWorldAsHome`):** a GET on this route
+  makes the world the signed-in user's home. CVRX sends it to
+  `api.chilloutvr.net/1`; VRX sends it to its REST host
+  `api.abinteractive.net/1`, like the avatar switch. The reply is ignored.
+- **Parses:** the world ID must be a GUID before it enters the path, and it
+  comes from a world reference main issued.
+- **Reachability:** the same **Set as home world** press as VRChat. One
+  request, no retry.
+- **When it breaks:** a 401 signs out; a 403 runs the usual one confirming
+  re-auth and reports `failed`. A 429 reports `rate-limited`; anything else
+  reports `failed`. A 200 whose body is not the `{ message, data }` envelope
+  also reports `failed`, though the change may have landed: check this on the
+  first live press.
+
 ### Profiles, search, lists, players online and groups
 
 The same read-only lookups as VRChat
@@ -831,19 +936,54 @@ Routes and fields come from CVRX and the official client. They are
 Source-derived; no real response has been captured yet. The same user-action
 and 5-minute cache rules apply.
 
-| Route                                                                              | Assumed shape                                                                                       |
-| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `GET /users/{userId}`                                                              | `name`, `imageUrl`, `profileBio`, `profilePronouns`, `rank`, `featuredBadge`.                       |
-| `GET /search/{text}`                                                               | Array mixing `type` `user`, `world`, `avatar` and `prop`; only people and worlds are kept.          |
-| `GET https://api.chilloutvr.net/2/worlds/list/wrldnew\|wrldrecentlyupdated?page=0` | `{ entries }`, as for Explore: New and Recently updated.                                            |
-| `GET /users/{userId}/worlds`                                                       | Array of `{ id, name, imageUrl }`.                                                                  |
-| `GET /groups` and `GET /users/{userId}/groups`                                     | `{ owned, member }`, each an array of `{ id, tag, name, description, memberCount, image, banner }`. |
-| `GET https://api.chilloutvr.net/1/public/userstats`                                | `{ usersOnline: { overall, … } }`.                                                                  |
+| Route                                                                              | Assumed shape                                                                                                    |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `GET /users/{userId}`                                                              | `name`, `imageUrl`, `profileBio`, `profilePronouns`, `rank`, `featuredBadge`; `isBlocked` for Unfriend or block. |
+| `GET /search/{text}`                                                               | Array mixing `type` `user`, `world`, `avatar` and `prop`; only people and worlds are kept.                       |
+| `GET https://api.chilloutvr.net/2/worlds/list/wrldnew\|wrldrecentlyupdated?page=0` | `{ entries }`, as for Explore: New and Recently updated.                                                         |
+| `GET /users/{userId}/worlds`                                                       | Array of `{ id, name, imageUrl }`.                                                                               |
+| `GET /groups` and `GET /users/{userId}/groups`                                     | `{ owned, member }`, each an array of `{ id, tag, name, description, memberCount, image, banner }`.              |
+| `GET https://api.chilloutvr.net/1/public/userstats`                                | `{ usersOnline: { overall, … } }`.                                                                               |
 
 - **Fields:** user, world and group ids must be GUIDs (stored lower case). A
   featured badge named `No badge featured` is skipped.
 - **When it breaks:** a reply of the wrong shape is unavailable. Auth errors
   follow the data-path rules above; a 429 surfaces as rate-limited.
+
+### Friend notes: `GET /users/{userId}` and `POST /users/{userId}/note`
+
+The user's private note on a friend, as CVRX reads and writes it
+([AccountNoteAdapter.ts](../src/main/services/adapters/AccountNoteAdapter.ts)).
+Source-derived from CVRX; no real response has been captured yet.
+
+- **Assumes:** the `/users/{userId}` data carries `note`, a string (`""` when
+  there is none). `POST /users/{userId}/note` takes `{ note }` and replaces it;
+  the data in its envelope is ignored. Line breaks are kept. CVRX sets no length
+  cap, so VRX's own 500-character limit applies.
+- **Parses:** as for VRChat, a reply without a `note` key, or for another id,
+  is unknown and blocks a write. Ids compare in lower case.
+- **When it breaks:** VRX keeps its own copy and offers a Retry. Auth errors
+  follow the data-path rules above; a 429 surfaces as rate-limited.
+
+### Own profile: `GET /users/{me}` and `POST /users/self`
+
+Settings → Accounts → Edit profile
+([parseOwnProfile.ts](../src/main/services/adapters/cvr/parseOwnProfile.ts)).
+Source-derived from CVRX (`SetMyProfileBio`, `SetMyProfilePronouns`); no real
+response or write has been captured yet.
+
+- **Assumes:** `GET /users/{me}` carries `profileBio` and `profilePronouns`.
+  `POST /users/self` (API v1) takes a multipart form with one field,
+  `ProfileBio` or `ProfilePronouns`, and answers with the usual
+  `{ message, data }` envelope; `data` is not read. CVRX sends each field
+  separately, so VRX does too: at most two requests for one Save. Limits follow
+  CVRX's editor: bio 512, pronouns 32. ChilloutVR has no status to set.
+- **Parses:** the reply's `id` (any case) must be the signed-in account. Text
+  fields read as for VRChat above.
+- **When it breaks:** the first failed field stops the Save; the editor keeps
+  the user's text and the next open reads the profile again, since the first
+  field may already have saved. Auth errors follow the data-path rules above;
+  a 429 is rate-limited and never retried.
 
 ### WebSocket `/users/ws`
 
@@ -899,8 +1039,15 @@ and 5-minute cache rules apply.
     `MAX_UNUSABLE_FULL_SET_RESYNCS` (2) times in a row.
 - **Outgoing:** `{ RequestType, Data }` senders exist for friend requests,
   unfriend, invites and blocking (types 5, 6, 7, 8, 10, 15, 30, 31). The payload
-  shapes are Source-derived from CVRX notes. Nothing calls them in 1.0, and they
-  never queue while disconnected.
+  shapes are Source-derived from CVRX (`server/api_cvr_ws.js`). Only the
+  profile's Unfriend (8, `{ id }`), Block (30) and Unblock (31) are wired, one
+  confirmed message at a time on the current account's socket; the rest are
+  unused. They never queue while disconnected, and the socket sends no reply,
+  so "sent" is all VRX can report. An unfriend is expected to be followed by
+  `FRIEND_LIST_UPDATED` (not yet seen live).
+- **Blocked state (🟡 Source-derived from CVRX):** `GET /users/{userId}` carries
+  `isBlocked`; a reply without it shows both Block and Unblock with a note.
+  The sign-in reply's `blockedUsers` list is not read.
 - **Keepalive:** VRX sends none and relies on server pings, which `ws` answers
   with protocol pongs. The `RequestType 0` keepalive that CVRX reportedly sends
   is omitted until a live session shows it is needed.

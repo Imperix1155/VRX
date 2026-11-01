@@ -26,6 +26,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'cancel-explore-world': { max: 120, windowMs: 60_000 },
   'get-explore-image': { max: 120, windowMs: 60_000 },
   'join-explore-room': { max: 20, windowMs: 60_000 },
+  // The 5 s per-platform cooldown in main allows at most 24 changes/minute.
+  'set-home-world': { max: 24, windowMs: 60_000 },
   // Fixed process-lifetime guard; repeated dual-platform retry/reconnect cycles
   // can exhaust this headroom. Budget sizing/recovery is a deferred follow-up.
   'get-friends': { max: 12, windowMs: 30_000 },
@@ -49,6 +51,14 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-world-list': { max: 60, windowMs: 60_000 },
   'get-players-online': { max: 30, windowMs: 60_000 },
   'get-my-groups': { max: 30, windowMs: 60_000 },
+  // The profile editor reads when it opens; main reuses an answer for 30 s.
+  'get-own-profile': { max: 30, windowMs: 60_000 },
+  // Save presses; main allows one per platform every 5 s.
+  'save-own-profile': { max: 12, windowMs: 60_000 },
+  // Read when a profile's Unfriend and block options open; main caches 5 minutes.
+  'get-relationship': { max: 30, windowMs: 60_000 },
+  // Confirmed presses; main allows one per platform at a time, then a 3 s pause.
+  'social-action': { max: 20, windowMs: 60_000 },
   // Account settings normally loads once; repeated tab mounts stay harmless.
   'get-accounts': { max: 12, windowMs: 30_000 },
   // Two platforms can mount, invalidate, and retry without approaching this cap.
@@ -84,9 +94,17 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-friend-note': { max: 90, windowMs: 60_000 },
   // Blur-triggered note saves are human-paced; one/second is generous.
   'set-friend-note': { max: 60, windowMs: 60_000 },
+  // One check per drawer opened (reused for 5 minutes in main), one after each
+  // saved edit, and the user's choices. Main spaces the writes 2 s apart.
+  'sync-friend-note': { max: 60, windowMs: 60_000 },
   // Alert picks follow the same human-paced drawer and Settings use as notes.
   'get-alert-picks': { max: 90, windowMs: 60_000 },
   'set-alert-pick': { max: 60, windowMs: 60_000 },
+  // Favorites: the Friends list, drawer and Explore read them; stars are clicks.
+  'get-favorite-friends': { max: 90, windowMs: 60_000 },
+  'set-favorite-friend': { max: 60, windowMs: 60_000 },
+  'get-favorite-worlds': { max: 90, windowMs: 60_000 },
+  'set-favorite-world': { max: 60, windowMs: 60_000 },
   'get-linked-profiles': { max: 90, windowMs: 60_000 },
   'change-linked-profile': { max: 60, windowMs: 60_000 },
   // Hydration is once per renderer load; three allows dev remount/reload churn.
@@ -132,8 +150,14 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'switch-avatar':
     case 'answer-friend-request':
     case 'send-friend-request':
+    case 'save-own-profile':
+    case 'social-action':
+    case 'set-home-world':
     case 'set-friend-note':
+    case 'sync-friend-note':
     case 'set-alert-pick':
+    case 'set-favorite-friend':
+    case 'set-favorite-world':
     case 'get-linked-profiles':
     case 'change-linked-profile':
     case 'test-vr-alert':

@@ -40,6 +40,8 @@ const vrx = {
     ipcRenderer.on('explore-changed', listener)
     return () => ipcRenderer.removeListener('explore-changed', listener)
   },
+  // World references only: main resolves them to the platform's world ID.
+  setHomeWorld: (req: IpcInvoke['set-home-world']['req']) => invoke('set-home-world', req),
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
   getAvatar: (url: string, rendition?: 'avatar' | 'picture') =>
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
@@ -61,6 +63,10 @@ const vrx = {
   getPlayersOnline: (req: IpcInvoke['get-players-online']['req']) =>
     invoke('get-players-online', req),
   getMyGroups: (req: IpcInvoke['get-my-groups']['req']) => invoke('get-my-groups', req),
+  getOwnProfile: (req: IpcInvoke['get-own-profile']['req']) => invoke('get-own-profile', req),
+  saveOwnProfile: (req: IpcInvoke['save-own-profile']['req']) => invoke('save-own-profile', req),
+  getRelationship: (req: IpcInvoke['get-relationship']['req']) => invoke('get-relationship', req),
+  socialAction: (req: IpcInvoke['social-action']['req']) => invoke('social-action', req),
   getAccounts: () => invoke('get-accounts', undefined),
   getLinkedProfiles: () => invoke('get-linked-profiles', undefined),
   changeLinkedProfile: (req: IpcInvoke['change-linked-profile']['req']) =>
@@ -116,8 +122,17 @@ const vrx = {
   installUpdate: () => invoke('updater:install', undefined),
   getFriendNote: (req: IpcInvoke['get-friend-note']['req']) => invoke('get-friend-note', req),
   setFriendNote: (req: IpcInvoke['set-friend-note']['req']) => invoke('set-friend-note', req),
+  syncFriendNote: (req: IpcInvoke['sync-friend-note']['req']) => invoke('sync-friend-note', req),
   getAlertPicks: (req: IpcInvoke['get-alert-picks']['req']) => invoke('get-alert-picks', req),
   setAlertPick: (req: IpcInvoke['set-alert-pick']['req']) => invoke('set-alert-pick', req),
+  getFavoriteFriends: (req: IpcInvoke['get-favorite-friends']['req']) =>
+    invoke('get-favorite-friends', req),
+  setFavoriteFriend: (req: IpcInvoke['set-favorite-friend']['req']) =>
+    invoke('set-favorite-friend', req),
+  getFavoriteWorlds: (req: IpcInvoke['get-favorite-worlds']['req']) =>
+    invoke('get-favorite-worlds', req),
+  setFavoriteWorld: (req: IpcInvoke['set-favorite-world']['req']) =>
+    invoke('set-favorite-world', req),
   notifyRendererHydrated: () => notify('renderer-hydrated', undefined),
   /**
    * Live adapter events pushed from main ('friend-event', VRX-146). Returns an

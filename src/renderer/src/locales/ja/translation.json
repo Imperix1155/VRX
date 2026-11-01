@@ -221,6 +221,11 @@
       "card": "カード全体",
       "avatar": "アバターのみ"
     },
+    "saveNotesToAccounts": {
+      "label": "メモをアカウントにも保存",
+      "description": "フレンドのメモを VRChat・ChilloutVR のアカウントにも保存します。オフにすると、この PC のみに保存します。",
+      "aria": "フレンドのメモを VRChat と ChilloutVR のアカウントにも保存"
+    },
     "behavior": {
       "heading": "動作"
     },
@@ -379,7 +384,32 @@
         "looking": "この PC を確認しています…"
       },
       "needsCode": "{{platform}} のサインインコードが必要です。",
-      "openAccounts": "アカウントを開く"
+      "openAccounts": "アカウントを開く",
+      "profile": {
+        "edit": "プロフィールを編集",
+        "title": "{{platform}} のプロフィール",
+        "intro": "ここで保存すると {{platform}} のプロフィールが変わります。",
+        "loading": "プロフィールを読み込み中…",
+        "bio": "自己紹介",
+        "bioPlaceholder": "自分について少し書いてみましょう",
+        "pronouns": "代名詞",
+        "pronounsPlaceholder": "例: they/them",
+        "status": "ステータス",
+        "statusText": "ステータスメッセージ",
+        "statusTextPlaceholder": "例: まったり中",
+        "counter": "{{current}}/{{max}}",
+        "cancel": "キャンセル",
+        "save": "保存",
+        "saving": "保存中…",
+        "saved": "{{platform}} にプロフィールを保存しました。",
+        "error": {
+          "load": "{{platform}} のプロフィールを読み込めませんでした。接続を確認して、もう一度お試しください。",
+          "unavailable": "{{platform}} に保存できませんでした。接続を確認して、もう一度お試しください。",
+          "wait": "保存が続いています。数秒待ってから、もう一度お試しください。",
+          "invalid": "長すぎて保存できない項目があります。",
+          "signedOut": "{{platform}} からサインアウトされました。もう一度サインインしてからお試しください。"
+        }
+      }
     },
     "about": {
       "heading": "情報"
@@ -553,7 +583,8 @@
     "section": {
       "inGame": "ゲーム中 ({{count}})",
       "online": "オンライン ({{count}})",
-      "offline": "オフライン ({{count}})"
+      "offline": "オフライン ({{count}})",
+      "favorites": "お気に入り ({{count}})"
     },
     "instance": {
       "unknownWorld": "不明なワールド",
@@ -658,7 +689,19 @@
       "counter": "{{current}}/500",
       "loadFailed": "このメモを読み込めませんでした。変更を安全に保存できるよう、編集する前に再試行してください。",
       "saveFailed": "このメモを保存できませんでした。最新の下書きはこの端末に残りますが、VRX を閉じると失われます。",
-      "retry": "再試行"
+      "retry": "再試行",
+      "account": {
+        "saved": "{{platform}} アカウントにも保存済み",
+        "saving": "{{platform}} アカウントに保存中…",
+        "localOnly": "今はこの PC のみに保存されています。",
+        "save": "{{platform}} に保存",
+        "tooLong": "この PC のみに保存: {{platform}} のメモは {{max}} 文字までです。",
+        "failed": "{{platform}} に接続できませんでした。この PC には保存済みです。",
+        "conflict": "{{platform}} アカウントには、このフレンドの別のメモがあります:",
+        "empty": "（メモなし）",
+        "useTheirs": "{{platform}} のメモを使う",
+        "keepMine": "自分のメモを残す"
+      }
     },
     "fullProfile": {
       "show": "プロフィールをすべて表示",
@@ -856,13 +899,35 @@
       "updated": "最近の更新",
       "newHint": "各プラットフォームの最新の公開ワールド。",
       "updatedHint": "作者が最近更新した公開ワールド。",
-      "empty": "いま表示できるワールドはありません。"
+      "empty": "いま表示できるワールドはありません。",
+      "favorites": "お気に入り",
+      "favoritesHint": "星を付けたワールド。星はこのパソコンの VRX にだけ保存されます。",
+      "favoritesEmpty": "お気に入りのワールドはまだありません。ワールドを開いて星を押すと、ここに残ります。"
     },
     "more": {
       "heading": "このワールドについて",
       "people": "現在の人数",
       "regions": "ルームのリージョン",
       "checked": "最終確認"
+    },
+    "home": {
+      "set": "ホームワールドに設定",
+      "setAria": "{{world}} を {{platform}} のホームワールドに設定",
+      "confirm": "このワールドを {{platform}} のホームワールドにしますか？今のホームワールドと置き換わります。",
+      "confirmAria": "{{world}} をホームワールドに設定する確認",
+      "makeHome": "ホームにする",
+      "setting": "設定中…",
+      "cancel": "キャンセル",
+      "isHome": "あなたのホームワールド",
+      "isHomeAria": "{{world}} は {{platform}} のホームワールドです",
+      "done": "完了しました。次回 {{platform}} はここから始まります。",
+      "failed": {
+        "cooldown": "数秒待ってからもう一度ホームワールドを変更してください。",
+        "rate-limited": "{{platform}} から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+        "failed": "{{platform}} でホームワールドを変更できませんでした。もう一度お試しください。",
+        "not-authenticated": "ホームワールドを変更するには {{platform}} にもう一度サインインしてください。",
+        "unknown-world": "このワールドを更新してから、もう一度お試しください。"
+      }
     }
   },
   "avatars": {
@@ -1151,7 +1216,47 @@
     },
     "worlds": "ワールド",
     "groups": "グループ",
-    "userId": "ユーザー ID"
+    "userId": "ユーザー ID",
+    "actions": {
+      "show": "フレンド解除・ブロック",
+      "hide": "フレンド解除・ブロックを閉じる",
+      "hint": "{{platform}} のアカウントを変更します。一度に一人ずつです。",
+      "checking": "確認中…",
+      "checkError": "ブロックしているか確認できませんでした。",
+      "unknownBlock": "ブロックしているかどうか VRX では分かりませんでした。",
+      "unfriend": "フレンド解除",
+      "block": "ブロック",
+      "unblock": "ブロック解除",
+      "done": {
+        "unfriend": "{{platform}} でフレンドを解除しました。",
+        "block": "{{platform}} でブロックしました。",
+        "unblock": "{{platform}} でブロックを解除しました。"
+      },
+      "confirm": {
+        "title": {
+          "unfriend": "{{name}} とのフレンドを解除しますか？",
+          "block": "{{name}} をブロックしますか？",
+          "unblock": "{{name}} のブロックを解除しますか？"
+        },
+        "body": {
+          "unfriend": "{{platform}} のフレンドから外れます。もう一度フレンドになるには、どちらかが新しくフレンド申請を送る必要があります。",
+          "block": "{{platform}} のアカウントでこの人をブロックします。あとでプロフィールからブロックを解除できます。",
+          "unblock": "{{platform}} のアカウントでこの人のブロックを解除します。"
+        },
+        "cancel": "キャンセル",
+        "sending": "送信中…"
+      },
+      "error": {
+        "not-authenticated": "{{platform}} からサインアウトしています。もう一度サインインしてからお試しください。",
+        "rate-limited": "{{platform}} から間隔をあけるよう求められました。少し待ってからもう一度お試しください。",
+        "unavailable": "{{platform}} がこの変更を受け付けませんでした。少ししてからもう一度お試しください。",
+        "unknown-person": "フレンド一覧か新しい検索から開いて、もう一度お試しください。",
+        "not-friend": "この人とはもうフレンドではありません。",
+        "busy": "次の変更まで数秒お待ちください。",
+        "not-connected": "VRX は今 {{platform}} に接続していないため、何も送信していません。少ししてからもう一度お試しください。",
+        "unknown": "問題が発生しました。少ししてからもう一度お試しください。"
+      }
+    }
   },
   "groups": {
     "heading": "参加しているグループ",
@@ -1200,5 +1305,15 @@
       "unknown-person": "この人をもう一度検索してから、もう一度お試しください。",
       "already-friends": "すでにフレンドです。"
     }
+  },
+  "favorites": {
+    "friendLabel": "{{name}} をお気に入り",
+    "worldLabel": "{{world}} をお気に入り",
+    "add": "お気に入りに追加",
+    "remove": "お気に入りから外す",
+    "saveFailed": "保存できませんでした。もう一度お試しください。",
+    "friendsFull": "VRX が保存できる上限までお気に入りのフレンドがいます。",
+    "worldsFull": "お気に入りのワールドが上限の {{count}} 件です。追加するには、どれかを外してください。",
+    "rowLabel": "お気に入り"
   }
 }

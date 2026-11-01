@@ -7,6 +7,8 @@ import type {
   ExploreWorldSnapshot
 } from '@shared/explore'
 import PlatformPill from './PlatformPill'
+import WorldFavoriteStar from './WorldFavoriteStar'
+import HomeWorldControl from './HomeWorldControl'
 import SheetGrabBar from './SheetGrabBar'
 import { SheetFacts, type SheetFact } from './SheetFacts'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
@@ -312,12 +314,27 @@ export default function ExploreWorldSheet({
                 onError={() => setFailedImage(image)}
               />
             ) : null}
-            <div className="mt-[var(--space-3)] pr-[var(--space-8)]">
-              <h2 className="truncate text-xl font-bold text-[var(--text)]" title={world.name}>
-                {world.name}
-              </h2>
+            <div className="mt-[var(--space-3)]">
+              {/* The star follows the name (favorites, owner 2026-11-01). */}
+              <div className="flex min-w-0 flex-wrap items-center gap-x-[var(--space-1)] pr-[var(--space-8)]">
+                <h2
+                  className="min-w-0 max-w-[calc(100%-32px)] truncate text-xl font-bold text-[var(--text)]"
+                  title={world.name}
+                >
+                  {world.name}
+                </h2>
+                <WorldFavoriteStar world={world} />
+              </div>
               <div className="mt-[var(--space-1)]">
-                <PlatformPill platform={world.platform} />
+                {/* Keyed by world so a confirm step never carries over to another sheet. */}
+                <HomeWorldControl
+                  key={`${world.platform}:${world.worldRef}`}
+                  platform={world.platform}
+                  worldRef={world.worldRef}
+                  worldId={world.worldId}
+                  worldName={world.name}
+                  leading={<PlatformPill platform={world.platform} />}
+                />
               </div>
               {showStaleNote || (isStale && onRefresh) ? (
                 <div className="mt-[var(--space-1)] flex items-center gap-[var(--space-2)]">

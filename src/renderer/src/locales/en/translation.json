@@ -224,6 +224,11 @@
       "card": "Whole card",
       "avatar": "Avatar only"
     },
+    "saveNotesToAccounts": {
+      "label": "Save notes to my accounts",
+      "description": "Friend notes also go to your VRChat or ChilloutVR account, so you see them in the game too. Off keeps them on this PC only.",
+      "aria": "Save friend notes to my VRChat and ChilloutVR accounts"
+    },
     "behavior": {
       "heading": "Behavior"
     },
@@ -382,7 +387,32 @@
         "looking": "Looking on this PC…"
       },
       "needsCode": "{{platform}} needs a sign-in code.",
-      "openAccounts": "Go to Accounts"
+      "openAccounts": "Go to Accounts",
+      "profile": {
+        "edit": "Edit profile",
+        "title": "Your {{platform}} profile",
+        "intro": "What you save here changes your profile in {{platform}}.",
+        "loading": "Loading your profile…",
+        "bio": "Bio",
+        "bioPlaceholder": "Tell people a little about yourself",
+        "pronouns": "Pronouns",
+        "pronounsPlaceholder": "For example, they/them",
+        "status": "Status",
+        "statusText": "Status text",
+        "statusTextPlaceholder": "For example, Hanging out",
+        "counter": "{{current}}/{{max}}",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Profile saved to {{platform}}.",
+        "error": {
+          "load": "Couldn't load your {{platform}} profile. Check your connection and try again.",
+          "unavailable": "Couldn't save to {{platform}}. Check your connection and try again.",
+          "wait": "Saving too often. Wait a few seconds, then try again.",
+          "invalid": "Some text is too long to save.",
+          "signedOut": "{{platform}} signed you out. Sign in again, then try again."
+        }
+      }
     },
     "about": {
       "heading": "About"
@@ -556,7 +586,8 @@
     "section": {
       "inGame": "In-Game ({{count}})",
       "online": "Online ({{count}})",
-      "offline": "Offline ({{count}})"
+      "offline": "Offline ({{count}})",
+      "favorites": "Favorites ({{count}})"
     },
     "instance": {
       "unknownWorld": "Unknown World",
@@ -661,7 +692,19 @@
       "counter": "{{current}}/500",
       "loadFailed": "Couldn't load this note. Retry before editing so VRX can save changes safely.",
       "saveFailed": "Couldn't save this note. Your newest draft remains local and will not survive closing VRX.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "account": {
+        "saved": "Also saved to your {{platform}} account",
+        "saving": "Saving to your {{platform}} account…",
+        "localOnly": "Only on this PC so far.",
+        "save": "Save to {{platform}}",
+        "tooLong": "Only on this PC: {{platform}} keeps notes up to {{max}} characters.",
+        "failed": "Couldn't reach {{platform}}. Saved on this PC.",
+        "conflict": "Your {{platform}} account has a different note for this friend:",
+        "empty": "(no note)",
+        "useTheirs": "Use the {{platform}} note",
+        "keepMine": "Keep mine"
+      }
     },
     "fullProfile": {
       "show": "Show full profile",
@@ -862,13 +905,35 @@
       "updated": "Recently updated",
       "newHint": "The newest public worlds on each platform.",
       "updatedHint": "Public worlds their creators updated most recently.",
-      "empty": "No worlds to show right now."
+      "empty": "No worlds to show right now.",
+      "favorites": "Favorites",
+      "favoritesHint": "Worlds you starred. Your stars stay in VRX on this computer.",
+      "favoritesEmpty": "No favorite worlds yet. Open a world and press the star to keep it here."
     },
     "more": {
       "heading": "About this world",
       "people": "People now",
       "regions": "Room regions",
       "checked": "Last checked"
+    },
+    "home": {
+      "set": "Set as home world",
+      "setAria": "Set {{world}} as your {{platform}} home world",
+      "confirm": "Make this your {{platform}} home world? It replaces the one you have now.",
+      "confirmAria": "Confirm setting {{world}} as your home world",
+      "makeHome": "Make home",
+      "setting": "Setting…",
+      "cancel": "Cancel",
+      "isHome": "Your home world",
+      "isHomeAria": "{{world}} is your {{platform}} home world",
+      "done": "Done. {{platform}} will start you here next time.",
+      "failed": {
+        "cooldown": "Wait a few seconds before changing your home world again.",
+        "rate-limited": "{{platform}} asked VRX to slow down. Try again in a minute.",
+        "failed": "{{platform}} didn't change your home world. Try again.",
+        "not-authenticated": "Sign in to {{platform}} again to change your home world.",
+        "unknown-world": "Refresh this world, then try again."
+      }
     }
   },
   "avatars": {
@@ -1158,7 +1223,47 @@
     },
     "worlds": "Worlds",
     "groups": "Groups",
-    "userId": "User ID"
+    "userId": "User ID",
+    "actions": {
+      "show": "Unfriend or block",
+      "hide": "Hide unfriend and block",
+      "hint": "These change your {{platform}} account, one person at a time.",
+      "checking": "Checking…",
+      "checkError": "Couldn't check whether they're blocked.",
+      "unknownBlock": "VRX couldn't tell whether you've blocked them.",
+      "unfriend": "Unfriend",
+      "block": "Block",
+      "unblock": "Unblock",
+      "done": {
+        "unfriend": "Unfriended on {{platform}}.",
+        "block": "Blocked on {{platform}}.",
+        "unblock": "Unblocked on {{platform}}."
+      },
+      "confirm": {
+        "title": {
+          "unfriend": "Unfriend {{name}}?",
+          "block": "Block {{name}}?",
+          "unblock": "Unblock {{name}}?"
+        },
+        "body": {
+          "unfriend": "This removes them from your {{platform}} friends. To be friends again, one of you has to send a new friend request.",
+          "block": "This blocks them on your {{platform}} account. You can unblock them later from their profile.",
+          "unblock": "This unblocks them on your {{platform}} account."
+        },
+        "cancel": "Cancel",
+        "sending": "Sending…"
+      },
+      "error": {
+        "not-authenticated": "You're signed out of {{platform}}. Sign in again, then try once more.",
+        "rate-limited": "{{platform}} asked VRX to slow down. Wait a moment, then try again.",
+        "unavailable": "{{platform}} didn't take this change. Try again in a moment.",
+        "unknown-person": "Open them from your friends list or a new search, then try again.",
+        "not-friend": "You're not friends with them anymore.",
+        "busy": "Wait a few seconds before the next change.",
+        "not-connected": "VRX isn't connected to {{platform}} right now, so nothing was sent. Try again in a moment.",
+        "unknown": "Something went wrong. Try again in a moment."
+      }
+    }
   },
   "groups": {
     "heading": "Your groups",
@@ -1209,5 +1314,15 @@
       "unknown-person": "Search for this person again, then try once more.",
       "already-friends": "You're already friends."
     }
+  },
+  "favorites": {
+    "friendLabel": "Favorite {{name}}",
+    "worldLabel": "Favorite {{world}}",
+    "add": "Add to favorites",
+    "remove": "Remove from favorites",
+    "saveFailed": "Couldn't save. Try again.",
+    "friendsFull": "You have as many favorite friends as VRX can keep.",
+    "worldsFull": "You have {{count}} favorite worlds, the most VRX can keep. Remove one to add another.",
+    "rowLabel": "favorite"
   }
 }

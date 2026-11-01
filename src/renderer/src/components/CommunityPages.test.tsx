@@ -519,7 +519,9 @@ describe('ProfileDetails', () => {
   it('offers no friend action to a friend', async () => {
     renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
     await screen.findByText('Hello there')
-    expect(screen.queryByRole('button', { name: /friend/i })).toBeNull()
+    // Unfriend or block (the profile's last section) is not a friend action.
+    expect(screen.queryByRole('button', { name: /friend request/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^(accept|decline)\b/i })).toBeNull()
   })
 
   it.each(['vrchat', 'chilloutvr'] as const)(

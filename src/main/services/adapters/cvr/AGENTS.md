@@ -15,7 +15,8 @@ request transport, and published adapter events.
   `resolveCvrInstance.ts`, `buildCvrJoinUrl.ts`, `parseExplore.ts`, and
   `parseAvatars.ts` (own uploads only: `authorGuid` or the `avtrmine` category),
   and `parseCommunity.ts` (people, profiles, search, worlds, groups, player
-  count; IDs lower-cased GUIDs).
+  count; IDs lower-cased GUIDs), and `parseOwnProfile.ts` (own bio and
+  pronouns; the write is one multipart `POST /users/self` per field).
 - Symbols and the adapter contract: [`docs/INTERNAL-API.md`](../../../../../docs/INTERNAL-API.md).
 
 ## Local Contracts
@@ -48,9 +49,12 @@ request transport, and published adapter events.
   casings, cap records per frame, skip bad records). Other notification types
   stay unrouted. No application keepalive. Reconnect waits
   honor the shared 429 cooldown and cancel on stop or session replacement.
-- The outgoing friend and invite senders are unwired. They drop, never queue,
-  while disconnected. Wiring one is a social action under the root etiquette
-  rules: no mass or automated actions.
+- Only `unfriend`, `block` and `unblock` are wired, through
+  `CvrAdapter.sendSocial` for the profile's confirmed actions; the friend
+  request and invite senders are unwired. All drop, never queue, while
+  disconnected, and `sendSocial` sends only on the lease's own account socket.
+  Wiring another is a social action under the root etiquette rules: no mass
+  or automated actions.
 - `CvrAdapter` auth failures: a data-path 401 signs out at once. A 403 signs
   out only when one confirming reauth with the same key is also rejected; at
   most one confirming reauth runs per session. Network and 5xx errors keep the

@@ -1,10 +1,12 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { AuthStatus, Platform } from '@shared/types'
 
-/** Per-platform query key for auth status (mirrors `friendsQueryKey`, VRX-37). */
-export function authStatusQueryKey(platform: Platform): readonly ['auth-status', Platform] {
-  return ['auth-status', platform] as const
-}
+import { authStatusQueryKey } from './authKey'
+
+/** Per-platform query key for auth status (mirrors `friendsQueryKey`, VRX-37).
+ *  It lives in its own module so readers that only observe the auth cache
+ *  (favorites) don't import this file's query hooks. */
+export { authStatusQueryKey }
 
 /** How often an `error` auth status is re-checked (see useAuthStatus). */
 export const AUTH_ERROR_RECHECK_MS = 60_000

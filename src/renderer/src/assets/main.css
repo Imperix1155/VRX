@@ -265,6 +265,10 @@
   /* Lifted from #f87171, which fell to 3.7:1 on glass over the aurora. */
   --error: #fca5a5;
   --warning: #f59e0b;
+  /* Favorite star (friends and worlds). Always the star shape, filled when
+     starred, so the yellow never stands alone. Yellow, not amber, so it
+     reads apart from ChilloutVR orange. */
+  --favorite: #fcd34d;
   --space-0-5: 2px;
   --space-1: 4px;
   --space-2: 8px;
@@ -519,6 +523,7 @@
   --control-fill-hover: rgba(20, 19, 28, 0.1);
   --error: #b4232c;
   --warning: #a15c00;
+  --favorite: #a16207;
 
   --vrc: #1769e8;
   --cvr: #ec6210;
@@ -1416,6 +1421,17 @@ body::after {
    which utilities cannot animate as one rule set. Reduced motion shows and
    hides the panel without movement. */
 @layer components {
+  /* Favorite star (FavoriteStar.tsx): outline and dim until starred, then a
+     filled star in the favorite yellow. The shape changes with the color. */
+  .favorite-star {
+    color: var(--text-dim);
+  }
+  .favorite-star[aria-pressed='false']:hover:not(:disabled) {
+    color: var(--text);
+  }
+  .favorite-star[aria-pressed='true'] {
+    color: var(--favorite);
+  }
   .alert-bell {
     color: var(--text-dim);
   }
@@ -1471,6 +1487,15 @@ body::after {
         transform 160ms ease;
     }
     .alert-bell:active {
+      transform: scale(0.92);
+    }
+    .favorite-star {
+      transition:
+        color 160ms ease,
+        background-color 160ms ease,
+        transform 160ms ease;
+    }
+    .favorite-star:active:not(:disabled) {
       transform: scale(0.92);
     }
     .alert-bell-glyph[data-ring='true'] .alert-bell-body {

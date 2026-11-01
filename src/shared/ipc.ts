@@ -28,6 +28,8 @@ import type {
   CurrentAvatarResult
 } from './avatarLibrary'
 import type { BackgroundPictureRefusal } from './backgroundPicture'
+import type { RelationshipResult, SocialAction, SocialActionResult } from './socialActions'
+import type { AccountNoteSyncMode, AccountNoteSyncResult } from './accountNotes'
 import type {
   CommunitySearchResult,
   MyGroupsResult,
@@ -38,13 +40,17 @@ import type {
   WorldList,
   WorldListResult
 } from './community'
+import type { OwnProfileChanges, OwnProfileResult, SaveOwnProfileResult } from './ownProfile'
+import type { SetHomeWorldResult } from './homeWorld'
 import type { InboxSnapshot } from './inbox'
 import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type { ActivityEntry } from './activity'
+import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
 import type {
   ExplorePlatformSnapshot,
   ExploreImageResult,
+  ExploreWorld,
   ExploreWorldSnapshot,
   ExploreRefreshReason,
   ExploreWorldReason
@@ -142,6 +148,11 @@ export interface IpcInvoke {
     req: { platform: Platform; selectionRef: string; mode: JoinMode }
     res: InstanceActionResult
   }
+  /** Make an Explore world the signed-in account's home; by main's reference only. */
+  'set-home-world': {
+    req: { platform: Platform; worldRef: string }
+    res: SetHomeWorldResult
+  }
   'get-linked-profiles': { req: void; res: LinkResult<LinkSnapshot> }
   'change-linked-profile': {
     req: { lease: string; change: LinkRequest }
@@ -188,6 +199,20 @@ export interface IpcInvoke {
   'get-players-online': { req: { platform: Platform }; res: PlayersOnlineResult }
   /** The signed-in user's groups. `refresh` is a Refresh press. */
   'get-my-groups': { req: { platform: Platform; refresh?: boolean }; res: MyGroupsResult }
+  /** The signed-in user's own bio, pronouns and (VRChat) status, for the editor. */
+  'get-own-profile': { req: { platform: Platform }; res: OwnProfileResult }
+  /** Save the fields the user changed. One Save per platform, 5 s apart. */
+  'save-own-profile': {
+    req: { platform: Platform; changes: OwnProfileChanges }
+    res: SaveOwnProfileResult
+  }
+  /** Whether a friend or searched person is a friend and blocked, read when the profile's options open. */
+  'get-relationship': { req: { platform: Platform; userId: string }; res: RelationshipResult }
+  /** One confirmed Unfriend, Block or Unblock for one person. */
+  'social-action': {
+    req: { platform: Platform; userId: string; action: SocialAction }
+    res: SocialActionResult
+  }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }
@@ -271,6 +296,17 @@ export interface IpcInvoke {
       | { ok: true }
       | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'rate-limited' }
   }
+  /** Compare (and, on a save or a choice, update) the note on the user's own
+   *  account with VRX's copy. Echo the note read's revision. */
+  'sync-friend-note': {
+    req: {
+      platform: Platform
+      friendId: string
+      revision: { platformAccountId: string; epoch: number }
+      mode: AccountNoteSyncMode
+    }
+    res: AccountNoteSyncResult
+  }
   /** The signed-in account's friends picked for alerts. Local only. */
   'get-alert-picks': {
     req: { platform: Platform }
@@ -287,6 +323,39 @@ export interface IpcInvoke {
     res:
       | { ok: true }
       | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'full' | 'rate-limited' }
+  }
+  /** The signed-in account's favorite friends. Kept only in VRX. */
+  'get-favorite-friends': {
+    req: { platform: Platform }
+    res: { friendIds: string[]; revision?: FavoritesRevision }
+  }
+  /** Star or unstar friends in one write; echo the read's revision. */
+  'set-favorite-friend': {
+    req: {
+      platform: Platform
+      friendIds: string[]
+      favorite: boolean
+      revision: FavoritesRevision
+    }
+    res: FavoriteWriteResult
+  }
+  /**
+   * The signed-in account's favorite worlds, newest first, as Explore worlds
+   * with fresh references (no platform request). Kept only in VRX.
+   */
+  'get-favorite-worlds': {
+    req: { platform: Platform }
+    res: { worlds: ExploreWorld[]; revision?: FavoritesRevision }
+  }
+  /**
+   * Star a world by the reference main handed out, or unstar it by id; echo
+   * the read's revision.
+   */
+  'set-favorite-world': {
+    req:
+      | { platform: Platform; favorite: true; worldRef: string; revision: FavoritesRevision }
+      | { platform: Platform; favorite: false; worldId: string; revision: FavoritesRevision }
+    res: FavoriteWriteResult
   }
 }
 

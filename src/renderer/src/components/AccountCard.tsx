@@ -12,8 +12,16 @@ import TwoFactorForm from './auth/TwoFactorForm'
 import ErrorBanner from './auth/ErrorBanner'
 import ImportSignInAction from './auth/ImportSignInAction'
 import { accountCopy } from './auth/copy'
+import OwnProfileDialog from './OwnProfileDialog'
 
-export default function AccountCard({ platform }: { platform: Platform }): React.JSX.Element {
+export default function AccountCard({
+  platform,
+  profileEditing = false
+}: {
+  platform: Platform
+  /** Settings → Accounts offers Edit profile; the welcome setup keeps to signing in. */
+  profileEditing?: boolean
+}): React.JSX.Element {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { data: authStatus, isPending, isError } = useAuthStatus(platform)
@@ -21,6 +29,8 @@ export default function AccountCard({ platform }: { platform: Platform }): React
 
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
 
   // A restored session can drift into needs-2fa while the card is mounted —
   // the reactive seed for the shared flow's 2FA leg (VRChat only; CVR has none).
@@ -104,18 +114,64 @@ export default function AccountCard({ platform }: { platform: Platform }): React
                 {t('settings.accounts.connectedAs', { name: authStatus.displayName ?? '' })}
               </span>
             </p>
-            <button
-              type="button"
-              onClick={() => void handleDisconnect()}
-              disabled={isDisconnecting}
-              className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
-            >
-              {isDisconnecting
-                ? t('settings.accounts.disconnecting')
-                : t('settings.accounts.signOut')}
-            </button>
+            {/* With Edit profile: its own row, each button growing to fill it, one
+                line in English, two full-width lines where words are longer (Japanese). */}
+            {profileEditing ? (
+              <div className="flex basis-full flex-wrap gap-[var(--space-2)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileSaved(false)
+                    setEditingProfile(true)
+                  }}
+                  disabled={isDisconnecting}
+                  className="flex-auto whitespace-nowrap rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+                >
+                  {t('settings.accounts.profile.edit')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDisconnect()}
+                  disabled={isDisconnecting}
+                  className="flex-auto whitespace-nowrap rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+                >
+                  {isDisconnecting
+                    ? t('settings.accounts.disconnecting')
+                    : t('settings.accounts.signOut')}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleDisconnect()}
+                disabled={isDisconnecting}
+                className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+              >
+                {isDisconnecting
+                  ? t('settings.accounts.disconnecting')
+                  : t('settings.accounts.signOut')}
+              </button>
+            )}
           </div>
+          <p role="status" className="text-xs text-[var(--text-dim)]">
+            {profileSaved ? (
+              <span className="mt-[var(--space-2)] block">
+                <span aria-hidden="true">✓ </span>
+                {t('settings.accounts.profile.saved', { platform: t(config.labelKey) })}
+              </span>
+            ) : null}
+          </p>
           <ErrorBanner errorKey={flow.errorKey} className="mt-[var(--space-3)]" />
+          {profileEditing && editingProfile && (
+            <OwnProfileDialog
+              platform={platform}
+              onClose={() => setEditingProfile(false)}
+              onSaved={() => {
+                setEditingProfile(false)
+                setProfileSaved(true)
+              }}
+            />
+          )}
         </div>
       ) : isUnreachable ? (
         <div className="relative mt-[var(--space-4)]">

@@ -405,7 +405,15 @@ Accounts, and About. Each setting sits on a compact neutral card.
   explanation; for a few seconds after a test, the explanation becomes a short
   sent or failed line beside the link.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
-  unofficial-app line.
+  unofficial-app line. A signed-in card has Edit profile and Sign out on their
+  own row, sharing it (each its own full-width line when the words are long,
+  as in Japanese). Edit profile opens a dialog with the bio and pronouns on
+  both platforms in the same order, then, on VRChat only, the four statuses
+  (the friends-list dot beside each word) and the status text. ChilloutVR has
+  no status, so nothing stands in for it. Each label carries its character
+  count; Save stays off until something changes, and a failure keeps the text
+  with a reason beside the buttons. The welcome setup's account cards keep to
+  signing in, with no Edit profile.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
   in that same card beside the on/off control and the check button, plus the
   installed version, Welcome setup (Run setup again), Found a bug? (Report a
@@ -458,7 +466,12 @@ nothing.
 ### §9.1 Friends, Dashboard, and Hot Instances
 
 The Friends list uses virtual rows and sticky, collapsible In-Game, Online,
-and Offline sections; Offline starts collapsed. A pinned section header sits
+and Offline sections; Offline starts collapsed. Above them, a Favorites
+section (owner, 2026-11-01) holds the starred friends who are on now, In-Game
+first, and shows only while it has someone in it. A starred friend who is
+offline stays under Offline. Every starred row carries a small filled star
+after the name in `--favorite` yellow (yellow, not amber, so it reads apart
+from ChilloutVR orange), and the row's accessible name says favorite. A pinned section header sits
 at the scroll area's top edge, with no strip of rows above it. Search shows
 matches without changing saved collapse settings; when nothing matches, only
 the no-results line shows, without empty section headers. Roving focus moves between avatars, and
@@ -538,8 +551,10 @@ assistive technology. While a confirmation modal is open, the drawer pauses
 its own dismissal.
 
 The order is: header, written status, Where, actions, Notes, and Trust. A
-footer pinned below the scrolling area holds Identities on the left and the
-alerts bell on the right. The bell shows whether this friend can alert you by
+footer pinned below the scrolling area holds Identities on the left and, on
+the right, the favorite star and the alerts bell. The star is an outline when
+off and a filled `--favorite` star when on, so its state never rests on color;
+a linked person is one star across both accounts. Stars stay in VRX. The bell shows whether this friend can alert you by
 shape, not color: sound waves when on, a slash when off, and the button's
 name says On or Off. Pressing it springs a small panel out of the bell
 (scale and fade with a slight overshoot, rows following one after another,
@@ -702,8 +717,8 @@ platform filter. Nothing is stored, so the list starts empty each launch.
 
 ### §9.7 Search, profiles, Groups and world lists
 
-Community views (owner, 2026-10-31); the only write is the profile's friend
-action below. Every one follows the platform
+Community views (owner, 2026-10-31). They only read, except the profile's
+friend action and Unfriend or block (owner, 2026-11-01). Every one follows the platform
 filter, offers Accounts when the filtered platform is not connected, and adds
 no line under ALL for a platform the user isn't signed in to.
 
@@ -725,6 +740,18 @@ no line under ALL for a platform the user isn't signed in to.
   request sent." in place of the button. A refusal says why in the error color
   and keeps the button. Friends and the signed-in user's own profile show no
   friend action.
+- **Unfriend or block** (owner, 2026-11-01) closes every full profile, below
+  a thin rule: one quiet button that reads nothing until pressed. Open, it
+  says which platform account changes, then shows only what applies, in one
+  order on both platforms: Unfriend (friends only), then Block or Unblock.
+  If the platform didn't say whether they're blocked, both show with a note.
+  Unfriend and Block wear the error tint with their word as the cue; Unblock
+  is a plain control. Each opens a true heavy-frosted `alertdialog` with the
+  platform stripe and pill that names the person, says what changes, and
+  focuses Cancel; Escape, Cancel or the scrim close it without sending, and
+  the drawer or sheet behind stays open. A failure stays in the dialog; a
+  success closes it and leaves a "✓ Unblocked on VRChat."-style line above
+  the buttons, which switch at once (Block becomes Unblock; Unfriend goes).
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
   are wider than tall: the group's square icon centered on top over a blurred
   copy of itself (never cropped), then the name, and the VRC/CVR badge with
@@ -732,8 +759,17 @@ no line under ALL for a platform the user isn't signed in to.
   first letter on the platform color instead of an empty box. A group opens the bottom sheet
   with its banner, platform pill and role pill, description, and Details
   (Code, Members, Your role). View only.
-- **Explore** has a segmented Popular now · New · Recently updated control.
-  The two lists alternate platforms like Search and open the same world sheet.
+- **Explore** has a segmented Popular now · New · Recently updated ·
+  Favorites control. The lists alternate platforms like Search and open the
+  same world sheet. Favorites (owner, 2026-11-01) lists the starred worlds,
+  newest first, with no Refresh because nothing is fetched for it. The world
+  sheet's star follows the world name.
+- **Set as home world** sits beside the platform pill on every world sheet,
+  the same small house-and-label button on both platforms. A press asks once in
+  an inline panel (Make home, Cancel), because it replaces the user's current
+  home. A success turns the button into a quiet "Your home world" chip for the
+  session; a failure is one line of text under it. It is hidden while that
+  platform is signed out.
 - **Player counts** moved from a line under the Dashboard stat cards to the
   top bar (§8, owner, 2026-11-01).
 

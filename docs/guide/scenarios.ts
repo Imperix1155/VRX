@@ -36,6 +36,9 @@ export const drawerScenarios = [
   { value: 'chilloutvr', label: 'ChilloutVR' },
   { value: 'note-load-error', label: 'Note load failure' },
   { value: 'note-save-error', label: 'Note save failure' },
+  { value: 'note-account-local', label: 'Note only on this PC' },
+  { value: 'note-account-conflict', label: 'Note differs on account' },
+  { value: 'note-account-failed', label: 'Account unreachable' },
   { value: 'picked-alerts', label: 'Picked-friend alerts' }
 ]
 

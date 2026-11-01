@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Worlds: a **Set as home world** button on every world panel (Explore's
+  Popular now, New and Recently updated, and Search results), for VRChat and
+  ChilloutVR alike. VRX asks once before it changes anything, because the new
+  home replaces the one you have now, then sends a single request. The panel
+  then says "Your home world".
+- Favorites: star a friend or a world to keep them close. Press the star at
+  the bottom of a friend's details (next to the bell), or beside a world's
+  name on its panel. Starred friends who are on now get their own Favorites
+  group at the top of the Friends page, and every starred friend has a small
+  star after their name. Starred worlds are listed under Explore → Favorites.
+  A linked friend is one star for both platforms. Stars are kept only in VRX
+  on this computer, for each signed-in account; nothing is sent to VRChat or
+  ChilloutVR, and the games' own favorites are not changed.
+- Friend notes now save to your VRChat or ChilloutVR account too, like VRCX and
+  CVRX do, so you see them in the game and they come back on a new PC. A small
+  line under the note says when it is saved there. If you changed a note in the
+  game, VRX picks up the newer one; if both changed, it shows the account's
+  note and lets you choose which to keep, so no note is lost. VRChat keeps one
+  line of up to 256 characters, so a longer note stays on this PC with a note
+  saying why. Settings → Behavior → Save notes to my accounts turns this off.
+- Unfriend and block: every full profile (in friend details and in Search)
+  now ends with an "Unfriend or block" button, on VRChat and ChilloutVR
+  alike. Press it and VRX checks whether you've blocked that person, then
+  shows Unfriend (for friends), Block or Unblock. Each one asks first in a
+  small window that names the person and the platform, and Cancel is the
+  default. It changes one person at a time, with a short pause between
+  changes, and never retries on its own. On ChilloutVR the change goes over
+  VRX's live connection, so if that connection is down VRX says so and sends
+  nothing.
+- Settings → Accounts: **Edit profile** on each signed-in account. Change your
+  bio and pronouns on VRChat and ChilloutVR, and your status (Join Me, Online,
+  Ask Me or Do Not Disturb) and status text on VRChat. ChilloutVR has no
+  status to set, so its editor shows only the bio and pronouns. VRX reads
+  your profile when the editor opens and saves only the fields you changed
+  when you press Save, at most once every 5 seconds per platform.
 - Inbox: friend requests now have Accept and Decline buttons, on VRChat and
   ChilloutVR alike. One press sends one answer to that platform, and the row
   leaves once it went through. If it can't, VRX says why and keeps the row.

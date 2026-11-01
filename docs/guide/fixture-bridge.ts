@@ -1,6 +1,7 @@
 import type { UpdaterSnapshot } from '@shared/ipc'
 import type { AuthStatus, Platform } from '@shared/types'
 import type { AvatarItem } from '@shared/avatarLibrary'
+import type { OwnProfile } from '@shared/ownProfile'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import {
   activityEntries,
@@ -57,7 +58,37 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     vrchat: new Set(friends.vrchat.slice(0, 2).map((friend) => friend.platformUserId)),
     chilloutvr: new Set(friends.chilloutvr.slice(0, 2).map((friend) => friend.platformUserId))
   }
+  // The first sample friend per platform and two worlds start starred.
+  const favoriteFriends: Record<Platform, Set<string>> = {
+    vrchat: new Set(friends.vrchat.slice(0, 1).map((friend) => friend.platformUserId)),
+    chilloutvr: new Set(friends.chilloutvr.slice(0, 1).map((friend) => friend.platformUserId))
+  }
+  const favoriteWorlds: Record<Platform, string[]> = {
+    vrchat: worlds.vrchat.slice(0, 2).map((world) => world.worldId),
+    chilloutvr: worlds.chilloutvr.slice(0, 1).map((world) => world.worldId)
+  }
+  const favoriteRevision = (platform: Platform): { platformAccountId: string; epoch: number } => ({
+    platformAccountId: fixtureAuth(platform).accountId ?? '',
+    epoch: 1
+  })
   const denied = { ok: false, reason: 'launch-failed' } as const
+  // The visitor's own profile; a Save changes only this memory.
+  const ownProfiles: Record<Platform, OwnProfile> = {
+    vrchat: {
+      platform: 'vrchat',
+      bio: 'Exploring worlds with friends most evenings. Say hi!',
+      pronouns: 'they/them',
+      status: 'online',
+      statusText: 'Around for a bit'
+    },
+    chilloutvr: {
+      platform: 'chilloutvr',
+      bio: 'Exploring worlds with friends most evenings. Say hi!',
+      pronouns: 'they/them',
+      status: null,
+      statusText: null
+    }
+  }
   // Choosing always "picks" the synthetic sample; no dialog or file is involved.
   let picture: string | null = null
   // Hiding rows changes synthetic memory only and tells the scene to re-read.
@@ -70,6 +101,22 @@ export function createFixtureBridge(variant: string): FixtureBridge {
   const worn: Record<Platform, string | null> = {
     vrchat: avatarLibraries.vrchat[0]?.avatarId ?? null,
     chilloutvr: avatarLibraries.chilloutvr[0]?.avatarId ?? null
+  }
+  // Unfriend and block change only this synthetic memory; the friends list stays.
+  const relationships = new Map<string, { isFriend: boolean; blocked: boolean }>()
+  const relationshipFor = (
+    platform: Platform,
+    userId: string
+  ): { isFriend: boolean; blocked: boolean } => {
+    const key = `${platform}:${userId}`
+    const known = relationships.get(key)
+    if (known) return known
+    const fresh = {
+      isFriend: friends[platform].some((friend) => friend.platformUserId === userId),
+      blocked: false
+    }
+    relationships.set(key, fresh)
+    return fresh
   }
   const findAvatar = (platform: Platform, avatarId: string): AvatarItem | undefined =>
     avatarLibraries[platform].find((avatar) => avatar.avatarId === avatarId)
@@ -86,6 +133,14 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       return Promise.resolve(dataUrl ? { ok: true, dataUrl } : null)
     },
     joinExploreRoom: () => Promise.resolve(denied),
+    setHomeWorld: ({ platform, worldRef }) => {
+      const world = worlds[platform].find((entry) => entry.worldRef === worldRef)
+      return Promise.resolve(
+        world
+          ? { ok: true, platform, worldId: world.worldId }
+          : { ok: false, reason: 'unknown-world' }
+      )
+    },
     onExploreChanged: unsubscribe,
     getLinkedProfiles: () => Promise.resolve({ ok: true, value: structuredClone(links) }),
     changeLinkedProfile: ({ change }) => {
@@ -192,6 +247,38 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         groups: structuredClone(communityGroups[platform]),
         complete: true
       }),
+    getOwnProfile: ({ platform }) =>
+      Promise.resolve({ ok: true, profile: structuredClone(ownProfiles[platform]) }),
+    saveOwnProfile: ({ platform, changes }) => {
+      const current = ownProfiles[platform]
+      ownProfiles[platform] = {
+        ...current,
+        ...(changes.bio !== undefined ? { bio: changes.bio } : {}),
+        ...(changes.pronouns !== undefined ? { pronouns: changes.pronouns } : {}),
+        ...(platform === 'vrchat' && changes.status !== undefined
+          ? { status: changes.status }
+          : {}),
+        ...(platform === 'vrchat' && changes.statusText !== undefined
+          ? { statusText: changes.statusText }
+          : {})
+      }
+      return Promise.resolve({ ok: true, profile: structuredClone(ownProfiles[platform]) })
+    },
+    getRelationship: ({ platform, userId }) =>
+      Promise.resolve({
+        ok: true,
+        relationship: { platform, userId, ...relationshipFor(platform, userId) }
+      }),
+    socialAction: ({ platform, userId, action }) => {
+      const state = relationshipFor(platform, userId)
+      if (action === 'unfriend') {
+        if (!state.isFriend) return Promise.resolve({ ok: false, reason: 'not-friend' })
+        state.isFriend = false
+      } else {
+        state.blocked = action === 'block'
+      }
+      return Promise.resolve({ ok: true, relationship: { platform, userId, ...state } })
+    },
     getAccounts: () =>
       Promise.resolve(
         (['vrchat', 'chilloutvr'] as const).map((platform) => ({
@@ -300,6 +387,27 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       notes.set(key, note)
       return Promise.resolve({ ok: true })
     },
+    // The copy on the user's account: saved unless a variant shows another state.
+    syncFriendNote: ({ platform, friendId, mode }) => {
+      const note =
+        notes.get(`${platform}:${friendId}`) ??
+        'Met at the observatory. Likes quiet worlds and long conversations.'
+      if (variant === 'note-account-conflict' && mode !== 'keep-mine' && mode !== 'use-account') {
+        return Promise.resolve({
+          ok: true,
+          state: 'conflict',
+          note,
+          accountNote: 'Plays drums in a band. Ask about the summer meetup.'
+        })
+      }
+      if (variant === 'note-account-local' && mode === 'check') {
+        return Promise.resolve({ ok: true, state: 'local-only', note })
+      }
+      if (variant === 'note-account-failed' && mode === 'check') {
+        return Promise.resolve({ ok: false, reason: 'unavailable' })
+      }
+      return Promise.resolve({ ok: true, state: 'saved', note })
+    },
     getAlertPicks: ({ platform }) =>
       Promise.resolve({
         friendIds: [...alertPicks[platform]],
@@ -309,6 +417,37 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       for (const friendId of friendIds) {
         if (picked) alertPicks[platform].add(friendId)
         else alertPicks[platform].delete(friendId)
+      }
+      return Promise.resolve({ ok: true })
+    },
+    getFavoriteFriends: ({ platform }) =>
+      Promise.resolve({
+        friendIds: [...favoriteFriends[platform]],
+        revision: favoriteRevision(platform)
+      }),
+    setFavoriteFriend: ({ platform, friendIds, favorite }) => {
+      for (const friendId of friendIds) {
+        if (favorite) favoriteFriends[platform].add(friendId)
+        else favoriteFriends[platform].delete(friendId)
+      }
+      return Promise.resolve({ ok: true })
+    },
+    getFavoriteWorlds: ({ platform }) =>
+      Promise.resolve({
+        worlds: structuredClone(
+          favoriteWorlds[platform].flatMap((worldId) =>
+            worlds[platform].filter((world) => world.worldId === worldId)
+          )
+        ),
+        revision: favoriteRevision(platform)
+      }),
+    setFavoriteWorld: (req) => {
+      const ids = favoriteWorlds[req.platform]
+      if (req.favorite) {
+        const world = worlds[req.platform].find((item) => item.worldRef === req.worldRef)
+        if (world && !ids.includes(world.worldId)) ids.unshift(world.worldId)
+      } else {
+        favoriteWorlds[req.platform] = ids.filter((worldId) => worldId !== req.worldId)
       }
       return Promise.resolve({ ok: true })
     },

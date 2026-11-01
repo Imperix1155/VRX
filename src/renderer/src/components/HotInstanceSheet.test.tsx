@@ -160,9 +160,13 @@ describe('HotInstanceSheet', () => {
     expect(card.getAttribute('aria-label')).toBe('Hosted by Pixel Pals')
     const nameSpan = within(card).getByText('Pixel Pals')
     expect(nameSpan.getAttribute('title')).toBe('Pixel Pals')
-    const img = card.querySelector('img')
-    expect(img).toBeTruthy()
-    expect(img!.getAttribute('src')).toBe('data:image/png;base64,group')
+    // The picture appears after the read resolves, a tick after the call.
+    const img = await waitFor(() => {
+      const found = card.querySelector('img')
+      expect(found).toBeTruthy()
+      return found!
+    })
+    expect(img.getAttribute('src')).toBe('data:image/png;base64,group')
   })
 
   it('omits the group card when the group has no name', () => {

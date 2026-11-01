@@ -32,6 +32,9 @@ import {
 } from './FriendActionsAdapter'
 import type { FriendRequestAnswer } from '@shared/friendActions'
 import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
+import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
+import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
+import { parseCvrOwnProfile } from './cvr/parseOwnProfile'
 import { extractCvrPlatformUserId } from './cvr/cvrPlatformUserId'
 import { hasUnsafeCredentialCharacters, isValidCvrSession } from './credentialValidation'
 import type {
@@ -50,6 +53,11 @@ import {
 } from './cvr/parseExplore'
 import type { AdapterRequestOptions } from './BaseAdapter'
 import { assertRequestLease } from './RequestLease'
+import {
+  SocialDataError,
+  SocialNotSentError,
+  type SocialActionAdapter
+} from './SocialActionAdapter'
 import { AVATAR_LIBRARY_MAX_ITEMS, isAvatarId, type AvatarItem } from '@shared/avatarLibrary'
 import {
   AvatarDataError,
@@ -72,12 +80,15 @@ import {
   type PersonProfile,
   type WorldList
 } from '@shared/community'
+import { isHomeWorldId } from '@shared/homeWorld'
 import {
   CommunityDataError,
   type CommunityAdapter,
   type CommunityList,
   type CommunitySearchPage
 } from './CommunityAdapter'
+import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
+import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
 import {
   parseCvrGroups,
   parseCvrPlayersOnline,
@@ -190,6 +201,10 @@ export class CvrAdapter
     ExploreAdapter,
     AvatarLibraryAdapter,
     CommunityAdapter,
+    OwnProfileAdapter,
+    SocialActionAdapter,
+    AccountNoteAdapter,
+    HomeWorldAdapter,
     FriendActionsAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
@@ -805,6 +820,26 @@ export class CvrAdapter
     }
   }
 
+  // ── Home world (one user-pressed write at a time) ───────────────────────────
+
+  captureHomeWorldLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async setHomeWorld(worldId: string, lease: RequestLease): Promise<void> {
+    if (!isHomeWorldId('chilloutvr', worldId)) {
+      throw new HomeWorldIdError('Invalid ChilloutVR world id')
+    }
+    // ChilloutVR sets the home world with a GET (CVRX uses the same route).
+    await this.runCommunityRequest(lease, () =>
+      this.get(`/worlds/${encodeURIComponent(worldId)}/sethome`, z.unknown(), {
+        ...this.communityOptions(lease),
+        // A write is never sent twice on its own; the user can press again.
+        retry: 'none'
+      })
+    )
+  }
+
   // ── Community reads (profiles, search, lists, players online, groups) ───────
   // Read-only; each one follows a user action and waits in the shared line.
 
@@ -895,11 +930,125 @@ export class CvrAdapter
     return parsed
   }
 
+  // ── Unfriend, block and unblock (one confirmed message for one person) ──────
+  // The writes go over /users/ws like CVRX's (RequestType 8, 30, 31). The socket
+  // gives no reply, so "sent" is the most VRX can know; FRIEND_LIST_UPDATED
+  // then refreshes the roster after an unfriend.
+
+  captureSocialLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
+    const id = this.socialUserId(userId)
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const record = recordValue(raw)
+    if (!record || typeof record.id !== 'string' || record.id.toLowerCase() !== id) {
+      throw new SocialDataError('ChilloutVR user response was malformed')
+    }
+    return typeof record.isBlocked === 'boolean' ? record.isBlocked : null
+  }
+
+  unfriend(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendSocial(lease, (pipeline) => pipeline.unfriend(this.socialUserId(userId)))
+  }
+
+  block(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendSocial(lease, (pipeline) => pipeline.block(this.socialUserId(userId)))
+  }
+
+  unblock(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendSocial(lease, (pipeline) => pipeline.unblock(this.socialUserId(userId)))
+  }
+
+  /** Send on the current account's socket only; a closed socket sends nothing. */
+  private sendSocial(lease: RequestLease, send: (pipeline: CvrPipeline) => boolean): Promise<void> {
+    try {
+      assertRequestLease(lease)
+      // Every session boundary stops or replaces the pipeline, so the one here
+      // belongs to the lease's account.
+      const pipeline = lease.generation === this.sessionGeneration ? this.pipeline : null
+      if (pipeline === null || !send(pipeline)) throw new SocialNotSentError()
+      return Promise.resolve()
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  }
+
+  private socialUserId(userId: string): string {
+    if (!isCommunityUserId('chilloutvr', userId)) {
+      throw new SocialDataError('Invalid ChilloutVR user id')
+    }
+    return userId.toLowerCase()
+  }
+
+  // ── Account notes (the user's private note on a friend) ─────────────────────
+  // A read and a write each follow a user action; a write is never resent.
+
+  captureNoteLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async readAccountNote(userId: string, lease: RequestLease): Promise<string | null> {
+    const id = this.communityUserId(userId)
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+    )
+    return parseAccountNoteReply(raw, id, (left, right) => left.toLowerCase() === right)
+  }
+
+  async writeAccountNote(userId: string, note: string, lease: RequestLease): Promise<void> {
+    const id = this.communityUserId(userId)
+    // CVRX sends the same route and body.
+    await this.runCommunityRequest(lease, () =>
+      this.post(
+        `/users/${encodeURIComponent(id)}/note`,
+        { note },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
   private communityUserId(userId: string): string {
     if (!isCommunityUserId('chilloutvr', userId)) {
       throw new CommunityDataError('Invalid ChilloutVR user id')
     }
     return userId.toLowerCase()
+  }
+
+  // ── Own profile (read when the editor opens, written on Save) ───────────────
+
+  captureOwnProfileLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnProfile(lease: RequestLease): Promise<OwnProfile> {
+    const accountId = this.accountId
+    if (accountId === null) throw new CVRAuthError()
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const profile = parseCvrOwnProfile(raw, accountId)
+    if (!profile) throw new OwnProfileDataError('ChilloutVR profile response was malformed')
+    return profile
+  }
+
+  async saveOwnProfile(changes: OwnProfileChanges, lease: RequestLease): Promise<null> {
+    // CVRX sends each field as its own form to `/users/self`; VRX does the
+    // same, one request per changed field, in the shared line, never resent.
+    const fields: Array<[string, string]> = []
+    if (changes.bio !== undefined) fields.push(['ProfileBio', changes.bio])
+    if (changes.pronouns !== undefined) fields.push(['ProfilePronouns', changes.pronouns])
+    for (const [name, value] of fields) {
+      await this.runCommunityRequest(lease, () =>
+        this.postForm('/users/self', { [name]: value }, z.unknown(), this.communityOptions(lease))
+      )
+    }
+    // The reply carries no profile; the service keeps what was sent.
+    return null
   }
 
   private communityOptions(lease: RequestLease): AdapterRequestOptions {

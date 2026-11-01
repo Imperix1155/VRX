@@ -741,6 +741,7 @@ export default function SettingsView(): React.JSX.Element {
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
+  const saveNotesToAccounts = useSettingsStore((s) => s.settings.saveNotesToAccounts)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const joinOpenGame = useSettingsStore((s) => s.settings.joinOpenGame)
@@ -1009,6 +1010,18 @@ export default function SettingsView(): React.JSX.Element {
               />
             </div>
 
+            {/* Friend notes on the user's own accounts, as VRCX and CVRX do
+                (owner, 2026-11-01). Off keeps notes on this computer. */}
+            <div className="setting-card">
+              <SwitchRow
+                label={t('settings.saveNotesToAccounts.label')}
+                description={t('settings.saveNotesToAccounts.description')}
+                ariaLabel={t('settings.saveNotesToAccounts.aria')}
+                checked={saveNotesToAccounts}
+                onChange={(checked) => updateSettings({ saveNotesToAccounts: checked })}
+              />
+            </div>
+
             {/* Friends background-reconcile row (VRX-77, moved here from
                 Appearance in VRX-231) */}
             <div className="setting-card setting-row">
@@ -1189,8 +1202,8 @@ export default function SettingsView(): React.JSX.Element {
             </h2>
 
             <div className="grid grid-cols-2 gap-[var(--space-6)]">
-              <AccountCard platform="vrchat" />
-              <AccountCard platform="chilloutvr" />
+              <AccountCard platform="vrchat" profileEditing />
+              <AccountCard platform="chilloutvr" profileEditing />
             </div>
             <p className="text-xs text-[var(--text-dim)]">{t('shell.unofficialNotice')}</p>
           </section>

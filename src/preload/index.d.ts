@@ -18,6 +18,10 @@ type VrxBridge = {
     req: IpcInvoke['join-explore-room']['req']
   ) => Promise<IpcInvoke['join-explore-room']['res']>
   onExploreChanged: (callback: (event: IpcEvents['explore-changed']) => void) => () => void
+  /** World references only; main resolves them to the platform's world ID. */
+  setHomeWorld: (
+    req: IpcInvoke['set-home-world']['req']
+  ) => Promise<IpcInvoke['set-home-world']['res']>
   getLinkedProfiles: () => Promise<IpcInvoke['get-linked-profiles']['res']>
   changeLinkedProfile: (
     req: IpcInvoke['change-linked-profile']['req']
@@ -60,6 +64,18 @@ type VrxBridge = {
   getMyGroups: (
     req: IpcInvoke['get-my-groups']['req']
   ) => Promise<IpcInvoke['get-my-groups']['res']>
+  getOwnProfile: (
+    req: IpcInvoke['get-own-profile']['req']
+  ) => Promise<IpcInvoke['get-own-profile']['res']>
+  saveOwnProfile: (
+    req: IpcInvoke['save-own-profile']['req']
+  ) => Promise<IpcInvoke['save-own-profile']['res']>
+  getRelationship: (
+    req: IpcInvoke['get-relationship']['req']
+  ) => Promise<IpcInvoke['get-relationship']['res']>
+  socialAction: (
+    req: IpcInvoke['social-action']['req']
+  ) => Promise<IpcInvoke['social-action']['res']>
   getAccounts: () => Promise<IpcInvoke['get-accounts']['res']>
   getAuthStatus: (
     req: IpcInvoke['get-auth-status']['req']
@@ -125,6 +141,9 @@ type VrxBridge = {
   setFriendNote: (
     req: IpcInvoke['set-friend-note']['req']
   ) => Promise<IpcInvoke['set-friend-note']['res']>
+  syncFriendNote: (
+    req: IpcInvoke['sync-friend-note']['req']
+  ) => Promise<IpcInvoke['sync-friend-note']['res']>
   /** Local friend picks for alerts (per signed-in account). */
   getAlertPicks: (
     req: IpcInvoke['get-alert-picks']['req']
@@ -132,6 +151,19 @@ type VrxBridge = {
   setAlertPick: (
     req: IpcInvoke['set-alert-pick']['req']
   ) => Promise<IpcInvoke['set-alert-pick']['res']>
+  /** Favorite friends and worlds, kept only in VRX (per signed-in account). */
+  getFavoriteFriends: (
+    req: IpcInvoke['get-favorite-friends']['req']
+  ) => Promise<IpcInvoke['get-favorite-friends']['res']>
+  setFavoriteFriend: (
+    req: IpcInvoke['set-favorite-friend']['req']
+  ) => Promise<IpcInvoke['set-favorite-friend']['res']>
+  getFavoriteWorlds: (
+    req: IpcInvoke['get-favorite-worlds']['req']
+  ) => Promise<IpcInvoke['get-favorite-worlds']['res']>
+  setFavoriteWorld: (
+    req: IpcInvoke['set-favorite-world']['req']
+  ) => Promise<IpcInvoke['set-favorite-world']['res']>
   /** The settings-backed document attributes are ready for the first reveal. */
   notifyRendererHydrated: () => void
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */

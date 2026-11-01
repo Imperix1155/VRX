@@ -66,6 +66,17 @@ export default function SearchView(): React.JSX.Element {
   }
 
   const [person, setPerson] = useState<PersonSummary | null>(null)
+  // The open sheet follows the latest result for the same person, so an
+  // Unfriend from the profile clears its "Friend" tag at once.
+  const shownPerson = useMemo(
+    () =>
+      person === null
+        ? null
+        : (people.find(
+            (item) => item.platform === person.platform && item.userId === person.userId
+          ) ?? person),
+    [person, people]
+  )
   const openerRef = useRef<HTMLElement | null>(null)
   const topRef = useRef<HTMLFormElement>(null)
   const closePerson = useCallback(() => {
@@ -160,7 +171,7 @@ export default function SearchView(): React.JSX.Element {
       ) : null}
 
       <CommunitySheet
-        item={person}
+        item={shownPerson}
         itemKey={(item) => `${item.platform}:${item.userId}`}
         header={(item) => ({
           platform: item.platform,

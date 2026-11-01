@@ -4,7 +4,15 @@ import { ExploreService } from './services/exploreService'
 import { AvatarLibraryService } from './services/avatarLibraryService'
 import { CurrentAvatarService } from './services/currentAvatarService'
 import { CommunityService } from './services/communityService'
+import { OwnProfileService } from './services/ownProfileService'
 import type { CommunityAdapter } from './services/adapters/CommunityAdapter'
+import type { OwnProfileAdapter } from './services/adapters/OwnProfileAdapter'
+import type { SocialActionAdapter } from './services/adapters/SocialActionAdapter'
+import { SocialActionService } from './services/socialActionService'
+import { AccountNoteService } from './services/accountNotes'
+import type { AccountNoteAdapter } from './services/adapters/AccountNoteAdapter'
+import { HomeWorldService } from './services/homeWorldService'
+import type { HomeWorldAdapter } from './services/adapters/HomeWorldAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
@@ -72,6 +80,7 @@ import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
 import { SocialStore } from './services/socialStore'
 import { FriendAlertPicks } from './services/friendAlertPicks'
+import { Favorites } from './services/favorites'
 import { LinkGraphStore } from './services/linkGraphStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
@@ -416,11 +425,17 @@ app
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
     const communityBoundary: { current?: CommunityService } = {}
+    const ownProfileBoundary: { current?: OwnProfileService } = {}
+    const socialBoundary: { current?: SocialActionService } = {}
+    const accountNotesBoundary: { current?: AccountNoteService } = {}
+    const homeWorldBoundary: { current?: HomeWorldService } = {}
     const friendActionsBoundary: { current?: FriendActionsService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
     const alertPicks = new FriendAlertPicks(accountSession, socialStore)
+    // Favorite friends and worlds: local stars, never sent to a platform.
+    const favorites = new Favorites(accountSession, socialStore)
     const linkGraph = new LinkGraphStore()
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
@@ -453,6 +468,10 @@ app
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
         communityBoundary.current?.clearPlatform('vrchat')
+        ownProfileBoundary.current?.clearPlatform('vrchat')
+        socialBoundary.current?.clearPlatform('vrchat')
+        accountNotesBoundary.current?.clearPlatform('vrchat')
+        homeWorldBoundary.current?.clearPlatform('vrchat')
         friendActionsBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
@@ -531,6 +550,10 @@ app
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
         communityBoundary.current?.clearPlatform('chilloutvr')
         friendActionsBoundary.current?.clearPlatform('chilloutvr')
+        ownProfileBoundary.current?.clearPlatform('chilloutvr')
+        socialBoundary.current?.clearPlatform('chilloutvr')
+        accountNotesBoundary.current?.clearPlatform('chilloutvr')
+        homeWorldBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -718,6 +741,52 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     communityBoundary.current = community
+    // Settings → Accounts: the user's own bio, pronouns and VRChat status.
+    // Read when the editor opens, written only on Save.
+    const ownProfile = new OwnProfileService({
+      adapters: new Map<Platform, OwnProfileAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    ownProfileBoundary.current = ownProfile
+    // Friend notes on the user's own accounts: a check when a drawer opens,
+    // a save after an edit, and the user's choice when both copies changed.
+    const accountNotes = new AccountNoteService({
+      adapters: new Map<Platform, AccountNoteAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      socialStore,
+      accountSession,
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      isEnabled: () => getSettingsSnapshot().saveNotesToAccounts,
+      log: (message, meta) => log.warn(message, meta)
+    })
+    accountNotesBoundary.current = accountNotes
+    // "Set as home world" from a world sheet: one write, by Explore reference.
+    const homeWorld = new HomeWorldService({
+      adapters: new Map<Platform, HomeWorldAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      resolveWorld: (platform, worldRef) => explore.worldIdFor(platform, worldRef),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    homeWorldBoundary.current = homeWorld
+
+    // The profile's Unfriend, Block and Unblock: confirmed, one person at a time.
+    const social = new SocialActionService({
+      adapters: new Map<Platform, SocialActionAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      isKnownPerson: (platform, userId) => community.knowsPerson(platform, userId),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    socialBoundary.current = social
     // Accept or decline a friend request, or send one: one press, one write.
     const friendActions = new FriendActionsService({
       adapters: new Map<Platform, FriendActionsAdapter>([
@@ -725,7 +794,7 @@ app
         ['chilloutvr', cvrAdapter]
       ]),
       inbox,
-      wasListed: (platform, userId) => community.wasListed(platform, userId),
+      wasListed: (platform, userId) => community.knowsPerson(platform, userId),
       isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
       log: (message, meta) => log.warn(message, meta)
     })
@@ -733,12 +802,15 @@ app
 
     registerIpcHandlers(adapters, {
       explore,
+      homeWorld,
       inbox,
       friendActions,
       vrOverlayAlerts,
       avatarLibrary,
       currentAvatar,
       community,
+      ownProfile,
+      social,
       // Settings → Appearance background picture (appBackground.ts).
       appBackground: {
         store: new AppBackgroundStore({
@@ -771,7 +843,9 @@ app
       accountRegistry,
       accountSession,
       socialStore,
+      accountNotes,
       alertPicks,
+      favorites,
       links: {
         linkGraph,
         onChanged: () => {
@@ -841,6 +915,10 @@ app
         explore.clearPlatform(event.platform)
         avatarLibrary.clearPlatform(event.platform)
         community.clearPlatform(event.platform)
+        ownProfile.clearPlatform(event.platform)
+        social.clearPlatform(event.platform)
+        accountNotes.clearPlatform(event.platform)
+        homeWorld.clearPlatform(event.platform)
         friendActions.clearPlatform(event.platform)
       }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }

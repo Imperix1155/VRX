@@ -81,9 +81,10 @@ export const CVR_RESPONSE = {
 } as const
 
 /**
- * Outgoing RequestType values (CVRX source). Friend request send, accept and
- * decline are wired to `CvrAdapter`'s friend actions; the rest stay unwired
- * until a feature needs them, so that work needn't re-derive the wire shapes.
+ * Outgoing RequestType values (CVRX `api_cvr_ws.js`). Friend request send,
+ * accept and decline are wired to `CvrAdapter`'s friend actions; unfriend, block
+ * and unblock to the profile's confirmed actions (SocialActionService); the
+ * invite senders are still unused.
  */
 export const CVR_REQUEST = {
   FRIEND_REQUEST_SEND: 5,

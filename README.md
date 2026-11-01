@@ -32,13 +32,17 @@ you press a "Use my sign-in from" button, described below.
   right there; invites you answer in the game. Hide the page in Settings →
   Appearance if you don't want it.
 - **Explore**: popular, new, and recently updated public worlds from both
-  platforms, with room details.
+  platforms, with room details. Open a world and press **Set as home world**
+  to make it the world your game starts in.
 - **Search**: find people and worlds on both platforms by name. A person opens
   their full profile (bio, pronouns, rank, badges, worlds, and groups), which
   you can also open from a friend's details. Someone who isn't your friend yet
   has an Add friend button.
 - **Groups**: the groups you belong to on both platforms, with their details.
   View only.
+- **Your profile**: edit your own bio and pronouns on both platforms, and
+  your VRChat status and status text, from Settings → Accounts → Edit
+  profile. VRX saves only when you press Save.
 - **Avatars**: the avatars you uploaded on both platforms, the one you are
   wearing now, their details, and a Wear button to switch.
 - **Linked profiles**: link a friend's VRChat and ChilloutVR accounts into one
