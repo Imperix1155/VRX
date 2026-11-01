@@ -49,6 +49,10 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-world-list': { max: 60, windowMs: 60_000 },
   'get-players-online': { max: 30, windowMs: 60_000 },
   'get-my-groups': { max: 30, windowMs: 60_000 },
+  // The profile editor reads when it opens; main reuses an answer for 30 s.
+  'get-own-profile': { max: 30, windowMs: 60_000 },
+  // Save presses; main allows one per platform every 5 s.
+  'save-own-profile': { max: 12, windowMs: 60_000 },
   // Account settings normally loads once; repeated tab mounts stay harmless.
   'get-accounts': { max: 12, windowMs: 30_000 },
   // Two platforms can mount, invalidate, and retry without approaching this cap.
@@ -126,6 +130,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-explore-room':
     case 'self-invite':
     case 'switch-avatar':
+    case 'save-own-profile':
     case 'set-friend-note':
     case 'set-alert-pick':
     case 'get-linked-profiles':

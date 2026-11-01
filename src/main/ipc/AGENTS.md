@@ -101,6 +101,11 @@ Persistence, network, cache, and account-transition policy stay in services.
   optional `refresh` flag, and delegate to `CommunityService`. They never write
   to a platform.
 
+- `get-own-profile` takes only a platform; `save-own-profile` takes a platform
+  and the changed fields under a strict schema (an invalid request answers
+  `invalid`). Both delegate to `OwnProfileService`; the renderer never names
+  an account or a user ID.
+
 ## Work Guidance
 
 - Add a channel only when no catalogued channel fits. Change `@shared/ipc`,

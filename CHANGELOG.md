@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Accounts: **Edit profile** on each signed-in account. Change your
+  bio and pronouns on VRChat and ChilloutVR, and your status (Join Me, Online,
+  Ask Me or Do Not Disturb) and status text on VRChat. ChilloutVR has no
+  status to set, so its editor shows only the bio and pronouns. VRX reads
+  your profile when the editor opens and saves only the fields you changed
+  when you press Save, at most once every 5 seconds per platform.
+
 ## [1.4.0-dev.3] - 2026-11-01
 
 Dev test build. It has everything in 1.4.0-dev.2 plus the changes below.

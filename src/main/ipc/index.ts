@@ -17,6 +17,8 @@ import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers } from './explore'
 import { registerAvatarLibraryHandlers, registerCurrentAvatarHandler } from './avatar-library'
 import { registerCommunityHandlers } from './community'
+import { registerOwnProfileHandlers } from './own-profile'
+import type { OwnProfileService } from '../services/ownProfileService'
 import type { CommunityService } from '../services/communityService'
 import type { AvatarLibraryService } from '../services/avatarLibraryService'
 import type { CurrentAvatarService } from '../services/currentAvatarService'
@@ -65,6 +67,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   avatarLibrary: AvatarLibraryService
   currentAvatar: CurrentAvatarService
   community: CommunityService
+  ownProfile: OwnProfileService
   appBackground: AppBackgroundHandlerOptions
   inbox: InboxService
   vrOverlayAlerts: Pick<VrOverlayAlerts, 'test'>
@@ -146,6 +149,7 @@ export function registerIpcHandlers(
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerCurrentAvatarHandler(options.currentAvatar)
     registerCommunityHandlers(options.community)
+    registerOwnProfileHandlers(options.ownProfile)
     registerAppStatusHandlers(options.appStatus)
     registerActivityHandlers(options.activity)
     registerLaunchHandlers()

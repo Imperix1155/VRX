@@ -37,6 +37,9 @@ you press a "Use my sign-in from" button, described below.
   you can also open from a friend's details.
 - **Groups**: the groups you belong to on both platforms, with their details.
   View only.
+- **Your profile**: edit your own bio and pronouns on both platforms, and
+  your VRChat status and status text, from Settings → Accounts → Edit
+  profile. VRX saves only when you press Save.
 - **Avatars**: the avatars you uploaded on both platforms, the one you are
   wearing now, their details, and a Wear button to switch.
 - **Linked profiles**: link a friend's VRChat and ChilloutVR accounts into one

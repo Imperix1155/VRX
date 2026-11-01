@@ -1,6 +1,7 @@
 import type { UpdaterSnapshot } from '@shared/ipc'
 import type { AuthStatus, Platform } from '@shared/types'
 import type { AvatarItem } from '@shared/avatarLibrary'
+import type { OwnProfile } from '@shared/ownProfile'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import {
   activityEntries,
@@ -58,6 +59,23 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     chilloutvr: new Set(friends.chilloutvr.slice(0, 2).map((friend) => friend.platformUserId))
   }
   const denied = { ok: false, reason: 'launch-failed' } as const
+  // The visitor's own profile; a Save changes only this memory.
+  const ownProfiles: Record<Platform, OwnProfile> = {
+    vrchat: {
+      platform: 'vrchat',
+      bio: 'Exploring worlds with friends most evenings. Say hi!',
+      pronouns: 'they/them',
+      status: 'online',
+      statusText: 'Around for a bit'
+    },
+    chilloutvr: {
+      platform: 'chilloutvr',
+      bio: 'Exploring worlds with friends most evenings. Say hi!',
+      pronouns: 'they/them',
+      status: null,
+      statusText: null
+    }
+  }
   // Choosing always "picks" the synthetic sample; no dialog or file is involved.
   let picture: string | null = null
   // Hiding rows changes synthetic memory only and tells the scene to re-read.
@@ -192,6 +210,23 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         groups: structuredClone(communityGroups[platform]),
         complete: true
       }),
+    getOwnProfile: ({ platform }) =>
+      Promise.resolve({ ok: true, profile: structuredClone(ownProfiles[platform]) }),
+    saveOwnProfile: ({ platform, changes }) => {
+      const current = ownProfiles[platform]
+      ownProfiles[platform] = {
+        ...current,
+        ...(changes.bio !== undefined ? { bio: changes.bio } : {}),
+        ...(changes.pronouns !== undefined ? { pronouns: changes.pronouns } : {}),
+        ...(platform === 'vrchat' && changes.status !== undefined
+          ? { status: changes.status }
+          : {}),
+        ...(platform === 'vrchat' && changes.statusText !== undefined
+          ? { statusText: changes.statusText }
+          : {})
+      }
+      return Promise.resolve({ ok: true, profile: structuredClone(ownProfiles[platform]) })
+    },
     getAccounts: () =>
       Promise.resolve(
         (['vrchat', 'chilloutvr'] as const).map((platform) => ({

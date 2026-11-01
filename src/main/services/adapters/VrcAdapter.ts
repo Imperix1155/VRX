@@ -57,6 +57,9 @@ import {
   type OwnAvatarsPage
 } from './AvatarLibraryAdapter'
 import { parseVrcAvatar, parseVrcAvatarPage } from './vrchat/parseAvatars'
+import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
+import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
+import { parseVrcOwnProfile, vrcOwnProfileBody } from './vrchat/parseOwnProfile'
 import {
   COMMUNITY_LIST_MAX_WORLDS,
   COMMUNITY_MY_GROUPS_MAX,
@@ -257,7 +260,7 @@ const VRC_WORLD_LIST_SORT: Record<WorldList, string> = {
 
 export class VrcAdapter
   extends VrcApiClient
-  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter
+  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter, OwnProfileAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -1200,6 +1203,42 @@ export class VrcAdapter
     const parsed = parseVrcGroups(raw, accountId, COMMUNITY_MY_GROUPS_MAX)
     if (!parsed) throw new CommunityDataError('VRChat group list response was malformed')
     return parsed
+  }
+
+  // ── Own profile (read when the editor opens, written on Save) ───────────────
+
+  captureOwnProfileLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnProfile(lease: RequestLease): Promise<OwnProfile> {
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const profile = parseVrcOwnProfile(raw, accountId)
+    if (!profile) throw new OwnProfileDataError('VRChat profile response was malformed')
+    return profile
+  }
+
+  async saveOwnProfile(
+    changes: OwnProfileChanges,
+    lease: RequestLease
+  ): Promise<OwnProfile | null> {
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    // One PUT carries every changed field; VRChat leaves the others as they are.
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.putJson(
+        `/users/${encodeURIComponent(accountId)}`,
+        vrcOwnProfileBody(changes),
+        z.unknown(),
+        // A write is never sent twice on its own; the user can press again.
+        this.communityOptions(lease)
+      )
+    )
+    return parseVrcOwnProfile(raw, accountId)
   }
 
   private communityOptions(lease: RequestLease): AdapterRequestOptions {

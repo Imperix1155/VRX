@@ -405,7 +405,15 @@ Accounts, and About. Each setting sits on a compact neutral card.
   explanation; for a few seconds after a test, the explanation becomes a short
   sent or failed line beside the link.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
-  unofficial-app line.
+  unofficial-app line. A signed-in card has Edit profile and Sign out on their
+  own row, sharing it (each its own full-width line when the words are long,
+  as in Japanese). Edit profile opens a dialog with the bio and pronouns on
+  both platforms in the same order, then, on VRChat only, the four statuses
+  (the friends-list dot beside each word) and the status text. ChilloutVR has
+  no status, so nothing stands in for it. Each label carries its character
+  count; Save stays off until something changes, and a failure keeps the text
+  with a reason beside the buttons. The welcome setup's account cards keep to
+  signing in, with no Edit profile.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
   in that same card beside the on/off control and the check button, plus the
   installed version, Welcome setup (Run setup again), Found a bug? (Report a

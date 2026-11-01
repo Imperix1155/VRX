@@ -379,7 +379,32 @@
         "looking": "この PC を確認しています…"
       },
       "needsCode": "{{platform}} のサインインコードが必要です。",
-      "openAccounts": "アカウントを開く"
+      "openAccounts": "アカウントを開く",
+      "profile": {
+        "edit": "プロフィールを編集",
+        "title": "{{platform}} のプロフィール",
+        "intro": "ここで保存すると {{platform}} のプロフィールが変わります。",
+        "loading": "プロフィールを読み込み中…",
+        "bio": "自己紹介",
+        "bioPlaceholder": "自分について少し書いてみましょう",
+        "pronouns": "代名詞",
+        "pronounsPlaceholder": "例: they/them",
+        "status": "ステータス",
+        "statusText": "ステータスメッセージ",
+        "statusTextPlaceholder": "例: まったり中",
+        "counter": "{{current}}/{{max}}",
+        "cancel": "キャンセル",
+        "save": "保存",
+        "saving": "保存中…",
+        "saved": "{{platform}} にプロフィールを保存しました。",
+        "error": {
+          "load": "{{platform}} のプロフィールを読み込めませんでした。接続を確認して、もう一度お試しください。",
+          "unavailable": "{{platform}} に保存できませんでした。接続を確認して、もう一度お試しください。",
+          "wait": "保存が続いています。数秒待ってから、もう一度お試しください。",
+          "invalid": "長すぎて保存できない項目があります。",
+          "signedOut": "{{platform}} からサインアウトされました。もう一度サインインしてからお試しください。"
+        }
+      }
     },
     "about": {
       "heading": "情報"

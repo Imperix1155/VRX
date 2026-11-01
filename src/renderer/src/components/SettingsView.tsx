@@ -1189,8 +1189,8 @@ export default function SettingsView(): React.JSX.Element {
             </h2>
 
             <div className="grid grid-cols-2 gap-[var(--space-6)]">
-              <AccountCard platform="vrchat" />
-              <AccountCard platform="chilloutvr" />
+              <AccountCard platform="vrchat" profileEditing />
+              <AccountCard platform="chilloutvr" profileEditing />
             </div>
             <p className="text-xs text-[var(--text-dim)]">{t('shell.unofficialNotice')}</p>
           </section>

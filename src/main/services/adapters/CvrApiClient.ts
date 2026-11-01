@@ -112,6 +112,28 @@ export abstract class CvrApiClient extends BaseAdapter {
   }
 
   /**
+   * POST `fields` as a multipart form to an authenticated CVR endpoint and
+   * unwrap its validated data envelope. fetch sets the multipart boundary.
+   */
+  protected async postForm<T>(
+    path: string,
+    fields: Readonly<Record<string, string>>,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions
+  ): Promise<T> {
+    return await this.requestData(
+      CVR_API_BASE + path,
+      schema,
+      () => {
+        const form = new FormData()
+        for (const [name, value] of Object.entries(fields)) form.append(name, value)
+        return { method: 'POST', headers: this.authenticatedHeaders(), body: form }
+      },
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+  }
+
+  /**
    * Closed discovery-route surface: callers choose a typed route, never a URL,
    * host, query string, or renderer-provided path. Auth headers are still built
    * lazily after shared admission succeeds through requestData's init factory.

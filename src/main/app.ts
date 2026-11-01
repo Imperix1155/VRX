@@ -4,7 +4,9 @@ import { ExploreService } from './services/exploreService'
 import { AvatarLibraryService } from './services/avatarLibraryService'
 import { CurrentAvatarService } from './services/currentAvatarService'
 import { CommunityService } from './services/communityService'
+import { OwnProfileService } from './services/ownProfileService'
 import type { CommunityAdapter } from './services/adapters/CommunityAdapter'
+import type { OwnProfileAdapter } from './services/adapters/OwnProfileAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
@@ -414,6 +416,7 @@ app
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
     const communityBoundary: { current?: CommunityService } = {}
+    const ownProfileBoundary: { current?: OwnProfileService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
@@ -450,6 +453,7 @@ app
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
         communityBoundary.current?.clearPlatform('vrchat')
+        ownProfileBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
         // boundary too would read as an account switch: it refetched the dead
@@ -526,6 +530,7 @@ app
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
         communityBoundary.current?.clearPlatform('chilloutvr')
+        ownProfileBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -713,6 +718,16 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     communityBoundary.current = community
+    // Settings → Accounts: the user's own bio, pronouns and VRChat status.
+    // Read when the editor opens, written only on Save.
+    const ownProfile = new OwnProfileService({
+      adapters: new Map<Platform, OwnProfileAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    ownProfileBoundary.current = ownProfile
 
     registerIpcHandlers(adapters, {
       explore,
@@ -721,6 +736,7 @@ app
       avatarLibrary,
       currentAvatar,
       community,
+      ownProfile,
       // Settings → Appearance background picture (appBackground.ts).
       appBackground: {
         store: new AppBackgroundStore({
@@ -823,6 +839,7 @@ app
         explore.clearPlatform(event.platform)
         avatarLibrary.clearPlatform(event.platform)
         community.clearPlatform(event.platform)
+        ownProfile.clearPlatform(event.platform)
       }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }
       for (const window of BrowserWindow.getAllWindows()) {

@@ -61,6 +61,8 @@ const vrx = {
   getPlayersOnline: (req: IpcInvoke['get-players-online']['req']) =>
     invoke('get-players-online', req),
   getMyGroups: (req: IpcInvoke['get-my-groups']['req']) => invoke('get-my-groups', req),
+  getOwnProfile: (req: IpcInvoke['get-own-profile']['req']) => invoke('get-own-profile', req),
+  saveOwnProfile: (req: IpcInvoke['save-own-profile']['req']) => invoke('save-own-profile', req),
   getAccounts: () => invoke('get-accounts', undefined),
   getLinkedProfiles: () => invoke('get-linked-profiles', undefined),
   changeLinkedProfile: (req: IpcInvoke['change-linked-profile']['req']) =>

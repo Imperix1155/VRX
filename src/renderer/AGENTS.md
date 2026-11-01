@@ -85,7 +85,7 @@ or launch authority.
 
 **Account-bound data**
 
-- Friend, linked-profile, Explore, note, alert-pick, avatar and community queries cancel
+- Friend, linked-profile, Explore, note, alert-pick, avatar, community and own-profile queries cancel
   old work and clear data and fences at identity or auth boundaries. Community
   answers kept through a data-path 401 reset when the same account returns. Avatar
   libraries otherwise stay in memory for the session, keyed by account. An old reply never publishes

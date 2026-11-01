@@ -38,6 +38,7 @@ import type {
   WorldList,
   WorldListResult
 } from './community'
+import type { OwnProfileChanges, OwnProfileResult, SaveOwnProfileResult } from './ownProfile'
 import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type { ActivityEntry } from './activity'
@@ -187,6 +188,13 @@ export interface IpcInvoke {
   'get-players-online': { req: { platform: Platform }; res: PlayersOnlineResult }
   /** The signed-in user's groups. `refresh` is a Refresh press. */
   'get-my-groups': { req: { platform: Platform; refresh?: boolean }; res: MyGroupsResult }
+  /** The signed-in user's own bio, pronouns and (VRChat) status, for the editor. */
+  'get-own-profile': { req: { platform: Platform }; res: OwnProfileResult }
+  /** Save the fields the user changed. One Save per platform, 5 s apart. */
+  'save-own-profile': {
+    req: { platform: Platform; changes: OwnProfileChanges }
+    res: SaveOwnProfileResult
+  }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }
