@@ -145,6 +145,47 @@ describe('HomeWorldControl', () => {
     expect(screen.getByRole('status').textContent).toBe('')
   })
 
+  it('drops a reply that arrives after the account changed', async () => {
+    let finish!: (result: SetHomeWorldResult) => void
+    setHomeWorld.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
+    render(control())
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Make home' }))
+    act(() => signIn('usr_someone_else'))
+    await act(async () => {
+      finish({ ok: false, reason: 'failed' })
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('status').textContent).toBe('')
+    expect(
+      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+    ).toBeTruthy()
+  })
+
+  it('leaves focus alone when the user moved elsewhere before the reply', async () => {
+    let finish!: (result: SetHomeWorldResult) => void
+    setHomeWorld.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
+    render(
+      <>
+        {control()}
+        <input aria-label="Elsewhere" />
+      </>
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Make home' }))
+    const elsewhere = screen.getByLabelText('Elsewhere')
+    elsewhere.focus()
+    await act(async () => {
+      finish({ ok: false, reason: 'failed' })
+      await Promise.resolve()
+    })
+    expect(document.activeElement).toBe(elsewhere)
+  })
+
   it('remembers the home per account, and another world still offers the button', async () => {
     render(control())
     fireEvent.click(

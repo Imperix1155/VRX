@@ -77,6 +77,12 @@ export default function HomeWorldControl({
   const confirmRef = useRef<HTMLButtonElement>(null)
   const openerRef = useRef<HTMLButtonElement>(null)
   const chipRef = useRef<HTMLSpanElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  // The account on screen now; a reply for an earlier account is dropped.
+  const liveAccountRef = useRef(accountId)
+  useEffect(() => {
+    liveAccountRef.current = accountId
+  }, [accountId])
   const returnFocusRef = useRef(false)
   const platformName = t(platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
   const isHome = homeId === worldId
@@ -86,9 +92,14 @@ export default function HomeWorldControl({
     if (step.state === 'confirm') confirmRef.current?.focus()
     // After Cancel or an answer, focus goes back to what replaced the
     // confirm panel, so keyboard and screen-reader users never land on the page.
+    // Only when focus is still here (or fell to the page as the panel left):
+    // never pull it away from somewhere the user moved on to.
     if (step.state !== 'confirm' && step.state !== 'pending' && returnFocusRef.current) {
       returnFocusRef.current = false
-      ;(chipRef.current ?? openerRef.current)?.focus()
+      const active = document.activeElement
+      if (active === null || active === document.body || rootRef.current?.contains(active)) {
+        ;(chipRef.current ?? openerRef.current)?.focus()
+      }
     }
   }, [step.state])
 
@@ -99,17 +110,22 @@ export default function HomeWorldControl({
 
   function confirm(): void {
     if (accountId === null || pending) return
+    const requestAccount = accountId
     returnFocusRef.current = true
     setStep({ state: 'pending' })
     setHomeWorld({ platform, worldRef, accountId }).then(
-      (result) =>
-        setStep(result.ok ? { state: 'done' } : { state: 'failed', reason: result.reason }),
-      (error: unknown) =>
+      (result) => {
+        if (liveAccountRef.current !== requestAccount) return
+        setStep(result.ok ? { state: 'done' } : { state: 'failed', reason: result.reason })
+      },
+      (error: unknown) => {
+        if (liveAccountRef.current !== requestAccount) return
         setStep({
           state: 'failed',
           reason:
             error instanceof Error && error.message === 'rate_limited' ? 'rate-limited' : 'failed'
         })
+      }
     )
   }
 
@@ -118,7 +134,7 @@ export default function HomeWorldControl({
       <span
         ref={chipRef}
         tabIndex={-1}
-        className="inline-flex items-center gap-[var(--space-1)] rounded-[10px] border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
+        className="inline-flex items-center gap-[var(--space-1)] rounded-[10px] border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)]"
         aria-label={t('explore.home.isHomeAria', { world: worldName, platform: platformName })}
       >
         <IconHome />
@@ -138,7 +154,7 @@ export default function HomeWorldControl({
     )
 
   return (
-    <div>
+    <div ref={rootRef}>
       <div className="flex flex-wrap items-center gap-[var(--space-2)]">
         {leading}
         {control}
