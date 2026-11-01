@@ -1,4 +1,12 @@
-import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 import { QueryClient, QueryClientContext, useMutation, useQuery } from '@tanstack/react-query'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
@@ -194,6 +202,16 @@ export interface UseFriendNoteResult {
   retry: () => void
 }
 
+/** The extra the account-note sync needs from VRX's own copy. */
+export interface UseAccountFriendNoteResult extends UseFriendNoteResult {
+  /** VRX's saved copy and the read's revision, or null until it loads. */
+  persisted: { note: string; revision: { platformAccountId: string; epoch: number } } | null
+  /** The draft differs from the saved copy, or a save is running. */
+  isEditing: boolean
+  /** Show a copy main already saved (the account copy the user took). */
+  adoptPersisted: (note: string) => void
+}
+
 function sameNote(left: string, right: string | null | undefined): boolean {
   return left.trimEnd() === (right ?? '').trimEnd()
 }
@@ -212,7 +230,10 @@ function emptyDraft(key: string, generation = 0): DraftState {
 }
 
 /** Load and edit a per-account, per-friend private note through the preload bridge. */
-export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): UseFriendNoteResult {
+export function useFriendNote({
+  platform,
+  friendId
+}: UseFriendNoteOptions): UseAccountFriendNoteResult {
   const providedClient = useContext(QueryClientContext)
   const [fallbackClient] = useState(
     () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -603,7 +624,29 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     [boundaryEpoch, friendId, isWritable, platform]
   )
 
+  const persistedRevision = query.data?.revision
+  const persistedNote = query.data?.note ?? ''
+  const persisted = useMemo(
+    () =>
+      persistedRevision === undefined ? null : { note: persistedNote, revision: persistedRevision },
+    [persistedNote, persistedRevision]
+  )
+  const adoptPersisted = useCallback(
+    (note: string) => {
+      if (friendId === '') return
+      queryClient.setQueryData<NoteData>(
+        ['friend-note', platform, friendId, boundaryEpoch],
+        (current) =>
+          current?.revision === undefined ? current : { note, revision: current.revision }
+      )
+    },
+    [queryClient, platform, friendId, boundaryEpoch]
+  )
+
   return {
+    persisted,
+    isEditing: draft.dirty || saveStates.get(key)?.saving === true,
+    adoptPersisted,
     value: draft.value,
     isWritable,
     loadFailed,

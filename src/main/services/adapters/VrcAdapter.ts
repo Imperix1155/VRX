@@ -74,6 +74,7 @@ import {
   type CommunityList,
   type CommunitySearchPage
 } from './CommunityAdapter'
+import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
 import {
   parseVrcGroups,
   parseVrcPeople,
@@ -257,7 +258,7 @@ const VRC_WORLD_LIST_SORT: Record<WorldList, string> = {
 
 export class VrcAdapter
   extends VrcApiClient
-  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter
+  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter, AccountNoteAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -1200,6 +1201,33 @@ export class VrcAdapter
     const parsed = parseVrcGroups(raw, accountId, COMMUNITY_MY_GROUPS_MAX)
     if (!parsed) throw new CommunityDataError('VRChat group list response was malformed')
     return parsed
+  }
+
+  // ── Account notes (the user's private note on a friend) ─────────────────────
+  // A read and a write each follow a user action; a write is never resent.
+
+  captureNoteLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async readAccountNote(userId: string, lease: RequestLease): Promise<string | null> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(userId)}`, z.unknown(), this.communityOptions(lease))
+    )
+    return parseAccountNoteReply(raw, userId, (left, right) => left === right)
+  }
+
+  async writeAccountNote(userId: string, note: string, lease: RequestLease): Promise<void> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    await this.runCommunityRequest(lease, () =>
+      this.post(
+        '/userNotes',
+        { targetUserId: userId, note },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
   }
 
   private communityOptions(lease: RequestLease): AdapterRequestOptions {

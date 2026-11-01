@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Friend notes now save to your VRChat or ChilloutVR account too, like VRCX and
+  CVRX do, so you see them in the game and they come back on a new PC. A small
+  line under the note says when it is saved there. If you changed a note in the
+  game, VRX picks up the newer one; if both changed, it shows the account's
+  note and lets you choose which to keep, so no note is lost. VRChat keeps one
+  line of up to 256 characters, so a longer note stays on this PC with a note
+  saying why. Settings → Behavior → Save notes to my accounts turns this off.
+
 ## [1.4.0-dev.3] - 2026-11-01
 
 Dev test build. It has everything in 1.4.0-dev.2 plus the changes below.

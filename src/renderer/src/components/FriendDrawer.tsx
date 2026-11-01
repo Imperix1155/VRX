@@ -23,7 +23,9 @@
  *      Copy link / self-invite / favorite remain separate issues; no
  *      placeholders here.
  *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
- *      explicit Retry after failure, then quiet VRChat trust when known, then
+ *      explicit Retry after failure. An account-private note also goes to the
+ *      user's own VRChat or ChilloutVR account (AccountNoteStatus). Then
+ *      quiet VRChat trust when known, then
  *      "Full profile" (owner, 2026-10-31): bio, pronouns, rank, badges, and
  *      worlds and groups on demand, read only after the press.
  *   6. Pinned footer: Identities, and across from it the alerts bell
@@ -50,6 +52,8 @@ import { isFriendJoinable } from '@shared/joinability'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriendNote } from '../hooks/useFriendNote'
 import { usePersonNote } from '../hooks/usePersonNote'
+import { useAccountNote } from '../hooks/useAccountNote'
+import AccountNoteStatus from './AccountNoteStatus'
 import { ringFor } from '../utils/statusRing'
 import { inPlatformOrder } from '../utils/platformOrder'
 import { Avatar } from './Avatar'
@@ -231,6 +235,13 @@ export default function FriendDrawer({
     friendId: combined ? '' : (shown?.platformUserId ?? '')
   })
   const sharedNote = usePersonNote(combined ? (selection.profile?.id ?? null) : null)
+  // The copy on the user's own account follows the account-private note only;
+  // a linked person's shared note stays in VRX.
+  const accountSync = useAccountNote(
+    shown?.platform ?? 'vrchat',
+    open && !combined ? (shown?.platformUserId ?? '') : '',
+    accountNote
+  )
   const note = combined ? sharedNote : accountNote
   const {
     value: noteValue,
@@ -537,14 +548,32 @@ export default function FriendDrawer({
                     </button>
                   </div>
                 )}
-                {/* Described by the field, not live: a live counter would speak on
-                    every keystroke. */}
-                <span
-                  id="friend-notes-counter"
-                  className="text-right text-[11px] text-[var(--text-dim)]"
-                >
-                  {t('drawer.notes.counter', { current: noteValue.length })}
-                </span>
+                {!combined && shown && accountSync.view.kind === 'conflict' && (
+                  <AccountNoteStatus
+                    platform={shown.platform}
+                    account={accountSync}
+                    hasNote={(accountNote.persisted?.note ?? '') !== ''}
+                    isEditing={accountNote.isEditing}
+                  />
+                )}
+                <div className="flex items-baseline gap-[var(--space-2)]">
+                  {!combined && shown && accountSync.view.kind !== 'conflict' && (
+                    <AccountNoteStatus
+                      platform={shown.platform}
+                      account={accountSync}
+                      hasNote={(accountNote.persisted?.note ?? '') !== ''}
+                      isEditing={accountNote.isEditing}
+                    />
+                  )}
+                  {/* Described by the field, not live: a live counter would speak on
+                      every keystroke. */}
+                  <span
+                    id="friend-notes-counter"
+                    className="ml-auto shrink-0 text-right text-[11px] text-[var(--text-dim)]"
+                  >
+                    {t('drawer.notes.counter', { current: noteValue.length })}
+                  </span>
+                </div>
               </div>
             )}
             {trustKey && (

@@ -39,6 +39,7 @@ describe('settings schema', () => {
       showSearchPage: true,
       showGroupsPage: true,
       dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
       setupPending: false,
       theme: 'system',
       language: 'en',
@@ -313,6 +314,7 @@ describe('migration runner', () => {
       showSearchPage: true,
       showGroupsPage: true,
       dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -371,6 +373,7 @@ describe('migration runner', () => {
       showSearchPage: true,
       showGroupsPage: true,
       dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -430,6 +433,7 @@ describe('migration runner', () => {
       showSearchPage: true,
       showGroupsPage: true,
       dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -491,6 +495,7 @@ describe('migration runner', () => {
       showSearchPage: true,
       showGroupsPage: true,
       dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -550,6 +555,7 @@ describe('migration runner', () => {
       showSearchPage: true,
       showGroupsPage: true,
       dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -610,6 +616,7 @@ describe('migration runner', () => {
       showSearchPage: true,
       showGroupsPage: true,
       dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -1270,5 +1277,34 @@ describe('Search, Groups and players-online settings', () => {
       showGroupsPage: false,
       dashboardPlayersOnline: false
     })
+  })
+})
+
+describe('Account notes setting', () => {
+  it('defaults on and keeps an explicit Off', () => {
+    expect(parseSettings({ version: 23 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      saveNotesToAccounts: true
+    })
+    expect(parseSettings({ saveNotesToAccounts: false })).toMatchObject({
+      saveNotesToAccounts: false
+    })
+    expect(parseSettings({ saveNotesToAccounts: 'no' })).toMatchObject({
+      saveNotesToAccounts: true
+    })
+  })
+
+  it('prevents a v23 build from stripping an Off during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 24,
+      saveNotesToAccounts: false
+    }
+    const oldNormalized = { ...disk, version: 23 }
+    Reflect.deleteProperty(oldNormalized, 'saveNotesToAccounts')
+
+    if (shouldPersistSettings(disk, 23)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({ saveNotesToAccounts: false })
   })
 })

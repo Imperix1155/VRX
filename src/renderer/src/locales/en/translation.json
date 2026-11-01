@@ -224,6 +224,11 @@
       "card": "Whole card",
       "avatar": "Avatar only"
     },
+    "saveNotesToAccounts": {
+      "label": "Save notes to my accounts",
+      "description": "Friend notes also go to your VRChat or ChilloutVR account, so you see them in the game too. Off keeps them on this PC only.",
+      "aria": "Save friend notes to my VRChat and ChilloutVR accounts"
+    },
     "behavior": {
       "heading": "Behavior"
     },
@@ -661,7 +666,19 @@
       "counter": "{{current}}/500",
       "loadFailed": "Couldn't load this note. Retry before editing so VRX can save changes safely.",
       "saveFailed": "Couldn't save this note. Your newest draft remains local and will not survive closing VRX.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "account": {
+        "saved": "Also saved to your {{platform}} account",
+        "saving": "Saving to your {{platform}} account…",
+        "localOnly": "Only on this PC so far.",
+        "save": "Save to {{platform}}",
+        "tooLong": "Only on this PC: {{platform}} keeps notes up to {{max}} characters.",
+        "failed": "Couldn't reach {{platform}}. Saved on this PC.",
+        "conflict": "Your {{platform}} account has a different note for this friend:",
+        "empty": "(no note)",
+        "useTheirs": "Use the {{platform}} note",
+        "keepMine": "Keep mine"
+      }
     },
     "fullProfile": {
       "show": "Show full profile",

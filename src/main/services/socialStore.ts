@@ -29,6 +29,7 @@ function cappedRecordSchema<T extends z.ZodType>(valueSchema: T, maximum: number
 
 const favoritesSchema = cappedRecordSchema(z.literal(true), FAVORITES_MAX)
 const notesSchema = cappedRecordSchema(z.string().max(10_000), NOTES_MAX)
+const noteSyncSchema = cappedRecordSchema(z.string().max(10_000), NOTES_MAX)
 const tagsSchema = cappedRecordSchema(
   z.array(z.string().min(1).max(64)).max(TAGS_PER_FRIEND_MAX),
   TAGGED_FRIENDS_MAX
@@ -50,6 +51,8 @@ const perFriendOptOutsSchema = cappedRecordSchema(
 
 export type FavoritesData = Record<string, true>
 export type NotesData = Record<string, string>
+/** Per friend: the last note text VRX's copy and the account copy agreed on. */
+export type NoteSyncData = Record<string, string>
 export type TagsData = Record<string, string[]>
 export interface SocialPrefsData {
   notifyFriendOnline?: boolean
@@ -71,6 +74,7 @@ export interface BoundedHistoryRing<T> {
 export interface SocialNamespaceDataMap {
   favorites: FavoritesData
   notes: NotesData
+  noteSync: NoteSyncData
   tags: TagsData
   socialPrefs: SocialPrefsData
   perFriendOptOuts: PerFriendOptOutsData
@@ -100,6 +104,7 @@ export interface SocialStoreStorage {
 const namespaceSchemas: Record<SmallSocialNamespace, z.ZodType> = {
   favorites: favoritesSchema,
   notes: notesSchema,
+  noteSync: noteSyncSchema,
   tags: tagsSchema,
   socialPrefs: socialPrefsSchema,
   perFriendOptOuts: perFriendOptOutsSchema
@@ -124,6 +129,7 @@ function createEnvelopeSchema<T extends z.ZodType>(
 const envelopeSchemas = {
   favorites: createEnvelopeSchema(favoritesSchema),
   notes: createEnvelopeSchema(notesSchema),
+  noteSync: createEnvelopeSchema(noteSyncSchema),
   tags: createEnvelopeSchema(tagsSchema),
   socialPrefs: createEnvelopeSchema(socialPrefsSchema),
   perFriendOptOuts: createEnvelopeSchema(perFriendOptOutsSchema)
