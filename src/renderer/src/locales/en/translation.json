@@ -229,6 +229,11 @@
       "description": "Friend notes also go to your VRChat or ChilloutVR account, so you see them in the game too. Off keeps them on this PC only.",
       "aria": "Save friend notes to my VRChat and ChilloutVR accounts"
     },
+    "useGameFavorites": {
+      "label": "Use my game favorites",
+      "description": "The star also shows and changes the favorite groups in your VRChat and ChilloutVR accounts, like VRCX and CVRX. Off keeps stars in VRX only.",
+      "aria": "Use the favorites in my VRChat and ChilloutVR accounts"
+    },
     "behavior": {
       "heading": "Behavior"
     },
@@ -907,7 +912,7 @@
       "updatedHint": "Public worlds their creators updated most recently.",
       "empty": "No worlds to show right now.",
       "favorites": "Favorites",
-      "favoritesHint": "Worlds you starred. Your stars stay in VRX on this computer.",
+      "favoritesHint": "Worlds you starred in VRX, then the favorites in your game accounts.",
       "favoritesEmpty": "No favorite worlds yet. Open a world and press the star to keep it here."
     },
     "more": {
@@ -1316,13 +1321,30 @@
     }
   },
   "favorites": {
-    "friendLabel": "Favorite {{name}}",
-    "worldLabel": "Favorite {{world}}",
-    "add": "Add to favorites",
-    "remove": "Remove from favorites",
     "saveFailed": "Couldn't save. Try again.",
     "friendsFull": "You have as many favorite friends as VRX can keep.",
     "worldsFull": "You have {{count}} favorite worlds, the most VRX can keep. Remove one to add another.",
-    "rowLabel": "favorite"
+    "rowLabel": "favorite",
+    "menu": {
+      "heading": "Favorite",
+      "hint": "Favorites",
+      "labelOff": "Favorites for {{name}}",
+      "labelOn": "Favorites for {{name}}, starred",
+      "vrx": "VRX",
+      "vrxStar": "Star in VRX (this PC only)",
+      "vrchat": "VRChat favorites",
+      "chilloutvr": "ChilloutVR favorites",
+      "count": "{{count}}/{{capacity}}",
+      "loading": "Loading your {{platform}}…",
+      "loadFailed": "Couldn't load your {{platform}}.",
+      "retry": "Try again",
+      "noGroups": "No groups yet. Make one in the game, then check back.",
+      "oneGroup": "VRChat keeps a favorite in one group. To move it, take it out of this one first.",
+      "groupFull": "That group is full. Make room in the game, or pick another group.",
+      "slowDown": "That was a lot of changes at once. Wait a moment, then try again.",
+      "off": "Game favorites are off in Settings.",
+      "offNote": "Showing your game favorites is off.",
+      "settings": "Settings"
+    }
   }
 }

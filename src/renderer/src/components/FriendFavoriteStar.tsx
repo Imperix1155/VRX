@@ -1,5 +1,3 @@
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import type { Friend } from '@shared/types'
 import {
   isFavoriteAccount,
@@ -7,63 +5,54 @@ import {
   useFavoriteFriends,
   useSetFavoriteFriends
 } from '../queries/favorites'
-import { FavoriteStarButton } from './FavoriteStar'
+import FavoriteMenu from './FavoriteMenu'
 
 /**
- * The friend details star, beside the alerts bell (owner, 2026-11-01). A
- * linked person is one star across every account shown, so both platforms
- * move together. It reads starred while any shown account is, so unstarring
- * always clears every one of them. Kept only in VRX.
+ * The friend details star, beside the alerts bell (owner, 2026-11-01). It
+ * opens the favorite panel: VRX's own star, which covers every account of a
+ * linked person together, and each account's own game favorite groups.
  */
 export default function FriendFavoriteStar({
   accounts,
-  name
+  name,
+  drawerOpen = true,
+  onLeave
 }: {
   accounts: readonly Friend[]
   name: string
+  drawerOpen?: boolean
+  onLeave?: () => void
 }): React.JSX.Element | null {
-  const { t } = useTranslation()
   const keys = useFavoriteFriendKeys()
   const vrchat = useFavoriteFriends('vrchat')
   const chilloutvr = useFavoriteFriends('chilloutvr')
   const setFavorite = useSetFavoriteFriends()
-  const [saving, setSaving] = useState(false)
-  const [failure, setFailure] = useState<{ owner: string; key: string } | null>(null)
-  const owner = accounts.map((a) => `${a.platform}:${a.platformUserId}`).join('|')
   if (accounts.length === 0) return null
   const lists = { vrchat, chilloutvr }
+  // VRX's star reads starred while any shown account is, so unstarring clears all.
   const on = isFavoriteAccount(keys, accounts)
-  const writable = accounts.every((a) => lists[a.platform].writable)
-  const shownFailure = failure?.owner === owner ? failure.key : null
-
-  const toggle = async (): Promise<void> => {
-    setFailure(null)
-    setSaving(true)
-    const reason = await setFavorite(accounts, !on)
-    setSaving(false)
-    if (reason !== null) {
-      setFailure({
-        owner,
-        key: reason === 'full' ? 'favorites.friendsFull' : 'favorites.saveFailed'
-      })
-    }
-  }
 
   return (
-    <div className="flex items-center gap-[var(--space-2)]">
-      {shownFailure && (
-        <p role="alert" className="max-w-[180px] text-right text-[11.5px] text-[var(--text-dim)]">
-          {t(shownFailure)}
-        </p>
-      )}
-      <FavoriteStarButton
-        shape="round"
-        on={on}
-        disabled={!writable || saving}
-        label={t('favorites.friendLabel', { name })}
-        hint={t(on ? 'favorites.remove' : 'favorites.add')}
-        onToggle={() => void toggle()}
-      />
-    </div>
+    <FavoriteMenu
+      name={name}
+      shape="round"
+      placement="above"
+      open={drawerOpen}
+      onLeave={onLeave}
+      local={{
+        on,
+        writable: accounts.every((a) => lists[a.platform].writable),
+        toggle: async () => {
+          const reason = await setFavorite(accounts, !on)
+          if (reason === null) return null
+          return reason === 'full' ? 'favorites.friendsFull' : 'favorites.saveFailed'
+        }
+      }}
+      games={accounts.map((a) => ({
+        platform: a.platform,
+        kind: 'friend' as const,
+        friendId: a.platformUserId
+      }))}
+    />
   )
 }

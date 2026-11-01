@@ -90,6 +90,19 @@ import {
 import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
 import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
 import {
+  GameFavoritesDataError,
+  isCvrUserCategory,
+  isGameFavoriteId,
+  parseCvrCategories,
+  parseCvrItemCategories,
+  type GameFavoriteChange,
+  type GameFavoriteMembership,
+  type GameFavoritesAdapter,
+  type GameFavoritesRead
+} from './GameFavoritesAdapter'
+import { GAME_FAVORITE_WORLDS_MAX } from '@shared/gameFavorites'
+import type { RequestPriority } from './ApiAdmissionController'
+import {
   parseCvrGroups,
   parseCvrPlayersOnline,
   parseCvrProfile,
@@ -110,6 +123,8 @@ const cvrCurrentUserSchema = cvrAuthEnvelopeSchema.extend({
 })
 
 const CVR_EXPLORE_CANDIDATE_LIMIT = 12
+/** Most pages VRX reads from one of the user's world categories. */
+const CVR_FAVORITE_PAGES_MAX = 8
 const EXPLORE_ROOM_ID_LIMIT = 100
 const cvrExploreWorldId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const cvrExploreRoomId = /^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$/i
@@ -205,6 +220,7 @@ export class CvrAdapter
     SocialActionAdapter,
     AccountNoteAdapter,
     HomeWorldAdapter,
+    GameFavoritesAdapter,
     FriendActionsAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
@@ -243,6 +259,8 @@ export class CvrAdapter
   // REST roster's names in main so native notifications can resolve readable
   // copy without fabricating profile fields on AdapterEvent.
   private readonly friendNames = new Map<string, string>()
+  /** Friend id → categories, from the last roster read and VRX's own writes. */
+  private readonly friendCategories = new Map<string, string[]>()
   /** Monotonic order fence: only the newest same-generation roster may write names. */
   private friendNamesRequestSequence = 0
   private friendNamesCommittedSequence = 0
@@ -984,6 +1002,118 @@ export class CvrAdapter
     return userId.toLowerCase()
   }
 
+  // ── Game favorites (the user's own ChilloutVR categories) ───────────────────
+  // CVRX's requests: the categories once per sign-in, a category's worlds page
+  // by page, and one assign with the item's whole list. VRX reads the item's
+  // categories right before it writes, so one set in the game is never dropped.
+
+  captureFavoritesLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  /** The categories each friend has, from the roster and VRX's own writes. */
+  friendFavoriteGroups(): ReadonlyMap<string, readonly string[]> {
+    return this.friendCategories
+  }
+
+  async readGameFavorites(
+    lease: RequestLease,
+    priority: RequestPriority = 'background'
+  ): Promise<GameFavoritesRead> {
+    const options = { ...this.communityOptions(lease), priority }
+    const groups = parseCvrCategories(
+      await this.runCommunityRequest(lease, () => this.get('/categories', z.unknown(), options))
+    )
+    const worlds = new Map<string, GameFavoriteMembership[]>()
+    const worldEvidence: ExploreWorldEvidence[] = []
+    reading: for (const group of groups.world) {
+      let pages = 1
+      for (let page = 0; page < pages && page < CVR_FAVORITE_PAGES_MAX; page++) {
+        const raw = await this.runCommunityRequest(lease, () =>
+          this.getExploreDiscovery(
+            { kind: 'category-worlds', categoryId: group.key, page },
+            z.unknown(),
+            options
+          )
+        )
+        const outer = recordValue(raw)
+        if (!outer || !Array.isArray(outer.entries)) {
+          throw new GameFavoritesDataError('ChilloutVR category worlds were malformed')
+        }
+        const total = outer.totalPages
+        pages = typeof total === 'number' && Number.isInteger(total) && total > 0 ? total : 1
+        for (const world of parseCvrExploreCandidates(outer)) {
+          const memberships = worlds.get(world.worldId)
+          if (memberships) {
+            if (!memberships.some((m) => m.key === group.key)) {
+              memberships.push({ key: group.key, entryId: null })
+            }
+            continue
+          }
+          if (worldEvidence.length >= GAME_FAVORITE_WORLDS_MAX) break reading
+          worlds.set(world.worldId, [{ key: group.key, entryId: null }])
+          worldEvidence.push({ ...world, sourceOrder: worldEvidence.length })
+        }
+      }
+    }
+    const friendKeys = new Set(groups.friend.map((group) => group.key))
+    const friends = new Map<string, GameFavoriteMembership[]>()
+    for (const [id, categories] of this.friendCategories) {
+      const keys = categories.filter((key) => friendKeys.has(key))
+      if (keys.length > 0)
+        friends.set(
+          id,
+          keys.map((key) => ({ key, entryId: null }))
+        )
+    }
+    return { oneGroupPerItem: false, groups, friends, worlds, worldEvidence }
+  }
+
+  async writeGameFavorite(
+    change: GameFavoriteChange,
+    lease: RequestLease
+  ): Promise<GameFavoriteMembership[]> {
+    const { kind, group, on, groups } = change
+    if (!isGameFavoriteId('chilloutvr', kind, change.id) || !isCvrUserCategory(kind, group.key)) {
+      throw new GameFavoritesDataError('Invalid ChilloutVR favorite')
+    }
+    const id = change.id.toLowerCase()
+    const generation = this.sessionGeneration
+    // Read the item's categories now. CVRX uses the copy it read last; VRX
+    // reads again so a category set in the game since then is kept.
+    const raw = await this.runCommunityRequest(lease, () =>
+      kind === 'friend'
+        ? this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+        : this.getExploreDiscovery(
+            { kind: 'world', worldId: id },
+            z.unknown(),
+            this.communityOptions(lease)
+          )
+    )
+    const fresh = parseCvrItemCategories(raw, id)
+    if (fresh === null) {
+      throw new GameFavoritesDataError('ChilloutVR did not say which categories this has')
+    }
+    const kept = fresh.filter((key) => isCvrUserCategory(kind, key))
+    const next = on ? [...new Set([...kept, group.key])] : kept.filter((key) => key !== group.key)
+    if (next.length !== kept.length) {
+      // CVRX sends the same route and body. A write is never sent twice on its own.
+      await this.runCommunityRequest(lease, () =>
+        this.post(
+          '/categories/assign',
+          { Uuid: id, CategoryType: kind === 'friend' ? 'Friends' : 'Worlds', Categories: next },
+          z.unknown(),
+          { ...this.communityOptions(lease), retry: 'none' }
+        )
+      )
+    }
+    if (kind === 'friend' && generation === this.sessionGeneration) {
+      this.friendCategories.set(id, next)
+    }
+    const known = new Set(groups.map((g) => g.key))
+    return next.filter((key) => known.has(key)).map((key) => ({ key, entryId: null }))
+  }
+
   // ── Account notes (the user's private note on a friend) ─────────────────────
   // A read and a write each follow a user action; a write is never resent.
 
@@ -1115,7 +1245,7 @@ export class CvrAdapter
     // Static roster only (VRX-57); live presence arrives via the pipeline below.
     const generation = this.sessionGeneration
     const requestSequence = ++this.friendNamesRequestSequence
-    let result: { friends: Friend[]; skippedRecords: number }
+    let result: { friends: Friend[]; skippedRecords: number; categories: Map<string, string[]> }
     try {
       result = await fetchCvrFriends((path, schema) => this.get(path, schema, { retry: 'none' }))
     } catch (error) {
@@ -1163,6 +1293,8 @@ export class CvrAdapter
       for (const friend of result.friends) {
         this.friendNames.set(friend.platformUserId, friend.displayName)
       }
+      this.friendCategories.clear()
+      for (const [id, categories] of result.categories) this.friendCategories.set(id, categories)
     }
     return {
       friends: result.friends,
@@ -1687,6 +1819,7 @@ export class CvrAdapter
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.friendNames.clear()
+    this.friendCategories.clear()
     this.friendNamesRequestSequence = 0
     this.friendNamesCommittedSequence = 0
     this.instanceResolver.clear()

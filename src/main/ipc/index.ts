@@ -32,6 +32,8 @@ import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
 import { registerAlertPicksHandlers } from './alert-picks'
 import { registerFavoritesHandlers } from './favorites'
+import { registerGameFavoritesHandlers } from './gameFavorites'
+import type { GameFavoritesService } from '../services/gameFavorites'
 import type { Favorites } from '../services/favorites'
 import type { FriendAlertPicks } from '../services/friendAlertPicks'
 import { registerLinksHandlers, type LinksHandlerOptions } from './links'
@@ -69,6 +71,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   accountNotes?: AccountNoteService
   alertPicks: FriendAlertPicks
   favorites: Favorites
+  gameFavorites: GameFavoritesService
   links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
   activity: ActivityFeed
@@ -161,6 +164,7 @@ export function registerIpcHandlers(
     })
     registerExploreHandlers(options.explore)
     registerFavoritesHandlers(options.favorites, options.explore)
+    registerGameFavoritesHandlers(options.gameFavorites, options.explore)
     registerHomeWorldHandler(options.homeWorld)
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerCurrentAvatarHandler(options.currentAvatar)

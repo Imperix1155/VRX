@@ -352,7 +352,7 @@ describe('FriendDrawer alerts bell', () => {
     withClient(<FriendDrawer friend={friend('vrchat', 'usr_alex', 'Alex')} onClose={vi.fn()} />)
     const name = msg('drawer.alerts.aria', { name: 'Alex' })
     expect(screen.queryByRole('radiogroup', { name })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { expanded: false, name: /Alex/ }))
+    fireEvent.click(bell('bellOff', 'Alex'))
     expect(screen.getByRole('radiogroup', { name })).toBeTruthy()
   })
 

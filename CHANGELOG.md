@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A linked friend is one star for both platforms. Stars are kept only in VRX
   on this computer, for each signed-in account; nothing is sent to VRChat or
   ChilloutVR, and the games' own favorites are not changed.
+- Favorites: the star now also shows your own VRChat and ChilloutVR favorite
+  groups, like VRCX and CVRX. Press it to put a friend or world in one of your
+  groups (or take it out), next to VRX's own star. Friends in your game
+  favorites join the Favorites group on the Friends page, and your game's
+  favorite worlds show under Explore → Favorites. VRX reads your favorites once
+  when you sign in, sends one change per press, and never makes or renames a
+  group. Settings → Behavior → **Use my game favorites** turns it off.
 - Friend notes now save to your VRChat or ChilloutVR account too, like VRCX and
   CVRX do, so you see them in the game and they come back on a new PC. A small
   line under the note says when it is saved there. If you changed a note in the

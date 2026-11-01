@@ -105,6 +105,10 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'set-favorite-friend': { max: 60, windowMs: 60_000 },
   'get-favorite-worlds': { max: 90, windowMs: 60_000 },
   'set-favorite-world': { max: 60, windowMs: 60_000 },
+  // Game favorites: main reads the account once per sign-in and answers the
+  // rest from memory; writes are presses, spaced 2 s apart in main.
+  'get-game-favorites': { max: 90, windowMs: 60_000 },
+  'set-game-favorite': { max: 30, windowMs: 60_000 },
   'get-linked-profiles': { max: 90, windowMs: 60_000 },
   'change-linked-profile': { max: 60, windowMs: 60_000 },
   // Hydration is once per renderer load; three allows dev remount/reload churn.
@@ -158,10 +162,13 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'set-alert-pick':
     case 'set-favorite-friend':
     case 'set-favorite-world':
+    case 'set-game-favorite':
     case 'get-linked-profiles':
     case 'change-linked-profile':
     case 'test-vr-alert':
       return { ok: false, reason: 'rate-limited' }
+    case 'get-game-favorites':
+      return { state: 'rate-limited' }
     default:
       throw new Error('rate_limited')
   }

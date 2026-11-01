@@ -40,6 +40,7 @@ describe('settings schema', () => {
       showGroupsPage: true,
       dashboardPlayersOnline: true,
       saveNotesToAccounts: true,
+      useGameFavorites: true,
       setupPending: false,
       theme: 'system',
       language: 'en',
@@ -315,6 +316,7 @@ describe('migration runner', () => {
       showGroupsPage: true,
       dashboardPlayersOnline: true,
       saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -374,6 +376,7 @@ describe('migration runner', () => {
       showGroupsPage: true,
       dashboardPlayersOnline: true,
       saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -434,6 +437,7 @@ describe('migration runner', () => {
       showGroupsPage: true,
       dashboardPlayersOnline: true,
       saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -496,6 +500,7 @@ describe('migration runner', () => {
       showGroupsPage: true,
       dashboardPlayersOnline: true,
       saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -556,6 +561,7 @@ describe('migration runner', () => {
       showGroupsPage: true,
       dashboardPlayersOnline: true,
       saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -617,6 +623,7 @@ describe('migration runner', () => {
       showGroupsPage: true,
       dashboardPlayersOnline: true,
       saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
@@ -1306,5 +1313,22 @@ describe('Account notes setting', () => {
     if (shouldPersistSettings(disk, 24)) disk = oldNormalized
 
     expect(parseSettings(disk)).toMatchObject({ saveNotesToAccounts: false })
+  })
+
+  it('reads Use my game favorites (default on) and keeps an Off across a v25 round-trip', () => {
+    expect(parseSettings({ version: 25 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      useGameFavorites: true
+    })
+    expect(parseSettings({ useGameFavorites: 'no' })).toMatchObject({ useGameFavorites: true })
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 26,
+      useGameFavorites: false
+    }
+    const oldNormalized = { ...disk, version: 25 }
+    Reflect.deleteProperty(oldNormalized, 'useGameFavorites')
+    if (shouldPersistSettings(disk, 25)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ useGameFavorites: false })
   })
 })

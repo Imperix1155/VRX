@@ -1,8 +1,7 @@
 /**
- * Favorite star (owner, 2026-11-01). Friends and worlds both use it. Stars are
- * kept only in VRX; nothing is sent to VRChat or ChilloutVR. The state never
- * rests on color alone: starred is a filled star, not starred is an outline,
- * and the button's name says which.
+ * Favorite star (owner, 2026-11-01). Friends and worlds both use it. The
+ * state never rests on color alone: starred is a filled star, not starred is
+ * an outline, and the button's name says which.
  */
 
 /** Star glyph (NavIcons dialect, stroke 1.8). Filled when `on`. */
@@ -29,25 +28,32 @@ export function StarGlyph({
 }
 
 /**
- * The star toggle. `square` (28px) sits beside a sheet's ✕; `round` (32px
- * glass) sits beside the friend details bell. `aria-pressed` carries the
- * state for assistive tech; the label stays the same in both states.
+ * The star button. It opens the favorite panel (FavoriteMenu), so it is a
+ * disclosure: `aria-expanded` says whether the panel shows, and the name says
+ * whether the item is starred. `square` (28px) sits beside a sheet title;
+ * `round` (32px glass) sits beside the friend details bell.
  */
 export function FavoriteStarButton({
+  ref,
   on,
   disabled,
   label,
   hint,
+  expanded,
+  controls,
   onToggle,
   shape = 'square',
   className = ''
 }: {
+  ref?: React.Ref<HTMLButtonElement>
   on: boolean
   disabled?: boolean
-  /** Names the toggle, the same in both states, e.g. "Favorite Alex". */
+  /** Names the button and says whether the item is starred. */
   label: string
-  /** Tooltip naming what a press does, e.g. "Add to favorites". */
+  /** Tooltip naming what a press does. */
   hint: string
+  expanded: boolean
+  controls: string
   onToggle: () => void
   shape?: 'square' | 'round'
   className?: string
@@ -58,9 +64,12 @@ export function FavoriteStarButton({
       : 'h-[28px] w-[28px] rounded-[9px] hover:bg-[var(--surface-hover)] focus-visible:ring-1'
   return (
     <button
+      ref={ref}
       type="button"
       data-favorite-star=""
-      aria-pressed={on}
+      data-on={on}
+      aria-expanded={expanded}
+      aria-controls={controls}
       aria-label={label}
       title={hint}
       disabled={disabled}

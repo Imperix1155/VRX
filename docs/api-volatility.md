@@ -499,6 +499,32 @@ the community specification; no real response has been captured yet.
   note saying why. A 401 emits `auth-invalidated`; a 429 surfaces as
   rate-limited.
 
+### Favorites: `/favorites`, `/favorite/groups` and `/worlds/favorites`
+
+The favorite groups in the user's own account
+([GameFavoritesAdapter.ts](../src/main/services/adapters/GameFavoritesAdapter.ts),
+[gameFavorites.ts](../src/shared/gameFavorites.ts)). Source-derived from VRCX
+(`src/api/favorite.ts`, `src/stores/favorite.js`) and the community
+specification; no real response has been captured yet.
+
+- **Assumes:** `GET /auth/user/favoritelimits` carries `maxFavoriteGroups` and
+  `maxFavoritesPerGroup`, each with `friend`, `world` and `vrcPlusWorld`
+  counts. `GET /favorite/groups` lists `{ type, name, displayName }`; friend
+  groups are named `group_0…` and world groups `worlds1…`, as VRCX builds them.
+  `GET /favorites?type=friend` lists `{ id: "fvrt_…", favoriteId, tags }`, the
+  group name being the first tag. `GET /worlds/favorites` lists worlds with
+  `favoriteGroup` and `favoriteId`. `POST /favorites` takes
+  `{ type, favoriteId, tags: [group] }` and answers with the new record;
+  `DELETE /favorites/{id}` takes the record id (VRCX sends the friend's or
+  world's own id, which VRX uses only when it has no record id).
+- **Parses:** a missing limit falls back to VRCX's defaults (3 × 150 friends,
+  4 × 100 worlds). Group names must be letters, digits and `_`; anything else is
+  skipped. Entries without a valid id or group are skipped. A malformed list
+  fails the whole read, and VRX shows that it could not load the favorites.
+- **When it breaks:** VRX's own stars keep working. A failed read waits 5
+  minutes before VRX asks again on its own; a failed write is not resent. A
+  401 emits `auth-invalidated`; a 429 surfaces as rate-limited.
+
 ### Unfriend and block
 
 The profile's Unfriend, Block and Unblock
@@ -964,6 +990,27 @@ Source-derived from CVRX; no real response has been captured yet.
   is unknown and blocks a write. Ids compare in lower case.
 - **When it breaks:** VRX keeps its own copy and offers a Retry. Auth errors
   follow the data-path rules above; a 429 surfaces as rate-limited.
+
+### Favorites: `/categories`, `/categories/assign` and category world lists
+
+The user's own friend and world categories, as CVRX reads and writes them
+([GameFavoritesAdapter.ts](../src/main/services/adapters/GameFavoritesAdapter.ts)).
+Source-derived from CVRX (`server/api_cvr_http.js`,
+`client/astrolib/favourites_modal.js`); no real response has been captured yet.
+
+- **Assumes:** `GET /categories` data carries `friends` and `worlds`, lists of
+  `{ id, name }`. The user's own categories start `friends_` or `worlds_`; the
+  built-in ones (`frndonline`, `wrldactive` and the like) are CVRX's two system
+  lists. The roster's `categories` and the `categories` on
+  `GET /users/{userId}` and `GET /1/worlds/{worldId}` name an item's categories.
+  `GET /2/worlds/list/{category}?page=…` answers `{ totalPages, entries }`.
+  `POST /categories/assign` takes `{ Uuid, CategoryType, Categories }` with the
+  item's whole list and replaces it; its data is ignored.
+- **Parses:** only the user's own categories are shown or sent. A reply without
+  `categories`, or for another id, blocks the write. Category world lists stop
+  at 8 pages each and 400 worlds in all.
+- **When it breaks:** VRX's own stars keep working, and a failed read or write
+  is handled as for VRChat. Auth errors follow the data-path rules above.
 
 ### Own profile: `GET /users/{me}` and `POST /users/self`
 

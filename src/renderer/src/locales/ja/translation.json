@@ -226,6 +226,11 @@
       "description": "フレンドのメモを VRChat・ChilloutVR のアカウントにも保存します。オフにすると、この PC のみに保存します。",
       "aria": "フレンドのメモを VRChat と ChilloutVR のアカウントにも保存"
     },
+    "useGameFavorites": {
+      "label": "ゲームのお気に入りを使う",
+      "description": "星から VRChat・ChilloutVR のアカウントのお気に入りグループも表示・変更します（VRCX・CVRX と同じ）。オフにすると、星は VRX にだけ保存します。",
+      "aria": "VRChat と ChilloutVR のアカウントのお気に入りを使う"
+    },
     "behavior": {
       "heading": "動作"
     },
@@ -901,7 +906,7 @@
       "updatedHint": "作者が最近更新した公開ワールド。",
       "empty": "いま表示できるワールドはありません。",
       "favorites": "お気に入り",
-      "favoritesHint": "星を付けたワールド。星はこのパソコンの VRX にだけ保存されます。",
+      "favoritesHint": "VRX で星を付けたワールドと、ゲームのアカウントのお気に入り。",
       "favoritesEmpty": "お気に入りのワールドはまだありません。ワールドを開いて星を押すと、ここに残ります。"
     },
     "more": {
@@ -1307,13 +1312,30 @@
     }
   },
   "favorites": {
-    "friendLabel": "{{name}} をお気に入り",
-    "worldLabel": "{{world}} をお気に入り",
-    "add": "お気に入りに追加",
-    "remove": "お気に入りから外す",
     "saveFailed": "保存できませんでした。もう一度お試しください。",
     "friendsFull": "VRX が保存できる上限までお気に入りのフレンドがいます。",
     "worldsFull": "お気に入りのワールドが上限の {{count}} 件です。追加するには、どれかを外してください。",
-    "rowLabel": "お気に入り"
+    "rowLabel": "お気に入り",
+    "menu": {
+      "heading": "お気に入り",
+      "hint": "お気に入り",
+      "labelOff": "{{name}} のお気に入り",
+      "labelOn": "{{name}} のお気に入り（星付き）",
+      "vrx": "VRX",
+      "vrxStar": "VRX で星を付ける（この PC のみ）",
+      "vrchat": "VRChat のお気に入り",
+      "chilloutvr": "ChilloutVR のお気に入り",
+      "count": "{{count}}/{{capacity}}",
+      "loading": "{{platform}}を読み込み中…",
+      "loadFailed": "{{platform}}を読み込めませんでした。",
+      "retry": "再試行",
+      "noGroups": "グループがまだありません。ゲームで作成してから、もう一度開いてください。",
+      "oneGroup": "VRChat ではお気に入りは 1 つのグループにだけ入ります。移すには、先にいまのグループから外してください。",
+      "groupFull": "このグループはいっぱいです。ゲームで空きを作るか、別のグループを選んでください。",
+      "slowDown": "変更が続いています。少し待ってからお試しください。",
+      "off": "ゲームのお気に入りは設定でオフになっています。",
+      "offNote": "ゲームのお気に入りの表示はオフです。",
+      "settings": "設定"
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CVR_API_BASE, CVR_PLATFORM } from '@shared/constants'
+import { isCvrUserCategory } from './GameFavoritesAdapter'
 import type { Platform } from '@shared/types'
 import type { WorldList } from '@shared/community'
 import { BaseAdapter, type AdapterRequestOptions, type RequestInitSource } from './BaseAdapter'
@@ -27,6 +28,8 @@ type CvrDiscoveryRoute =
   | { kind: 'players-online' }
   | { kind: 'world'; worldId: string }
   | { kind: 'room'; instanceId: string }
+  /** One page of the user's own world category (CVRX's My Worlds read). */
+  | { kind: 'category-worlds'; categoryId: string; page: number }
 
 /** ChilloutVR's world category for each Explore list (the ones CVRX shows). */
 const CVR_WORLD_LIST_CATEGORY: Record<WorldList, string> = {
@@ -221,6 +224,16 @@ export abstract class CvrApiClient extends BaseAdapter {
           throw new CVRNetworkError('Invalid CVR discovery instance id')
         }
         return `${CVR_DISCOVERY_BASE}/1/instances/${encodeURIComponent(route.instanceId)}`
+      case 'category-worlds':
+        if (
+          !isCvrUserCategory('world', route.categoryId) ||
+          !Number.isInteger(route.page) ||
+          route.page < 0 ||
+          route.page > 99
+        ) {
+          throw new CVRNetworkError('Invalid CVR discovery category')
+        }
+        return `${CVR_DISCOVERY_BASE}/2/worlds/list/${encodeURIComponent(route.categoryId)}?page=${route.page}&sort=Default&direction=Ascending`
     }
   }
 

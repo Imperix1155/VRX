@@ -1426,10 +1426,21 @@ body::after {
   .favorite-star {
     color: var(--text-dim);
   }
-  .favorite-star[aria-pressed='false']:hover:not(:disabled) {
+  .favorite-star[data-on='false']:hover:not(:disabled),
+  .favorite-star[data-on='false'][aria-expanded='true'] {
     color: var(--text);
   }
-  .favorite-star[aria-pressed='true'] {
+  .favorite-star[data-on='true'] {
+    color: var(--favorite);
+  }
+  .favorite-star[aria-expanded='true'] {
+    background-color: var(--surface-hover);
+  }
+  .favorite-choice-box {
+    border-color: var(--text-faint);
+  }
+  .favorite-choice[aria-pressed='true'] .favorite-choice-box {
+    border-color: var(--favorite);
     color: var(--favorite);
   }
   .alert-bell {

@@ -133,6 +133,9 @@ const vrx = {
     invoke('get-favorite-worlds', req),
   setFavoriteWorld: (req: IpcInvoke['set-favorite-world']['req']) =>
     invoke('set-favorite-world', req),
+  getGameFavorites: (req: IpcInvoke['get-game-favorites']['req']) =>
+    invoke('get-game-favorites', req),
+  setGameFavorite: (req: IpcInvoke['set-game-favorite']['req']) => invoke('set-game-favorite', req),
   notifyRendererHydrated: () => notify('renderer-hydrated', undefined),
   /**
    * Live adapter events pushed from main ('friend-event', VRX-146). Returns an

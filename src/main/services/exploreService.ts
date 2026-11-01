@@ -45,10 +45,10 @@ const IMAGE_RETRY_MAX_MS = 60_000
 const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
 /**
  * Worlds adopted from search, the other lists and favorites, per platform
- * (oldest use drops first). Room for a full favorites list (100) plus a
- * search and a list beside it.
+ * (oldest use drops first). Room for VRX's own favorites (100) and the game
+ * account's favorite worlds (400) plus a search and a list beside them.
  */
-const ADOPTED_LIMIT = 160
+const ADOPTED_LIMIT = 640
 type MainAdapter = ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>
 type LoadStatus = ExplorePlatformSnapshot['status']
 type Problem = ExplorePlatformSnapshot['problem']
