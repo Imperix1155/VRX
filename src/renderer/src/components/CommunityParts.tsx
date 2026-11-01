@@ -10,20 +10,13 @@ import type { Platform } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
 import { useUiStore } from '../stores/ui'
 import { platformName, type CommunityNoticeReason, type CommunitySource } from '../utils/community'
+import { initialOf } from '../utils/initialOf'
 
 /** Quoted literals keep the locale parity scan aware of these key families. */
 const NOT_CONNECTED_KEYS: Record<Platform, string> = {
   vrchat: 'community.notConnected.vrchat',
   chilloutvr: 'community.notConnected.chilloutvr'
 }
-const graphemes = new Intl.Segmenter()
-
-/** The name's first user-perceived character, so emoji and styled letters stay whole. */
-function initialOf(name: string): string {
-  const first = graphemes.segment(name.trim())[Symbol.iterator]().next()
-  return first.done === true ? '?' : first.value.segment.toUpperCase()
-}
-
 const ERROR_KEYS: Record<CommunityNoticeReason, string> = {
   unavailable: 'community.error.unavailable',
   'rate-limited': 'community.error.rate-limited',
