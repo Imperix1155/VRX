@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Dashboard: the Friends online, In game and Hot instances cards now look like
+  one matching set: the same layout and a white (dark in light mode) number
+  on each, instead of three slightly different number colors.
 - Groups page: group cards are taller, with the group's picture on top and the
   name, platform and code (or Owner) underneath. A group with no picture shows its first
   letter instead of an empty box.
