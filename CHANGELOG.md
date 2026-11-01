@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.4] - 2026-11-01
+
+Dev test build. It has everything in 1.4.0-dev.3 plus the changes below.
+
 ### Added
 
 - Worlds: a **Set as home world** button on every world panel (Explore's
@@ -19,9 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   name on its panel. Starred friends who are on now get their own Favorites
   group at the top of the Friends page, and every starred friend has a small
   star after their name. Starred worlds are listed under Explore → Favorites.
-  A linked friend is one star for both platforms. Stars are kept only in VRX
-  on this computer, for each signed-in account; nothing is sent to VRChat or
-  ChilloutVR, and the games' own favorites are not changed.
+  A linked friend is one star for both platforms. VRX's own star is kept on
+  this computer, for each signed-in account.
 - Favorites: the star now also shows your own VRChat and ChilloutVR favorite
   groups, like VRCX and CVRX. Press it to put a friend or world in one of your
   groups (or take it out), next to VRX's own star. Friends in your game
