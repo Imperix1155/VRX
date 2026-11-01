@@ -129,6 +129,7 @@ export default function GroupsView(): React.JSX.Element {
                     group.role === 'owner' ? t(ROLE_KEYS.owner) : (group.code ?? members(group))
                   }
                   imageUrl={group.imageUrl}
+                  shape="icon"
                   onOpen={(opener) => {
                     openerRef.current = opener
                     setSelected(group)

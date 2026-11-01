@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Groups page: group cards are taller, with the group's picture on top and the
+  name, platform and code underneath. A group with no picture shows its first
+  letter instead of an empty box.
+
+### Fixed
+
+- Groups page: many VRChat group pictures never loaded, because VRX asked for
+  the full-size upload, which is often too big. It now asks VRChat for a
+  smaller copy, as it already does for friend pictures. The same fix applies
+  to group pictures elsewhere in the app.
+
 ## [1.4.0-dev.2] - 2026-11-01
 
 Dev test build. It has everything in 1.4.0-dev.1 plus the change below.

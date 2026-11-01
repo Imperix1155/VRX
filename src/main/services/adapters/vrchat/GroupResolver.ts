@@ -13,6 +13,7 @@
 import { z } from 'zod'
 import type { AdapterRequestOptions } from '../BaseAdapter'
 import { AuthError, RateLimitError, RequestCancelledError, RequestQueueFullError } from '../errors'
+import { profileThumbnail } from './fetchFriends'
 
 // ─── Raw API shape (defensive) ────────────────────────────────────────────────
 
@@ -164,7 +165,9 @@ export function createGroupResolver(options: {
       }
       const value: GroupMeta = {
         name: parsed.data.name,
-        iconUrl: parsed.data.iconUrl ?? null
+        // The full uploaded icon can exceed the 3 MiB image limit; use the
+        // bounded rendition, as friend pictures and the Groups page do.
+        iconUrl: profileThumbnail(parsed.data.iconUrl) ?? null
       }
       if (mayWrite()) {
         store(groupId, { expiresAt: clock() + ttlMs, value })

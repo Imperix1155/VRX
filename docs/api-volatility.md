@@ -344,7 +344,8 @@ group id.
 ### Group metadata: `GET /groups/{groupId}`
 
 - **Assumes (Source-derived):** `name` is a non-empty string after trimming.
-  `iconUrl` is optional. The group id is URI-encoded.
+  `iconUrl` is optional. The group id is URI-encoded. A `/api/1/file/` icon is
+  rewritten to its 256-wide `/api/1/image/` rendition (see Group pictures).
 - **Cache:** 24 h for success, 60 s for failure, at most 512 entries. Answers
   emit `group-metadata` events for friends still in that group.
 - **Uncertain:** the response shape has not been captured live, and the same
@@ -449,6 +450,13 @@ cached in main for 5 minutes; nothing runs on a timer.
   `tags` like the friends list. Hidden badges are skipped and showcased ones
   come first, at most 8. Text is cut at 2,048 characters; image URLs must be
   `https`.
+- **Group pictures:** a group's `iconUrl` and `bannerUrl` point at the full
+  uploaded file (`/api/1/file/<file_id>/<version>[/file]`), which is often over
+  the 3 MiB image limit, so the icon never showed. They are rewritten to the
+  `/api/1/image/<file_id>/<version>/<width>` rendition, 256 wide for the icon
+  and 1024 for the banner, like friend pictures (VRCX does the same). Same
+  number of requests, smaller downloads. A group with no usable picture shows
+  its first letter.
 - **When it breaks:** a non-array reply (or a non-number for `/visits`) is
   unavailable; a 404 profile is not found. A 401 emits `auth-invalidated`; a
   429 surfaces as rate-limited.

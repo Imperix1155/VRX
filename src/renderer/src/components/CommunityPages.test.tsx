@@ -306,6 +306,10 @@ describe('GroupsView', () => {
       msg('groups.openAria', { name: 'Zephyr Club', platform: 'VRChat' })
     ])
     expect(within(tiles[0]!).getByText(msg('groups.role.owner'))).toBeTruthy()
+    // No picture: a tidy first-letter tile instead of an empty box.
+    const picture = tiles[0]!.querySelector('[data-community-tile-picture]')
+    expect(picture?.getAttribute('data-community-tile-picture')).toBe('initial')
+    expect(picture?.textContent).toBe('A')
     fireEvent.click(tiles[1]!)
     const sheet = screen.getByRole('dialog', {
       name: msg('groups.sheetAria', { name: 'Meadow', platform: 'ChilloutVR' })
