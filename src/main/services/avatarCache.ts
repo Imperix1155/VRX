@@ -259,8 +259,11 @@ export class AvatarCache {
    */
   async getPicture(value: string): Promise<string | null> {
     const full = vrcFullPictureUrl(value)
-    if (full === null || this.isRefused(full) || this.fullPicturesPausedUntil > this.now())
-      return this.get(value, 'picture')
+    if (full === null) return this.get(value, 'picture')
+    if (this.isRefused(full) || this.fullPicturesPausedUntil > this.now()) {
+      // The pause stops new full downloads; a full copy already kept still shows.
+      return (await this.peekPicture(full)) ?? this.get(value, 'picture')
+    }
     const sharp = await this.get(full, 'picture')
     if (sharp !== null) {
       this.refusedStreak = 0
@@ -269,6 +272,16 @@ export class AvatarCache {
     if (this.isRefused(full)) return this.get(value, 'picture')
     const parsed = parseAllowedAvatarUrl(value)
     return parsed === null ? null : this.readStored(parsed.href, 'picture')
+  }
+
+  /** A `picture` copy already in memory or on disk, without any request. */
+  private async peekPicture(url: string): Promise<string | null> {
+    const key = renditionKey(url, 'picture')
+    const cached = this.cache.get(key)
+    if (cached !== undefined && cached.expiresAt > this.now()) {
+      if (cached.dataUrl !== null) return cached.dataUrl
+    }
+    return this.readStored(url, 'picture')
   }
 
   private isRefused(url: string): boolean {

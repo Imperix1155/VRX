@@ -188,6 +188,27 @@ describe('AvatarCache.getPicture', () => {
     await expect(cache.getPicture(THUMB(next + 1))).resolves.toBe(SHARP)
   })
 
+  it('keeps showing a full picture it already has during the pause', async () => {
+    const answers: Record<string, Answer> = { [FULL(9)]: { body: 'sharp' } }
+    for (let n = 1; n <= PICTURE_REFUSED_STREAK_LIMIT; n++) {
+      answers[FULL(n)] = { type: 'application/octet-stream' }
+      answers[THUMB(n)] = { body: 'thumb' }
+    }
+    const fetchFn = fetchWith(answers)
+    const cache = new AvatarCache({
+      fetchFn,
+      apiAdmission: fastLane(),
+      vrcSessionProvider: lease,
+      makePictureRendition: reencode
+    })
+    await expect(cache.getPicture(THUMB(9))).resolves.toBe(SHARP)
+    for (let n = 1; n <= PICTURE_REFUSED_STREAK_LIMIT; n++) await cache.getPicture(THUMB(n))
+    const before = urls(fetchFn).length
+    await expect(cache.getPicture(THUMB(9))).resolves.toBe(SHARP)
+    expect(urls(fetchFn)).toHaveLength(before)
+    expect(urls(fetchFn)).not.toContain(THUMB(9))
+  })
+
   it('a session boundary forgets refusals', async () => {
     const answers: Record<string, Answer> = {
       [FULL(1)]: { status: 404 },
