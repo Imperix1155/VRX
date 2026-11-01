@@ -128,14 +128,21 @@ export class GameFavoritesService {
       loaded?.generation === lease.generation && loaded.accountId === revision.platformAccountId
         ? loaded
         : undefined
-    if (current && !(refresh && now - current.loadedAt >= GAME_FAVORITE_REFRESH_COOLDOWN_MS)) {
-      return this.ready(adapter, current, revision)
-    }
     const failed = this.failed.get(platform)
-    if (
-      !current &&
-      failed?.generation === lease.generation &&
-      failed.accountId === revision.platformAccountId &&
+    const failedHere =
+      failed !== undefined &&
+      failed.generation === lease.generation &&
+      failed.accountId === revision.platformAccountId
+    if (current) {
+      // A Refresh reads again only once the cooldown has passed since the
+      // last read, and since the last failed one, so repeated presses after
+      // a failure never start a new read each time.
+      const cooling =
+        now - current.loadedAt < GAME_FAVORITE_REFRESH_COOLDOWN_MS ||
+        (failedHere && now - failed.at < GAME_FAVORITE_REFRESH_COOLDOWN_MS)
+      if (!refresh || cooling) return this.ready(adapter, current, revision)
+    } else if (
+      failedHere &&
       now - failed.at <
         (refresh ? GAME_FAVORITE_REFRESH_COOLDOWN_MS : GAME_FAVORITE_FAILURE_BACKOFF_MS)
     ) {

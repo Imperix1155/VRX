@@ -87,6 +87,11 @@ export interface GameFavoritesState {
   revision: FavoritesRevision | null
   /** A Refresh press: main reads the account again after its cooldown. */
   refresh: () => Promise<void>
+  /**
+   * Asks main again without a platform request (it answers from memory), so
+   * the favorite worlds get fresh Explore references. Resolves to the list.
+   */
+  reread: () => Promise<readonly ExploreWorld[]>
 }
 
 /**
@@ -116,19 +121,29 @@ export function useGameFavorites(
     queryClient
   )
   const refresh = useCallback(() => refreshGameFavorites(platform), [platform])
-  if (accountId === null) return { state: 'hidden', favorites: null, revision: null, refresh }
-  if (!on) return { state: 'off', favorites: null, revision: null, refresh }
+  const live = accountId !== null && on
+  const refetch = query.refetch
+  const reread = useCallback(async (): Promise<readonly ExploreWorld[]> => {
+    if (!live) return []
+    const next = await refetch()
+    return next.data?.state === 'ready' ? next.data.favorites.worldList : []
+  }, [live, refetch])
+  if (accountId === null)
+    return { state: 'hidden', favorites: null, revision: null, refresh, reread }
+  if (!on) return { state: 'off', favorites: null, revision: null, refresh, reread }
   const data = query.data
   if (!data) {
     return {
       state: query.isError ? 'unavailable' : 'loading',
       favorites: null,
       revision: null,
-      refresh
+      refresh,
+      reread
     }
   }
-  if (data.state !== 'ready') return { state: data.state, favorites: null, revision: null, refresh }
-  return { state: 'ready', favorites: data.favorites, revision: data.revision, refresh }
+  if (data.state !== 'ready')
+    return { state: data.state, favorites: null, revision: null, refresh, reread }
+  return { state: 'ready', favorites: data.favorites, revision: data.revision, refresh, reread }
 }
 
 /** Both platforms' friends in a game favorite group, as `platform:friendId` keys. */

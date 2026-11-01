@@ -146,6 +146,20 @@ describe('GameFavoritesService', () => {
     expect(adapter.priorities[1]).toBe('interactive')
   })
 
+  it('keeps the Refresh cooldown after a failed Refresh, showing what it had', async () => {
+    await service.get('vrchat')
+    now += GAME_FAVORITE_REFRESH_COOLDOWN_MS
+    adapter.readError = new RateLimitError(1000)
+    expect((await service.get('vrchat', true)).state).toBe('ready')
+    expect((await service.get('vrchat', true)).state).toBe('ready')
+    expect((await service.get('vrchat', true)).state).toBe('ready')
+    expect(adapter.reads).toBe(2)
+    adapter.readError = null
+    now += GAME_FAVORITE_REFRESH_COOLDOWN_MS
+    await service.get('vrchat', true)
+    expect(adapter.reads).toBe(3)
+  })
+
   it('backs off after a failed read instead of asking again on its own', async () => {
     adapter.readError = new RateLimitError(1000)
     expect(await service.get('vrchat')).toEqual({ state: 'rate-limited' })

@@ -55,10 +55,13 @@ export default function ExploreFavorites(): React.JSX.Element {
     showVrc && unreadable(vrcGame.state) ? 'vrchat' : null,
     showCvr && unreadable(cvrGame.state) ? 'chilloutvr' : null
   ].filter((platform): platform is Platform => platform !== null)
-  // An expired card renews its reference by reading the favorites again.
+  // An expired card renews its reference by reading both lists again. Main
+  // answers the account's favorites from memory, with fresh references.
   const recover = async (platform: Platform): Promise<readonly ExploreWorld[]> => {
-    const local = await (platform === 'vrchat' ? vrc : cvr).refetch()
-    const game = platform === 'vrchat' ? vrcGameWorlds : cvrGameWorlds
+    const [local, game] = await Promise.all([
+      (platform === 'vrchat' ? vrc : cvr).refetch(),
+      (platform === 'vrchat' ? vrcGame : cvrGame).reread()
+    ])
     return merged(local, game)
   }
 
