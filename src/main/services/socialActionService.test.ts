@@ -271,4 +271,24 @@ describe('SocialActionService', () => {
     vrc.finish()
     await expect(pending).resolves.toEqual({ ok: false, reason: 'not-authenticated' })
   })
+  it('keeps a change VRX made over an older block read that was still out', async () => {
+    const { service, cvr, advance } = setup()
+    let answer: (value: boolean | null) => void = () => undefined
+    cvr.getBlocked.mockImplementationOnce(
+      () => new Promise<boolean | null>((resolve) => (answer = resolve))
+    )
+    const read = service.getRelationship('chilloutvr', CVR_FRIEND)
+    expect(await service.act('chilloutvr', CVR_FRIEND, 'block')).toMatchObject({
+      ok: true,
+      relationship: { blocked: true }
+    })
+    answer(false)
+    expect(await read).toMatchObject({ ok: true, relationship: { blocked: true } })
+    advance(1)
+    expect(await service.getRelationship('chilloutvr', CVR_FRIEND)).toMatchObject({
+      ok: true,
+      relationship: { blocked: true }
+    })
+    expect(cvr.getBlocked).toHaveBeenCalledTimes(1)
+  })
 })

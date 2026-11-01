@@ -267,10 +267,13 @@ export function useSocialAction(): (
     ): Promise<SocialActionResult> => {
       const accountId = accounts.current[platform]
       if (accountId === null) return { ok: false, reason: 'not-authenticated' }
+      const key = communityQueryKey('relationship', platform, accountId, userId)
       const result = await bridge().socialAction({ platform, userId, action })
       if (result.ok && accounts.current[platform] === accountId) {
+        // A read still out was asked before this change; its answer must not land.
+        await client.cancelQueries({ queryKey: key, exact: true })
         const next: RelationshipResult = { ok: true, relationship: result.relationship }
-        client.setQueryData(communityQueryKey('relationship', platform, accountId, userId), next)
+        client.setQueryData(key, next)
         if (!result.relationship.isFriend) {
           // The "Friend" marks already on screen follow at once, with no new read.
           client.setQueryData<ProfileResult>(

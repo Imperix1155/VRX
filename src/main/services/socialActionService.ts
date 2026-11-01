@@ -48,6 +48,8 @@ interface PlatformState {
   lease: RequestLease
   people: Map<string, Remembered>
   pending: Map<string, Promise<boolean | null>>
+  /** Count of changes VRX made per person, so an older read never replaces them. */
+  writes: Map<string, number>
   /** True while one action on this platform is on its way. */
   busy: boolean
   lastActionAt: number | null
@@ -105,6 +107,7 @@ export class SocialActionService {
       else if (action === 'block') await adapter.block(id, state.lease)
       else await adapter.unblock(id, state.lease)
       assertRequestLease(state.lease)
+      state.writes.set(id, (state.writes.get(id) ?? 0) + 1)
       const previous = state.people.get(id)
       const remembered: Remembered = {
         blocked:
@@ -161,9 +164,15 @@ export class SocialActionService {
     if (cached) return cached.blocked
     const running = state.pending.get(id)
     if (running) return running
+    const writesBefore = state.writes.get(id) ?? 0
     const started = (async () => {
       const blocked = await adapter.getBlocked(id, state.lease)
       assertRequestLease(state.lease)
+      // A change VRX made while this read was out is newer than its answer.
+      if ((state.writes.get(id) ?? 0) !== writesBefore) {
+        const written = this.fresh(state.people.get(id))
+        if (written) return written.blocked
+      }
       if (this.states.get(adapter.platform) === state) {
         this.remember(state, id, { blocked, unfriended: false, at: this.clock() })
       }
@@ -237,6 +246,7 @@ export class SocialActionService {
       lease,
       people: new Map(),
       pending: new Map(),
+      writes: new Map(),
       busy: false,
       lastActionAt: null
     }

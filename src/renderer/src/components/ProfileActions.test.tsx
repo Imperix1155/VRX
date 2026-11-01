@@ -63,13 +63,14 @@ const bridge = {
   onFriendEvent: vi.fn(() => () => undefined)
 }
 
-function renderActions(platform: Platform = 'vrchat'): void {
+function renderActions(platform: Platform = 'vrchat'): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
       <ProfileActions platform={platform} userId={IDS[platform]} name="Lumen" />
     </QueryClientProvider>
   )
+  return client
 }
 
 async function openOptions(): Promise<void> {
@@ -218,5 +219,30 @@ describe('ProfileActions', () => {
     fireEvent.click(screen.getByRole('button', { name: msg('community.retry') }))
     await screen.findByRole('button', { name: msg('profile.actions.block') })
     expect(bridge.getRelationship).toHaveBeenCalledTimes(2)
+  })
+  it('keeps the new state when an older check answers after the change', async () => {
+    const client = renderActions('chilloutvr')
+    await openOptions()
+    let answer: (value: RelationshipResult) => void = () => undefined
+    bridge.getRelationship.mockImplementationOnce(
+      ({ platform, userId }) =>
+        new Promise<RelationshipResult>((resolve) => {
+          const before = { platform, userId, ...state }
+          answer = () => resolve({ ok: true, relationship: before })
+        })
+    )
+    void client.refetchQueries({ queryKey: ['relationship', 'chilloutvr'] })
+    await waitFor(() => expect(bridge.getRelationship).toHaveBeenCalledTimes(2))
+
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.block') }))
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: msg('profile.actions.block')
+      })
+    )
+    await screen.findByText(msg('profile.actions.done.block', { platform: 'ChilloutVR' }))
+    answer({ ok: true, relationship: { platform: 'chilloutvr', userId: '', ...state } })
+    await waitFor(() => expect(client.isFetching()).toBe(0))
+    expect(actionButtons()).toEqual(['unfriend', 'unblock'])
   })
 })
