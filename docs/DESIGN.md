@@ -499,9 +499,12 @@ On wide windows picture grids (Explore, Popular now, world results, Hot
 Instances) add a column each time a column would pass about 730 px: three
 from 1,480 px, four from 2,200 px, up to eight. A picture card never stretches
 far past its picture, so an ultrawide, a TV or a fullscreen 1080p window shows
-more cards instead of blurry ones; a short row keeps card-sized cards rather
-than filling the width. The rule lives in `main.css` (`.picture-grid`,
-`.hot-grid--picture`).
+more cards instead of blurry ones. To avoid half-empty rows, Explore's
+Popular now rounds "Worlds shown" up to whole rows, and a Dashboard section
+with picture cards shows one full row (one card per platform first), both
+only as far as there are cards to show; bars stay two across. The rule lives
+in `main.css` (`.picture-grid`, `.hot-grid--picture`), mirrored for counts by
+`pictureColumns.ts`.
 The Hot Instances
 section adds a quiet "See all N" button, shown only while the page is, that
 opens the Hot Instances page,

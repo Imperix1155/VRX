@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at full size instead of a small thumbnail (still one request each), and on
   wide windows Explore, Popular now, Hot Instances and world results add more
   columns instead of stretching two huge cards, so an ultrawide, a TV or a
-  fullscreen 1080p window shows more cards rather than blurry ones.
+  fullscreen 1080p window shows more cards rather than blurry ones. Explore and
+  the Dashboard show enough cards to fill whole rows, so wide screens don't get
+  half-empty rows.
 
 ## [1.4.0-dev.2] - 2026-11-01
 

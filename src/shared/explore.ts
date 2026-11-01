@@ -4,6 +4,8 @@ import type { Platform } from './types'
 export const EXPLORE_WORLD_TOTALS = [2, 4, 6] as const
 export type ExploreWorldTotal = (typeof EXPLORE_WORLD_TOTALS)[number]
 export const DEFAULT_EXPLORE_WORLD_TOTAL: ExploreWorldTotal = 4
+/** Most worlds one selection may hold: six rows on the widest (eight-column) window. */
+export const EXPLORE_MAX_SELECTION = 48
 export type ExploreFilter = 'all' | Platform
 export type ExploreRefreshReason = 'snapshot' | 'automatic' | 'manual'
 export type ExploreWorldReason = 'snapshot' | 'open' | 'manual'
