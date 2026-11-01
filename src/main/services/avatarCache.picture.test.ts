@@ -273,13 +273,16 @@ describe('AvatarCache.getPicture', () => {
     await vi.waitFor(() => expect(store.size).toBe(1))
 
     const fetchFn = fetchWith({})
+    const waitingStore = disk()
     const waiting = new AvatarCache({
       fetchFn,
       vrcSessionProvider: () => null,
-      diskStore: disk(),
+      diskStore: waitingStore,
       makePictureRendition: reencode
     })
     await expect(waiting.getPicture(THUMB(1))).resolves.toBe(THUMB_DATA)
     expect(fetchFn).not.toHaveBeenCalled()
+    // The picture copy built from the stored thumbnail is saved in the background.
+    await vi.waitFor(() => expect(waitingStore.size).toBe(2))
   })
 })
