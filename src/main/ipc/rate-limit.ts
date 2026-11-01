@@ -130,7 +130,11 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-inbox': { max: 240, windowMs: 60_000 },
   // Human clicks that only hide rows locally.
   'dismiss-inbox-item': { max: 120, windowMs: 60_000 },
-  'clear-inbox': { max: 30, windowMs: 60_000 }
+  'clear-inbox': { max: 30, windowMs: 60_000 },
+  // Human presses that each send one friend write; main spaces them 2 s apart
+  // per platform and queues at most 5, so these sit above that pace.
+  'answer-friend-request': { max: 30, windowMs: 60_000 },
+  'send-friend-request': { max: 20, windowMs: 60_000 }
 } as const satisfies Record<RateLimitedIpcChannel, RateLimitBudget>
 
 /** Existing structured result channels keep their result shape on denial. */
@@ -144,6 +148,8 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-explore-room':
     case 'self-invite':
     case 'switch-avatar':
+    case 'answer-friend-request':
+    case 'send-friend-request':
     case 'save-own-profile':
     case 'social-action':
     case 'set-home-world':

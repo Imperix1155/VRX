@@ -454,7 +454,11 @@ describe('VRCX session import', () => {
     const path = await createDatabase()
     const database = new DatabaseSync(path)
     const insert = database.prepare('INSERT INTO cookies (`key`, `value`) VALUES (?, ?)')
+    // One transaction: 63 separate commits each flush to disk and can pass
+    // the test timeout on a slow Windows runner.
+    database.exec('BEGIN')
     for (let index = 0; index < 63; index += 1) insert.run(`unrelated-${index}`, 'ignored')
+    database.exec('COMMIT')
     database.close()
 
     await expect(importVrcxSession()).resolves.toMatch(/^auth=/)

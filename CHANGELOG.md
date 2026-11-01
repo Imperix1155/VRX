@@ -44,6 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   status to set, so its editor shows only the bio and pronouns. VRX reads
   your profile when the editor opens and saves only the fields you changed
   when you press Save, at most once every 5 seconds per platform.
+- Inbox: friend requests now have Accept and Decline buttons, on VRChat and
+  ChilloutVR alike. One press sends one answer to that platform, and the row
+  leaves once it went through. If it can't, VRX says why and keeps the row.
+  Invites are still answered in the game.
+- Profiles: someone who isn't your friend yet now has an Add friend button
+  when you open them from Search. If they already sent you a request, you get
+  Accept and Decline there instead. VRX sends each request once, and spaces
+  friend actions a couple of seconds apart, like a person would.
 
 ## [1.4.0-dev.3] - 2026-11-01
 

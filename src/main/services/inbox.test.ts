@@ -290,3 +290,24 @@ describe('InboxService', () => {
     expect(r.onChanged).not.toHaveBeenCalled()
   })
 })
+
+describe('InboxService friend request lookup', () => {
+  it('hands friend actions the record behind a friend request row only', () => {
+    const r = rig()
+    r.inbox.consume(
+      add(
+        'vrchat',
+        entry({ sourceId: 'not_fr', kind: 'friend-request', senderId: 'usr_b', worldName: null }),
+        entry({ sourceId: 'not_inv' })
+      )
+    )
+    expect(r.inbox.friendRequest('vrchat', 'friend-request:not_fr')).toEqual({
+      sourceId: 'not_fr',
+      senderId: 'usr_b'
+    })
+    expect(r.inbox.friendRequest('vrchat', 'invite:not_inv')).toBeNull()
+    expect(r.inbox.friendRequest('chilloutvr', 'friend-request:not_fr')).toBeNull()
+    expect(r.inbox.dismiss('vrchat', 'friend-request:not_fr')).toBe(true)
+    expect(r.inbox.friendRequest('vrchat', 'friend-request:not_fr')).toBeNull()
+  })
+})

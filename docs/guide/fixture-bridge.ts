@@ -344,6 +344,18 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       inboxChanged()
       return Promise.resolve()
     },
+    answerFriendRequest: ({ platform, id }) => {
+      const before = inbox.items.length
+      inbox = {
+        items: inbox.items.filter((item) => !(item.platform === platform && item.id === id))
+      }
+      if (inbox.items.length === before) {
+        return Promise.resolve({ ok: false, reason: 'unknown-request' as const })
+      }
+      inboxChanged()
+      return Promise.resolve({ ok: true })
+    },
+    sendFriendRequest: () => Promise.resolve({ ok: true }),
     onInboxChanged: (callback) => {
       inboxListeners.add(callback)
       return () => inboxListeners.delete(callback)

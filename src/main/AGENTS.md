@@ -181,11 +181,19 @@ etiquette rules apply in full; this file adds local detail.
   a move for a hidden location, keeps backfill locations in main, and clears
   a platform at an account boundary (a same-account 401 keeps entries).
   Changes reach the renderer as a coalesced `activity-changed` push.
-- `InboxService` is view-only and main-memory only: it never calls a platform,
-  never persists, and Hide is local. Keep its per-platform row cap, bounded
+- `InboxService` is main-memory only: it never calls a platform, never
+  persists, and Hide is local. Keep its per-platform row cap, bounded
   hidden-ID memory, and alert limits (`isInboxAlertEnabled`: `notifyInvites`,
   `notifyFriendRequests`). An invite may name its world because the sender
   shared it; nothing else in the inbox reads presence.
+- `FriendActionsService` owns the only friend writes: Accept or Decline on an
+  inbox friend-request row main holds, and Add friend for someone a search
+  listed this session who is not a friend. One press sends once, never
+  retried; one action at a time per platform, 2 s apart, a few waiting, and
+  none across an account change. Writes go through `FriendActionsAdapter`
+  (never `CommunityAdapter`, which stays read-only); ChilloutVR's are frames
+  on the live socket and are never queued while it is closed. Never add an
+  Accept all or any other bulk friend action.
 - `AvatarCache` is the only image proxy. Keep its HTTPS host allowlist,
   redirect, MIME, URL-length, body-size, LRU entry and byte, and TTL limits.
   API hops share platform admission. The VRChat cookie goes only to

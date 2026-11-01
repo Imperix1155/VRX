@@ -112,6 +112,12 @@ vi.mock('./inbox', () => ({
     electron.ipcMain.handle('clear-inbox', () => undefined)
   }
 }))
+vi.mock('./friend-actions', () => ({
+  registerFriendActionHandlers: () => {
+    electron.ipcMain.handle('answer-friend-request', () => ({ ok: true }))
+    electron.ipcMain.handle('send-friend-request', () => ({ ok: true }))
+  }
+}))
 vi.mock('./settings', () => ({
   registerSettingsHandlers: () => {
     electron.ipcMain.handle('get-settings', () => ({ theme: 'dark' }))
@@ -152,6 +158,7 @@ function options(): IpcHandlerOptions {
     appStatus: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
     inbox: {} as IpcHandlerOptions['inbox'],
+    friendActions: {} as IpcHandlerOptions['friendActions'],
     vrOverlayAlerts: { test: async () => undefined },
     explore: {
       setActive: vi.fn(),
@@ -225,7 +232,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(62)
+    expect(electron.invokeHandlers.size).toBe(64)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -254,6 +261,8 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-inbox',
         'dismiss-inbox-item',
         'clear-inbox',
+        'answer-friend-request',
+        'send-friend-request',
         'get-app-status',
         'get-activity',
         'clear-activity',

@@ -1158,7 +1158,7 @@
     "emptyHint": "Invites and friend requests that arrive while VRX is open show up here.",
     "help": {
       "label": "About the inbox",
-      "answer": "VRX only shows these. Answer them in the game or on the platform's website. Hide takes a row out of VRX and sends nothing.",
+      "answer": "Accept or Decline answers a friend request on its platform. Invites are only shown here: answer them in the game. Hide takes a row out of VRX and sends nothing.",
       "live": "The inbox lists what arrives while VRX is open and forgets it when VRX closes."
     },
     "notConnected": {
@@ -1289,6 +1289,31 @@
       "member": "Member"
     },
     "groupId": "Group ID"
+  },
+  "friendActions": {
+    "accept": "Accept",
+    "decline": "Decline",
+    "accepting": "Accepting…",
+    "declining": "Declining…",
+    "acceptAria": "Accept the friend request from {{name}}",
+    "declineAria": "Decline the friend request from {{name}}",
+    "accepted": "Accepted {{name}}'s friend request.",
+    "declined": "Declined {{name}}'s friend request.",
+    "add": "Add friend",
+    "adding": "Sending…",
+    "addAria": "Send {{name}} a friend request on {{platform}}",
+    "sent": "Friend request sent.",
+    "incoming": "Sent you a friend request.",
+    "error": {
+      "not-authenticated": "Sign in to {{platform}} again, then try once more.",
+      "rate-limited": "{{platform}} asked VRX to slow down. Try again in a minute.",
+      "unavailable": "Couldn't reach {{platform}}. Try again.",
+      "busy": "A few are still on their way. Try again in a moment.",
+      "refused": "{{platform}} didn't take that. It may already be answered.",
+      "unknown-request": "That request is no longer waiting.",
+      "unknown-person": "Search for this person again, then try once more.",
+      "already-friends": "You're already friends."
+    }
   },
   "favorites": {
     "friendLabel": "Favorite {{name}}",

@@ -5,7 +5,7 @@ import type { Platform } from '@shared/types'
  * Implemented top-level app views.
  * `hot` is the Hot Instances page (owner, 2026-10-18); `activity` lists
  * friends coming online, joining worlds, and going offline (owner, 2026-10-27);
- * `inbox` the view-only invites and requests page (owner, 2026-10-27).
+ * `inbox` the invites and requests page (owner, 2026-10-27).
  * `avatars` lists the user's own avatars and switches between them (owner,
  * 2026-10-27). `search` finds people and worlds and `groups` lists the user's
  * own groups (owner, 2026-10-31). Session-only state, so retired destinations
