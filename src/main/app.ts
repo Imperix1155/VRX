@@ -5,6 +5,8 @@ import { AvatarLibraryService } from './services/avatarLibraryService'
 import { CurrentAvatarService } from './services/currentAvatarService'
 import { CommunityService } from './services/communityService'
 import type { CommunityAdapter } from './services/adapters/CommunityAdapter'
+import type { SocialActionAdapter } from './services/adapters/SocialActionAdapter'
+import { SocialActionService } from './services/socialActionService'
 import { AccountNoteService } from './services/accountNotes'
 import type { AccountNoteAdapter } from './services/adapters/AccountNoteAdapter'
 import { HomeWorldService } from './services/homeWorldService'
@@ -419,6 +421,7 @@ app
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
     const communityBoundary: { current?: CommunityService } = {}
+    const socialBoundary: { current?: SocialActionService } = {}
     const accountNotesBoundary: { current?: AccountNoteService } = {}
     const homeWorldBoundary: { current?: HomeWorldService } = {}
     const accountSession = new AccountSession()
@@ -459,6 +462,7 @@ app
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
         communityBoundary.current?.clearPlatform('vrchat')
+        socialBoundary.current?.clearPlatform('vrchat')
         accountNotesBoundary.current?.clearPlatform('vrchat')
         homeWorldBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
@@ -537,6 +541,7 @@ app
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
         communityBoundary.current?.clearPlatform('chilloutvr')
+        socialBoundary.current?.clearPlatform('chilloutvr')
         accountNotesBoundary.current?.clearPlatform('chilloutvr')
         homeWorldBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
@@ -751,6 +756,18 @@ app
     })
     homeWorldBoundary.current = homeWorld
 
+    // The profile's Unfriend, Block and Unblock: confirmed, one person at a time.
+    const social = new SocialActionService({
+      adapters: new Map<Platform, SocialActionAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      isKnownPerson: (platform, userId) => community.knowsPerson(platform, userId),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    socialBoundary.current = social
+
     registerIpcHandlers(adapters, {
       explore,
       homeWorld,
@@ -759,6 +776,7 @@ app
       avatarLibrary,
       currentAvatar,
       community,
+      social,
       // Settings → Appearance background picture (appBackground.ts).
       appBackground: {
         store: new AppBackgroundStore({
@@ -863,6 +881,7 @@ app
         explore.clearPlatform(event.platform)
         avatarLibrary.clearPlatform(event.platform)
         community.clearPlatform(event.platform)
+        social.clearPlatform(event.platform)
         accountNotes.clearPlatform(event.platform)
         homeWorld.clearPlatform(event.platform)
       }

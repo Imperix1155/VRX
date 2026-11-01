@@ -28,6 +28,7 @@ import type {
   CurrentAvatarResult
 } from './avatarLibrary'
 import type { BackgroundPictureRefusal } from './backgroundPicture'
+import type { RelationshipResult, SocialAction, SocialActionResult } from './socialActions'
 import type { AccountNoteSyncMode, AccountNoteSyncResult } from './accountNotes'
 import type {
   CommunitySearchResult,
@@ -196,6 +197,13 @@ export interface IpcInvoke {
   'get-players-online': { req: { platform: Platform }; res: PlayersOnlineResult }
   /** The signed-in user's groups. `refresh` is a Refresh press. */
   'get-my-groups': { req: { platform: Platform; refresh?: boolean }; res: MyGroupsResult }
+  /** Whether a friend or searched person is a friend and blocked, read when the profile's options open. */
+  'get-relationship': { req: { platform: Platform; userId: string }; res: RelationshipResult }
+  /** One confirmed Unfriend, Block or Unblock for one person. */
+  'social-action': {
+    req: { platform: Platform; userId: string; action: SocialAction }
+    res: SocialActionResult
+  }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }

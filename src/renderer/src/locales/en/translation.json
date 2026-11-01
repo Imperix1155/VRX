@@ -1198,7 +1198,47 @@
     },
     "worlds": "Worlds",
     "groups": "Groups",
-    "userId": "User ID"
+    "userId": "User ID",
+    "actions": {
+      "show": "Unfriend or block",
+      "hide": "Hide unfriend and block",
+      "hint": "These change your {{platform}} account, one person at a time.",
+      "checking": "Checking…",
+      "checkError": "Couldn't check whether they're blocked.",
+      "unknownBlock": "VRX couldn't tell whether you've blocked them.",
+      "unfriend": "Unfriend",
+      "block": "Block",
+      "unblock": "Unblock",
+      "done": {
+        "unfriend": "Unfriended on {{platform}}.",
+        "block": "Blocked on {{platform}}.",
+        "unblock": "Unblocked on {{platform}}."
+      },
+      "confirm": {
+        "title": {
+          "unfriend": "Unfriend {{name}}?",
+          "block": "Block {{name}}?",
+          "unblock": "Unblock {{name}}?"
+        },
+        "body": {
+          "unfriend": "This removes them from your {{platform}} friends. To be friends again, one of you has to send a new friend request.",
+          "block": "This blocks them on your {{platform}} account. You can unblock them later from their profile.",
+          "unblock": "This unblocks them on your {{platform}} account."
+        },
+        "cancel": "Cancel",
+        "sending": "Sending…"
+      },
+      "error": {
+        "not-authenticated": "You're signed out of {{platform}}. Sign in again, then try once more.",
+        "rate-limited": "{{platform}} asked VRX to slow down. Wait a moment, then try again.",
+        "unavailable": "{{platform}} didn't take this change. Try again in a moment.",
+        "unknown-person": "Open them from your friends list or a new search, then try again.",
+        "not-friend": "You're not friends with them anymore.",
+        "busy": "Wait a few seconds before the next change.",
+        "not-connected": "VRX isn't connected to {{platform}} right now, so nothing was sent. Try again in a moment.",
+        "unknown": "Something went wrong. Try again in a moment."
+      }
+    }
   },
   "groups": {
     "heading": "Your groups",

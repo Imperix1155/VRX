@@ -29,6 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   note and lets you choose which to keep, so no note is lost. VRChat keeps one
   line of up to 256 characters, so a longer note stays on this PC with a note
   saying why. Settings → Behavior → Save notes to my accounts turns this off.
+- Unfriend and block: every full profile (in friend details and in Search)
+  now ends with an "Unfriend or block" button, on VRChat and ChilloutVR
+  alike. Press it and VRX checks whether you've blocked that person, then
+  shows Unfriend (for friends), Block or Unblock. Each one asks first in a
+  small window that names the person and the platform, and Cancel is the
+  default. It changes one person at a time, with a short pause between
+  changes, and never retries on its own. On ChilloutVR the change goes over
+  VRX's live connection, so if that connection is down VRX says so and sends
+  nothing.
 
 ## [1.4.0-dev.3] - 2026-11-01
 

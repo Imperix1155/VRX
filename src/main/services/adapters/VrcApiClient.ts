@@ -20,7 +20,7 @@ export const VRC_USER_AGENT = `VRX/${__APP_VERSION__} (https://github.com/Imperi
  *
  *   BaseAdapter  → request<T>: rate limit, timeout, redirect:'error', 429
  *                  backoff, Zod validation, circuit breaker, typed errors
- *   VrcApiClient → get/post against VRC_API_BASE with the auth cookie +
+ *   VrcApiClient → get/post/put/delete against VRC_API_BASE with the auth cookie +
  *                  User-Agent attached (THIS class)
  *   VrcAdapter   → the IPlatformAdapter methods (extends this; later)
  *
@@ -100,6 +100,23 @@ export abstract class VrcApiClient extends BaseAdapter {
       schema,
       () => ({
         method: 'PUT',
+        headers: this.headers()
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+  }
+
+  /** DELETE `path` (relative to VRC_API_BASE), validated against `schema`. */
+  protected delete<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions
+  ): Promise<T> {
+    return this.request(
+      VRC_API_BASE + path,
+      schema,
+      () => ({
+        method: 'DELETE',
         headers: this.headers()
       }),
       { ...options, lease: options?.lease ?? this.sessionRequestLease() }

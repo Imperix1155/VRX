@@ -702,7 +702,8 @@ starts empty each launch.
 
 ### §9.7 Search, profiles, Groups and world lists
 
-Read-only community views (owner, 2026-10-31). Every one follows the platform
+Community views (owner, 2026-10-31). They only read, except the profile's
+Unfriend or block (owner, 2026-11-01). Every one follows the platform
 filter, offers Accounts when the filtered platform is not connected, and adds
 no line under ALL for a platform the user isn't signed in to.
 
@@ -716,6 +717,18 @@ no line under ALL for a platform the user isn't signed in to.
   one order on both platforms: Pronouns, Rank, Bio, Badges, then Show worlds
   and Show groups, which read only when pressed. A missing field says "Not
   shown"; VRChat trust uses the friend-details rank words.
+- **Unfriend or block** (owner, 2026-11-01) closes every full profile, below
+  a thin rule: one quiet button that reads nothing until pressed. Open, it
+  says which platform account changes, then shows only what applies, in one
+  order on both platforms: Unfriend (friends only), then Block or Unblock.
+  If the platform didn't say whether they're blocked, both show with a note.
+  Unfriend and Block wear the error tint with their word as the cue; Unblock
+  is a plain control. Each opens a true heavy-frosted `alertdialog` with the
+  platform stripe and pill that names the person, says what changes, and
+  focuses Cancel; Escape, Cancel or the scrim close it without sending, and
+  the drawer or sheet behind stays open. A failure stays in the dialog; a
+  success closes it and leaves a "✓ Unblocked on VRChat."-style line above
+  the buttons, which switch at once (Block becomes Unblock; Unfriend goes).
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
   are wider than tall: the group's square icon centered on top over a blurred
   copy of itself (never cropped), then the name, and the VRC/CVR badge with

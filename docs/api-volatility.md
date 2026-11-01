@@ -498,6 +498,32 @@ the community specification; no real response has been captured yet.
   note saying why. A 401 emits `auth-invalidated`; a 429 surfaces as
   rate-limited.
 
+### Unfriend and block
+
+The profile's Unfriend, Block and Unblock
+([VrcAdapter.ts](../src/main/services/adapters/VrcAdapter.ts),
+[parseBlocked.ts](../src/main/services/adapters/vrchat/parseBlocked.ts)).
+Routes and bodies follow the community specification and VRCX
+(`src/api/playerModeration.ts`, `friend.ts`). Source-derived; not yet run
+against a real account.
+
+| Route                                                                   | Assumed shape                                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `GET /auth/user/playermoderations?type=block&targetUserId={userId}`     | Array of the user's own moderations, each with `type` and `targetUserId`. |
+| `DELETE /auth/user/friends/{userId}`                                    | Unfriends; the body is ignored. 400 when not friends.                     |
+| `POST /auth/user/playermoderations` with `{ moderated, type: "block" }` | Blocks; the reply (the new moderation) is ignored.                        |
+| `PUT /auth/user/unplayermoderate` with `{ moderated, type: "block" }`   | Unblocks; the body is ignored.                                            |
+
+- **Blocked:** true only for a record whose `type` is `block` and whose
+  `targetUserId` is that person, so a reply that ignores the filter still
+  answers correctly. A reply that is not an array is unavailable, never "not
+  blocked".
+- **Writes** are sent once (`retry: 'none'`). A 401 emits `auth-invalidated`;
+  a 429 or any other failure shows in the confirmation and changes nothing in
+  VRX. The friend leaves the roster through the Pipeline's `friend-delete`.
+- **Uncertain:** whether VRChat also ends a friendship when the user blocks a
+  friend. VRX does not assume it either way; the roster follows the Pipeline.
+
 ### Self-invite: `POST /invite/myself/to/{location}`
 
 - **Assumes (Source-derived):** body `{}`. The response is ignored.
@@ -879,14 +905,14 @@ Routes and fields come from CVRX and the official client. They are
 Source-derived; no real response has been captured yet. The same user-action
 and 5-minute cache rules apply.
 
-| Route                                                                              | Assumed shape                                                                                       |
-| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `GET /users/{userId}`                                                              | `name`, `imageUrl`, `profileBio`, `profilePronouns`, `rank`, `featuredBadge`.                       |
-| `GET /search/{text}`                                                               | Array mixing `type` `user`, `world`, `avatar` and `prop`; only people and worlds are kept.          |
-| `GET https://api.chilloutvr.net/2/worlds/list/wrldnew\|wrldrecentlyupdated?page=0` | `{ entries }`, as for Explore: New and Recently updated.                                            |
-| `GET /users/{userId}/worlds`                                                       | Array of `{ id, name, imageUrl }`.                                                                  |
-| `GET /groups` and `GET /users/{userId}/groups`                                     | `{ owned, member }`, each an array of `{ id, tag, name, description, memberCount, image, banner }`. |
-| `GET https://api.chilloutvr.net/1/public/userstats`                                | `{ usersOnline: { overall, … } }`.                                                                  |
+| Route                                                                              | Assumed shape                                                                                                    |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `GET /users/{userId}`                                                              | `name`, `imageUrl`, `profileBio`, `profilePronouns`, `rank`, `featuredBadge`; `isBlocked` for Unfriend or block. |
+| `GET /search/{text}`                                                               | Array mixing `type` `user`, `world`, `avatar` and `prop`; only people and worlds are kept.                       |
+| `GET https://api.chilloutvr.net/2/worlds/list/wrldnew\|wrldrecentlyupdated?page=0` | `{ entries }`, as for Explore: New and Recently updated.                                                         |
+| `GET /users/{userId}/worlds`                                                       | Array of `{ id, name, imageUrl }`.                                                                               |
+| `GET /groups` and `GET /users/{userId}/groups`                                     | `{ owned, member }`, each an array of `{ id, tag, name, description, memberCount, image, banner }`.              |
+| `GET https://api.chilloutvr.net/1/public/userstats`                                | `{ usersOnline: { overall, … } }`.                                                                               |
 
 - **Fields:** user, world and group ids must be GUIDs (stored lower case). A
   featured badge named `No badge featured` is skipped.
@@ -957,8 +983,15 @@ Source-derived from CVRX; no real response has been captured yet.
     `MAX_UNUSABLE_FULL_SET_RESYNCS` (2) times in a row.
 - **Outgoing:** `{ RequestType, Data }` senders exist for friend requests,
   unfriend, invites and blocking (types 5, 6, 7, 8, 10, 15, 30, 31). The payload
-  shapes are Source-derived from CVRX notes. Nothing calls them in 1.0, and they
-  never queue while disconnected.
+  shapes are Source-derived from CVRX (`server/api_cvr_ws.js`). Only the
+  profile's Unfriend (8, `{ id }`), Block (30) and Unblock (31) are wired, one
+  confirmed message at a time on the current account's socket; the rest are
+  unused. They never queue while disconnected, and the socket sends no reply,
+  so "sent" is all VRX can report. An unfriend is expected to be followed by
+  `FRIEND_LIST_UPDATED` (not yet seen live).
+- **Blocked state (🟡 Source-derived from CVRX):** `GET /users/{userId}` carries
+  `isBlocked`; a reply without it shows both Block and Unblock with a note.
+  The sign-in reply's `blockedUsers` list is not read.
 - **Keepalive:** VRX sends none and relies on server pings, which `ws` answers
   with protocol pongs. The `RequestType 0` keepalive that CVRX reportedly sends
   is omitted until a live session shows it is needed.

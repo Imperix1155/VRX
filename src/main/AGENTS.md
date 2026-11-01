@@ -149,6 +149,13 @@ etiquette rules apply in full; this file adds local detail.
   friend or someone a search listed, so the renderer cannot walk profiles.
   Search and list worlds become Explore references through
   `ExploreService.adoptWorlds`, which makes no request.
+- `SocialActionService` owns the profile's Unfriend, Block and Unblock: one
+  confirmed person per call, only a friend, someone a search listed
+  (`CommunityService.knowsPerson`) or someone it already answered for; one
+  action per platform at a time, 3 s after each answer, never retried. Its
+  block-state read follows a press and is cached 5 minutes. VRChat writes go
+  through admission; ChilloutVR writes are one `/users/ws` message on the
+  current account's socket and are never queued. It clears with community.
 - Alerts read settings at dispatch (`isFriendAlertEnabled`; every alert
   defaults off). Hot alerts gate only on `notifyHotInstance`;
   `hotInstancesEnabled` hides a Dashboard section only. Alert state is bounded

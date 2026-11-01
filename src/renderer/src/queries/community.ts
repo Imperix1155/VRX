@@ -5,7 +5,7 @@
  * panel shows; nothing refetches on a timer, window focus or reconnect. Main
  * caches every answer for 5 minutes, so these queries match that.
  */
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import {
   COMMUNITY_CACHE_MS,
@@ -18,6 +18,7 @@ import {
   type WorldList,
   type WorldListResult
 } from '@shared/community'
+import type { RelationshipResult, SocialAction, SocialActionResult } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
 import { useAvatarAccount } from './avatarLibrary'
 
@@ -29,6 +30,7 @@ type CommunityKind =
   | 'world-list'
   | 'players-online'
   | 'my-groups'
+  | 'relationship'
 
 const KINDS: readonly CommunityKind[] = [
   'profile',
@@ -37,7 +39,8 @@ const KINDS: readonly CommunityKind[] = [
   'community-search',
   'world-list',
   'players-online',
-  'my-groups'
+  'my-groups',
+  'relationship'
 ]
 
 /** Account-keyed, so an old account's answers can never show under a new one. */
@@ -222,5 +225,77 @@ function useCommunityRefresh(): (
       client.setQueryData(key, result)
     },
     [client, vrchat, chilloutvr]
+  )
+}
+
+/** Friend and block state, read when a profile's Unfriend or block opens. */
+export function useRelationship(
+  platform: Platform,
+  userId: string,
+  enabled: boolean
+): UseQueryResult<RelationshipResult, Error> {
+  const accountId = useAvatarAccount(platform)
+  return useQuery({
+    queryKey: communityQueryKey('relationship', platform, accountId, userId),
+    queryFn: () => bridge().getRelationship({ platform, userId }),
+    enabled: enabled && accountId !== null,
+    ...READ_OPTIONS
+  })
+}
+
+/**
+ * Send one confirmed Unfriend, Block or Unblock. The new state lands in the
+ * cache only while the same account is still signed in.
+ */
+export function useSocialAction(): (
+  platform: Platform,
+  userId: string,
+  action: SocialAction
+) => Promise<SocialActionResult> {
+  const client = useQueryClient()
+  const accounts = useRef<Record<Platform, string | null>>({ vrchat: null, chilloutvr: null })
+  const vrchat = useAvatarAccount('vrchat')
+  const chilloutvr = useAvatarAccount('chilloutvr')
+  useEffect(() => {
+    accounts.current = { vrchat, chilloutvr }
+  }, [vrchat, chilloutvr])
+  return useCallback(
+    async (
+      platform: Platform,
+      userId: string,
+      action: SocialAction
+    ): Promise<SocialActionResult> => {
+      const accountId = accounts.current[platform]
+      if (accountId === null) return { ok: false, reason: 'not-authenticated' }
+      const key = communityQueryKey('relationship', platform, accountId, userId)
+      const result = await bridge().socialAction({ platform, userId, action })
+      if (result.ok && accounts.current[platform] === accountId) {
+        // A read still out was asked before this change; its answer must not land.
+        await client.cancelQueries({ queryKey: key, exact: true })
+        const next: RelationshipResult = { ok: true, relationship: result.relationship }
+        client.setQueryData(key, next)
+        if (!result.relationship.isFriend) {
+          // The "Friend" marks already on screen follow at once, with no new read.
+          client.setQueryData<ProfileResult>(
+            communityQueryKey('profile', platform, accountId, userId),
+            (old) => (old?.ok ? { ...old, profile: { ...old.profile, isFriend: false } } : old)
+          )
+          client.setQueriesData<CommunitySearchResult>(
+            { queryKey: ['community-search', platform, accountId] },
+            (old) =>
+              old?.ok
+                ? {
+                    ...old,
+                    people: old.people.map((person) =>
+                      person.userId === userId ? { ...person, isFriend: false } : person
+                    )
+                  }
+                : old
+          )
+        }
+      }
+      return result
+    },
+    [client]
   )
 }

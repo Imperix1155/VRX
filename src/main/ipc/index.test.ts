@@ -177,6 +177,7 @@ function options(): IpcHandlerOptions {
       getPlayersOnline: vi.fn(),
       getMyGroups: vi.fn()
     },
+    social: { getRelationship: vi.fn(), act: vi.fn() },
     onRendererHydrated: hydrated,
     rateLimit: {
       clock: () => now,
@@ -223,7 +224,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(58)
+    expect(electron.invokeHandlers.size).toBe(60)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -268,6 +269,8 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-world-list',
         'get-players-online',
         'get-my-groups',
+        'get-relationship',
+        'social-action',
         'get-friend-note',
         'get-friends',
         'get-join-handoff',

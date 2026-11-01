@@ -51,6 +51,10 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-world-list': { max: 60, windowMs: 60_000 },
   'get-players-online': { max: 30, windowMs: 60_000 },
   'get-my-groups': { max: 30, windowMs: 60_000 },
+  // Read when a profile's Unfriend and block options open; main caches 5 minutes.
+  'get-relationship': { max: 30, windowMs: 60_000 },
+  // Confirmed presses; main allows one per platform at a time, then a 3 s pause.
+  'social-action': { max: 20, windowMs: 60_000 },
   // Account settings normally loads once; repeated tab mounts stay harmless.
   'get-accounts': { max: 12, windowMs: 30_000 },
   // Two platforms can mount, invalidate, and retry without approaching this cap.
@@ -136,6 +140,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-explore-room':
     case 'self-invite':
     case 'switch-avatar':
+    case 'social-action':
     case 'set-home-world':
     case 'set-friend-note':
     case 'sync-friend-note':

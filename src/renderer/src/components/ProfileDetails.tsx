@@ -1,6 +1,7 @@
 /**
  * A person's full profile: pronouns, rank, bio and badges, then their public
- * worlds and groups behind "Show" buttons (depth on demand). The profile is
+ * worlds and groups behind "Show" buttons (depth on demand), and last the
+ * Unfriend or block options (ProfileActions). The profile is
  * read once when this mounts; the worlds and groups only after a press. Both
  * platforms show the same fields in the same order, with "Not shown" where a
  * platform has nothing, so neither looks emptier by design.
@@ -12,6 +13,7 @@ import type { Platform, TrustRank } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
 import { useProfile, useProfileGroups, useProfileWorlds } from '../queries/community'
 import { CommunityTile, TileGrid } from './CommunityParts'
+import ProfileActions from './ProfileActions'
 
 /** Quoted literals keep the locale parity scan aware of these keys. */
 const TRUST_RANK_KEY: Record<NonNullable<TrustRank>, string> = {
@@ -131,6 +133,12 @@ function ProfileBody({ profile }: { profile: PersonProfile }): React.JSX.Element
         )}
       </div>
       <ProfileLists platform={profile.platform} userId={profile.userId} />
+      <ProfileActions
+        key={`${profile.platform}:${profile.userId}`}
+        platform={profile.platform}
+        userId={profile.userId}
+        name={profile.displayName}
+      />
     </div>
   )
 }
