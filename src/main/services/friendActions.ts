@@ -90,6 +90,9 @@ export class FriendActionsService {
     if (this.options.inbox.friendRequest(platform, id) === null) {
       return this.denied(platform, answer, 'unknown-request')
     }
+    // Never hold a press for a connection that is down; the adapter checks
+    // again when the press's turn comes.
+    if (!adapter.canSendFriendAction()) return this.denied(platform, answer, 'unavailable')
     return this.once(state, `answer:${id}`, () =>
       this.queue(platform, answer, state, async () => {
         // The row may have settled while this press waited its turn.
@@ -115,6 +118,7 @@ export class FriendActionsService {
       return this.denied(platform, 'send', 'unknown-person')
     // Asked once this session already: say so again without a second request.
     if (state.sent.has(id)) return Promise.resolve({ ok: true })
+    if (!adapter.canSendFriendAction()) return this.denied(platform, 'send', 'unavailable')
     return this.once(state, `send:${id}`, () =>
       this.queue(platform, 'send', state, async () => {
         if (state.sent.has(id)) return { ok: true }

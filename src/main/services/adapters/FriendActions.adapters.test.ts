@@ -136,6 +136,7 @@ describe('VrcAdapter friend actions', () => {
 })
 
 interface FakePipeline {
+  isConnected: () => boolean
   acceptFriendRequest: ReturnType<typeof vi.fn>
   declineFriendRequest: ReturnType<typeof vi.fn>
   sendFriendRequest: ReturnType<typeof vi.fn>
@@ -146,6 +147,7 @@ function cvrSignedIn(open = true): { adapter: CvrAdapter; pipeline: FakePipeline
   const store: CvrCredentialStore = { load: () => credentials, save: () => {}, delete: () => {} }
   const adapter = new CvrAdapter(store, instantAdmission())
   const pipeline: FakePipeline = {
+    isConnected: () => open,
     acceptFriendRequest: vi.fn(() => open),
     declineFriendRequest: vi.fn(() => open),
     sendFriendRequest: vi.fn(() => open)
@@ -181,6 +183,8 @@ describe('CvrAdapter friend actions', () => {
 
   it('reports a closed socket as unavailable instead of queueing the action', async () => {
     const { adapter } = cvrSignedIn(false)
+    expect(adapter.canSendFriendAction()).toBe(false)
+    expect(cvrSignedIn(true).adapter.canSendFriendAction()).toBe(true)
     await expect(
       adapter.sendFriendRequest(CVR_THEM, adapter.captureFriendActionLease())
     ).rejects.toBeInstanceOf(FriendActionUnavailableError)

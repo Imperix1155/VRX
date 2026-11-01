@@ -749,6 +749,11 @@ export class CvrAdapter
     return this.sessionRequestLease()
   }
 
+  /** A press is refused at once while the live socket is closed, never held. */
+  canSendFriendAction(): boolean {
+    return this.pipeline?.isConnected() ?? false
+  }
+
   answerFriendRequest(
     record: FriendRequestRecord,
     answer: FriendRequestAnswer,

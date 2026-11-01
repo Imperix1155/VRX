@@ -20,6 +20,9 @@ export interface FriendActionsAdapter {
   readonly platform: Platform
   /** Throws when no durable signed-in session exists. */
   captureFriendActionLease(): RequestLease
+  /** False when an action could not leave right now (ChilloutVR: the live
+   *  socket is closed), so the service refuses it instead of letting it wait. */
+  canSendFriendAction(): boolean
   answerFriendRequest(
     record: FriendRequestRecord,
     answer: FriendRequestAnswer,

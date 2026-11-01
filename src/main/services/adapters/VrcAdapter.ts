@@ -1100,6 +1100,11 @@ export class VrcAdapter
     return this.sessionRequestLease()
   }
 
+  /** VRChat friend actions are REST requests; the admission line handles the rest. */
+  canSendFriendAction(): boolean {
+    return true
+  }
+
   /**
    * Accept answers the friend-request notification
    * (`PUT /auth/user/notifications/{id}/accept`); decline hides it

@@ -24,6 +24,8 @@ class FakeAdapter implements FriendActionsAdapter {
   signedIn = true
   error: Error | null = null
   gate: Promise<void> | null = null
+  ready = true
+  canSendFriendAction = (): boolean => this.ready
   readonly answerFriendRequest = vi.fn(
     async (record: FriendRequestRecord, answer: FriendRequestAnswer, lease: RequestLease) => {
       void record
@@ -159,6 +161,27 @@ describe('FriendActionsService answers', () => {
       expect(JSON.stringify(meta)).not.toContain('usr_')
       expect(JSON.stringify(meta)).not.toContain('not_')
     }
+  })
+
+  it('refuses at once, without queueing, while the action could not leave', async () => {
+    const { cvr, service, rows, listed, sleeps } = setup()
+    rows.set('chilloutvr|friend-request:g', { sourceId: 'g', senderId: 'g' })
+    listed.add(`chilloutvr|${CVR_USER.toLowerCase()}`)
+    cvr.ready = false
+    await expect(service.answer('chilloutvr', 'friend-request:g', 'accept')).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable'
+    })
+    await expect(service.send('chilloutvr', CVR_USER)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable'
+    })
+    expect(cvr.answerFriendRequest).not.toHaveBeenCalled()
+    expect(cvr.sendFriendRequest).not.toHaveBeenCalled()
+    // Nothing waited, so the next press after a reconnect is not delayed.
+    cvr.ready = true
+    await expect(service.send('chilloutvr', CVR_USER)).resolves.toEqual({ ok: true })
+    expect(sleeps).toEqual([])
   })
 
   it('answers not signed in without touching the adapter', async () => {
