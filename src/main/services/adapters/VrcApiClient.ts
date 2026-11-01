@@ -106,6 +106,25 @@ export abstract class VrcApiClient extends BaseAdapter {
     )
   }
 
+  /** PUT `body` as JSON to `path` (relative to VRC_API_BASE), validated against `schema`. */
+  protected putJson<T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions
+  ): Promise<T> {
+    return this.request(
+      VRC_API_BASE + path,
+      schema,
+      () => ({
+        method: 'PUT',
+        headers: this.headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+  }
+
   private headers(extra?: Record<string, string>): Record<string, string> {
     const base: Record<string, string> = { 'User-Agent': VRC_USER_AGENT }
     if (this.authCookie) base['Cookie'] = this.authCookie
