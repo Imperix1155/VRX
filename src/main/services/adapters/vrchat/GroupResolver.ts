@@ -13,6 +13,18 @@
 import { z } from 'zod'
 import type { AdapterRequestOptions } from '../BaseAdapter'
 import { AuthError, RateLimitError, RequestCancelledError, RequestQueueFullError } from '../errors'
+import { profileThumbnail } from './fetchFriends'
+
+/** The Hot Instances group card shows the icon about 200 px wide. */
+const GROUP_CARD_ICON_WIDTH = 512
+
+/**
+ * The full uploaded icon can be over the 3 MiB image limit, so use VRChat's
+ * bounded rendition, as friend pictures and the Groups page do.
+ */
+function boundedIcon(url: string | null): string | null {
+  return profileThumbnail(url, GROUP_CARD_ICON_WIDTH) ?? null
+}
 
 // ─── Raw API shape (defensive) ────────────────────────────────────────────────
 
@@ -164,7 +176,7 @@ export function createGroupResolver(options: {
       }
       const value: GroupMeta = {
         name: parsed.data.name,
-        iconUrl: parsed.data.iconUrl ?? null
+        iconUrl: boundedIcon(parsed.data.iconUrl ?? null)
       }
       if (mayWrite()) {
         store(groupId, { expiresAt: clock() + ttlMs, value })
@@ -243,7 +255,8 @@ export function createGroupResolver(options: {
       const now = clock()
       for (const { id, meta, expiresAt } of entries) {
         if (expiresAt <= now || expiresAt > now + ttlMs || cache.has(id)) continue
-        store(id, { expiresAt, value: meta })
+        // Older builds stored the full-size link; upgrade it on the way in.
+        store(id, { expiresAt, value: { ...meta, iconUrl: boundedIcon(meta.iconUrl) } })
       }
     }
   }
