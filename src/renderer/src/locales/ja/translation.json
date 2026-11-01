@@ -702,7 +702,25 @@
   "hotSheet": {
     "ariaLabel": "{{world}} ホットインスタンスの詳細",
     "friendsHereHeading": "ここにいるフレンド — {{count}}",
-    "hostedBy": "{{group}} がホスト"
+    "hostedBy": "{{group}} がホスト",
+    "more": {
+      "heading": "このインスタンスについて",
+      "people": "ここにいる人数",
+      "friends": "ここにいるフレンド",
+      "region": "リージョン",
+      "access": "アクセス",
+      "group": "グループ",
+      "noGroup": "なし",
+      "instanceId": "インスタンス ID"
+    }
+  },
+  "sheet": {
+    "showMore": "詳しく表示",
+    "showLess": "表示を減らす",
+    "expandHint": "上にドラッグするかクリックで詳しく表示",
+    "collapseHint": "下にドラッグするかクリックで縮小",
+    "notShown": "表示なし",
+    "moreHeading": "その他の詳細"
   },
   "dashboard": {
     "loading": "読み込み中…",
@@ -837,6 +855,12 @@
       "newHint": "各プラットフォームの最新の公開ワールド。",
       "updatedHint": "作者が最近更新した公開ワールド。",
       "empty": "いま表示できるワールドはありません。"
+    },
+    "more": {
+      "heading": "このワールドについて",
+      "people": "現在の人数",
+      "regions": "ルームのリージョン",
+      "checked": "最終確認"
     }
   },
   "avatars": {
@@ -892,7 +916,8 @@
       "updated": "更新日",
       "notShown": "表示なし",
       "description": "説明",
-      "noDescription": "説明はありません"
+      "noDescription": "説明はありません",
+      "avatarId": "アバター ID"
     }
   },
   "updater": {
@@ -1123,7 +1148,8 @@
       "not-found": "このプロフィールはもう表示できません。"
     },
     "worlds": "ワールド",
-    "groups": "グループ"
+    "groups": "グループ",
+    "userId": "ユーザー ID"
   },
   "groups": {
     "heading": "参加しているグループ",
@@ -1145,6 +1171,7 @@
     "role": {
       "owner": "オーナー",
       "member": "メンバー"
-    }
+    },
+    "groupId": "グループ ID"
   }
 }

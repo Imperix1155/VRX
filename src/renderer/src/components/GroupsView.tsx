@@ -160,7 +160,8 @@ export default function GroupsView(): React.JSX.Element {
             name: group.name,
             platform: platformName(t, group.platform)
           }),
-          tags: group.role === null ? [] : [t(ROLE_KEYS[group.role])]
+          tags: group.role === null ? [] : [t(ROLE_KEYS[group.role])],
+          more: [{ label: t('groups.groupId'), value: group.groupId, mono: true }]
         })}
         onClose={close}
       >

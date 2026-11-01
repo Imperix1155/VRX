@@ -1315,6 +1315,23 @@ body::after {
   }
 }
 
+/* Bottom-sheet "more" details (grab bar expanded): the extra section rises
+   in as the sheet grows. Reduced motion shows it without movement. */
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .sheet-more {
+      animation: sheet-more-in 260ms ease-out;
+    }
+  }
+}
+
+@keyframes sheet-more-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
 @keyframes setup-step-in {
   from {
     transform: translateX(10px);
