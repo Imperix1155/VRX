@@ -131,7 +131,11 @@ clears 4.5:1 on white and on the platform tints. Every small platform label
 (the friends-list rail, platform pills, the short badge on a picture) takes
 the `--plat-*-badge-*` and `--plat-*-rail-*` tokens: solid platform color with
 white words in light, so blue and orange show at a glance down a list, and
-quiet outlines in dark, where the word and edge already glow. The ChilloutVR
+quiet outlines in dark, where the word and edge already glow. The dark
+friends-list rail is the one firmer outline: it sits on a row already washed
+in its own hue, so it takes a stronger tint, edge and word
+(`--plat-*-rail-text`), and it keeps a 3px gap from the row's platform bar so
+the two never touch. The ChilloutVR
 badge fill is one step deeper than the raw orange so its white word clears
 4.5:1.
 

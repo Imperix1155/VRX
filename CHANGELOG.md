@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Friends list: the VRC and CVR tab on each friend card no longer touches the
+  colored stripe on the card's left edge, and in dark mode it stands out more
+  from the card, with a firmer outline and brighter letters.
+
 ## [1.4.0-dev.1] - 2026-10-31
 
 Dev test build. It has everything in 1.3.0 plus the changes below.

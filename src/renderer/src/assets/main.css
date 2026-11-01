@@ -170,7 +170,7 @@
   background: linear-gradient(to top, var(--plat-cvr-rail-border), var(--plat-vrc-rail-border));
 }
 .linked-platform-rail .linked-gradient-text {
-  background-image: linear-gradient(to top, var(--plat-cvr-ghost-text), var(--plat-vrc-ghost-text));
+  background-image: linear-gradient(to top, var(--plat-cvr-rail-text), var(--plat-vrc-rail-text));
 }
 /* Light rails are solid brand color, so the linked rail's word is plain ink
    on its blue-to-orange fill instead of a gradient that would vanish into it. */
@@ -363,11 +363,14 @@
      on bright art. */
   --plat-vrc-picture-badge-bg: color-mix(in srgb, var(--glass-information) 78%, transparent);
   --plat-cvr-picture-badge-bg: color-mix(in srgb, var(--glass-information) 78%, transparent);
-  /* Friends-list rail: a tint and a firmer edge, like the other pills. */
-  --plat-vrc-rail-bg: color-mix(in srgb, var(--vrc) var(--pill-tint), transparent);
-  --plat-cvr-rail-bg: color-mix(in srgb, var(--cvr) var(--pill-tint), transparent);
-  --plat-vrc-rail-border: color-mix(in srgb, var(--vrc) var(--pill-edge), transparent);
-  --plat-cvr-rail-border: color-mix(in srgb, var(--cvr) var(--pill-edge), transparent);
+  /* Friends-list rail: it sits on a row already washed in the same hue, so it
+     takes a stronger tint and edge than the other pills to stand out from it. */
+  --plat-vrc-rail-bg: color-mix(in srgb, var(--vrc) 30%, transparent);
+  --plat-cvr-rail-bg: color-mix(in srgb, var(--cvr) 30%, transparent);
+  --plat-vrc-rail-border: color-mix(in srgb, var(--vrc) 70%, transparent);
+  --plat-cvr-rail-border: color-mix(in srgb, var(--cvr) 70%, transparent);
+  --plat-vrc-rail-text: color-mix(in srgb, var(--vrc) 50%, white);
+  --plat-cvr-rail-text: color-mix(in srgb, var(--cvr) 55%, white);
   --linked-rail-text: var(--text);
 
   /* DRAWER — scrim behind the friend drawer (VRX-69, owner-approved 2026-07-17;
@@ -596,6 +599,8 @@
   --plat-cvr-rail-bg: var(--plat-cvr-solid);
   --plat-vrc-rail-border: var(--vrc);
   --plat-cvr-rail-border: var(--plat-cvr-solid);
+  --plat-vrc-rail-text: var(--plat-badge-ink);
+  --plat-cvr-rail-text: var(--plat-badge-ink);
   --linked-rail-text: var(--plat-badge-ink);
 
   /* Higher saturation keeps a background picture's color under the glass
