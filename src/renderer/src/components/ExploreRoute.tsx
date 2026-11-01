@@ -16,6 +16,8 @@ import { isNotConnectedAuth } from '../hooks/useNotConnectedGate'
 import { useUiStore } from '../stores/ui'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { EXPLORE_SESSION_SEEDS } from '../utils/exploreSeeds'
+import { fillRows } from '../utils/pictureColumns'
+import { usePictureColumns } from '../hooks/usePictureColumns'
 import ExploreView from './ExploreView'
 import { ResolvedCard } from './WorldResults'
 import ExploreListPanel from './ExploreLists'
@@ -117,6 +119,9 @@ export default function ExploreRoute(): React.JSX.Element {
     platformFilter !== 'all' && isNotConnected(platformFilter === 'vrchat' ? vrcAuth : cvrAuth)
       ? platformFilter
       : null
+  // A wide window fills whole rows instead of leaving space beside them.
+  const columns = usePictureColumns()
+  const worldCount = fillRows(worldsShown, columns)
   const worlds = useMemo(() => {
     const lists = {
       vrchat: rankExploreWorlds('vrchat', vrc.data?.worlds ?? []),
@@ -125,10 +130,10 @@ export default function ExploreRoute(): React.JSX.Element {
     return selectExploreWorlds({
       lists,
       filter: platformFilter,
-      total: worldsShown,
+      total: worldCount,
       listSeeds: EXPLORE_SESSION_SEEDS
     })
-  }, [vrc.data?.worlds, cvr.data?.worlds, platformFilter, worldsShown])
+  }, [vrc.data?.worlds, cvr.data?.worlds, platformFilter, worldCount])
   const {
     selected,
     sheet,
@@ -261,13 +266,15 @@ export function ExploreDashboardPreviewRoute({
     shownUnderFilter(platformFilter, vrcSource, vrcAuth) ? vrcSource : undefined,
     shownUnderFilter(platformFilter, cvrSource, cvrAuth) ? cvrSource : undefined
   ].filter((value) => value !== undefined)
+  // Picture cards fill one row on wide windows; bars stay two across.
+  const columns = usePictureColumns()
   const worlds = selectExploreWorlds({
     lists: {
       vrchat: rankExploreWorlds('vrchat', vrc?.worlds ?? []),
       chilloutvr: rankExploreWorlds('chilloutvr', cvr?.worlds ?? [])
     },
     filter: platformFilter,
-    total: 2,
+    total: cardLayout === 'card' ? Math.max(2, columns) : 2,
     listSeeds: EXPLORE_SESSION_SEEDS
   })
   const { isJoining, joinExplore, joinExploreFailureFor, pendingConfirm } = useJoinInstance()

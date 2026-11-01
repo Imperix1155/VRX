@@ -151,9 +151,12 @@ export interface IpcInvoke {
     // VRChat carries physical-read ordering; legacy/CVR complete results remain arrays.
     res: Friend[] | FriendRosterResponse
   }
-  /** `rendition: 'avatar'` asks for the small copy used by round friend pictures. */
+  /**
+   * `rendition: 'avatar'` asks for the small copy used by round friend pictures;
+   * `'picture'` for a sharp, card-sized world or avatar picture.
+   */
   'get-avatar': {
-    req: { url: string; rendition?: 'avatar' }
+    req: { url: string; rendition?: 'avatar' | 'picture' }
     res: { ok: true; dataUrl: string } | null
   }
   /** The signed-in user's own avatars and the one they wear now. Never on a timer. */

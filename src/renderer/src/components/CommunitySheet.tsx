@@ -173,6 +173,8 @@ function SheetBanner({
   tall: boolean
 }): React.JSX.Element {
   const bannerRef = useRef<HTMLDivElement>(null)
+  // People and groups: their pictures already come at a size picked for them
+  // (profile icons can be huge), so the banner keeps that copy.
   const bannerDataUrl = useAvatar(header.imageUrl, bannerRef)
   const [failedBanner, setFailedBanner] = useState<string | null>(null)
   const showImage = bannerDataUrl !== null && bannerDataUrl !== failedBanner

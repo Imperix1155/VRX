@@ -138,7 +138,7 @@ function AvatarSheetPanel({
   const detailsFailed = details.isError || (details.data !== undefined && !details.data.ok)
 
   const bannerRef = useRef<HTMLDivElement>(null)
-  const bannerDataUrl = useAvatar(shown.imageUrl, bannerRef)
+  const bannerDataUrl = useAvatar(shown.imageUrl, bannerRef, 'picture')
   const [failedBanner, setFailedBanner] = useState<string | null>(null)
   const showBannerImage = bannerDataUrl !== null && bannerDataUrl !== failedBanner
 

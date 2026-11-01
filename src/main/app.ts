@@ -53,7 +53,7 @@ import {
   avatarCache
 } from './services/avatarCache'
 import { IMAGE_DISK_DIRECTORY, ImageDiskStore } from './services/imageDiskStore'
-import { createAvatarRenditionMaker } from './services/avatarRendition'
+import { createAvatarRenditionMaker, createPictureRenditionMaker } from './services/avatarRendition'
 import { APP_BACKGROUND_DIRECTORY, AppBackgroundStore } from './services/appBackground'
 import { VRC_METADATA_DIRECTORY, VrcMetadataStore } from './services/vrcMetadataStore'
 import { isAllowedUrl } from './ipc/url-allowlist'
@@ -638,6 +638,11 @@ app
     avatarCache.setAvatarRenditionMaker(
       createAvatarRenditionMaker((bytes) => nativeImage.createFromBuffer(bytes))
     )
+    // World and avatar pictures ask for the full picture (sharp on big
+    // screens) and keep a card-sized copy of it (avatarRendition.ts).
+    avatarCache.setPictureRenditionMaker(
+      createPictureRenditionMaker((bytes) => nativeImage.createFromBuffer(bytes))
+    )
 
     const joinCoordinator = new JoinCoordinator()
     const gameHandoff = new GameHandoff({
@@ -661,7 +666,7 @@ app
       ]),
       joinCoordinator,
       isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
-      getImage: (url) => avatarCache.get(url),
+      getImage: (url) => avatarCache.getPicture(url),
       openExternal: (url) => shell.openExternal(url),
       deliverJoin: (platform, url, location, stillCurrent) =>
         gameHandoff.deliver(

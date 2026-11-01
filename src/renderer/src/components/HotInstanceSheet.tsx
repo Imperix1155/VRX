@@ -65,7 +65,7 @@ export default function HotInstanceSheet({
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
   const joinTarget = shown?.members.find(isFriendJoinable) ?? null
   const joinFailure = joinTarget !== null && shown !== null ? joinFailureFor(joinTarget) : null
-  const bannerDataUrl = useAvatar(shown?.thumbnailUrl ?? null, bannerRef)
+  const bannerDataUrl = useAvatar(shown?.thumbnailUrl ?? null, bannerRef, 'picture')
   const [failedBannerKey, setFailedBannerKey] = useState<string | null>(null)
   const bannerImageKey = bannerDataUrl ? `${shown?.thumbnailUrl ?? ''}\u0000${bannerDataUrl}` : null
   const showBannerImage = bannerImageKey !== null && bannerImageKey !== failedBannerKey

@@ -9,10 +9,13 @@ export function registerAvatarHandlers(): void {
     if (!req || typeof req.url !== 'string' || req.url.length > AVATAR_MAX_URL_LENGTH) {
       throw new Error('Invalid avatar URL')
     }
-    if (req.rendition !== undefined && req.rendition !== 'avatar') {
+    if (req.rendition !== undefined && req.rendition !== 'avatar' && req.rendition !== 'picture') {
       throw new Error('Invalid avatar rendition')
     }
-    const dataUrl = await avatarCache.get(req.url, req.rendition ?? 'original')
+    const dataUrl =
+      req.rendition === 'picture'
+        ? await avatarCache.getPicture(req.url)
+        : await avatarCache.get(req.url, req.rendition ?? 'original')
     return dataUrl === null ? null : { ok: true, dataUrl }
   })
 }

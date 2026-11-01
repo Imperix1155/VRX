@@ -107,18 +107,20 @@ export default function ExploreView({
         </p>
       ) : null}
       {worlds.length > 0 ? (
-        <div className="mt-[var(--space-4)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-          {worlds.map(
-            (world) =>
-              renderWorld?.(world) ?? (
-                <ExploreWorldCard
-                  key={`${world.platform}:${world.worldId}`}
-                  world={world}
-                  image={images?.[world.worldRef]}
-                  onOpen={onOpenWorld}
-                />
-              )
-          )}
+        <div className="picture-gridwrap mt-[var(--space-4)]">
+          <div className="picture-grid">
+            {worlds.map(
+              (world) =>
+                renderWorld?.(world) ?? (
+                  <ExploreWorldCard
+                    key={`${world.platform}:${world.worldId}`}
+                    world={world}
+                    image={images?.[world.worldRef]}
+                    onOpen={onOpenWorld}
+                  />
+                )
+            )}
+          </div>
         </div>
       ) : null}
       <ExploreWorldSheet

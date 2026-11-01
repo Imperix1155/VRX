@@ -101,6 +101,19 @@ only note where they differ.
   (`/image/{fileId}/{version}/{size}`, `/file/{fileId}/{version}/file`), so a
   URL's picture never changes. If VRChat starts reusing a URL for new content,
   a stale picture can show for up to 14 days; shorten `IMAGE_DISK_TTL_MS`.
+- World and avatar pictures on cards, tiles and banners (`picture` rendition,
+  `AvatarCache.getPicture`) swap a VRChat sized thumbnail
+  `/api/1/image/<file>/<version>/<size>` for the same file's full
+  `/api/1/file/<file>/<version>/file` (the 256 px thumbnail looked blurry on
+  big screens, 2026-11-01). It is one request either way. **Assumes** the
+  thumbnail and the full picture share the file ID and that the full picture
+  comes back as an allowed image type within 3 MiB (SDK uploads are 800x600 or
+  1200x900). **When it breaks:** a full picture refused outright (4xx other
+  than 401 and 429, wrong type, over 3 MiB) falls back to the thumbnail, and
+  that refusal is remembered for an hour; three refusals in a row send every
+  picture straight to thumbnails for an hour. Passing failures (429, 401,
+  5xx, network) request nothing more. Main keeps a copy at most 1,440 px wide,
+  JPEG when opaque (`avatarRendition.ts`), in memory and on disk.
 
 ## VRChat
 

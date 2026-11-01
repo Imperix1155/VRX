@@ -246,6 +246,19 @@ describe('selectExploreWorlds', () => {
     ).toThrow(RangeError)
   })
 
+  it('fills odd totals for whole rows, the leading list taking the extra world', () => {
+    const five = selectExploreWorlds({ lists, filter: 'all', total: 5, listSeeds })
+    expect(five).toHaveLength(5)
+    expect(ids(five).slice(0, 4)).toEqual(
+      ids(selectExploreWorlds({ lists, filter: 'all', total: 4, listSeeds }))
+    )
+    for (const total of [0, 1.5, -1, 49]) {
+      expect(() => selectExploreWorlds({ lists, filter: 'all', total, listSeeds })).toThrow(
+        RangeError
+      )
+    }
+  })
+
   it('filters without borrowing and gives Dashboard the same two-card prefix', () => {
     expect(ids(selectExploreWorlds({ lists, filter: 'vrchat', total: 4, listSeeds }))).toEqual([
       'a',

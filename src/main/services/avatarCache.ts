@@ -50,9 +50,47 @@ export const AVATAR_POSITIVE_CACHE_MS = 60 * 60 * 1000
 
 /**
  * `avatar` asks for a small copy sized for the round friend pictures (at most
- * 64 px on screen). Full pictures such as world banners use `original`.
+ * 64 px on screen). `picture` is a card-sized copy for world and avatar
+ * pictures, reached through `getPicture`, which also asks VRChat for the full
+ * picture instead of its small thumbnail. Everything else uses `original`.
  */
-export type ImageRendition = 'original' | 'avatar'
+export type ImageRendition = 'original' | 'avatar' | 'picture'
+
+/** How long a full picture VRChat refused is skipped in favor of its thumbnail. */
+export const PICTURE_REFUSED_MS = 60 * 60 * 1000
+export const PICTURE_REFUSED_MAX_ENTRIES = 500
+/**
+ * Refused full pictures in a row before `getPicture` goes straight to
+ * thumbnails for `PICTURE_REFUSED_MS`. If VRChat ever stops serving full
+ * pictures in a usable form, this caps the wasted requests at a handful.
+ */
+export const PICTURE_REFUSED_STREAK_LIMIT = 3
+
+const VRC_SIZED_IMAGE_RE =
+  /^https:\/\/api\.vrchat\.cloud\/api\/1\/image\/(file_[A-Za-z0-9-]+)\/(\d+)\/(\d+)\/?$/
+
+/** Sized VRChat images at least this wide are already sharp enough for a card. */
+export const VRC_SHARP_IMAGE_WIDTH = 1024
+
+const VRC_FULL_PICTURE_RE =
+  /^https:\/\/api\.vrchat\.cloud\/api\/1\/file\/file_[A-Za-z0-9-]+\/\d+\/file$/
+
+/**
+ * The full VRChat picture behind a sized thumbnail, or null when there is none.
+ *
+ * VRChat lists worlds and avatars with a `thumbnailImageUrl` such as
+ * `/api/1/image/<file>/<version>/256`: a 256 px wide copy, which turns blurry
+ * once a card is wider than that (owner, 2026-11-01). The same file's
+ * `/api/1/file/<file>/<version>/file` is the uploaded picture (usually 800 or
+ * 1,200 px wide). It is one request either way, so the picture costs no extra
+ * API call; only its body is bigger, and `picture` keeps a smaller copy.
+ */
+export function vrcFullPictureUrl(value: string): string | null {
+  const match = VRC_SIZED_IMAGE_RE.exec(value)
+  // A width of 1,024 px or more was picked on purpose (group banners); keep it.
+  if (match === null || Number(match[3]) >= VRC_SHARP_IMAGE_WIDTH) return null
+  return `https://api.vrchat.cloud/api/1/file/${match[1]}/${match[2]}/file`
+}
 
 /**
  * Builds the small `avatar` copy of a downloaded image, or returns null to keep
@@ -66,9 +104,12 @@ export type AvatarRenditionMaker = (image: StoredImage) => StoredImage | null
  * host checks.
  */
 const AVATAR_RENDITION_KEY_SUFFIX = '#vrx-avatar'
+const PICTURE_RENDITION_KEY_SUFFIX = '#vrx-picture'
 
 function renditionKey(url: string, rendition: ImageRendition): string {
-  return rendition === 'avatar' ? url + AVATAR_RENDITION_KEY_SUFFIX : url
+  if (rendition === 'avatar') return url + AVATAR_RENDITION_KEY_SUFFIX
+  if (rendition === 'picture') return url + PICTURE_RENDITION_KEY_SUFFIX
+  return url
 }
 
 interface CacheEntry {
@@ -99,6 +140,8 @@ interface AvatarCacheOptions {
   diskStore?: ImageDiskStore | null
   /** Optional builder for `avatar` renditions; without it they are the original. */
   makeAvatarRendition?: AvatarRenditionMaker | null
+  /** Optional builder for `picture` renditions; without it they are the original. */
+  makePictureRendition?: AvatarRenditionMaker | null
 }
 
 function parseAllowedAvatarUrl(value: string): URL | null {
@@ -161,6 +204,11 @@ export class AvatarCache {
   private vrcSessionProvider: (() => AvatarRequestLease | null) | null
   private diskStore: ImageDiskStore | null
   private makeAvatarRendition: AvatarRenditionMaker | null
+  private makePictureRendition: AvatarRenditionMaker | null
+  /** Full-picture URLs the server refused outright (too big, not an image, 4xx). */
+  private readonly refusedPictures = new Map<string, number>()
+  private refusedStreak = 0
+  private fullPicturesPausedUntil = 0
 
   constructor(options: AvatarCacheOptions = {}) {
     this.fetchFn = options.fetchFn ?? fetch
@@ -173,6 +221,7 @@ export class AvatarCache {
     this.vrcSessionProvider = options.vrcSessionProvider ?? null
     this.diskStore = options.diskStore ?? null
     this.makeAvatarRendition = options.makeAvatarRendition ?? null
+    this.makePictureRendition = options.makePictureRendition ?? null
     this.apiAdmission = options.apiAdmission ?? new ApiAdmissionController({ now: this.now })
   }
 
@@ -194,6 +243,70 @@ export class AvatarCache {
     this.makeAvatarRendition = maker
   }
 
+  setPictureRenditionMaker(maker: AvatarRenditionMaker | null): void {
+    this.makePictureRendition = maker
+  }
+
+  /**
+   * A world or avatar picture for a card, banner or tile, as sharp as the
+   * platform offers. A VRChat sized thumbnail is swapped for its full picture
+   * (`vrcFullPictureUrl`); one request either way. Only when VRChat refuses
+   * the full picture outright (too big, not an image, a 4xx answer) is the
+   * thumbnail requested instead, and that refusal is remembered for an hour so
+   * it is not asked again. A transient failure (rate limit, network, no
+   * session yet) requests nothing more and shows a thumbnail only if one is
+   * already stored.
+   */
+  async getPicture(value: string): Promise<string | null> {
+    const full = vrcFullPictureUrl(value)
+    if (full === null) return this.get(value, 'picture')
+    if (this.isRefused(full) || this.fullPicturesPausedUntil > this.now()) {
+      // The pause stops new full downloads; a full copy already kept still shows.
+      return (await this.peekPicture(full)) ?? this.get(value, 'picture')
+    }
+    const sharp = await this.get(full, 'picture')
+    if (sharp !== null) {
+      this.refusedStreak = 0
+      return sharp
+    }
+    if (this.isRefused(full)) return this.get(value, 'picture')
+    const parsed = parseAllowedAvatarUrl(value)
+    return parsed === null ? null : this.readStored(parsed.href, 'picture')
+  }
+
+  /** A `picture` copy already in memory or on disk, without any request. */
+  private async peekPicture(url: string): Promise<string | null> {
+    const key = renditionKey(url, 'picture')
+    const cached = this.cache.get(key)
+    if (cached !== undefined && cached.expiresAt > this.now()) {
+      if (cached.dataUrl !== null) return cached.dataUrl
+    }
+    return this.readStored(url, 'picture')
+  }
+
+  private isRefused(url: string): boolean {
+    const until = this.refusedPictures.get(url)
+    if (until === undefined) return false
+    if (until > this.now()) return true
+    this.refusedPictures.delete(url)
+    return false
+  }
+
+  private markRefused(url: string): void {
+    this.refusedStreak += 1
+    if (this.refusedStreak >= PICTURE_REFUSED_STREAK_LIMIT) {
+      this.refusedStreak = 0
+      this.fullPicturesPausedUntil = this.now() + PICTURE_REFUSED_MS
+    }
+    this.refusedPictures.delete(url)
+    this.refusedPictures.set(url, this.now() + PICTURE_REFUSED_MS)
+    while (this.refusedPictures.size > PICTURE_REFUSED_MAX_ENTRIES) {
+      const oldest = this.refusedPictures.keys().next().value
+      if (oldest === undefined) break
+      this.refusedPictures.delete(oldest)
+    }
+  }
+
   /** Explicit VRChat sign-out: forget every stored API image, on disk and in memory. */
   async clearStoredImages(): Promise<void> {
     for (const url of [...this.cache.keys()]) {
@@ -212,6 +325,9 @@ export class AvatarCache {
     for (const [url, entry] of this.cache) {
       if (entry.dataUrl === null) this.deleteEntry(url)
     }
+    this.refusedPictures.clear()
+    this.refusedStreak = 0
+    this.fullPicturesPausedUntil = 0
   }
 
   get(value: string, rendition: ImageRendition = 'original'): Promise<string | null> {
@@ -254,14 +370,14 @@ export class AvatarCache {
 
   /**
    * Disk-tier lookup; a hit is also kept in memory. Never makes a request. An
-   * `avatar` miss can still be built from an original an older build stored.
+   * `avatar` or `picture` miss can still be built from a stored original.
    */
   private async readStored(url: string, rendition: ImageRendition): Promise<string | null> {
     const store = this.storeFor(url)
     if (store === null) return null
     const key = renditionKey(url, rendition)
     let stored = await store.read(key).catch(() => null)
-    if (stored === null && rendition === 'avatar') {
+    if (stored === null && rendition !== 'original') {
       const original = await store.read(url).catch(() => null)
       if (original !== null) {
         stored = this.toRendition(original, rendition)
@@ -282,9 +398,15 @@ export class AvatarCache {
 
   /** The image to keep for a rendition; the original when no smaller copy is made. */
   private toRendition(image: StoredImage, rendition: ImageRendition): StoredImage {
-    if (rendition !== 'avatar' || this.makeAvatarRendition === null) return image
+    const make =
+      rendition === 'avatar'
+        ? this.makeAvatarRendition
+        : rendition === 'picture'
+          ? this.makePictureRendition
+          : null
+    if (make === null) return image
     try {
-      return this.makeAvatarRendition(image) ?? image
+      return make(image) ?? image
     } catch {
       return image
     }
@@ -300,7 +422,12 @@ export class AvatarCache {
 
     let image: StoredImage | null = null
     try {
-      image = await this.fetchAvatar(url, lease)
+      // Only full pictures are remembered as refused (see getPicture).
+      const onRefused =
+        rendition === 'picture' && VRC_FULL_PICTURE_RE.test(url)
+          ? () => this.markRefused(url)
+          : undefined
+      image = await this.fetchAvatar(url, lease, onRefused)
     } catch {
       // Avatar failures are intentionally non-fatal; the renderer keeps the
       // initial-letter fallback and the short negative cache prevents hammering.
@@ -335,7 +462,11 @@ export class AvatarCache {
    *    it is never forwarded to a redirect target.
    *  - At most AVATAR_MAX_REDIRECTS hops.
    */
-  private async fetchAvatar(url: string, lease?: AvatarRequestLease): Promise<StoredImage | null> {
+  private async fetchAvatar(
+    url: string,
+    lease?: AvatarRequestLease,
+    onRefused?: () => void
+  ): Promise<StoredImage | null> {
     let target = new URL(url)
     for (let hop = 0; hop <= AVATAR_MAX_REDIRECTS; hop++) {
       assertRequestLease(lease)
@@ -422,7 +553,7 @@ export class AvatarCache {
           continue
         }
 
-        return await this.readImageBody(response, controller)
+        return await this.readImageBody(response, controller, onRefused)
       } finally {
         if (usesApiLane) {
           this.releaseApiFetchSlot()
@@ -435,12 +566,24 @@ export class AvatarCache {
     return null
   }
 
+  /**
+   * `onRefused` hears a definite answer that this URL will not give a usable
+   * image: a 4xx status (429 never gets here), a type that is not an allowed
+   * image, or a body over the size limit. Network errors and 5xx do not count.
+   */
   private async readImageBody(
     response: Response,
-    controller: AbortController
+    controller: AbortController,
+    onRefused?: () => void
   ): Promise<StoredImage | null> {
     const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
     if (!response.ok || !contentType || !AVATAR_ALLOWED_MIME_TYPES.has(contentType)) {
+      // 401 is a session boundary, not a verdict on the picture.
+      if (
+        response.ok ||
+        (response.status >= 400 && response.status < 500 && response.status !== 401)
+      )
+        onRefused?.()
       controller.abort()
       await response.body?.cancel()
       return null
@@ -450,6 +593,7 @@ export class AvatarCache {
     if (declaredLength !== null) {
       const length = Number(declaredLength)
       if (!Number.isFinite(length) || length < 0 || length > AVATAR_MAX_BODY_BYTES) {
+        onRefused?.()
         controller.abort()
         await response.body?.cancel()
         return null
@@ -465,6 +609,7 @@ export class AvatarCache {
       if (done) break
       totalBytes += value.byteLength
       if (totalBytes > AVATAR_MAX_BODY_BYTES) {
+        onRefused?.()
         controller.abort()
         await reader.cancel()
         return null

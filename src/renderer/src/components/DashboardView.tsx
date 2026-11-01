@@ -26,8 +26,10 @@ import {
   dashboardBlocks,
   getDashboardStats,
   getHotInstances,
-  pickOnePerPlatform
+  pickOnePerPlatform,
+  DASHBOARD_SECTION_CARDS
 } from '../utils/dashboardAggregations'
+import { usePictureColumns } from '../hooks/usePictureColumns'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
@@ -146,7 +148,8 @@ function DashboardContent(): React.JSX.Element {
   const friends = scoped.flatMap((q) => q.data ?? [])
   const hotInstances = hotEnabled ? getHotInstances(friends, hotThreshold, Infinity) : []
   const allHotCount = hotInstances.length
-  const shownHot = pickOnePerPlatform(hotInstances)
+  // Picture cards fill one row on wide windows; bars stay two across.
+  const columns = usePictureColumns()
   const stats = getDashboardStats(friends, allHotCount)
   // "Hide empty sections" (owner, 2026-10-27): a Hot Instances section with
   // nothing hot steps aside, and the first section actually shown takes the
@@ -155,6 +158,10 @@ function DashboardContent(): React.JSX.Element {
   const hotShown = hotEnabled && !(hideEmpty && allHotCount === 0)
   const popularShown = popularNow && popularHasContent
   const hotPictures = hideEmpty ? hotShown && (hotFirst || !popularShown) : hotFirst
+  const shownHot = pickOnePerPlatform(
+    hotInstances,
+    hotPictures ? Math.max(DASHBOARD_SECTION_CARDS, columns) : DASHBOARD_SECTION_CARDS
+  )
   const popularLayout = (hideEmpty ? hotFirst && hotShown : hotFirst) ? 'bar' : 'card'
 
   // The Dashboard has two contained, non-modal sheets. Opening one always

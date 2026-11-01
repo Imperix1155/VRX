@@ -187,7 +187,8 @@ export const CommunityTile = memo(function CommunityTile({
   ariaLabel
 }: CommunityTileProps): React.JSX.Element {
   const pictureRef = useRef<HTMLDivElement>(null)
-  const image = useAvatar(imageUrl, pictureRef)
+  // Wide tiles are world pictures: ask for the sharp copy. Square ones stay small.
+  const image = useAvatar(imageUrl, pictureRef, shape === 'wide' ? 'picture' : 'original')
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const isVrc = platform === 'vrchat'
   const stripe = (

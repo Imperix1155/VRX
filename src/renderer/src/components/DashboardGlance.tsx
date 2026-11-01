@@ -257,7 +257,8 @@ function WornAvatarButton({
 /** The avatar picture at 4:3, like the Avatars page cards; a neutral box without one. */
 function WornPicture({ url }: { url: string | null }): React.JSX.Element {
   const ref = useRef<HTMLSpanElement>(null)
-  const image = useAvatar(url, ref)
+  // The same copy the Avatars page shows, so the worn avatar costs one request.
+  const image = useAvatar(url, ref, 'picture')
   const [failed, setFailed] = useState<string | null>(null)
   return (
     <span
