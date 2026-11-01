@@ -37,25 +37,27 @@ the one they wear, and switches avatar when the user presses Wear. The
 Dashboard reads only the worn avatar. On request it also reads a person's
 profile, searches people and worlds by name, lists New and Recently updated
 worlds, the user's own groups, and each platform's player count (see
-[Search, profile and group limits](#search-profile-and-group-limits)). It launches
+[Search, profile and group limits](#search-profile-and-group-limits)). From a
+full profile the user can unfriend, block or unblock one person after a
+confirmation (see [Unfriend and block](#unfriend-and-block)). It launches
 the game through local URL schemes, or, when the game is already open, hands
 the Join to that copy (see
 [Joining a game that is already open](#joining-a-game-that-is-already-open)).
 
-| Area                  | VRChat                                                                                                                                                                                                  | ChilloutVR                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| REST base             | `https://api.vrchat.cloud/api/1`                                                                                                                                                                        | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net`               |
-| Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                                                                                                                                         | `wss://api.chilloutvr.net/1/users/ws`                                                           |
-| Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie                                                                                                                      | `Username` and `AccessKey` upgrade headers, the same headers REST uses                          |
-| Socket traffic        | Receive-only                                                                                                                                                                                            | Receive-only today; outgoing sender methods exist but nothing calls them                        |
-| Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline                                                                                                                       | One `GET /friends`                                                                              |
-| Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                                                  | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                   |
-| Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                                                     | Username and access key                                                                         |
-| Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                   | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open |
-| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`                                                                                    | `GET /users/{id}`, `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`    |
-| Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`                          | Avatar switch, `GET /avatars/{id}/switchAvatar`                                                 |
-| Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                                                   | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                 |
-| API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days. World and avatar pictures ask for the full picture in place of the 256 px thumbnail: still one request each | None; ChilloutVR images come from CDN hosts                                                     |
+| Area                  | VRChat                                                                                                                                                                                                                                                                                                                          | ChilloutVR                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| REST base             | `https://api.vrchat.cloud/api/1`                                                                                                                                                                                                                                                                                                | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net`                                                |
+| Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                                                                                                                                                                                                                                                                 | `wss://api.chilloutvr.net/1/users/ws`                                                                                            |
+| Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie                                                                                                                                                                                                                                              | `Username` and `AccessKey` upgrade headers, the same headers REST uses                                                           |
+| Socket traffic        | Receive-only                                                                                                                                                                                                                                                                                                                    | Receive-only, except the profile's confirmed Unfriend, Block and Unblock (`RequestType` 8, 30, 31)                               |
+| Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline                                                                                                                                                                                                                                               | One `GET /friends`                                                                                                               |
+| Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                                                                                                                                                                          | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                                                    |
+| Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                                                                                                                                                                             | Username and access key                                                                                                          |
+| Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                                                                                                                                           | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open                                  |
+| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`; whether the user blocks someone, `GET /auth/user/playermoderations?type=block&targetUserId=`                                                                                                              | `GET /users/{id}` (also whether the user blocks them), `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats` |
+| Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`; from a profile, unfriend `DELETE /auth/user/friends/{id}`, block `POST /auth/user/playermoderations`, unblock `PUT /auth/user/unplayermoderate` | Avatar switch, `GET /avatars/{id}/switchAvatar`; from a profile, unfriend, block and unblock over `/users/ws`                    |
+| Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                                                                                                                                                                           | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                                                  |
+| API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days. World and avatar pictures ask for the full picture in place of the 256 px thumbnail: still one request each                                                                                                                         | None; ChilloutVR images come from CDN hosts                                                                                      |
 
 VRX never stores a password. A sign-in exchanges the password once for the
 session material in the table, which [`credentials.ts`](../src/main/services/credentials.ts)
@@ -74,10 +76,11 @@ before it saves anything.
   friend requests that the sockets already deliver. It is view-only: no extra
   request reads them, and VRX never accepts, declines or replies. Hide only
   removes a row inside VRX.
-- **No mass actions.** No bulk invites, friend requests, messages, or blocks.
-  The only platform writes are one user-initiated VRChat self-invite at a time
-  and one user-initiated avatar switch per platform at a time, to an avatar VRX
-  listed for that signed-in account.
+- **No mass actions.** No bulk invites, friend requests, messages, unfriends
+  or blocks. The only platform writes are one user-initiated VRChat
+  self-invite at a time, one user-initiated avatar switch per platform at a
+  time, to an avatar VRX listed for that signed-in account, and one confirmed
+  unfriend, block or unblock of one person per platform at a time.
 - **No avatar crawling.** VRX lists only the user's own uploads and the avatar
   they wear. It never searches other people's avatars or uses third-party
   avatar databases.
@@ -285,6 +288,38 @@ invalidated session.
 | Explore list tab  | 1 read per platform                                                        |
 | Player counts     | 1 read per shown platform at start and on a page switch; none within 5 min |
 
+## Unfriend and block
+
+A full profile (friend details or a Search result) ends with **Unfriend or
+block**. VRCX and CVRX both offer the same three actions from a profile, each
+behind a confirmation. VRX keeps them to the same shape:
+
+- **Read on a press.** The options read nothing until the user opens them.
+  Then one request asks whether the user blocks that person: VRChat
+  `GET /auth/user/playermoderations?type=block&targetUserId=<id>` (filtered to
+  that one person), ChilloutVR `GET /users/<id>` (its `isBlocked` field). The
+  answer is kept for 5 minutes per account. Whether they are a friend comes
+  from the roster VRX already has.
+- **One confirmed change for one person.** Each action needs its own
+  confirmation that names the person and the platform. Main accepts one
+  person per call, only a friend or someone a search listed this session, and
+  unfriend only for a current friend. There is no list, multi-select or
+  "block all".
+- **One at a time, then a pause.** One action per platform at a time, and the
+  next waits 3 seconds after the platform answered (or failed). Each is sent
+  once with no automatic retry; the user can press again.
+- **VRChat** writes go through the normal admission queue at interactive
+  priority: unfriend `DELETE /auth/user/friends/<id>`, block
+  `POST /auth/user/playermoderations` and unblock
+  `PUT /auth/user/unplayermoderate`, both with `{ moderated, type: "block" }`.
+  The Pipeline's own `friend-delete` message then removes the friend.
+- **ChilloutVR** writes are one message on the already open `/users/ws`
+  socket of the same account, as CVRX sends them: `{ RequestType, Data: { id } }`
+  with 8 (unfriend), 30 (block) or 31 (unblock). A closed socket sends
+  nothing and the user is told so; nothing is queued. The socket gives no
+  reply, so VRX reports the message as sent. The `FRIEND_LIST_UPDATED` message
+  then refreshes the roster with the usual single `/friends` read.
+
 ## Local action limits
 
 Main also rate-limits the renderer's requests before any network work starts.
@@ -305,6 +340,8 @@ Main also rate-limits the renderer's requests before any network work starts.
 | World lists              | 60 per minute                                                                                                                            |
 | Players online, groups   | 30 per minute each                                                                                                                       |
 | Join from Explore        | 20 per minute; one launch per platform at a time; 3 s cooldown per destination                                                           |
+| Unfriend or block check  | 30 per minute; cached 5 min per person                                                                                                   |
+| Unfriend, block, unblock | 20 per minute; one per platform at a time; 3 s after each answer                                                                         |
 
 The full table is `IPC_RATE_LIMIT_BUDGETS` in
 [`rate-limit.ts`](../src/main/ipc/rate-limit.ts). Every join also respects the
@@ -342,8 +379,9 @@ account. VRX limits that risk by:
   waits honored, batches stopped at the first 429;
 - using the platforms' own sockets for live data instead of polling;
 - limiting writes to one user-initiated VRChat self-invite at a time, sent
-  only from a Join the user pressed, and one user-initiated avatar switch per
-  platform at a time;
+  only from a Join the user pressed, one user-initiated avatar switch per
+  platform at a time, and one confirmed unfriend, block or unblock of one
+  person per platform at a time;
 - never storing passwords, and keeping session material in main, encrypted at
   rest and invisible to the renderer;
 - validating a restored ChilloutVR session once per launch, and confirming a

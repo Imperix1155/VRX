@@ -80,9 +80,9 @@ export const CVR_RESPONSE = {
 } as const
 
 /**
- * Deliberately unwired until the future invites feature: these mock-verified
- * RequestType values and senders are retained so invite work needn't re-derive
- * their wire shapes.
+ * Outgoing RequestType values (CVRX `api_cvr_ws.js`). Unfriend, block and
+ * unblock are wired to the profile's confirmed actions (SocialActionService);
+ * the friend request and invite senders are still unused.
  */
 export const CVR_REQUEST = {
   FRIEND_REQUEST_SEND: 5,

@@ -20,7 +20,7 @@ export const VRC_USER_AGENT = `VRX/${__APP_VERSION__} (https://github.com/Imperi
  *
  *   BaseAdapter  → request<T>: rate limit, timeout, redirect:'error', 429
  *                  backoff, Zod validation, circuit breaker, typed errors
- *   VrcApiClient → get/post against VRC_API_BASE with the auth cookie +
+ *   VrcApiClient → get/post/put/delete against VRC_API_BASE with the auth cookie +
  *                  User-Agent attached (THIS class)
  *   VrcAdapter   → the IPlatformAdapter methods (extends this; later)
  *
@@ -89,8 +89,33 @@ export abstract class VrcApiClient extends BaseAdapter {
     )
   }
 
-  /** PUT to `path` (relative to VRC_API_BASE) with no body, validated against `schema`. */
+  /**
+   * PUT to `path` (relative to VRC_API_BASE), validated against `schema`. With
+   * `body` it is sent as JSON; without one the request has no body.
+   */
   protected put<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions,
+    body?: unknown
+  ): Promise<T> {
+    return this.request(
+      VRC_API_BASE + path,
+      schema,
+      () =>
+        body === undefined
+          ? { method: 'PUT', headers: this.headers() }
+          : {
+              method: 'PUT',
+              headers: this.headers({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify(body)
+            },
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+  }
+
+  /** DELETE `path` (relative to VRC_API_BASE), validated against `schema`. */
+  protected delete<T>(
     path: string,
     schema: z.ZodType<T>,
     options?: AdapterRequestOptions
@@ -99,7 +124,7 @@ export abstract class VrcApiClient extends BaseAdapter {
       VRC_API_BASE + path,
       schema,
       () => ({
-        method: 'PUT',
+        method: 'DELETE',
         headers: this.headers()
       }),
       { ...options, lease: options?.lease ?? this.sessionRequestLease() }

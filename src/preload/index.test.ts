@@ -41,6 +41,12 @@ async function exposedBridge(): Promise<{
   onActivityChanged: (callback: () => void) => () => void
   onInboxChanged: (callback: () => void) => () => void
   testVrAlert: () => Promise<unknown>
+  getRelationship: (request: { platform: 'vrchat'; userId: string }) => Promise<unknown>
+  socialAction: (request: {
+    platform: 'chilloutvr'
+    userId: string
+    action: 'block'
+  }) => Promise<unknown>
 }> {
   Object.defineProperty(process, 'contextIsolated', { configurable: true, value: true })
   await import('./index')
@@ -87,6 +93,24 @@ describe('preload VR alert bridge', () => {
     const bridge = await exposedBridge()
     await expect(bridge.testVrAlert()).resolves.toEqual({ ok: true })
     expect(electron.invoke).toHaveBeenCalledWith('test-vr-alert', undefined)
+  })
+})
+
+describe('preload social action bridge', () => {
+  it('passes one person and one action through the typed channels', async () => {
+    electron.invoke.mockResolvedValue({ ok: false, reason: 'unknown-person' })
+    const bridge = await exposedBridge()
+    await bridge.getRelationship({ platform: 'vrchat', userId: 'usr_1' })
+    await bridge.socialAction({ platform: 'chilloutvr', userId: 'abc', action: 'block' })
+    expect(electron.invoke).toHaveBeenNthCalledWith(1, 'get-relationship', {
+      platform: 'vrchat',
+      userId: 'usr_1'
+    })
+    expect(electron.invoke).toHaveBeenNthCalledWith(2, 'social-action', {
+      platform: 'chilloutvr',
+      userId: 'abc',
+      action: 'block'
+    })
   })
 })
 

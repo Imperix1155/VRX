@@ -43,6 +43,11 @@ import {
 } from './cvr/parseExplore'
 import type { AdapterRequestOptions } from './BaseAdapter'
 import { assertRequestLease } from './RequestLease'
+import {
+  SocialDataError,
+  SocialNotSentError,
+  type SocialActionAdapter
+} from './SocialActionAdapter'
 import { AVATAR_LIBRARY_MAX_ITEMS, isAvatarId, type AvatarItem } from '@shared/avatarLibrary'
 import {
   AvatarDataError,
@@ -178,7 +183,12 @@ export interface CvrCredentialStore {
  */
 export class CvrAdapter
   extends CvrApiClient
-  implements IPlatformAdapter, ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter
+  implements
+    IPlatformAdapter,
+    ExploreAdapter,
+    AvatarLibraryAdapter,
+    CommunityAdapter,
+    SocialActionAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -816,6 +826,60 @@ export class CvrAdapter
     const parsed = parseCvrGroups(raw, true, COMMUNITY_MY_GROUPS_MAX)
     if (!parsed) throw new CommunityDataError('ChilloutVR group list response was malformed')
     return parsed
+  }
+
+  // ── Unfriend, block and unblock (one confirmed message for one person) ──────
+  // The writes go over /users/ws like CVRX's (RequestType 8, 30, 31). The socket
+  // gives no reply, so "sent" is the most VRX can know; FRIEND_LIST_UPDATED
+  // then refreshes the roster after an unfriend.
+
+  captureSocialLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
+    const id = this.socialUserId(userId)
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const record = recordValue(raw)
+    if (!record || typeof record.id !== 'string' || record.id.toLowerCase() !== id) {
+      throw new SocialDataError('ChilloutVR user response was malformed')
+    }
+    return typeof record.isBlocked === 'boolean' ? record.isBlocked : null
+  }
+
+  unfriend(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendSocial(lease, (pipeline) => pipeline.unfriend(this.socialUserId(userId)))
+  }
+
+  block(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendSocial(lease, (pipeline) => pipeline.block(this.socialUserId(userId)))
+  }
+
+  unblock(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendSocial(lease, (pipeline) => pipeline.unblock(this.socialUserId(userId)))
+  }
+
+  /** Send on the current account's socket only; a closed socket sends nothing. */
+  private sendSocial(lease: RequestLease, send: (pipeline: CvrPipeline) => boolean): Promise<void> {
+    try {
+      assertRequestLease(lease)
+      // Every session boundary stops or replaces the pipeline, so the one here
+      // belongs to the lease's account.
+      const pipeline = lease.generation === this.sessionGeneration ? this.pipeline : null
+      if (pipeline === null || !send(pipeline)) throw new SocialNotSentError()
+      return Promise.resolve()
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  }
+
+  private socialUserId(userId: string): string {
+    if (!isCommunityUserId('chilloutvr', userId)) {
+      throw new SocialDataError('Invalid ChilloutVR user id')
+    }
+    return userId.toLowerCase()
   }
 
   private communityUserId(userId: string): string {

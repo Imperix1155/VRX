@@ -71,6 +71,22 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     vrchat: avatarLibraries.vrchat[0]?.avatarId ?? null,
     chilloutvr: avatarLibraries.chilloutvr[0]?.avatarId ?? null
   }
+  // Unfriend and block change only this synthetic memory; the friends list stays.
+  const relationships = new Map<string, { isFriend: boolean; blocked: boolean }>()
+  const relationshipFor = (
+    platform: Platform,
+    userId: string
+  ): { isFriend: boolean; blocked: boolean } => {
+    const key = `${platform}:${userId}`
+    const known = relationships.get(key)
+    if (known) return known
+    const fresh = {
+      isFriend: friends[platform].some((friend) => friend.platformUserId === userId),
+      blocked: false
+    }
+    relationships.set(key, fresh)
+    return fresh
+  }
   const findAvatar = (platform: Platform, avatarId: string): AvatarItem | undefined =>
     avatarLibraries[platform].find((avatar) => avatar.avatarId === avatarId)
   return {
@@ -192,6 +208,21 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         groups: structuredClone(communityGroups[platform]),
         complete: true
       }),
+    getRelationship: ({ platform, userId }) =>
+      Promise.resolve({
+        ok: true,
+        relationship: { platform, userId, ...relationshipFor(platform, userId) }
+      }),
+    socialAction: ({ platform, userId, action }) => {
+      const state = relationshipFor(platform, userId)
+      if (action === 'unfriend') {
+        if (!state.isFriend) return Promise.resolve({ ok: false, reason: 'not-friend' })
+        state.isFriend = false
+      } else {
+        state.blocked = action === 'block'
+      }
+      return Promise.resolve({ ok: true, relationship: { platform, userId, ...state } })
+    },
     getAccounts: () =>
       Promise.resolve(
         (['vrchat', 'chilloutvr'] as const).map((platform) => ({

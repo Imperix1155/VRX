@@ -73,6 +73,10 @@ transport, and published adapter events.
   returns evidence without references, actions, URLs, or raw responses.
 - `parseAvatars.ts` reads only the fields the Avatars page shows; a record
   without an `avtr_` ID or a name is skipped, and image URLs must be `https`.
+- `parseBlocked.ts` answers whether a player-moderation list holds a `block`
+  of exactly that person, and refuses a reply that is not a list. The
+  profile's Unfriend, Block and Unblock are single `retry: 'none'` requests
+  in `VrcAdapter`.
 - `parseCommunity.ts` reads only the profile, world, group and count fields
   VRX shows. Hidden badges stay hidden, and records with a malformed ID or no
   name are skipped and mark the list incomplete.

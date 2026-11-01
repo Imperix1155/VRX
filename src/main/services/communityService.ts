@@ -264,6 +264,13 @@ export class CommunityService {
     }
   }
 
+  /** Whether a search listed this person during the current session. */
+  knowsPerson(platform: Platform, userId: string): boolean {
+    if (!isCommunityUserId(platform, userId)) return false
+    const id = platform === 'chilloutvr' ? userId.toLowerCase() : userId
+    return this.session(platform)?.state.known.has(id) ?? false
+  }
+
   /** Forget a platform's answers at a sign-out, account change, or dead session. */
   clearPlatform(platform: Platform): void {
     this.states.delete(platform)

@@ -170,6 +170,17 @@ describe('CommunityService profiles', () => {
     expect(cvr.getProfile).toHaveBeenCalledWith(CVR_PERSON.toLowerCase(), expect.anything())
   })
 
+  it('knows a searched person only for the session that searched', async () => {
+    const { cvr, service } = setup()
+    expect(service.knowsPerson('chilloutvr', CVR_PERSON)).toBe(false)
+    cvr.people = [person('chilloutvr', CVR_PERSON.toLowerCase())]
+    await service.search('chilloutvr', 'lop')
+    expect(service.knowsPerson('chilloutvr', CVR_PERSON)).toBe(true)
+    expect(service.knowsPerson('chilloutvr', 'not-a-guid')).toBe(false)
+    cvr.generation += 1
+    expect(service.knowsPerson('chilloutvr', CVR_PERSON)).toBe(false)
+  })
+
   it('reports a missing person as not found', async () => {
     const { service } = setup()
     expect(await service.getProfile('vrchat', MISSING)).toEqual({ ok: false, reason: 'not-found' })
