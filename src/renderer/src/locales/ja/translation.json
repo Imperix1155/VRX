@@ -880,6 +880,25 @@
       "people": "現在の人数",
       "regions": "ルームのリージョン",
       "checked": "最終確認"
+    },
+    "home": {
+      "set": "ホームワールドに設定",
+      "setAria": "{{world}} を {{platform}} のホームワールドに設定",
+      "confirm": "このワールドを {{platform}} のホームワールドにしますか？今のホームワールドと置き換わります。",
+      "confirmAria": "{{world}} をホームワールドに設定する確認",
+      "makeHome": "ホームにする",
+      "setting": "設定中…",
+      "cancel": "キャンセル",
+      "isHome": "あなたのホームワールド",
+      "isHomeAria": "{{world}} は {{platform}} のホームワールドです",
+      "done": "完了しました。次回 {{platform}} はここから始まります。",
+      "failed": {
+        "cooldown": "数秒待ってからもう一度ホームワールドを変更してください。",
+        "rate-limited": "{{platform}} から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+        "failed": "{{platform}} でホームワールドを変更できませんでした。もう一度お試しください。",
+        "not-authenticated": "ホームワールドを変更するには {{platform}} にもう一度サインインしてください。",
+        "unknown-world": "このワールドを更新してから、もう一度お試しください。"
+      }
     }
   },
   "avatars": {

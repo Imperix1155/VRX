@@ -68,6 +68,7 @@ import {
   type PersonProfile,
   type WorldList
 } from '@shared/community'
+import { isHomeWorldId } from '@shared/homeWorld'
 import {
   CommunityDataError,
   type CommunityAdapter,
@@ -75,6 +76,7 @@ import {
   type CommunitySearchPage
 } from './CommunityAdapter'
 import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
+import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
 import {
   parseVrcGroups,
   parseVrcPeople,
@@ -258,7 +260,12 @@ const VRC_WORLD_LIST_SORT: Record<WorldList, string> = {
 
 export class VrcAdapter
   extends VrcApiClient
-  implements ExploreAdapter, AvatarLibraryAdapter, CommunityAdapter, AccountNoteAdapter
+  implements
+    ExploreAdapter,
+    AvatarLibraryAdapter,
+    CommunityAdapter,
+    AccountNoteAdapter,
+    HomeWorldAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -1085,6 +1092,31 @@ export class VrcAdapter
         // A write is never sent twice on its own; the user can press again.
         retry: 'none'
       })
+    )
+  }
+
+  // ── Home world (one user-pressed write at a time) ───────────────────────────
+
+  captureHomeWorldLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async setHomeWorld(worldId: string, lease: RequestLease): Promise<void> {
+    if (!isHomeWorldId('vrchat', worldId)) throw new HomeWorldIdError('Invalid VRChat world id')
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    // VRCX sends the same one-field update to the signed-in user.
+    await this.runCommunityRequest(lease, () =>
+      this.putJson(
+        `/users/${encodeURIComponent(accountId)}`,
+        { homeLocation: worldId },
+        z.unknown(),
+        {
+          ...this.communityOptions(lease),
+          // A write is never sent twice on its own; the user can press again.
+          retry: 'none'
+        }
+      )
     )
   }
 

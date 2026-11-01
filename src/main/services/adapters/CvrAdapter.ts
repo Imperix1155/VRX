@@ -65,6 +65,7 @@ import {
   type PersonProfile,
   type WorldList
 } from '@shared/community'
+import { isHomeWorldId } from '@shared/homeWorld'
 import {
   CommunityDataError,
   type CommunityAdapter,
@@ -72,6 +73,7 @@ import {
   type CommunitySearchPage
 } from './CommunityAdapter'
 import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
+import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
 import {
   parseCvrGroups,
   parseCvrPlayersOnline,
@@ -184,7 +186,8 @@ export class CvrAdapter
     ExploreAdapter,
     AvatarLibraryAdapter,
     CommunityAdapter,
-    AccountNoteAdapter
+    AccountNoteAdapter,
+    HomeWorldAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
@@ -728,6 +731,26 @@ export class CvrAdapter
     await this.runAvatarRequest(lease, () =>
       this.get(`/avatars/${encodeURIComponent(avatarId)}/switchAvatar`, z.unknown(), {
         ...this.avatarRequestOptions(lease),
+        // A write is never sent twice on its own; the user can press again.
+        retry: 'none'
+      })
+    )
+  }
+
+  // ── Home world (one user-pressed write at a time) ───────────────────────────
+
+  captureHomeWorldLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async setHomeWorld(worldId: string, lease: RequestLease): Promise<void> {
+    if (!isHomeWorldId('chilloutvr', worldId)) {
+      throw new HomeWorldIdError('Invalid ChilloutVR world id')
+    }
+    // ChilloutVR sets the home world with a GET (CVRX uses the same route).
+    await this.runCommunityRequest(lease, () =>
+      this.get(`/worlds/${encodeURIComponent(worldId)}/sethome`, z.unknown(), {
+        ...this.communityOptions(lease),
         // A write is never sent twice on its own; the user can press again.
         retry: 'none'
       })

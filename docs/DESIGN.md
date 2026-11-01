@@ -718,6 +718,12 @@ no line under ALL for a platform the user isn't signed in to.
   (Code, Members, Your role). View only.
 - **Explore** has a segmented Popular now · New · Recently updated control.
   The two lists alternate platforms like Search and open the same world sheet.
+- **Set as home world** sits beside the platform pill on every world sheet,
+  the same small house-and-label button on both platforms. A press asks once in
+  an inline panel (Make home, Cancel), because it replaces the user's current
+  home. A success turns the button into a quiet "Your home world" chip for the
+  session; a failure is one line of text under it. It is hidden while that
+  platform is signed out.
 - **Player counts** moved from a line under the Dashboard stat cards to the
   top bar (§8, owner, 2026-11-01).
 

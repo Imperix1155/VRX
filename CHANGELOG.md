@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Worlds: a **Set as home world** button on every world panel (Explore's
+  Popular now, New and Recently updated, and Search results), for VRChat and
+  ChilloutVR alike. VRX asks once before it changes anything, because the new
+  home replaces the one you have now, then sends a single request. The panel
+  then says "Your home world".
 - Friend notes now save to your VRChat or ChilloutVR account too, like VRCX and
   CVRX do, so you see them in the game and they come back on a new PC. A small
   line under the note says when it is saved there. If you changed a note in the
