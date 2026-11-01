@@ -26,7 +26,8 @@ import ExploreListPanel from './ExploreLists'
 import PlayersOnline from './PlayersOnline'
 import ProfileDetails from './ProfileDetails'
 
-vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => null }))
+const avatarPicture = vi.hoisted(() => ({ current: null as string | null }))
+vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarPicture.current }))
 // World cards and their sheet have their own tests (ExploreRoute.test.tsx).
 const lastRecover = vi.hoisted(() => ({
   current: null as ((platform: Platform) => Promise<readonly ExploreWorld[]>) | null
@@ -195,6 +196,7 @@ afterEach(() => {
   authState.vrchat = 'authenticated'
   authState.chilloutvr = 'authenticated'
   lastRecover.current = null
+  avatarPicture.current = null
   useFriendsStore.setState({ platformFilter: 'all' })
   Reflect.deleteProperty(window, 'vrx')
 })
@@ -306,6 +308,10 @@ describe('GroupsView', () => {
       msg('groups.openAria', { name: 'Zephyr Club', platform: 'VRChat' })
     ])
     expect(within(tiles[0]!).getByText(msg('groups.role.owner'))).toBeTruthy()
+    // No picture: a tidy first-letter tile instead of an empty box.
+    const picture = tiles[0]!.querySelector('[data-community-tile-picture]')
+    expect(picture?.getAttribute('data-community-tile-picture')).toBe('initial')
+    expect(picture?.textContent).toBe('A')
     fireEvent.click(tiles[1]!)
     const sheet = screen.getByRole('dialog', {
       name: msg('groups.sheetAria', { name: 'Meadow', platform: 'ChilloutVR' })
@@ -313,6 +319,30 @@ describe('GroupsView', () => {
     expect(within(sheet).getByText('Meadow description')).toBeTruthy()
     expect(within(sheet).getByText('TAG')).toBeTruthy()
     expect(within(sheet).getByText('1,200')).toBeTruthy()
+  })
+
+  it('shows the first letter when a group picture fails to load', async () => {
+    const broken = { ...group('vrchat', 'Broken', 'member'), imageUrl: 'https://x/broken.png' }
+    const answer = (platform: Platform): Promise<MyGroupsResult> =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        groups: platform === 'vrchat' ? [broken] : [],
+        complete: true
+      })
+    bridge.getMyGroups
+      .mockImplementationOnce(({ platform }: { platform: Platform }) => answer(platform))
+      .mockImplementationOnce(({ platform }: { platform: Platform }) => answer(platform))
+    avatarPicture.current = 'data:image/png;base64,AAAA'
+    renderWith(<GroupsView />)
+    const region = await screen.findByRole('region', { name: msg('groups.heading') })
+    const tile = within(region).getByRole('button')
+    const picture = (): Element | null => tile.querySelector('[data-community-tile-picture]')
+    expect(picture()?.getAttribute('data-community-tile-picture')).toBe('image')
+    expect(picture()?.textContent).toBe('')
+    fireEvent.error(picture()!.querySelector('img:not([aria-hidden])')!)
+    expect(picture()?.getAttribute('data-community-tile-picture')).toBe('initial')
+    expect(picture()?.textContent).toBe('B')
   })
 
   it('asks main for a fresh list only on Refresh', async () => {

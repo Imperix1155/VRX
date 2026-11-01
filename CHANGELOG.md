@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dashboard: the Friends online, In game and Hot instances cards now look like
   one matching set: the same layout and a white (dark in light mode) number
   on each, instead of three slightly different number colors.
+- Groups page: group cards are taller, with the group's picture on top and the
+  name, platform and code (or Owner) underneath. A group with no picture shows its first
+  letter instead of an empty box.
+
+### Fixed
+
+- Groups page: many VRChat group pictures never loaded, because VRX asked for
+  the full-size upload, which can be too big. It now asks VRChat for a
+  smaller copy, as it already does for friend pictures. The same fix applies
+  to group pictures elsewhere in the app.
 
 ## [1.4.0-dev.2] - 2026-11-01
 

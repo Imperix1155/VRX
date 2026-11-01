@@ -31,19 +31,13 @@ import { stripInstanceSuffix } from '../utils/worldName'
 import { Avatar } from './Avatar'
 import PlatformPill from './PlatformPill'
 import SegmentedControl from './SegmentedControl'
+import { initialOf } from '../utils/initialOf'
 
 const FILTER_LABEL_KEYS: Record<ActivityFilter, string> = {
   all: 'activity.kinds.all',
   online: 'activity.kinds.online',
   world: 'activity.kinds.world',
   offline: 'activity.kinds.offline'
-}
-
-const graphemes = new Intl.Segmenter()
-
-function initialOf(name: string): string {
-  const first = graphemes.segment(name.trim())[Symbol.iterator]().next()
-  return first.done === true ? '?' : first.value.segment.toUpperCase()
 }
 
 function friendKey(platform: Friend['platform'], platformUserId: string): string {

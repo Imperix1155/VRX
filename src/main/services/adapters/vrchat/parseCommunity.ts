@@ -16,6 +16,14 @@ import { parseTrustRank } from './parseTrustRank'
 const GUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const WORLD_ID = new RegExp(`^wrld_${GUID}$`, 'i')
 const GROUP_ID = new RegExp(`^grp_${GUID}$`, 'i')
+/** Group icons show at most about 100 px wide; the banner fills a sheet header. */
+const GROUP_ICON_WIDTH = 256
+const GROUP_BANNER_WIDTH = 1024
+
+/** VRChat's bounded rendition of a `/file/` URL; other values pass through. */
+function rendition(value: unknown, width: number): unknown {
+  return typeof value === 'string' ? profileThumbnail(value, width) : value
+}
 
 function firstImage(...values: unknown[]): string | null {
   for (const value of values) {
@@ -173,8 +181,10 @@ export function parseVrcGroup(value: unknown, selfId: string | null): CommunityG
     name,
     code: groupCode(raw),
     description: text(raw.description),
-    imageUrl: imageUrl(raw.iconUrl),
-    bannerUrl: imageUrl(raw.bannerUrl),
+    // The icon and banner point at the full uploaded file, which is often over
+    // the 3 MiB image limit; ask for VRChat's smaller rendition instead.
+    imageUrl: imageUrl(rendition(raw.iconUrl, GROUP_ICON_WIDTH)),
+    bannerUrl: imageUrl(rendition(raw.bannerUrl, GROUP_BANNER_WIDTH)),
     memberCount: count(raw.memberCount),
     role:
       selfId === null
