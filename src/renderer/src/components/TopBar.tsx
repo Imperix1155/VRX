@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import type { ConnectionHealth, Platform } from '@shared/types'
 import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
@@ -12,6 +12,9 @@ import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 import { countOnlinePeople } from '../utils/projectLinkedFriends'
+import { useSettingsStore } from '../stores/settings'
+import TopBarCounts from './TopBarCounts'
+import { usePlayerCounts } from '../hooks/usePlayerCounts'
 
 // `PlatformFilter` (the segmented control's value type) is the store's canonical
 // union — imported, not redefined, so it can't drift (VRX-66). The type import
@@ -272,6 +275,14 @@ export default function TopBar(): React.JSX.Element {
       .length
   }, [activeTab, vrcData, cvrData, linkedSnapshot, platform])
 
+  // Player counts follow the same filter (owner, 2026-11-01).
+  const showPlayerCounts = useSettingsStore((s) => s.settings.dashboardPlayersOnline)
+  const countPlatforms = useMemo(
+    (): Platform[] => (platform === 'all' ? ['vrchat', 'chilloutvr'] : [platform]),
+    [platform]
+  )
+  const playerCounts = usePlayerCounts(countPlatforms, showPlayerCounts, activeTab)
+
   // Reserve a three-digit cell so the contextual dock stays fixed as the live
   // count changes. Tabular figures and right alignment mirror the
   // NumberStepper's stable value cell. The count is not live: it changes with
@@ -307,8 +318,40 @@ export default function TopBar(): React.JSX.Element {
         }
         title={connectionLabel}
       />
-      {t('shell.onlineCount', { count: onlineCount })}
+      <span>
+        <Trans
+          i18nKey="shell.friendCount"
+          count={onlineCount}
+          values={{ count: onlineCount }}
+          components={{ b: <b className="font-semibold text-[var(--text)]" /> }}
+        />
+      </span>
     </div>
+  )
+
+  // A still copy of the dot for the counts panel, which names the health.
+  const panelDot = (
+    <span
+      aria-hidden="true"
+      className={[
+        'box-border h-[8px] w-[8px] flex-none',
+        worstHealth === 'down' ? 'rounded-[1px]' : 'rounded-full'
+      ].join(' ')}
+      style={
+        worstHealth === 'reconnecting'
+          ? { border: `2px solid ${healthColor}` }
+          : { background: healthColor }
+      }
+    />
+  )
+  const counts = (
+    <TopBarCounts
+      status={status}
+      dot={panelDot}
+      onlineCount={onlineCount}
+      connectionLabel={connectionLabel}
+      counts={playerCounts}
+    />
   )
 
   return (
@@ -325,7 +368,7 @@ export default function TopBar(): React.JSX.Element {
           {/* Settings keeps the count on the title row, where every view shows
               it, and gives its six-category nav a row of its own: side by side
               they do not fit the default 900px window (§8). */}
-          <div className="ml-auto">{status}</div>
+          <div className="ml-auto">{counts}</div>
           {/* CONTEXTUAL SLOT (owner, VRX-186): Settings has no use for a
               platform filter, so the settings CATEGORY nav takes its place
               (mini-pages, §8 no-scroll rule). */}
@@ -343,11 +386,11 @@ export default function TopBar(): React.JSX.Element {
         // The contextual control and count share one right dock, so a longer
         // title cannot move either (CONTEXTUAL SLOT, owner, VRX-186: the
         // top-bar control belongs to the active view).
-        <div className="ml-auto flex items-center gap-[18px]">
+        <div className="ml-auto flex items-center gap-[16px]">
           <div data-testid="topbar-contextual-dock" className="shrink-0">
             <PlatformFilter platform={platform} onChange={setPlatform} />
           </div>
-          {status}
+          {counts}
         </div>
       )}
     </div>

@@ -25,6 +25,36 @@ describe('GroupResolver', () => {
     expect(meta).toEqual({ name: 'Pixel Pals', iconUrl: 'https://x/icon.png' })
   })
 
+  it('uses the bounded rendition of an uploaded group icon', async () => {
+    const file = 'file_0a1b2c3d-0000-4000-8000-00000000000b'
+    const fetcher = vi.fn().mockResolvedValue({
+      name: 'Big Icon',
+      iconUrl: `https://api.vrchat.cloud/api/1/file/${file}/2/file`
+    })
+    const resolver = createGroupResolver({ fetcher })
+
+    await expect(resolver.resolve('grp_big')).resolves.toEqual({
+      name: 'Big Icon',
+      iconUrl: `https://api.vrchat.cloud/api/1/image/${file}/2/512`
+    })
+  })
+
+  it('upgrades a full-size icon link stored by an older build', () => {
+    const file = 'file_0a1b2c3d-0000-4000-8000-00000000000c'
+    const resolver = createGroupResolver({ fetcher: vi.fn(), clock: () => 1000 })
+    resolver.seed([
+      {
+        id: 'grp_old',
+        meta: { name: 'Old', iconUrl: `https://api.vrchat.cloud/api/1/file/${file}/4/file` },
+        expiresAt: 2000
+      }
+    ])
+    expect(resolver.peek('grp_old')).toEqual({
+      name: 'Old',
+      iconUrl: `https://api.vrchat.cloud/api/1/image/${file}/4/512`
+    })
+  })
+
   it('returns cached value for the TTL window', async () => {
     let now = 1000
     const fetcher = vi.fn().mockResolvedValue({ name: 'Cached Group', iconUrl: null })

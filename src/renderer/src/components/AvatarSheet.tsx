@@ -11,9 +11,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AvatarItem, AvatarSwitchResult } from '@shared/avatarLibrary'
 import { useAvatar } from '../hooks/useAvatar'
+import { useSheetExpansion, type SheetExpansion } from '../hooks/useSheetExpansion'
 import { useAvatarAccount, useAvatarDetails, useSwitchAvatar } from '../queries/avatarLibrary'
 import { PictureBackedPill } from './CardPictureBackdrop'
 import PlatformPill from './PlatformPill'
+import SheetGrabBar from './SheetGrabBar'
 
 type SwitchFailure = Exclude<AvatarSwitchResult, { ok: true }>['reason']
 
@@ -49,6 +51,14 @@ export default function AvatarSheet({
 
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  // Lives here, above the per-avatar panel, so switching avatars in place
+  // keeps the size the user chose.
+  const expansion = useSheetExpansion({
+    open,
+    onClose,
+    panelRef,
+    collapsed: { minHeight: '360px', maxHeight: '34vh' }
+  })
 
   useEffect(() => {
     if (!open) return
@@ -95,6 +105,7 @@ export default function AvatarSheet({
         worn={wornAvatarId === shown.avatarId}
         panelRef={panelRef}
         closeButtonRef={closeButtonRef}
+        expansion={expansion}
         onClose={onClose}
       />
     </div>
@@ -107,6 +118,7 @@ function AvatarSheetPanel({
   worn,
   panelRef,
   closeButtonRef,
+  expansion,
   onClose
 }: {
   avatar: AvatarItem
@@ -114,6 +126,7 @@ function AvatarSheetPanel({
   worn: boolean
   panelRef: React.RefObject<HTMLDivElement | null>
   closeButtonRef: React.RefObject<HTMLButtonElement | null>
+  expansion: SheetExpansion
   onClose: () => void
 }): React.JSX.Element {
   const { t, i18n } = useTranslation()
@@ -180,7 +193,8 @@ function AvatarSheetPanel({
       ref={panelRef}
       role="dialog"
       aria-label={t('avatars.sheet.aria', { name: shown.name, platform: platformName })}
-      className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex max-h-[34vh] min-h-[360px] flex-col motion-safe:transition-transform motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
+      data-sheet-expanded={expansion.expanded ? '' : undefined}
+      className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
         open ? 'translate-y-0' : 'translate-y-full'
       }`}
       style={{
@@ -189,7 +203,8 @@ function AvatarSheetPanel({
         borderTopLeftRadius: 'var(--radius-panel)',
         borderTopRightRadius: 'var(--radius-panel)',
         borderTop: '1px solid var(--glass-border)',
-        boxShadow: 'var(--hot-sheet-shadow)'
+        boxShadow: 'var(--hot-sheet-shadow)',
+        ...expansion.panelStyle
       }}
     >
       <button
@@ -212,18 +227,14 @@ function AvatarSheetPanel({
               : 'linear-gradient(90deg, var(--cvr), transparent)'
           }}
         />
-        <div className="flex justify-center pt-[var(--space-3)] pb-[var(--space-2)]">
-          <div
-            aria-hidden="true"
-            className="h-[4px] w-[44px] rounded-full"
-            style={{ background: 'var(--border)' }}
-          />
-        </div>
+        <SheetGrabBar expansion={expansion} />
 
         <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]">
           <div
             ref={bannerRef}
-            className="relative h-[150px] w-full shrink-0 overflow-hidden rounded-control"
+            className={`relative w-full shrink-0 overflow-hidden rounded-control motion-safe:transition-[height] motion-safe:duration-[220ms] ${
+              expansion.expanded ? 'h-[300px]' : 'h-[150px]'
+            }`}
             style={{
               background: showBannerImage
                 ? undefined
@@ -317,7 +328,12 @@ function AvatarSheetPanel({
               <h3 className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]">
                 {t('avatars.details.description')}
               </h3>
-              <p className="whitespace-pre-line break-words text-[13px] leading-relaxed text-[var(--text)]">
+              {/* A long description stays short until the sheet expands. */}
+              <p
+                className={`whitespace-pre-line break-words text-[13px] leading-relaxed text-[var(--text)] ${
+                  expansion.expanded ? '' : 'line-clamp-4'
+                }`}
+              >
                 {shown.description ?? t('avatars.details.noDescription')}
               </p>
               <p className="mt-[var(--space-3)] text-[12px] text-[var(--text-dim)]">
@@ -332,11 +348,28 @@ function AvatarSheetPanel({
                 {facts.map(([labelKey, value]) => (
                   <div key={labelKey} className="contents">
                     <dt className="text-[var(--text-dim)]">{t(labelKey)}</dt>
-                    <dd className="min-w-0 truncate text-[var(--text)]" title={value}>
+                    <dd
+                      className={`min-w-0 text-[var(--text)] ${
+                        expansion.expanded ? 'break-words' : 'truncate'
+                      }`}
+                      title={value}
+                    >
                       {value}
                     </dd>
                   </div>
                 ))}
+                {/* Expanded: the ID too, for anyone who shares or looks one up. */}
+                {expansion.expanded ? (
+                  <div className="contents">
+                    <dt className="text-[var(--text-dim)]">{t('avatars.details.avatarId')}</dt>
+                    <dd
+                      className="min-w-0 select-text break-all text-[12px] text-[var(--text-dim)]"
+                      style={{ fontFamily: 'ui-monospace, monospace' }}
+                    >
+                      {shown.avatarId}
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
               {details.isPending && details.fetchStatus === 'fetching' ? (
                 <p className="mt-[var(--space-2)] text-[12px] text-[var(--text-dim)]">

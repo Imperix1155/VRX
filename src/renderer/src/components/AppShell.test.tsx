@@ -22,6 +22,11 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: () => ({ data: [], isPending: false, isError: false })
 }))
+// The top bar's player counts read through their own queries (CommunityPages.test.tsx).
+vi.mock('../queries/community', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/community')>()),
+  usePlayersOnline: () => ({ data: undefined, fetchStatus: 'idle', dataUpdatedAt: 0 })
+}))
 vi.mock('../queries/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/auth')>()),
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({

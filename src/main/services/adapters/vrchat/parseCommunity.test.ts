@@ -148,6 +148,24 @@ describe('VRChat community parsers', () => {
     ).toBeNull()
   })
 
+  it('asks for the bounded rendition of uploaded group icons and banners', () => {
+    const file = 'file_0a1b2c3d-0000-4000-8000-00000000000a'
+    const group = parseVrcGroups(
+      [
+        {
+          groupId: GROUP,
+          name: 'Big Icon Club',
+          iconUrl: `https://api.vrchat.cloud/api/1/file/${file}/3/file`,
+          bannerUrl: `https://api.vrchat.cloud/api/1/file/${file}/7`
+        }
+      ],
+      USER,
+      5
+    )?.items[0]
+    expect(group?.imageUrl).toBe(`https://api.vrchat.cloud/api/1/image/${file}/3/256`)
+    expect(group?.bannerUrl).toBe(`https://api.vrchat.cloud/api/1/image/${file}/7/1024`)
+  })
+
   it('reads the player count only as a whole non-negative number', () => {
     expect(parseVrcPlayersOnline(54321)).toBe(54321)
     expect(parseVrcPlayersOnline('54321')).toBeNull()

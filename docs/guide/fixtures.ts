@@ -733,6 +733,18 @@ export const communityGroups: Record<Platform, CommunityGroup[]> = {
       bannerUrl: null,
       memberCount: 56210,
       role: 'member'
+    },
+    {
+      // No picture: the card shows the name's first letter instead.
+      platform: 'vrchat',
+      groupId: 'grp-guide-quiet',
+      name: 'Quiet Hours Club',
+      code: 'QUIET.3310',
+      description: null,
+      imageUrl: null,
+      bannerUrl: null,
+      memberCount: 418,
+      role: 'member'
     }
   ],
   chilloutvr: [
@@ -757,6 +769,18 @@ export const communityGroups: Record<Platform, CommunityGroup[]> = {
       bannerUrl: null,
       memberCount: 97,
       role: 'owner'
+    },
+    {
+      // No picture: the card shows the name's first letter instead.
+      platform: 'chilloutvr',
+      groupId: 'cvr-group-guide-owls',
+      name: 'Night Owls',
+      code: 'OWLS',
+      description: null,
+      imageUrl: null,
+      bannerUrl: null,
+      memberCount: 64,
+      role: 'member'
     }
   ]
 }

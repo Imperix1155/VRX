@@ -497,6 +497,44 @@ describe('ExploreView', () => {
     expect(document.querySelector('img')).toBeNull()
   })
 
+  it('the grab bar expands the world sheet into world details on both platforms', () => {
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      const selected = world(platform, `${platform}-w`, 'Some World')
+      const regionRoom = {
+        ...room(platform, { state: 'disabled', reason: 'full' }, selected.worldId),
+        region: platform === 'vrchat' ? 'jp' : 'eu'
+      }
+      render(
+        <ExploreWorldSheet
+          snapshot={{
+            ...source(platform, [selected]),
+            world: selected,
+            rooms: [regionRoom],
+            roomsComplete: true
+          }}
+          opener={null}
+          focusFallback={null}
+          onClose={vi.fn()}
+          onJoin={vi.fn()}
+        />
+      )
+      expect(screen.queryByRole('region', { name: 'About this world' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      const more = screen.getByRole('region', { name: 'About this world' })
+      expect(
+        within(more)
+          .getAllByRole('term')
+          .map((term) => term.textContent)
+      ).toEqual(['People now', 'Room regions', 'Last checked'])
+      expect(within(more).getByText('People now').nextElementSibling?.textContent).toBe('7')
+      expect(within(more).getByText('Room regions').nextElementSibling?.textContent).toBe(
+        platform === 'vrchat' ? 'Japan' : 'Europe'
+      )
+      expect(screen.getByRole('button', { name: 'Show less' })).toBeTruthy()
+      cleanup()
+    }
+  })
+
   it('returns focus to the opener after its parent dismisses the nonmodal sheet', () => {
     const opener = document.createElement('button')
     document.body.append(opener)

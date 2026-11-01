@@ -7,8 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Bottom panels: the grab bar at the top of every panel that slides up (Hot
+  Instances, Explore and Popular now worlds, Avatars, Search people and
+  Groups) now works. Drag it up for a taller panel with a bigger picture and
+  more details, drag it down to shrink it again, or keep pulling down to
+  close. A click on the bar, Enter, or the arrow keys do the same. The extra
+  details are: for a hot instance, how many people are there, the region,
+  access, group and the full instance ID; for a world, people now, the room
+  regions and when it was last checked; for an avatar, its full description
+  and avatar ID; for a person or group, their user or group ID. Nothing new is
+  loaded from VRChat or ChilloutVR to show them.
+
+### Changed
+
+- Top bar: the friend count now reads "13 friends", and right under it are
+  how many people are playing VRChat and ChilloutVR right now, so they are
+  always in view. Both follow the platform filter. Hover over them (or focus
+  them with Tab) for a small panel that explains each number. This replaces
+  the Playing now line under the Dashboard cards, and Settings → Dashboard →
+  Player counts turns the numbers off.
+- Dashboard: the Friends online, In game and Hot instances cards now look like
+  one matching set: the same layout and a white (dark in light mode) number
+  on each, instead of three slightly different number colors.
+- Groups page: group cards are taller, with the group's picture on top and the
+  name, platform and code (or Owner) underneath. A group with no picture shows its first
+  letter instead of an empty box.
+
 ### Fixed
 
+- Groups page: many VRChat group pictures never loaded, because VRX asked for
+  the full-size upload, which can be too big. It now asks VRChat for a
+  smaller copy, as it already does for friend pictures. The same fix applies
+  to group pictures elsewhere in the app.
 - World and avatar pictures are sharp on big screens. VRChat pictures now load
   at full size instead of a small thumbnail (still one request each), and on
   wide windows Explore, Popular now, Hot Instances and world results add more

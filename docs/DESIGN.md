@@ -343,8 +343,17 @@ its label names each platform. The live dot pulses only while VRX has focus;
 an endless animation would keep the window redrawing behind a game. On Linux
 it stays steady: some Linux desktops draw the pulse's redraw a pixel off, which
 shifted the background picture around the filter. Settings replaces the filter with
-its category control, on its own row under the title, so the online count
-stays on the title row as on every other page.
+its category control, on its own row under the title, so the counts stay on
+the title row as on every other page.
+
+**Top bar counts** (owner, 2026-11-01) sit right of the filter as one
+right-aligned block: "13 friends" with the connection indicator, and under it
+how many people play each shown platform ("VRC 48,213 CVR 1,876", each number
+beside its platform word). Both follow the platform filter; a platform with no
+answer drops out. Hovering or focusing the block opens a small glass panel
+that spells out friends online, each platform's connection, the full platform
+names and where the numbers come from; Escape or leaving closes it. Settings →
+Dashboard → Player counts turns the player numbers off.
 
 **Segmented controls.** Use
 [`SegmentedControl`](../src/renderer/src/components/SegmentedControl.tsx) and
@@ -467,6 +476,12 @@ Settings → Behavior → Friend details open from keeps the row body inert.
 The instance pill's Join stays a separate control with the normal
 confirmation and denial behavior.
 
+Dashboard statistic cards are one set (owner, 2026-11-01): each card has the
+same layout, a VT323 number in `--text` and its label in `--text-dim`, with no
+icons (the owner turned down corner icons). Numbers take no presence color:
+Friends online counts active and in-game friends together, and the label
+already names each number.
+
 Dashboard statistics count accounts. Hot instances group by the exact
 platform instance, never just the world name or ID, and need at least the
 threshold number of visible in-game friends (2 by default, 1 to 10). The
@@ -555,6 +570,15 @@ under the title instead of darkening it. The banner's pills and Join sit on
 the same small card-colored backing as other pills over a picture. Escape, a click outside, and Close
 return focus to the opener or a stable fallback. A confirmation modal owns
 dismissal while open, and the Dashboard never shows both sheet types at once.
+
+Every bottom sheet (Hot Instance, Explore world, Avatar, person, group) opens
+collapsed, and its grab bar is a real control (`SheetGrabBar`): drag up to
+expand to nearly the window height, drag down to collapse, and pull a
+collapsed sheet down to close it. A press on the bar, Enter or Space toggles;
+Arrow Up and Arrow Down expand and collapse. Expanding grows the banner and
+adds the sheet's "more" details (`SheetFacts`) from data already on hand,
+never a new platform request. Both platforms show the same extra fields in
+the same order. Each reopen starts collapsed.
 
 ### §9.4 Explore and loading states
 
@@ -685,15 +709,17 @@ no line under ALL for a platform the user isn't signed in to.
   one order on both platforms: Pronouns, Rank, Bio, Badges, then Show worlds
   and Show groups, which read only when pressed. A missing field says "Not
   shown"; VRChat trust uses the friend-details rank words.
-- **Groups** is one name-sorted grid (neutral across platforms) of square
-  tiles: name, then "Owner" or the group code. A group opens the bottom sheet
+- **Groups** is one name-sorted grid (neutral across platforms) of cards that
+  are wider than tall: the group's square icon centered on top over a blurred
+  copy of itself (never cropped), then the name, and the VRC/CVR badge with
+  "Owner" or the group code. No picture, or one that fails, shows the name's
+  first letter on the platform color instead of an empty box. A group opens the bottom sheet
   with its banner, platform pill and role pill, description, and Details
   (Code, Members, Your role). View only.
 - **Explore** has a segmented Popular now · New · Recently updated control.
   The two lists alternate platforms like Search and open the same world sheet.
-- **Playing now** is one quiet line under the Dashboard stat cards: each count
-  sits beside its platform word (the dot only reinforces it) and a "?" explains
-  the number. A platform with no answer drops out of the line.
+- **Player counts** moved from a line under the Dashboard stat cards to the
+  top bar (§8, owner, 2026-11-01).
 
 ## §10 Linked friends
 

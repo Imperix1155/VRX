@@ -10,6 +10,7 @@ import type { Platform } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
 import { useUiStore } from '../stores/ui'
 import { platformName, type CommunityNoticeReason, type CommunitySource } from '../utils/community'
+import { initialOf } from '../utils/initialOf'
 
 /** Quoted literals keep the locale parity scan aware of these key families. */
 const NOT_CONNECTED_KEYS: Record<Platform, string> = {
@@ -160,8 +161,12 @@ export interface CommunityTileProps {
   /** Quiet second line (a group code, "Friend", a member count). */
   detail?: string | null
   imageUrl: string | null
-  /** `square`: a small picture beside the name (people, groups). `wide`: the picture on top (worlds). */
-  shape?: 'square' | 'wide'
+  /**
+   * `square`: a small picture beside the name (people, profile groups).
+   * `wide`: the picture on top (worlds). `icon`: a square icon centered above
+   * the name on a soft copy of itself (the Groups page), wider than tall.
+   */
+  shape?: 'square' | 'wide' | 'icon'
   /** Opens a sheet; omitted for display-only tiles. */
   onOpen?: (opener: HTMLElement) => void
   ariaLabel?: string
@@ -215,10 +220,74 @@ export const CommunityTile = memo(function CommunityTile({
       {title}
     </span>
   )
-  // People and groups: a small square picture beside the name, so a page of
-  // them stays scannable. Worlds: the picture on top, like Explore.
+  const shown = image && failedImage !== image ? image : null
+  // People and profile groups: a small square picture beside the name, so a
+  // page of them stays scannable. Worlds: the picture on top, like Explore.
+  // The Groups page: the icon on top, centered over a blurred copy of itself so
+  // a square logo is never cropped; with no picture, the name's first letter.
   const body =
-    shape === 'square' ? (
+    shape === 'icon' ? (
+      <>
+        {stripe}
+        <div
+          ref={pictureRef}
+          data-community-tile-picture={shown ? 'image' : 'initial'}
+          className="relative flex h-[112px] shrink-0 items-center justify-center overflow-hidden bg-[var(--surface-hover)]"
+        >
+          {shown ? (
+            <img
+              src={shown}
+              alt=""
+              aria-hidden="true"
+              decoding="async"
+              className="absolute inset-0 h-full w-full scale-150 object-cover opacity-60 blur-2xl"
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="absolute inset-0"
+              style={{
+                background: isVrc
+                  ? 'linear-gradient(135deg, var(--plat-vrc-ghost-border), transparent 75%)'
+                  : 'linear-gradient(135deg, var(--plat-cvr-ghost-border), transparent 75%)'
+              }}
+            />
+          )}
+          <div
+            className="relative flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-[18px] shadow-[var(--group-icon-shadow)]"
+            style={{
+              background: isVrc ? 'var(--plat-vrc-rail-bg)' : 'var(--plat-cvr-rail-bg)',
+              color: isVrc ? 'var(--plat-vrc-rail-text)' : 'var(--plat-cvr-rail-text)'
+            }}
+          >
+            {shown ? (
+              <img
+                src={shown}
+                alt=""
+                decoding="async"
+                className="h-full w-full object-cover"
+                onError={() => setFailedImage(shown)}
+              />
+            ) : (
+              <span aria-hidden="true" className="text-[34px] font-bold leading-none">
+                {initialOf(title)}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--space-1)] px-[var(--space-3)] py-[var(--space-2)]">
+          {name}
+          <span className="flex min-w-0 items-center gap-[var(--space-2)] text-xs text-[var(--text-dim)]">
+            <PictureBadge platform={platform} inline />
+            {detail ? (
+              <span className="truncate" title={detail}>
+                {detail}
+              </span>
+            ) : null}
+          </span>
+        </div>
+      </>
+    ) : shape === 'square' ? (
       <>
         {stripe}
         <div className="flex min-w-0 flex-1 items-center gap-[var(--space-3)] p-[var(--space-2)]">

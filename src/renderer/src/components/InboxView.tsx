@@ -20,16 +20,10 @@ import { useUiStore } from '../stores/ui'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { inboxActionText, relativeInboxTime, scopeInboxItems } from '../utils/inbox'
 import PlatformPill from './PlatformPill'
+import { initialOf } from '../utils/initialOf'
 
 /** Ages refresh once a minute while the page is open; no data is read. */
 const AGE_TICK_MS = 60_000
-
-const graphemes = new Intl.Segmenter()
-
-function initialOf(name: string): string {
-  const first = graphemes.segment(name.trim())[Symbol.iterator]().next()
-  return first.done === true ? '?' : first.value.segment.toUpperCase()
-}
 
 const HIDE_ARIA_KEYS: Record<InboxKind, string> = {
   invite: 'inbox.hideInviteAria',

@@ -16,15 +16,7 @@ import { useTranslation } from 'react-i18next'
 import type { Friend } from '@shared/types'
 import { ringFor } from '../utils/statusRing'
 import { useAvatar } from '../hooks/useAvatar'
-
-const graphemes = new Intl.Segmenter()
-
-/** The name's first user-perceived character. charAt(0) split emoji and styled
- *  letters ("🌸Sakura", "𝓙osh") into half a surrogate pair, which shows as "�". */
-function initialOf(name: string): string {
-  const first = graphemes.segment(name.trim())[Symbol.iterator]().next()
-  return first.done === true ? '?' : first.value.segment.toUpperCase()
-}
+import { initialOf } from '../utils/initialOf'
 
 export function Avatar({
   friend,

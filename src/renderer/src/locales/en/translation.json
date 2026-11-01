@@ -128,8 +128,15 @@
       "allShort": "ALL",
       "aria": "Platform filter"
     },
-    "onlineCount_one": "{{count}} online",
-    "onlineCount_other": "{{count}} online",
+    "friendCount_one": "<b>{{count}}</b> friend",
+    "friendCount_other": "<b>{{count}}</b> friends",
+    "counts": {
+      "aria": "Friends and players online",
+      "friendsOnline_one": "{{count}} friend online",
+      "friendsOnline_other": "{{count}} friends online",
+      "playingNow": "Playing right now",
+      "note": "As each platform reports it. Checked at most every 5 minutes."
+    },
     "connection": {
       "label": "VRChat: {{vrchat}}; ChilloutVR: {{chilloutvr}}",
       "live": "Live",
@@ -416,8 +423,8 @@
         "label": "Latest invites"
       },
       "playersOnline": {
-        "label": "Playing now",
-        "description": "How many people are online on each platform, under the counts."
+        "label": "Player counts",
+        "description": "How many people are playing each platform, under your friend count at the top."
       }
     },
     "persistence": {
@@ -705,7 +712,25 @@
   "hotSheet": {
     "ariaLabel": "{{world}} hot instance details",
     "friendsHereHeading": "FRIENDS HERE — {{count}}",
-    "hostedBy": "Hosted by {{group}}"
+    "hostedBy": "Hosted by {{group}}",
+    "more": {
+      "heading": "About this instance",
+      "people": "People here",
+      "friends": "Friends here",
+      "region": "Region",
+      "access": "Access",
+      "group": "Group",
+      "noGroup": "None",
+      "instanceId": "Instance ID"
+    }
+  },
+  "sheet": {
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "expandHint": "Drag up or click for more",
+    "collapseHint": "Drag down or click for less",
+    "notShown": "Not shown",
+    "moreHeading": "More details"
   },
   "dashboard": {
     "loading": "Loading…",
@@ -745,10 +770,6 @@
       "inviteAria": "{{name}}, {{platform}}: {{action}}, {{age}}. Open Inbox",
       "seeAllInvitesAria_one": "See {{count}} invite in the Inbox",
       "seeAllInvitesAria_other": "See all {{count}} invites in the Inbox"
-    },
-    "playersOnline": {
-      "label": "Playing now",
-      "help": "Everyone online on each platform right now, as the platform reports it. Checked when you open the Dashboard."
     }
   },
   "login": {
@@ -842,6 +863,12 @@
       "newHint": "The newest public worlds on each platform.",
       "updatedHint": "Public worlds their creators updated most recently.",
       "empty": "No worlds to show right now."
+    },
+    "more": {
+      "heading": "About this world",
+      "people": "People now",
+      "regions": "Room regions",
+      "checked": "Last checked"
     }
   },
   "avatars": {
@@ -898,7 +925,8 @@
       "updated": "Updated",
       "notShown": "Not shown",
       "description": "Description",
-      "noDescription": "No description"
+      "noDescription": "No description",
+      "avatarId": "Avatar ID"
     }
   },
   "updater": {
@@ -1129,7 +1157,8 @@
       "not-found": "This profile is no longer available."
     },
     "worlds": "Worlds",
-    "groups": "Groups"
+    "groups": "Groups",
+    "userId": "User ID"
   },
   "groups": {
     "heading": "Your groups",
@@ -1153,6 +1182,7 @@
     "role": {
       "owner": "Owner",
       "member": "Member"
-    }
+    },
+    "groupId": "Group ID"
   }
 }

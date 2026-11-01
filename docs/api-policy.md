@@ -266,22 +266,24 @@ is cleared at every sign-out, account change, and invalidated session.
 ## Search, profile and group limits
 
 Search, the full profile, the Groups page, Explore's New and Recently updated
-tabs, and the Dashboard's Playing now line read only on a user action: Enter,
-opening the page, tab or Dashboard, a Show worlds or Show groups press, or
-Refresh. Nothing runs on a timer, on window focus or on reconnect. Every answer
+tabs, and the top bar's player counts read only on a user action: Enter,
+opening the page or tab, a Show worlds or Show groups press, or Refresh. The
+player counts read once when VRX opens and again on a page switch once the
+last answer is 5 minutes old. Nothing runs on a timer, on window focus or on
+reconnect. Every answer
 is cached in main for 5 minutes per account, and concurrent asks share one
 read. Refresh re-reads only once the answer is at least 30 seconds old. All
 reads use the platform's admission queue at interactive priority with no
 automatic retry, and all state is cleared at every sign-out, account change and
 invalidated session.
 
-| Limit             | Value                                                                     |
-| ----------------- | ------------------------------------------------------------------------- |
-| Search            | VRChat 2 reads (people, worlds), ChilloutVR 1; at most one every 2 s each |
-| Opening a profile | 1 read; worlds and groups 1 read each, only after their Show press        |
-| Groups page open  | 1 read per platform                                                       |
-| Explore list tab  | 1 read per platform                                                       |
-| Dashboard open    | 1 read per platform for Playing now (when on); none within 5 minutes      |
+| Limit             | Value                                                                      |
+| ----------------- | -------------------------------------------------------------------------- |
+| Search            | VRChat 2 reads (people, worlds), ChilloutVR 1; at most one every 2 s each  |
+| Opening a profile | 1 read; worlds and groups 1 read each, only after their Show press         |
+| Groups page open  | 1 read per platform                                                        |
+| Explore list tab  | 1 read per platform                                                        |
+| Player counts     | 1 read per shown platform at start and on a page switch; none within 5 min |
 
 ## Local action limits
 

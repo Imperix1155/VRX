@@ -129,6 +129,7 @@ export default function GroupsView(): React.JSX.Element {
                     group.role === 'owner' ? t(ROLE_KEYS.owner) : (group.code ?? members(group))
                   }
                   imageUrl={group.imageUrl}
+                  shape="icon"
                   onOpen={(opener) => {
                     openerRef.current = opener
                     setSelected(group)
@@ -160,7 +161,8 @@ export default function GroupsView(): React.JSX.Element {
             name: group.name,
             platform: platformName(t, group.platform)
           }),
-          tags: group.role === null ? [] : [t(ROLE_KEYS[group.role])]
+          tags: group.role === null ? [] : [t(ROLE_KEYS[group.role])],
+          more: [{ label: t('groups.groupId'), value: group.groupId, mono: true }]
         })}
         onClose={close}
       >
