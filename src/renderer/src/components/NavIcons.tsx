@@ -176,3 +176,23 @@ export function IconSettings(): React.JSX.Element {
     </svg>
   )
 }
+
+/** A VR headset: friends in a game right now. Not a page; the Dashboard's
+ *  In game statistic uses it beside the Friends and Hot icons. */
+export function IconInGame(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M5.5 7h13A2.5 2.5 0 0 1 21 9.5v5a2.5 2.5 0 0 1-2.5 2.5h-3.1l-1.9-2.4a1.9 1.9 0 0 0-3 0L8.6 17H5.5A2.5 2.5 0 0 1 3 14.5v-5A2.5 2.5 0 0 1 5.5 7Z" />
+      <circle cx="8" cy="11.6" r="1.6" />
+      <circle cx="16" cy="11.6" r="1.6" />
+    </svg>
+  )
+}

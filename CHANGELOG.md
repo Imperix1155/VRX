@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dashboard: the Friends online, In game and Hot instances cards now look like
+  one matching set. Each has the same layout, a white (dark in light mode)
+  number, its label and a small icon, instead of three slightly different
+  number colors.
+
 ## [1.4.0-dev.2] - 2026-11-01
 
 Dev test build. It has everything in 1.4.0-dev.1 plus the change below.
