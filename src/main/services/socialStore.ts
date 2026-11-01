@@ -40,6 +40,7 @@ const favoriteWorldsSchema = cappedRecordSchema(
   FAVORITE_WORLDS_MAX
 )
 const notesSchema = cappedRecordSchema(z.string().max(10_000), NOTES_MAX)
+const noteSyncSchema = cappedRecordSchema(z.string().max(10_000), NOTES_MAX)
 const tagsSchema = cappedRecordSchema(
   z.array(z.string().min(1).max(64)).max(TAGS_PER_FRIEND_MAX),
   TAGGED_FRIENDS_MAX
@@ -67,6 +68,8 @@ export interface FavoriteWorldRecord {
 }
 export type FavoriteWorldsData = Record<string, FavoriteWorldRecord>
 export type NotesData = Record<string, string>
+/** Per friend: the last note text VRX's copy and the account copy agreed on. */
+export type NoteSyncData = Record<string, string>
 export type TagsData = Record<string, string[]>
 export interface SocialPrefsData {
   notifyFriendOnline?: boolean
@@ -89,6 +92,7 @@ export interface SocialNamespaceDataMap {
   favorites: FavoritesData
   favoriteWorlds: FavoriteWorldsData
   notes: NotesData
+  noteSync: NoteSyncData
   tags: TagsData
   socialPrefs: SocialPrefsData
   perFriendOptOuts: PerFriendOptOutsData
@@ -119,6 +123,7 @@ const namespaceSchemas: Record<SmallSocialNamespace, z.ZodType> = {
   favorites: favoritesSchema,
   favoriteWorlds: favoriteWorldsSchema,
   notes: notesSchema,
+  noteSync: noteSyncSchema,
   tags: tagsSchema,
   socialPrefs: socialPrefsSchema,
   perFriendOptOuts: perFriendOptOutsSchema
@@ -144,6 +149,7 @@ const envelopeSchemas = {
   favorites: createEnvelopeSchema(favoritesSchema),
   favoriteWorlds: createEnvelopeSchema(favoriteWorldsSchema),
   notes: createEnvelopeSchema(notesSchema),
+  noteSync: createEnvelopeSchema(noteSyncSchema),
   tags: createEnvelopeSchema(tagsSchema),
   socialPrefs: createEnvelopeSchema(socialPrefsSchema),
   perFriendOptOuts: createEnvelopeSchema(perFriendOptOutsSchema)

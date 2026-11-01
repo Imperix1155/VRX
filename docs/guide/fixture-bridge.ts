@@ -344,6 +344,27 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       notes.set(key, note)
       return Promise.resolve({ ok: true })
     },
+    // The copy on the user's account: saved unless a variant shows another state.
+    syncFriendNote: ({ platform, friendId, mode }) => {
+      const note =
+        notes.get(`${platform}:${friendId}`) ??
+        'Met at the observatory. Likes quiet worlds and long conversations.'
+      if (variant === 'note-account-conflict' && mode !== 'keep-mine' && mode !== 'use-account') {
+        return Promise.resolve({
+          ok: true,
+          state: 'conflict',
+          note,
+          accountNote: 'Plays drums in a band. Ask about the summer meetup.'
+        })
+      }
+      if (variant === 'note-account-local' && mode === 'check') {
+        return Promise.resolve({ ok: true, state: 'local-only', note })
+      }
+      if (variant === 'note-account-failed' && mode === 'check') {
+        return Promise.resolve({ ok: false, reason: 'unavailable' })
+      }
+      return Promise.resolve({ ok: true, state: 'saved', note })
+    },
     getAlertPicks: ({ platform }) =>
       Promise.resolve({
         friendIds: [...alertPicks[platform]],

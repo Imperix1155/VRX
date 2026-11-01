@@ -42,6 +42,7 @@ import type { InstanceHandlerOptions } from './instance'
 import type { AccountRegistry } from '../services/accountRegistry'
 import type { AccountSession } from '../services/accountSession'
 import type { SocialStore } from '../services/socialStore'
+import type { AccountNoteService } from '../services/accountNotes'
 import type { AppStatusService } from '../services/appStatus'
 import type { ActivityFeed } from '../services/activityFeed'
 import {
@@ -61,6 +62,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   accountSession: AccountSession
   locationAuthority: LocationAuthority
   socialStore: SocialStore
+  accountNotes?: AccountNoteService
   alertPicks: FriendAlertPicks
   favorites: Favorites
   links: Omit<LinksHandlerOptions, 'accountSession'>
@@ -138,7 +140,8 @@ export function registerIpcHandlers(
     registerAccountsHandlers(options.accountRegistry, options.accountSession)
     registerNotesHandlers({
       accountSession: options.accountSession,
-      socialStore: options.socialStore
+      socialStore: options.socialStore,
+      accountNotes: options.accountNotes
     })
     registerAlertPicksHandlers(options.alertPicks)
     registerLinksHandlers({

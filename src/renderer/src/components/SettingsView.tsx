@@ -741,6 +741,7 @@ export default function SettingsView(): React.JSX.Element {
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
+  const saveNotesToAccounts = useSettingsStore((s) => s.settings.saveNotesToAccounts)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const joinOpenGame = useSettingsStore((s) => s.settings.joinOpenGame)
@@ -1006,6 +1007,18 @@ export default function SettingsView(): React.JSX.Element {
                 labelKeys={OPENER_LABEL_KEYS}
                 ariaLabel={t('settings.drawerOpener.aria')}
                 onChange={(value) => updateSettings({ drawerOpener: value })}
+              />
+            </div>
+
+            {/* Friend notes on the user's own accounts, as VRCX and CVRX do
+                (owner, 2026-11-01). Off keeps notes on this computer. */}
+            <div className="setting-card">
+              <SwitchRow
+                label={t('settings.saveNotesToAccounts.label')}
+                description={t('settings.saveNotesToAccounts.description')}
+                ariaLabel={t('settings.saveNotesToAccounts.aria')}
+                checked={saveNotesToAccounts}
+                onChange={(checked) => updateSettings({ saveNotesToAccounts: checked })}
               />
             </div>
 
