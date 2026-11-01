@@ -40,32 +40,25 @@ import DashboardGlance from './DashboardGlance'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
-/** Color token name tying each stat to its meaning (DESIGN.md §9). */
-type StatTint = 'active' | 'ingame' | 'bridge'
-
 interface StatCardProps {
   value: number
   labelKey: string
-  tint: StatTint
 }
 
-function StatCard({ value, labelKey, tint }: StatCardProps): React.JSX.Element {
+/**
+ * One Dashboard statistic (owner, 2026-11-01: the three cards must read as one
+ * set). Every card is the same: the number in VT323 (§7) and its label, both
+ * neutral. "Friends online" counts in-game and active friends together, so
+ * neither presence color would be honest, and the label says what it is.
+ */
+function StatCard({ value, labelKey }: StatCardProps): React.JSX.Element {
   const { t } = useTranslation()
-  const numberColor =
-    tint === 'active'
-      ? 'text-[var(--active)]'
-      : tint === 'ingame'
-        ? 'text-[var(--ingame)]'
-        : 'text-[var(--bridge)]'
-
   return (
-    <div className="glass glass-information p-[16px_18px]">
-      <div
-        className={`font-[family-name:var(--font-mono)] text-[38px] leading-none ${numberColor}`}
-      >
+    <div className="glass glass-information min-w-0 p-[16px_18px]">
+      <div className="font-[family-name:var(--font-mono)] text-[38px] leading-none tabular-nums text-[var(--text)]">
         {value}
       </div>
-      <div className="text-[12.5px] text-[var(--text-dim)] mt-[var(--space-1)]">{t(labelKey)}</div>
+      <div className="mt-[var(--space-1)] text-[12.5px] text-[var(--text-dim)]">{t(labelKey)}</div>
     </div>
   )
 }
@@ -303,11 +296,9 @@ function DashboardContent(): React.JSX.Element {
             gap: '14px'
           }}
         >
-          <StatCard value={stats.onlineCount} labelKey="dashboard.statOnlineLabel" tint="active" />
-          <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" tint="ingame" />
-          {hotEnabled && (
-            <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
-          )}
+          <StatCard value={stats.onlineCount} labelKey="dashboard.statOnlineLabel" />
+          <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" />
+          {hotEnabled && <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" />}
         </div>
         {playersOnline ? <PlayersOnline platforms={scopedPlatforms} /> : null}
       </div>

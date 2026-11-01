@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and avatar ID; for a person or group, their user or group ID. Nothing new is
   loaded from VRChat or ChilloutVR to show them.
 
+### Changed
+
+- Dashboard: the Friends online, In game and Hot instances cards now look like
+  one matching set: the same layout and a white (dark in light mode) number
+  on each, instead of three slightly different number colors.
+
 ## [1.4.0-dev.2] - 2026-11-01
 
 Dev test build. It has everything in 1.4.0-dev.1 plus the change below.

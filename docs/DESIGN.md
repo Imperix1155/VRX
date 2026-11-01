@@ -467,6 +467,12 @@ Settings → Behavior → Friend details open from keeps the row body inert.
 The instance pill's Join stays a separate control with the normal
 confirmation and denial behavior.
 
+Dashboard statistic cards are one set (owner, 2026-11-01): each card has the
+same layout, a VT323 number in `--text` and its label in `--text-dim`, with no
+icons (the owner turned down corner icons). Numbers take no presence color:
+Friends online counts active and in-game friends together, and the label
+already names each number.
+
 Dashboard statistics count accounts. Hot instances group by the exact
 platform instance, never just the world name or ID, and need at least the
 threshold number of visible in-game friends (2 by default, 1 to 10). The
