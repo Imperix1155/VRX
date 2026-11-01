@@ -116,6 +116,14 @@ const vrx = {
   syncFriendNote: (req: IpcInvoke['sync-friend-note']['req']) => invoke('sync-friend-note', req),
   getAlertPicks: (req: IpcInvoke['get-alert-picks']['req']) => invoke('get-alert-picks', req),
   setAlertPick: (req: IpcInvoke['set-alert-pick']['req']) => invoke('set-alert-pick', req),
+  getFavoriteFriends: (req: IpcInvoke['get-favorite-friends']['req']) =>
+    invoke('get-favorite-friends', req),
+  setFavoriteFriend: (req: IpcInvoke['set-favorite-friend']['req']) =>
+    invoke('set-favorite-friend', req),
+  getFavoriteWorlds: (req: IpcInvoke['get-favorite-worlds']['req']) =>
+    invoke('get-favorite-worlds', req),
+  setFavoriteWorld: (req: IpcInvoke['set-favorite-world']['req']) =>
+    invoke('set-favorite-world', req),
   notifyRendererHydrated: () => notify('renderer-hydrated', undefined),
   /**
    * Live adapter events pushed from main ('friend-event', VRX-146). Returns an

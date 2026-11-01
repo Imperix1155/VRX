@@ -43,9 +43,11 @@ import type { SetHomeWorldResult } from './homeWorld'
 import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type { ActivityEntry } from './activity'
+import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
 import type {
   ExplorePlatformSnapshot,
   ExploreImageResult,
+  ExploreWorld,
   ExploreWorldSnapshot,
   ExploreRefreshReason,
   ExploreWorldReason
@@ -300,6 +302,39 @@ export interface IpcInvoke {
     res:
       | { ok: true }
       | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'full' | 'rate-limited' }
+  }
+  /** The signed-in account's favorite friends. Kept only in VRX. */
+  'get-favorite-friends': {
+    req: { platform: Platform }
+    res: { friendIds: string[]; revision?: FavoritesRevision }
+  }
+  /** Star or unstar friends in one write; echo the read's revision. */
+  'set-favorite-friend': {
+    req: {
+      platform: Platform
+      friendIds: string[]
+      favorite: boolean
+      revision: FavoritesRevision
+    }
+    res: FavoriteWriteResult
+  }
+  /**
+   * The signed-in account's favorite worlds, newest first, as Explore worlds
+   * with fresh references (no platform request). Kept only in VRX.
+   */
+  'get-favorite-worlds': {
+    req: { platform: Platform }
+    res: { worlds: ExploreWorld[]; revision?: FavoritesRevision }
+  }
+  /**
+   * Star a world by the reference main handed out, or unstar it by id; echo
+   * the read's revision.
+   */
+  'set-favorite-world': {
+    req:
+      | { platform: Platform; favorite: true; worldRef: string; revision: FavoritesRevision }
+      | { platform: Platform; favorite: false; worldId: string; revision: FavoritesRevision }
+    res: FavoriteWriteResult
   }
 }
 

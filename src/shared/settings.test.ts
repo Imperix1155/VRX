@@ -1282,7 +1282,7 @@ describe('Search, Groups and players-online settings', () => {
 
 describe('Account notes setting', () => {
   it('defaults on and keeps an explicit Off', () => {
-    expect(parseSettings({ version: 23 })).toMatchObject({
+    expect(parseSettings({ version: 24 })).toMatchObject({
       version: SETTINGS_VERSION,
       saveNotesToAccounts: true
     })
@@ -1294,16 +1294,16 @@ describe('Account notes setting', () => {
     })
   })
 
-  it('prevents a v23 build from stripping an Off during a round-trip', () => {
+  it('prevents a v24 build from stripping an Off during a round-trip', () => {
     let disk: Record<string, unknown> = {
       ...DEFAULT_SETTINGS,
-      version: 24,
+      version: 25,
       saveNotesToAccounts: false
     }
-    const oldNormalized = { ...disk, version: 23 }
+    const oldNormalized = { ...disk, version: 24 }
     Reflect.deleteProperty(oldNormalized, 'saveNotesToAccounts')
 
-    if (shouldPersistSettings(disk, 23)) disk = oldNormalized
+    if (shouldPersistSettings(disk, 24)) disk = oldNormalized
 
     expect(parseSettings(disk)).toMatchObject({ saveNotesToAccounts: false })
   })

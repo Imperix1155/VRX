@@ -57,6 +57,19 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     vrchat: new Set(friends.vrchat.slice(0, 2).map((friend) => friend.platformUserId)),
     chilloutvr: new Set(friends.chilloutvr.slice(0, 2).map((friend) => friend.platformUserId))
   }
+  // The first sample friend per platform and two worlds start starred.
+  const favoriteFriends: Record<Platform, Set<string>> = {
+    vrchat: new Set(friends.vrchat.slice(0, 1).map((friend) => friend.platformUserId)),
+    chilloutvr: new Set(friends.chilloutvr.slice(0, 1).map((friend) => friend.platformUserId))
+  }
+  const favoriteWorlds: Record<Platform, string[]> = {
+    vrchat: worlds.vrchat.slice(0, 2).map((world) => world.worldId),
+    chilloutvr: worlds.chilloutvr.slice(0, 1).map((world) => world.worldId)
+  }
+  const favoriteRevision = (platform: Platform): { platformAccountId: string; epoch: number } => ({
+    platformAccountId: fixtureAuth(platform).accountId ?? '',
+    epoch: 1
+  })
   const denied = { ok: false, reason: 'launch-failed' } as const
   // Choosing always "picks" the synthetic sample; no dialog or file is involved.
   let picture: string | null = null
@@ -326,6 +339,37 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       for (const friendId of friendIds) {
         if (picked) alertPicks[platform].add(friendId)
         else alertPicks[platform].delete(friendId)
+      }
+      return Promise.resolve({ ok: true })
+    },
+    getFavoriteFriends: ({ platform }) =>
+      Promise.resolve({
+        friendIds: [...favoriteFriends[platform]],
+        revision: favoriteRevision(platform)
+      }),
+    setFavoriteFriend: ({ platform, friendIds, favorite }) => {
+      for (const friendId of friendIds) {
+        if (favorite) favoriteFriends[platform].add(friendId)
+        else favoriteFriends[platform].delete(friendId)
+      }
+      return Promise.resolve({ ok: true })
+    },
+    getFavoriteWorlds: ({ platform }) =>
+      Promise.resolve({
+        worlds: structuredClone(
+          favoriteWorlds[platform].flatMap((worldId) =>
+            worlds[platform].filter((world) => world.worldId === worldId)
+          )
+        ),
+        revision: favoriteRevision(platform)
+      }),
+    setFavoriteWorld: (req) => {
+      const ids = favoriteWorlds[req.platform]
+      if (req.favorite) {
+        const world = worlds[req.platform].find((item) => item.worldRef === req.worldRef)
+        if (world && !ids.includes(world.worldId)) ids.unshift(world.worldId)
+      } else {
+        favoriteWorlds[req.platform] = ids.filter((worldId) => worldId !== req.worldId)
       }
       return Promise.resolve({ ok: true })
     },

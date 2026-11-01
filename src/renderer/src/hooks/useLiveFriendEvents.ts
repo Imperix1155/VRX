@@ -39,6 +39,7 @@ import {
 } from '../queries/friendEventReplay'
 import { authStatusQueryKey } from '../queries/auth'
 import { alertPicksPlatformKey } from '../queries/alertPicks'
+import { favoritesPlatformKeys } from '../queries/favorites'
 import { avatarQueryKeysForPlatform } from '../queries/avatarLibrary'
 import { homeWorldQueryKeyForPlatform } from '../queries/homeWorld'
 import { communityQueryKeysForPlatform } from '../queries/community'
@@ -185,6 +186,11 @@ export function useLiveFriendEvents(): void {
       // Alert picks belong to the outgoing account too.
       void queryClient.cancelQueries({ queryKey: alertPicksPlatformKey(platform) })
       queryClient.removeQueries({ queryKey: alertPicksPlatformKey(platform) })
+      // And its favorite friends and worlds.
+      for (const favoritesKey of favoritesPlatformKeys(platform)) {
+        void queryClient.cancelQueries({ queryKey: favoritesKey })
+        queryClient.removeQueries({ queryKey: favoritesKey })
+      }
       // So do its avatars, which stay in memory for the whole session.
       for (const avatarKey of avatarQueryKeysForPlatform(platform)) {
         void queryClient.cancelQueries({ queryKey: avatarKey })

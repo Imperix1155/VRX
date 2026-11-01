@@ -561,7 +561,8 @@
     "section": {
       "inGame": "In-Game ({{count}})",
       "online": "Online ({{count}})",
-      "offline": "Offline ({{count}})"
+      "offline": "Offline ({{count}})",
+      "favorites": "Favorites ({{count}})"
     },
     "instance": {
       "unknownWorld": "Unknown World",
@@ -879,7 +880,10 @@
       "updated": "Recently updated",
       "newHint": "The newest public worlds on each platform.",
       "updatedHint": "Public worlds their creators updated most recently.",
-      "empty": "No worlds to show right now."
+      "empty": "No worlds to show right now.",
+      "favorites": "Favorites",
+      "favoritesHint": "Worlds you starred. Your stars stay in VRX on this computer.",
+      "favoritesEmpty": "No favorite worlds yet. Open a world and press the star to keep it here."
     },
     "more": {
       "heading": "About this world",
@@ -1220,5 +1224,15 @@
       "member": "Member"
     },
     "groupId": "Group ID"
+  },
+  "favorites": {
+    "friendLabel": "Favorite {{name}}",
+    "worldLabel": "Favorite {{world}}",
+    "add": "Add to favorites",
+    "remove": "Remove from favorites",
+    "saveFailed": "Couldn't save. Try again.",
+    "friendsFull": "You have as many favorite friends as VRX can keep.",
+    "worldsFull": "You have {{count}} favorite worlds, the most VRX can keep. Remove one to add another.",
+    "rowLabel": "favorite"
   }
 }

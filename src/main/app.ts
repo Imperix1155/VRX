@@ -74,6 +74,7 @@ import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
 import { SocialStore } from './services/socialStore'
 import { FriendAlertPicks } from './services/friendAlertPicks'
+import { Favorites } from './services/favorites'
 import { LinkGraphStore } from './services/linkGraphStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
@@ -424,6 +425,8 @@ app
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
     const alertPicks = new FriendAlertPicks(accountSession, socialStore)
+    // Favorite friends and worlds: local stars, never sent to a platform.
+    const favorites = new Favorites(accountSession, socialStore)
     const linkGraph = new LinkGraphStore()
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
@@ -790,6 +793,7 @@ app
       socialStore,
       accountNotes,
       alertPicks,
+      favorites,
       links: {
         linkGraph,
         onChanged: () => {

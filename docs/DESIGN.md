@@ -458,7 +458,12 @@ nothing.
 ### §9.1 Friends, Dashboard, and Hot Instances
 
 The Friends list uses virtual rows and sticky, collapsible In-Game, Online,
-and Offline sections; Offline starts collapsed. A pinned section header sits
+and Offline sections; Offline starts collapsed. Above them, a Favorites
+section (owner, 2026-11-01) holds the starred friends who are on now, In-Game
+first, and shows only while it has someone in it. A starred friend who is
+offline stays under Offline. Every starred row carries a small filled star
+after the name in `--favorite` yellow (yellow, not amber, so it reads apart
+from ChilloutVR orange), and the row's accessible name says favorite. A pinned section header sits
 at the scroll area's top edge, with no strip of rows above it. Search shows
 matches without changing saved collapse settings; when nothing matches, only
 the no-results line shows, without empty section headers. Roving focus moves between avatars, and
@@ -538,8 +543,10 @@ assistive technology. While a confirmation modal is open, the drawer pauses
 its own dismissal.
 
 The order is: header, written status, Where, actions, Notes, and Trust. A
-footer pinned below the scrolling area holds Identities on the left and the
-alerts bell on the right. The bell shows whether this friend can alert you by
+footer pinned below the scrolling area holds Identities on the left and, on
+the right, the favorite star and the alerts bell. The star is an outline when
+off and a filled `--favorite` star when on, so its state never rests on color;
+a linked person is one star across both accounts. Stars stay in VRX. The bell shows whether this friend can alert you by
 shape, not color: sound waves when on, a slash when off, and the button's
 name says On or Off. Pressing it springs a small panel out of the bell
 (scale and fade with a slight overshoot, rows following one after another,
@@ -716,8 +723,11 @@ no line under ALL for a platform the user isn't signed in to.
   first letter on the platform color instead of an empty box. A group opens the bottom sheet
   with its banner, platform pill and role pill, description, and Details
   (Code, Members, Your role). View only.
-- **Explore** has a segmented Popular now · New · Recently updated control.
-  The two lists alternate platforms like Search and open the same world sheet.
+- **Explore** has a segmented Popular now · New · Recently updated ·
+  Favorites control. The lists alternate platforms like Search and open the
+  same world sheet. Favorites (owner, 2026-11-01) lists the starred worlds,
+  newest first, with no Refresh because nothing is fetched for it. The world
+  sheet's star follows the world name.
 - **Set as home world** sits beside the platform pill on every world sheet,
   the same small house-and-label button on both platforms. A press asks once in
   an inline panel (Make home, Cancel), because it replaces the user's current

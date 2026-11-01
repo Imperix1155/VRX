@@ -1,6 +1,7 @@
 import Store from 'electron-store'
 import { z } from 'zod'
 import type { AccountScoped, Platform } from '@shared/types'
+import { FAVORITE_WORLD_NAME_MAX, FAVORITE_WORLDS_MAX } from '@shared/favorites'
 import { AccountSession, accountKey, isPlatformAccountId } from './accountSession'
 
 export const SOCIAL_STORE_FORMAT_VERSION = 1
@@ -28,6 +29,16 @@ function cappedRecordSchema<T extends z.ZodType>(valueSchema: T, maximum: number
 }
 
 const favoritesSchema = cappedRecordSchema(z.literal(true), FAVORITES_MAX)
+const favoriteWorldsSchema = cappedRecordSchema(
+  z
+    .object({
+      name: z.string().max(FAVORITE_WORLD_NAME_MAX),
+      thumbnailUrl: z.string().max(2_048).nullable(),
+      addedAt: z.number().int().nonnegative()
+    })
+    .strict(),
+  FAVORITE_WORLDS_MAX
+)
 const notesSchema = cappedRecordSchema(z.string().max(10_000), NOTES_MAX)
 const noteSyncSchema = cappedRecordSchema(z.string().max(10_000), NOTES_MAX)
 const tagsSchema = cappedRecordSchema(
@@ -50,6 +61,12 @@ const perFriendOptOutsSchema = cappedRecordSchema(
 )
 
 export type FavoritesData = Record<string, true>
+export interface FavoriteWorldRecord {
+  name: string
+  thumbnailUrl: string | null
+  addedAt: number
+}
+export type FavoriteWorldsData = Record<string, FavoriteWorldRecord>
 export type NotesData = Record<string, string>
 /** Per friend: the last note text VRX's copy and the account copy agreed on. */
 export type NoteSyncData = Record<string, string>
@@ -73,6 +90,7 @@ export interface BoundedHistoryRing<T> {
 
 export interface SocialNamespaceDataMap {
   favorites: FavoritesData
+  favoriteWorlds: FavoriteWorldsData
   notes: NotesData
   noteSync: NoteSyncData
   tags: TagsData
@@ -103,6 +121,7 @@ export interface SocialStoreStorage {
 
 const namespaceSchemas: Record<SmallSocialNamespace, z.ZodType> = {
   favorites: favoritesSchema,
+  favoriteWorlds: favoriteWorldsSchema,
   notes: notesSchema,
   noteSync: noteSyncSchema,
   tags: tagsSchema,
@@ -128,6 +147,7 @@ function createEnvelopeSchema<T extends z.ZodType>(
 
 const envelopeSchemas = {
   favorites: createEnvelopeSchema(favoritesSchema),
+  favoriteWorlds: createEnvelopeSchema(favoriteWorldsSchema),
   notes: createEnvelopeSchema(notesSchema),
   noteSync: createEnvelopeSchema(noteSyncSchema),
   tags: createEnvelopeSchema(tagsSchema),
