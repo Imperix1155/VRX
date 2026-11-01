@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Top bar: the friend count now reads "13 friends", and right under it are
+  how many people are playing VRChat and ChilloutVR right now, so they are
+  always in view. Both follow the platform filter. Hover over them (or focus
+  them with Tab) for a small panel that explains each number. This replaces
+  the Playing now line under the Dashboard cards, and Settings → Dashboard →
+  Player counts turns the numbers off.
 - Dashboard: the Friends online, In game and Hot instances cards now look like
   one matching set: the same layout and a white (dark in light mode) number
   on each, instead of three slightly different number colors.

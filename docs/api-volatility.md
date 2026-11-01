@@ -428,7 +428,7 @@ request with no retry, at most one every 5 s.
 ### Profiles, search, lists, players online and groups
 
 Read-only lookups for the Search and Groups pages, Explore's New and Recently
-updated tabs, the full profile and the Dashboard's Playing now line
+updated tabs, the full profile and the top bar's player counts
 ([parseCommunity.ts](../src/main/services/adapters/vrchat/parseCommunity.ts)).
 Routes and fields follow the community
 [specification](https://github.com/vrchatapi/specification) and VRCX. They are

@@ -127,7 +127,13 @@
       "allShort": "ALL",
       "aria": "プラットフォームフィルター"
     },
-    "onlineCount_other": "{{count}}人がオンライン",
+    "friendCount_other": "フレンド<b>{{count}}</b>人",
+    "counts": {
+      "aria": "オンラインのフレンドとプレイヤー",
+      "friendsOnline_other": "フレンド{{count}}人がオンライン",
+      "playingNow": "いまプレイ中の人数",
+      "note": "各プラットフォームの発表です。確認は最大5分に1回です。"
+    },
     "connection": {
       "label": "VRChat: {{vrchat}}、ChilloutVR: {{chilloutvr}}",
       "live": "接続中",
@@ -414,8 +420,8 @@
         "label": "最新の招待"
       },
       "playersOnline": {
-        "label": "プレイ中の人数",
-        "description": "各プラットフォームのオンライン人数を件数の下に表示します。"
+        "label": "プレイヤー数",
+        "description": "各プラットフォームのプレイ人数を、上部のフレンド数の下に表示します。"
       }
     },
     "persistence": {
@@ -758,10 +764,6 @@
       "inviteAria": "{{name}}、{{platform}}：{{action}}、{{age}}。受信箱を開く",
       "seeAllInvitesAria_one": "受信箱で {{count}} 件の招待を表示",
       "seeAllInvitesAria_other": "受信箱で {{count}} 件の招待をすべて表示"
-    },
-    "playersOnline": {
-      "label": "プレイ中",
-      "help": "各プラットフォームがいま発表しているオンライン人数です。ダッシュボードを開いたときに確認します。"
     }
   },
   "login": {

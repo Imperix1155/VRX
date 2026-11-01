@@ -128,8 +128,15 @@
       "allShort": "ALL",
       "aria": "Platform filter"
     },
-    "onlineCount_one": "{{count}} online",
-    "onlineCount_other": "{{count}} online",
+    "friendCount_one": "<b>{{count}}</b> friend",
+    "friendCount_other": "<b>{{count}}</b> friends",
+    "counts": {
+      "aria": "Friends and players online",
+      "friendsOnline_one": "{{count}} friend online",
+      "friendsOnline_other": "{{count}} friends online",
+      "playingNow": "Playing right now",
+      "note": "As each platform reports it. Checked at most every 5 minutes."
+    },
     "connection": {
       "label": "VRChat: {{vrchat}}; ChilloutVR: {{chilloutvr}}",
       "live": "Live",
@@ -416,8 +423,8 @@
         "label": "Latest invites"
       },
       "playersOnline": {
-        "label": "Playing now",
-        "description": "How many people are online on each platform, under the counts."
+        "label": "Player counts",
+        "description": "How many people are playing each platform, under your friend count at the top."
       }
     },
     "persistence": {
@@ -763,10 +770,6 @@
       "inviteAria": "{{name}}, {{platform}}: {{action}}, {{age}}. Open Inbox",
       "seeAllInvitesAria_one": "See {{count}} invite in the Inbox",
       "seeAllInvitesAria_other": "See all {{count}} invites in the Inbox"
-    },
-    "playersOnline": {
-      "label": "Playing now",
-      "help": "Everyone online on each platform right now, as the platform reports it. Checked when you open the Dashboard."
     }
   },
   "login": {
