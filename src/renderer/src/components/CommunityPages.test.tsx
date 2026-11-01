@@ -447,6 +447,27 @@ describe('TopBarCounts', () => {
     await vi.waitFor(() => expect(bridge.getPlayersOnline).toHaveBeenCalledTimes(2))
     now.mockRestore()
   })
+
+  it('never re-reads a platform the filter hides or the setting turned off', async () => {
+    const now = vi.spyOn(Date, 'now')
+    const start = 1_800_000_000_000
+    now.mockReturnValue(start)
+    const rerender = renderCounts({ platforms: ['vrchat', 'chilloutvr'], page: 'dashboard' })
+    const row = await screen.findByTestId('topbar-player-counts')
+    await vi.waitFor(() => expect(row.textContent).toContain('CVR'))
+    expect(bridge.getPlayersOnline).toHaveBeenCalledTimes(2)
+
+    now.mockReturnValue(start + 5 * 60_000)
+    rerender({ platforms: ['vrchat'], page: 'friends' })
+    await vi.waitFor(() => expect(bridge.getPlayersOnline).toHaveBeenCalledTimes(3))
+    expect(bridge.getPlayersOnline).toHaveBeenLastCalledWith({ platform: 'vrchat' })
+
+    now.mockReturnValue(start + 11 * 60_000)
+    rerender({ platforms: ['vrchat'], enabled: false, page: 'hot' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(bridge.getPlayersOnline).toHaveBeenCalledTimes(3)
+    now.mockRestore()
+  })
 })
 
 describe('ProfileDetails', () => {

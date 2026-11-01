@@ -37,7 +37,10 @@ export function usePlayerCounts(
     if (lastKey.current === refreshKey) return
     lastKey.current = refreshKey
     for (const query of [queries.current.vrc, queries.current.cvr]) {
+      // `refetch` ignores `enabled`, so a platform the filter hides, the
+      // setting turned off or a signed-out account is skipped here.
       if (
+        query.isEnabled &&
         query.data !== undefined &&
         query.fetchStatus === 'idle' &&
         Date.now() - query.dataUpdatedAt >= COMMUNITY_CACHE_MS
