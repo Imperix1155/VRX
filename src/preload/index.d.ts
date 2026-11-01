@@ -134,6 +134,19 @@ type VrxBridge = {
   setAlertPick: (
     req: IpcInvoke['set-alert-pick']['req']
   ) => Promise<IpcInvoke['set-alert-pick']['res']>
+  /** Favorite friends and worlds, kept only in VRX (per signed-in account). */
+  getFavoriteFriends: (
+    req: IpcInvoke['get-favorite-friends']['req']
+  ) => Promise<IpcInvoke['get-favorite-friends']['res']>
+  setFavoriteFriend: (
+    req: IpcInvoke['set-favorite-friend']['req']
+  ) => Promise<IpcInvoke['set-favorite-friend']['res']>
+  getFavoriteWorlds: (
+    req: IpcInvoke['get-favorite-worlds']['req']
+  ) => Promise<IpcInvoke['get-favorite-worlds']['res']>
+  setFavoriteWorld: (
+    req: IpcInvoke['set-favorite-world']['req']
+  ) => Promise<IpcInvoke['set-favorite-world']['res']>
   /** The settings-backed document attributes are ready for the first reveal. */
   notifyRendererHydrated: () => void
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */

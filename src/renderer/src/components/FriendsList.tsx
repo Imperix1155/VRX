@@ -10,7 +10,12 @@ import type {
   RefCallback
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FRIEND_SECTIONS, type Friend, type FriendSection, type Platform } from '@shared/types'
+import {
+  FRIEND_LIST_SECTIONS,
+  type Friend,
+  type FriendListSection,
+  type Platform
+} from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { isFriendJoinable } from '@shared/joinability'
 import type { LinkedProfile } from '@shared/linkedProfiles'
@@ -25,6 +30,8 @@ import {
   type ProfileTarget
 } from '../utils/projectLinkedFriends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
+import { isFavoriteAccount, useFavoriteFriendKeys } from '../queries/favorites'
+import { StarGlyph } from './FavoriteStar'
 import { useProfileSelection } from '../stores/profileSelection'
 import { useStableLinkedRows } from '../hooks/useStableLinkedRows'
 import LinkedWorlds from './LinkedWorlds'
@@ -166,6 +173,7 @@ const FriendRow = memo(function FriendRow({
   virtualIndex,
   offsetY,
   compact,
+  favorite,
   measureElement
 }: {
   friend: Friend
@@ -190,6 +198,8 @@ const FriendRow = memo(function FriendRow({
   /** Primitive position props (not a style object) so the memo comparison holds. */
   offsetY: number
   compact: boolean
+  /** Starred in VRX: a small star follows the name. */
+  favorite: boolean
   measureElement?: RefCallback<HTMLLIElement>
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -417,7 +427,7 @@ const FriendRow = memo(function FriendRow({
         onFocus={() => onRovingFocus(key)}
         onKeyDown={navigateFromAvatar}
         tabIndex={isRovingStop ? 0 : -1}
-        aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world ${rowId}-platform`}
+        aria-labelledby={`${rowId}-name ${favorite ? `${rowId}-favorite ` : ''}${rowId}-avatar ${rowId}-world ${rowId}-platform`}
         className="cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] focus:ring-offset-2 focus:ring-offset-transparent"
       >
         <Avatar
@@ -451,6 +461,16 @@ const FriendRow = memo(function FriendRow({
                 )
             )}
           </span>
+          {favorite && (
+            <span
+              id={`${rowId}-favorite`}
+              className="flex shrink-0 self-center text-[var(--favorite)]"
+              data-favorite-mark=""
+            >
+              <StarGlyph on className="h-[12px] w-[12px]" />
+              <span className="sr-only">{t('favorites.rowLabel')}</span>
+            </span>
+          )}
           {customStatus && (
             <span className="min-w-0 truncate text-xs text-[var(--text-dim)]">{customStatus}</span>
           )}
@@ -532,7 +552,8 @@ const FriendRow = memo(function FriendRow({
 
 /** Section header i18n keys (VRX-67) — a lookup map, not template-literal keys,
  *  so the i18n key-existence scan (parity.test.ts) can see them (quoted literals). */
-const SECTION_LABEL_KEY: Record<FriendSection, string> = {
+const SECTION_LABEL_KEY: Record<FriendListSection, string> = {
+  favorites: 'friends.section.favorites',
   'in-game': 'friends.section.inGame',
   online: 'friends.section.online',
   offline: 'friends.section.offline'
@@ -579,15 +600,15 @@ function SectionHeader({
   onFocus,
   onBlur
 }: {
-  section: FriendSection
+  section: FriendListSection
   count: number
   collapsed: boolean
   onToggle: () => void
   collapseIgnored: boolean
   tabIndex: 0 | -1
-  setButtonElement: (section: FriendSection, element: HTMLButtonElement | null) => void
-  onFocus: (section: FriendSection) => void
-  onBlur: (section: FriendSection) => void
+  setButtonElement: (section: FriendListSection, element: HTMLButtonElement | null) => void
+  onFocus: (section: FriendListSection) => void
+  onBlur: (section: FriendListSection) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
@@ -619,8 +640,8 @@ function SectionHeader({
 type VirtualFriendRow =
   | {
       kind: 'section'
-      key: `section:${FriendSection}`
-      section: FriendSection
+      key: `section:${FriendListSection}`
+      section: FriendListSection
       count: number
       collapsed: boolean
     }
@@ -797,16 +818,23 @@ export default function FriendsList(): React.JSX.Element {
     filteredFriends ?? EMPTY_LINKED_ROWS,
     interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null
   )
-  const sections = useMemo(
-    () =>
-      filteredFriends === undefined
-        ? undefined
-        : FRIEND_SECTIONS.map((section) => ({
-            section,
-            friends: stableRows.filter((row) => row.section === section)
-          })),
-    [filteredFriends, stableRows]
-  )
+  // Favorites (owner, 2026-11-01): starred friends who are on now lead the
+  // list, In-Game first, and leave their presence section. A starred friend
+  // who is offline stays under Offline with the row's star. The section only
+  // shows while it has someone in it.
+  const favoriteKeys = useFavoriteFriendKeys()
+  const sections = useMemo(() => {
+    if (filteredFriends === undefined) return undefined
+    const leadsFavorites = (row: LinkedRow): boolean =>
+      row.section !== 'offline' && isFavoriteAccount(favoriteKeys, row.accounts)
+    return FRIEND_LIST_SECTIONS.map((section) => ({
+      section,
+      friends:
+        section === 'favorites'
+          ? stableRows.filter(leadsFavorites)
+          : stableRows.filter((row) => row.section === section && !leadsFavorites(row))
+    })).filter(({ section, friends }) => section !== 'favorites' || friends.length > 0)
+  }, [filteredFriends, stableRows, favoriteKeys])
 
   // One flattened stream lets a single virtualizer own headers and friend rows.
   // Keeping headers in the same index space is what makes a section-aware sticky
@@ -870,12 +898,12 @@ export default function FriendsList(): React.JSX.Element {
 
   const virtualListRef = useRef<HTMLUListElement>(null)
   const avatarElementsRef = useRef(new Map<string, HTMLButtonElement>())
-  const sectionButtonElementsRef = useRef(new Map<FriendSection, HTMLButtonElement>())
+  const sectionButtonElementsRef = useRef(new Map<FriendListSection, HTMLButtonElement>())
   const pendingFocusKeyRef = useRef<string | null>(null)
   const focusedRowKeyRef = useRef<string | null>(null)
   const focusedPersonRef = useRef<string | null>(null)
   const [rovingKey, setRovingKey] = useState<string | null>(null)
-  const [focusedSection, setFocusedSection] = useState<FriendSection | null>(null)
+  const [focusedSection, setFocusedSection] = useState<FriendListSection | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
   const [virtualRowGap, setVirtualRowGap] = useState<number>(
     RENDERER_PIXEL_TOKENS.space1.fallbackPx
@@ -976,7 +1004,7 @@ export default function FriendsList(): React.JSX.Element {
     else avatarElementsRef.current.set(key, element)
   }, [])
   const setSectionButtonElement = useCallback(
-    (section: FriendSection, element: HTMLButtonElement | null): void => {
+    (section: FriendListSection, element: HTMLButtonElement | null): void => {
       if (element === null) sectionButtonElementsRef.current.delete(section)
       else sectionButtonElementsRef.current.set(section, element)
     },
@@ -1012,10 +1040,10 @@ export default function FriendsList(): React.JSX.Element {
     if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null
     setFocusedLinkedRowKey((current) => (current === key ? null : current))
   }, [])
-  const onSectionFocus = useCallback((section: FriendSection): void => {
+  const onSectionFocus = useCallback((section: FriendListSection): void => {
     setFocusedSection(section)
   }, [])
-  const onSectionBlur = useCallback((section: FriendSection): void => {
+  const onSectionBlur = useCallback((section: FriendListSection): void => {
     setFocusedSection((current) => (current === section ? null : current))
   }, [])
   const onArrowNavigate = useCallback(
@@ -1105,7 +1133,7 @@ export default function FriendsList(): React.JSX.Element {
     if (target !== null && selectedFriend === null) closeDrawer()
   }, [selectedFriend, target, closeDrawer])
 
-  function toggleSection(section: FriendSection): void {
+  function toggleSection(section: FriendListSection): void {
     const next = collapsedSections.includes(section)
       ? collapsedSections.filter((s) => s !== section)
       : [...collapsedSections, section]
@@ -1464,6 +1492,7 @@ export default function FriendsList(): React.JSX.Element {
                     virtualIndex={virtualItem.index}
                     offsetY={virtualItem.start - scrollMargin}
                     compact={density === 'compact'}
+                    favorite={isFavoriteAccount(favoriteKeys, row.projection.accounts)}
                     measureElement={rowVirtualizer.measureElement}
                   />
                 )
