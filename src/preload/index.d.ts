@@ -18,6 +18,10 @@ type VrxBridge = {
     req: IpcInvoke['join-explore-room']['req']
   ) => Promise<IpcInvoke['join-explore-room']['res']>
   onExploreChanged: (callback: (event: IpcEvents['explore-changed']) => void) => () => void
+  /** World references only; main resolves them to the platform's world ID. */
+  setHomeWorld: (
+    req: IpcInvoke['set-home-world']['req']
+  ) => Promise<IpcInvoke['set-home-world']['res']>
   getLinkedProfiles: () => Promise<IpcInvoke['get-linked-profiles']['res']>
   changeLinkedProfile: (
     req: IpcInvoke['change-linked-profile']['req']

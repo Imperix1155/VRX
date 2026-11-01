@@ -31,7 +31,8 @@ you press a "Use my sign-in from" button, described below.
   platforms that arrive while VRX is open. VRX only shows them; you answer in
   the game. Hide the page in Settings → Appearance if you don't want it.
 - **Explore**: popular, new, and recently updated public worlds from both
-  platforms, with room details.
+  platforms, with room details. Open a world and press **Set as home world**
+  to make it the world your game starts in.
 - **Search**: find people and worlds on both platforms by name. A person opens
   their full profile (bio, pronouns, rank, badges, worlds, and groups), which
   you can also open from a friend's details.

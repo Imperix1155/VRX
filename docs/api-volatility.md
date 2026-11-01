@@ -514,6 +514,20 @@ VRCX; no real response or write has been captured yet.
 - **When it breaks:** a 401 emits `auth-invalidated`. Any failure returns
   `invite-failed`.
 
+### Home world: `PUT /users/{userId}`
+
+- **Assumes (Source-derived, VRCX):** a JSON body `{ "homeLocation": "<worldId>" }`
+  sent to the signed-in user's own ID changes only the home world. The reply
+  (the updated user) is ignored.
+- **Parses:** the world ID must match `^wrld_<GUID>$` before the body is
+  built, and it comes from a world reference main issued, never from the
+  renderer.
+- **Reachability:** **Set as home world** on an Explore, New, Recently updated
+  or search world sheet, after the user confirms. One request, no retry.
+- **When it breaks:** a 401 emits `auth-invalidated` and reports
+  `not-authenticated`. A 429 reports `rate-limited`; any other failure,
+  including a 403, reports `failed`, and the home world is unchanged.
+
 ### Images
 
 - **Hosts:** `api.vrchat.cloud`, `files.vrchat.cloud`, `assets.vrchat.com`.
@@ -845,6 +859,22 @@ every 5 s.
   only on the next world load.
 - **When it breaks:** a non-array list is unavailable. Auth errors follow the
   data-path rules above; a 429 surfaces as rate-limited.
+
+### Home world: `GET /worlds/{worldId}/sethome`
+
+- **Assumes (Source-derived, CVRX `SetWorldAsHome`):** a GET on this route
+  makes the world the signed-in user's home. CVRX sends it to
+  `api.chilloutvr.net/1`; VRX sends it to its REST host
+  `api.abinteractive.net/1`, like the avatar switch. The reply is ignored.
+- **Parses:** the world ID must be a GUID before it enters the path, and it
+  comes from a world reference main issued.
+- **Reachability:** the same **Set as home world** press as VRChat. One
+  request, no retry.
+- **When it breaks:** a 401 signs out; a 403 runs the usual one confirming
+  re-auth and reports `failed`. A 429 reports `rate-limited`; anything else
+  reports `failed`. A 200 whose body is not the `{ message, data }` envelope
+  also reports `failed`, though the change may have landed: check this on the
+  first live press.
 
 ### Profiles, search, lists, players online and groups
 

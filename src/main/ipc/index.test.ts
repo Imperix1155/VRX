@@ -160,6 +160,7 @@ function options(): IpcHandlerOptions {
       getImage: vi.fn(),
       joinRoom: vi.fn(() => ({ ok: true }))
     },
+    homeWorld: { setHomeWorld: vi.fn() },
     avatarLibrary: {
       getLibrary: vi.fn(),
       getDetails: vi.fn(),
@@ -222,7 +223,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(55)
+    expect(electron.invokeHandlers.size).toBe(56)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -285,6 +286,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'self-invite',
         'set-alert-pick',
         'set-friend-note',
+        'set-home-world',
         'test-vr-alert',
         'updater:check',
         'updater:download',

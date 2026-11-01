@@ -894,6 +894,25 @@
       "people": "People now",
       "regions": "Room regions",
       "checked": "Last checked"
+    },
+    "home": {
+      "set": "Set as home world",
+      "setAria": "Set {{world}} as your {{platform}} home world",
+      "confirm": "Make this your {{platform}} home world? It replaces the one you have now.",
+      "confirmAria": "Confirm setting {{world}} as your home world",
+      "makeHome": "Make home",
+      "setting": "Setting…",
+      "cancel": "Cancel",
+      "isHome": "Your home world",
+      "isHomeAria": "{{world}} is your {{platform}} home world",
+      "done": "Done. {{platform}} will start you here next time.",
+      "failed": {
+        "cooldown": "Wait a few seconds before changing your home world again.",
+        "rate-limited": "{{platform}} asked VRX to slow down. Try again in a minute.",
+        "failed": "{{platform}} didn't change your home world. Try again.",
+        "not-authenticated": "Sign in to {{platform}} again to change your home world.",
+        "unknown-world": "Refresh this world, then try again."
+      }
     }
   },
   "avatars": {

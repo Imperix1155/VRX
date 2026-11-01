@@ -14,7 +14,7 @@ import { registerFriendsHandlers } from './friends'
 import { registerInboxHandlers } from './inbox'
 import type { InboxService } from '../services/inbox'
 import { registerInstanceHandlers } from './instance'
-import { registerExploreHandlers } from './explore'
+import { registerExploreHandlers, registerHomeWorldHandler } from './explore'
 import { registerAvatarLibraryHandlers, registerCurrentAvatarHandler } from './avatar-library'
 import { registerCommunityHandlers } from './community'
 import { registerOwnProfileHandlers } from './own-profile'
@@ -23,6 +23,7 @@ import type { CommunityService } from '../services/communityService'
 import type { AvatarLibraryService } from '../services/avatarLibraryService'
 import type { CurrentAvatarService } from '../services/currentAvatarService'
 import type { ExploreService } from '../services/exploreService'
+import type { HomeWorldService } from '../services/homeWorldService'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
 import { registerAlertPicksHandlers } from './alert-picks'
@@ -64,6 +65,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   activity: ActivityFeed
   instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
+  homeWorld: HomeWorldService
   avatarLibrary: AvatarLibraryService
   currentAvatar: CurrentAvatarService
   community: CommunityService
@@ -146,6 +148,7 @@ export function registerIpcHandlers(
       accountSession: options.accountSession
     })
     registerExploreHandlers(options.explore)
+    registerHomeWorldHandler(options.homeWorld)
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerCurrentAvatarHandler(options.currentAvatar)
     registerCommunityHandlers(options.community)

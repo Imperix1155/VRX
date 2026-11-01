@@ -186,6 +186,17 @@ describe('ExploreService adopted worlds', () => {
     expect(await h.service.getWorld('vrchat', ref, 'snapshot')).not.toBeNull()
   })
 
+  it('resolves a reference to its world ID only for the account it was issued to', async () => {
+    const h = make()
+    const ref = h.service.adoptWorlds('vrchat', [world(6)])[0]!.worldRef
+    expect(h.service.worldIdFor('vrchat', ref)).toBe(id(6))
+    expect(h.service.worldIdFor('vrchat', 'not-a-reference')).toBeNull()
+    expect(h.service.worldIdFor('chilloutvr', ref)).toBeNull()
+    expect(h.adapter.candidatePhysical + h.adapter.worldPhysical).toBe(0)
+    h.account.setIdentity('vrchat', 'another-account')
+    expect(h.service.worldIdFor('vrchat', ref)).toBeNull()
+  })
+
   it('moves an adopted world into the candidates without changing its reference', async () => {
     const h = make()
     const entry = world(4)

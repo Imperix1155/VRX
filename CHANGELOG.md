@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Worlds: a **Set as home world** button on every world panel (Explore's
+  Popular now, New and Recently updated, and Search results), for VRChat and
+  ChilloutVR alike. VRX asks once before it changes anything, because the new
+  home replaces the one you have now, then sends a single request. The panel
+  then says "Your home world".
 - Settings → Accounts: **Edit profile** on each signed-in account. Change your
   bio and pronouns on VRChat and ChilloutVR, and your status (Join Me, Online,
   Ask Me or Do Not Disturb) and status text on VRChat. ChilloutVR has no
