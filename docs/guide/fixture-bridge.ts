@@ -86,6 +86,14 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       return Promise.resolve(dataUrl ? { ok: true, dataUrl } : null)
     },
     joinExploreRoom: () => Promise.resolve(denied),
+    setHomeWorld: ({ platform, worldRef }) => {
+      const world = worlds[platform].find((entry) => entry.worldRef === worldRef)
+      return Promise.resolve(
+        world
+          ? { ok: true, platform, worldId: world.worldId }
+          : { ok: false, reason: 'unknown-world' }
+      )
+    },
     onExploreChanged: unsubscribe,
     getLinkedProfiles: () => Promise.resolve({ ok: true, value: structuredClone(links) }),
     changeLinkedProfile: ({ change }) => {
