@@ -154,7 +154,8 @@ export default function HotInstanceSheet({
     { label: t('hotSheet.more.access'), value: typeLabel },
     {
       label: t('hotSheet.more.group'),
-      value: showGroupCard ? (shown.groupName ?? notShown) : t('hotSheet.more.noGroup')
+      // isGroup says whether a group hosts it; the name can still be unknown.
+      value: shown.isGroup ? (shown.groupName ?? notShown) : t('hotSheet.more.noGroup')
     },
     { label: t('hotSheet.more.instanceId'), value: shown.instanceId, mono: true }
   ]

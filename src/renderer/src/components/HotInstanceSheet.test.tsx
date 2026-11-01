@@ -387,4 +387,24 @@ describe('HotInstanceSheet', () => {
     const cvr = screen.getByRole('region', { name: 'About this instance' })
     expect(within(cvr).getByText('Region').nextElementSibling?.textContent).toBe('Not shown')
   })
+
+  it('says a group hosts it even when the group name is unknown, and None only for no group', () => {
+    stubIntersectionObserver()
+    const groupValue = (): string | null =>
+      within(screen.getByRole('region', { name: 'About this instance' })).getByText('Group')
+        .nextElementSibling?.textContent ?? null
+    render(<HotInstanceSheet instance={makeHotInstance({ groupName: null })} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(groupValue()).toBe('Not shown')
+    cleanup()
+
+    render(
+      <HotInstanceSheet
+        instance={makeHotInstance({ isGroup: false, groupName: null, groupId: null })}
+        onClose={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(groupValue()).toBe('None')
+  })
 })
