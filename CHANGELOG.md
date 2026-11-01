@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A linked friend is one star for both platforms. Stars are kept only in VRX
   on this computer, for each signed-in account; nothing is sent to VRChat or
   ChilloutVR, and the games' own favorites are not changed.
+- Friend notes now save to your VRChat or ChilloutVR account too, like VRCX and
+  CVRX do, so you see them in the game and they come back on a new PC. A small
+  line under the note says when it is saved there. If you changed a note in the
+  game, VRX picks up the newer one; if both changed, it shows the account's
+  note and lets you choose which to keep, so no note is lost. VRChat keeps one
+  line of up to 256 characters, so a longer note stays on this PC with a note
+  saying why. Settings → Behavior → Save notes to my accounts turns this off.
 
 ## [1.4.0-dev.3] - 2026-11-01
 

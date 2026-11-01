@@ -5,6 +5,8 @@ import { AvatarLibraryService } from './services/avatarLibraryService'
 import { CurrentAvatarService } from './services/currentAvatarService'
 import { CommunityService } from './services/communityService'
 import type { CommunityAdapter } from './services/adapters/CommunityAdapter'
+import { AccountNoteService } from './services/accountNotes'
+import type { AccountNoteAdapter } from './services/adapters/AccountNoteAdapter'
 import { HomeWorldService } from './services/homeWorldService'
 import type { HomeWorldAdapter } from './services/adapters/HomeWorldAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
@@ -417,6 +419,7 @@ app
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
     const communityBoundary: { current?: CommunityService } = {}
+    const accountNotesBoundary: { current?: AccountNoteService } = {}
     const homeWorldBoundary: { current?: HomeWorldService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
@@ -456,6 +459,7 @@ app
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
         communityBoundary.current?.clearPlatform('vrchat')
+        accountNotesBoundary.current?.clearPlatform('vrchat')
         homeWorldBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
@@ -533,6 +537,7 @@ app
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
         communityBoundary.current?.clearPlatform('chilloutvr')
+        accountNotesBoundary.current?.clearPlatform('chilloutvr')
         homeWorldBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
@@ -721,6 +726,20 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     communityBoundary.current = community
+    // Friend notes on the user's own accounts: a check when a drawer opens,
+    // a save after an edit, and the user's choice when both copies changed.
+    const accountNotes = new AccountNoteService({
+      adapters: new Map<Platform, AccountNoteAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      socialStore,
+      accountSession,
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      isEnabled: () => getSettingsSnapshot().saveNotesToAccounts,
+      log: (message, meta) => log.warn(message, meta)
+    })
+    accountNotesBoundary.current = accountNotes
     // "Set as home world" from a world sheet: one write, by Explore reference.
     const homeWorld = new HomeWorldService({
       adapters: new Map<Platform, HomeWorldAdapter>([
@@ -772,6 +791,7 @@ app
       accountRegistry,
       accountSession,
       socialStore,
+      accountNotes,
       alertPicks,
       favorites,
       links: {
@@ -843,6 +863,7 @@ app
         explore.clearPlatform(event.platform)
         avatarLibrary.clearPlatform(event.platform)
         community.clearPlatform(event.platform)
+        accountNotes.clearPlatform(event.platform)
         homeWorld.clearPlatform(event.platform)
       }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }

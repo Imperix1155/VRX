@@ -53,6 +53,8 @@
  *                            XSOverlay, which VRCX and CVRX both support (owner, 2026-10-31;
  *                            default off, v22)
  *   backgroundPictureFade  → how much the user's own background picture fades (owner, 2026-10-26)
+ *   saveNotesToAccounts    → friend notes also go to the user's own account, as in VRCX and
+ *                            CVRX (owner, 2026-11-01; default on, v24)
  *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
  *                            only for a brand-new settings file or "Run setup again")
  */
@@ -87,7 +89,7 @@ import { ACTIVITY_FILTERS } from './activity'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 24 as const
+export const SETTINGS_VERSION = 25 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -202,6 +204,9 @@ export const SettingsSchema = z.object({
   /** How VRChat joins when it is already open. Main falls back to `invite`
    *  wherever the game cannot take the join directly. */
   vrchatOpenGameJoin: z.enum(VRCHAT_OPEN_GAME_JOINS).catch('go'),
+  /** Friend notes are also saved to the user's own VRChat or ChilloutVR account,
+   *  as VRCX and CVRX do. Off keeps notes on this computer only. */
+  saveNotesToAccounts: z.boolean().catch(true),
   /** Opt-in automatic update download (VRX-113). Default OFF — consent-first. */
   autoUpdate: z.boolean().catch(false),
   /**
@@ -287,7 +292,10 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   // v23 → v24: `collapsedFriendSections` may hold the new `favorites` section.
   // An older build would throw the whole list away (the array falls back to
   // its default), so the version boundary stops it from saving that loss.
-  23: (prev) => ({ ...prev })
+  23: (prev) => ({ ...prev }),
+  // v24 → v25: `saveNotesToAccounts` is additive. The version boundary stops an
+  // older build from stripping a user's Off.
+  24: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

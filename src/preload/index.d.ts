@@ -121,6 +121,9 @@ type VrxBridge = {
   setFriendNote: (
     req: IpcInvoke['set-friend-note']['req']
   ) => Promise<IpcInvoke['set-friend-note']['res']>
+  syncFriendNote: (
+    req: IpcInvoke['sync-friend-note']['req']
+  ) => Promise<IpcInvoke['sync-friend-note']['res']>
   /** Local friend picks for alerts (per signed-in account). */
   getAlertPicks: (
     req: IpcInvoke['get-alert-picks']['req']

@@ -37,27 +37,29 @@ the one they wear, and switches avatar when the user presses Wear. The
 Dashboard reads only the worn avatar. On request it also reads a person's
 profile, searches people and worlds by name, lists New and Recently updated
 worlds, the user's own groups, and each platform's player count (see
-[Search, profile and group limits](#search-profile-and-group-limits)). It launches
+[Search, profile and group limits](#search-profile-and-group-limits)). It keeps
+the user's private note on a friend on their account too, as VRCX and CVRX do
+(see [Friend note limits](#friend-note-limits)). It launches
 the game through local URL schemes, or, when the game is already open, hands
 the Join to that copy (see
 [Joining a game that is already open](#joining-a-game-that-is-already-open)).
 When the user presses **Set as home world** on a world sheet and confirms, it
 makes that world their home (see [Home world limits](#home-world-limits)).
 
-| Area                  | VRChat                                                                                                                                                                                                        | ChilloutVR                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| REST base             | `https://api.vrchat.cloud/api/1`                                                                                                                                                                              | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net`               |
-| Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                                                                                                                                               | `wss://api.chilloutvr.net/1/users/ws`                                                           |
-| Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie                                                                                                                            | `Username` and `AccessKey` upgrade headers, the same headers REST uses                          |
-| Socket traffic        | Receive-only                                                                                                                                                                                                  | Receive-only today; outgoing sender methods exist but nothing calls them                        |
-| Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline                                                                                                                             | One `GET /friends`                                                                              |
-| Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                                                        | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                   |
-| Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                                                           | Username and access key                                                                         |
-| Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                         | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open |
-| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`                                                                                          | `GET /users/{id}`, `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`    |
-| Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`; home world, `PUT /users/{me}` | Avatar switch, `GET /avatars/{id}/switchAvatar`; home world, `GET /worlds/{id}/sethome`         |
-| Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                                                         | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                 |
-| API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days. World and avatar pictures ask for the full picture in place of the 256 px thumbnail: still one request each       | None; ChilloutVR images come from CDN hosts                                                     |
+| Area                  | VRChat                                                                                                                                                                                                                                        | ChilloutVR                                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| REST base             | `https://api.vrchat.cloud/api/1`                                                                                                                                                                                                              | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net`                                             |
+| Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                                                                                                                                                                               | `wss://api.chilloutvr.net/1/users/ws`                                                                                         |
+| Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie                                                                                                                                                            | `Username` and `AccessKey` upgrade headers, the same headers REST uses                                                        |
+| Socket traffic        | Receive-only                                                                                                                                                                                                                                  | Receive-only today; outgoing sender methods exist but nothing calls them                                                      |
+| Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline                                                                                                                                                             | One `GET /friends`                                                                                                            |
+| Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                                                                                        | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                                                 |
+| Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                                                                                           | Username and access key                                                                                                       |
+| Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                                                         | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open                               |
+| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`                                                                                                                          | `GET /users/{id}`, `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`                                  |
+| Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`; home world, `PUT /users/{me}`; friend note, `POST /userNotes` | Avatar switch, `GET /avatars/{id}/switchAvatar`; home world, `GET /worlds/{id}/sethome`; friend note, `POST /users/{id}/note` |
+| Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                                                                                         | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                                               |
+| API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days. World and avatar pictures ask for the full picture in place of the 256 px thumbnail: still one request each                                       | None; ChilloutVR images come from CDN hosts                                                                                   |
 
 VRX never stores a password. A sign-in exchanges the password once for the
 session material in the table, which [`credentials.ts`](../src/main/services/credentials.ts)
@@ -84,8 +86,11 @@ before it saves anything.
 - **No mass actions.** No bulk invites, friend requests, messages, or blocks.
   The only platform writes are one user-initiated VRChat self-invite at a time,
   one user-initiated avatar switch per platform at a time, to an avatar VRX
-  listed for that signed-in account, and one confirmed home-world change per
-  platform at a time, to a world VRX showed that account.
+  listed for that signed-in account, one confirmed home-world change per
+  platform at a time, to a world VRX showed that account, and the user's own
+  note on one friend after they edit it (see
+  [Friend note limits](#friend-note-limits)). VRX never sends existing notes in
+  bulk.
 - **No avatar crawling.** VRX lists only the user's own uploads and the avatar
   they wear. It never searches other people's avatars or uses third-party
   avatar databases.
@@ -307,6 +312,31 @@ sends nothing.
 | Which world | Only one main issued a reference for, for the current account; the renderer never names an ID      |
 | Reads       | None. VRX remembers a success for the session; it never reads the home world back                  |
 
+## Friend note limits
+
+A friend's note in VRX can also live on the user's own account, as it does in
+VRCX and CVRX. Settings → Behavior → **Save notes to my accounts** turns this
+off; it is on by default. With it off VRX sends nothing for notes.
+
+| Action                  | Requests                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| Drawer stays open 0.7 s | 1 read of `GET /users/{id}`, reused for 5 minutes; flicking through friends sends nothing            |
+| Note edit saved         | 1 read, then 1 write only when the account copy is the one VRX last matched                          |
+| Save, Keep mine         | The user's press: 1 read, then 1 write only when the account still holds the copy the user was shown |
+| Use the account note    | None; VRX saves the copy it already read                                                             |
+
+- Every read and write follows a user action, uses the platform's admission
+  queue at interactive priority, and is never sent again on its own. Writes on
+  one platform wait at least 2 s after the last one; one call per friend runs
+  at a time.
+- VRX only writes for a current friend, and only after reading what the
+  account holds in the same call. When both copies changed since they last
+  matched, VRX writes nothing and asks the user which to keep. A reply that
+  does not say what the account holds blocks the write.
+- A linked person's shared note stays in VRX.
+- What VRX saw on an account is forgotten at every sign-out, account change and
+  invalidated session.
+
 ## Local action limits
 
 Main also rate-limits the renderer's requests before any network work starts.
@@ -323,6 +353,7 @@ Main also rate-limits the renderer's requests before any network work starts.
 | Avatar details           | 60 per minute                                                                                                                            |
 | Avatar switch            | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
 | Set as home world        | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
+| Friend note on account   | 60 per minute; one per friend at a time; writes 2 s apart per platform                                                                   |
 | Profile                  | 60 per minute; a person's worlds and groups 30 per minute each                                                                           |
 | Search                   | 60 per minute; one platform search every 2 s                                                                                             |
 | World lists              | 60 per minute                                                                                                                            |
@@ -366,8 +397,8 @@ account. VRX limits that risk by:
 - using the platforms' own sockets for live data instead of polling;
 - limiting writes to one user-initiated VRChat self-invite at a time, sent
   only from a Join the user pressed, one user-initiated avatar switch per
-  platform at a time, and one confirmed home-world change per platform at a
-  time;
+  platform at a time, one confirmed home-world change per platform at a
+  time, and the user's own note on one friend after an edit;
 - never storing passwords, and keeping session material in main, encrypted at
   rest and invisible to the renderer;
 - validating a restored ChilloutVR session once per launch, and confirming a

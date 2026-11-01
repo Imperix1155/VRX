@@ -476,6 +476,28 @@ cached in main for 5 minutes; nothing runs on a timer.
   unavailable; a 404 profile is not found. A 401 emits `auth-invalidated`; a
   429 surfaces as rate-limited.
 
+### Friend notes: `GET /users/{userId}` and `POST /userNotes`
+
+The private note the user keeps on a friend
+([AccountNoteAdapter.ts](../src/main/services/adapters/AccountNoteAdapter.ts),
+[accountNotes.ts](../src/shared/accountNotes.ts)). Source-derived from VRCX and
+the community specification; no real response has been captured yet.
+
+- **Assumes:** `GET /users/{userId}` carries `note`, a string (`""` when there
+  is none). `POST /userNotes` takes `{ targetUserId, note }` and replaces the
+  note; `""` clears it. The response is ignored. Notes are one line of at most
+  256 characters (VRCX's editor cap). VRChat swaps symbols such as `#`, `(` and
+  `.` for look-alikes (`＃`, `（`, `․`), as it does in bios; VRX maps them back
+  using VRCX's `replaceBioSymbols` table before it compares or shows a note.
+- **Parses:** a reply for another id, or without a `note` key, is unknown, not
+  empty, and VRX then refuses to write. `null` reads as no note. VRX sends its
+  own copy as one line (line breaks become spaces) and counts that line and its
+  multi-line copy as the same note.
+- **When it breaks:** VRX keeps its own copy and shows that it could not reach
+  the account, with a Retry. A note over 256 characters stays on this PC with a
+  note saying why. A 401 emits `auth-invalidated`; a 429 surfaces as
+  rate-limited.
+
 ### Self-invite: `POST /invite/myself/to/{location}`
 
 - **Assumes (Source-derived):** body `{}`. The response is ignored.
@@ -869,6 +891,21 @@ and 5-minute cache rules apply.
 - **Fields:** user, world and group ids must be GUIDs (stored lower case). A
   featured badge named `No badge featured` is skipped.
 - **When it breaks:** a reply of the wrong shape is unavailable. Auth errors
+  follow the data-path rules above; a 429 surfaces as rate-limited.
+
+### Friend notes: `GET /users/{userId}` and `POST /users/{userId}/note`
+
+The user's private note on a friend, as CVRX reads and writes it
+([AccountNoteAdapter.ts](../src/main/services/adapters/AccountNoteAdapter.ts)).
+Source-derived from CVRX; no real response has been captured yet.
+
+- **Assumes:** the `/users/{userId}` data carries `note`, a string (`""` when
+  there is none). `POST /users/{userId}/note` takes `{ note }` and replaces it;
+  the data in its envelope is ignored. Line breaks are kept. CVRX sets no length
+  cap, so VRX's own 500-character limit applies.
+- **Parses:** as for VRChat, a reply without a `note` key, or for another id,
+  is unknown and blocks a write. Ids compare in lower case.
+- **When it breaks:** VRX keeps its own copy and offers a Retry. Auth errors
   follow the data-path rules above; a 429 surfaces as rate-limited.
 
 ### WebSocket `/users/ws`
