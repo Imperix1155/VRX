@@ -146,6 +146,22 @@ describe('favorite worlds', () => {
     await waitFor(() => expect(star.getAttribute('aria-pressed')).toBe('false'))
   })
 
+  it('keeps the star pressable when the first favorites read fails', async () => {
+    signIn('vrchat')
+    const bridge = window.vrx as unknown as Record<string, ReturnType<typeof vi.fn>>
+    bridge.getFavoriteWorlds!.mockRejectedValue(new Error('rate_limited'))
+    render(<WorldFavoriteStar world={world('vrchat', 'wrld_a', 'Sky')} />)
+    const star = await screen.findByRole('button', { name: 'Favorite Sky' })
+    await waitFor(() => expect((star as HTMLButtonElement).disabled).toBe(false))
+    await act(async () => fireEvent.click(star))
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      "Couldn't save. Try again."
+    )
+    expect((star as HTMLButtonElement).disabled).toBe(false)
+    expect(bridge.setFavoriteWorld).not.toHaveBeenCalled()
+  })
+
   it('lists both platforms’ favorites alternately, and explains an empty list', async () => {
     signIn('vrchat')
     signIn('chilloutvr')

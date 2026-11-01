@@ -249,14 +249,21 @@ export function useSetFavoriteWorld(): (
       const bridge = window.vrx
       let revision = queryClient.getQueryData<FavoriteWorlds>(key)?.revision
       if (accountId !== null && revision === undefined) {
-        // The star can be pressed before the list was ever read.
-        revision = (
-          await queryClient.fetchQuery({
-            queryKey: key,
-            queryFn: () => fetchWorlds(world.platform, accountId),
-            staleTime: Infinity
-          })
-        ).revision
+        // The star can be pressed before the list was ever read. A failed
+        // read (a rate-limited bridge) is a refused change, never a throw, so
+        // the star stays pressable.
+        try {
+          revision = (
+            await queryClient.fetchQuery({
+              queryKey: key,
+              queryFn: () => fetchWorlds(world.platform, accountId),
+              staleTime: Infinity,
+              retry: false
+            })
+          ).revision
+        } catch {
+          return 'invalid'
+        }
       }
       if (accountId === null || revision === undefined || !bridge?.setFavoriteWorld) {
         return 'not-authenticated'
