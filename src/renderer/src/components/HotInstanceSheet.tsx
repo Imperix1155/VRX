@@ -162,6 +162,9 @@ export default function HotInstanceSheet({
 
   function joinSheetTarget(event: React.MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation()
+    // aria-disabled, not disabled, while a join runs (as InstancePill does): a
+    // focused button that disabled itself would drop keyboard focus to the page.
+    if (isJoining) return
     if (joinTarget !== null) void join(joinTarget)
   }
 
@@ -290,12 +293,12 @@ export default function HotInstanceSheet({
                     <button
                       type="button"
                       onClick={joinSheetTarget}
-                      disabled={isJoining}
+                      aria-disabled={isJoining || undefined}
                       aria-label={t('friends.joinAria', {
                         name: joinTarget.displayName,
                         world: worldName
                       })}
-                      className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
+                      className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:brightness-100 motion-safe:transition-[filter]"
                       style={{
                         borderColor:
                           'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',

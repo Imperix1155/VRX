@@ -3,12 +3,22 @@
  * HotInstanceSheet (VRX-250 / VRX-260) — bottom-sheet rendering for a hot
  * instance, including the group card in the meta stack.
  */
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useSettingsStore } from '../stores/settings'
+import { useJoinInstance } from '../hooks/useJoinInstance'
 import HotInstanceSheet from './HotInstanceSheet'
 import { getHotInstances, type HotInstance } from '../utils/dashboardAggregations'
 
@@ -410,5 +420,46 @@ describe('HotInstanceSheet', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(groupValue()).toBe('None')
+  })
+
+  it('keeps keyboard focus on Join while its join runs, and ignores presses until it ends', async () => {
+    stubIntersectionObserver()
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: false },
+      dirty: false
+    })
+    let finish!: (result: { ok: true }) => void
+    const joinInstance = vi.fn(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          finish = resolve
+        })
+    )
+    window.vrx = { ...window.vrx, joinInstance } as unknown as Window['vrx']
+    try {
+      render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
+      const join = screen.getByRole('button', { name: 'Join Alex in Group Hangout' })
+      join.focus()
+
+      fireEvent.click(join)
+      expect(joinInstance).toHaveBeenCalledOnce()
+      // The disabled attribute would drop focus to the page (focus fixup);
+      // aria-disabled keeps the button focused and announced as unavailable.
+      expect(join.hasAttribute('disabled')).toBe(false)
+      expect(join.getAttribute('aria-disabled')).toBe('true')
+      expect(document.activeElement).toBe(join)
+
+      fireEvent.click(join)
+      expect(joinInstance).toHaveBeenCalledOnce()
+
+      await act(async () => {
+        finish({ ok: true })
+        await Promise.resolve()
+      })
+      expect(join.getAttribute('aria-disabled')).toBeNull()
+      expect(document.activeElement).toBe(join)
+    } finally {
+      renderHook(() => useJoinInstance()).result.current.invalidatePending()
+    }
   })
 })

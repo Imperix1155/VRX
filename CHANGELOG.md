@@ -115,6 +115,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Join: with Confirm before joining off, "Location changed — try Join again"
   now has VRX read the friend list once, so the next Join works even when the
   background re-sync is set to manual.
+- Hot Instances: the instance panel's Join keeps keyboard focus while a join
+  runs, so the next Tab stays in the panel instead of starting over at the
+  top of the window.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
