@@ -102,6 +102,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friends: a new ChilloutVR friend who arrives while VRX is still reading the
   list after another change now appears, instead of staying missing until the
   next refresh.
+- Friend details: the note check, the full profile and, on ChilloutVR, the
+  block options share one look-up of the person, instead of asking VRChat or
+  ChilloutVR up to three times.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

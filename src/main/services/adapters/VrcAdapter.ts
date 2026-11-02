@@ -1,4 +1,5 @@
 import { RosterRefresh } from './RosterRefresh'
+import { UserReadShare } from './UserReadShare'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
@@ -317,6 +318,8 @@ export class VrcAdapter
     () => this.live?.captureRosterRevision?.(),
     () => this.admission.rateLimitRevision
   )
+  /** One person's `/users/{id}` answer for the profile and the note check. */
+  private readonly userReads = new UserReadShare()
   private sessionAbort = new AbortController()
   private authOperationAbort = new AbortController()
   private cookie: string | null = null
@@ -1225,7 +1228,7 @@ export class VrcAdapter
   async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
     if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
     const raw = await this.runCommunityRequest(lease, () =>
-      this.get(`/users/${encodeURIComponent(userId)}`, z.unknown(), this.communityOptions(lease))
+      this.userReads.shared(lease.generation, userId, () => this.readUser(userId, lease))
     )
     const profile = parseVrcProfile(raw)
     return profile?.userId === userId ? profile : null
@@ -1543,8 +1546,10 @@ export class VrcAdapter
 
   async readAccountNote(userId: string, lease: RequestLease): Promise<string | null> {
     if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    // Always a new read, since a save must see what the account holds now; the
+    // full profile that follows may use the same answer.
     const raw = await this.runCommunityRequest(lease, () =>
-      this.get(`/users/${encodeURIComponent(userId)}`, z.unknown(), this.communityOptions(lease))
+      this.userReads.fresh(lease.generation, userId, () => this.readUser(userId, lease))
     )
     return parseAccountNoteReply(raw, userId, (left, right) => left === right)
   }
@@ -1570,6 +1575,14 @@ export class VrcAdapter
       // A missing person or world is an ordinary answer; only sign-in failures count.
       recordCircuitFailure: 'auth'
     }
+  }
+
+  private readUser(userId: string, lease: RequestLease): Promise<unknown> {
+    return this.get(
+      `/users/${encodeURIComponent(userId)}`,
+      z.unknown(),
+      this.communityOptions(lease)
+    )
   }
 
   private async runCommunityRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
@@ -2348,6 +2361,7 @@ export class VrcAdapter
     this.authBucketRevision += 1
     this.freshAuthBuckets = null
     this.rosterRefresh.clear()
+    this.userReads.clear()
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.worldResolver.clear()

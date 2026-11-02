@@ -95,7 +95,9 @@ describe('CvrAdapter unfriend and block', () => {
     )
     const adapter = signedIn()
     await expect(adapter.getBlocked(FRIEND, adapter.captureSocialLease())).resolves.toBeNull()
-    await expect(adapter.getBlocked(FRIEND, adapter.captureSocialLease())).rejects.toBeInstanceOf(
+    // A fresh session: the first answer would otherwise serve this read too.
+    const next = signedIn()
+    await expect(next.getBlocked(FRIEND, next.captureSocialLease())).rejects.toBeInstanceOf(
       SocialDataError
     )
   })

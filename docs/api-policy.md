@@ -323,7 +323,11 @@ player counts read once when VRX opens and again on a page switch once the
 last answer is 5 minutes old. Nothing runs on a timer, on window focus or on
 reconnect. Every answer
 is cached in main for 5 minutes per account, and concurrent asks share one
-read. Refresh re-reads only once the answer is at least 30 seconds old. All
+read. Refresh re-reads only once the answer is at least 30 seconds old. A
+person's full profile and, on ChilloutVR, their block check read the same
+`GET /users/{id}` as their note check, so they use an answer under 30 seconds
+old, or one still on its way, instead of reading again. The note check itself
+always reads, because a note save must see what the account holds now. All
 reads use the platform's admission queue at interactive priority with no
 automatic retry, and all state is cleared at every sign-out, account change and
 invalidated session.
@@ -412,7 +416,8 @@ behind a confirmation. VRX keeps them to the same shape:
 - **Read on a press.** The options read nothing until the user opens them.
   Then one request asks whether the user blocks that person: VRChat
   `GET /auth/user/playermoderations?type=block&targetUserId=<id>` (filtered to
-  that one person), ChilloutVR `GET /users/<id>` (its `isBlocked` field). The
+  that one person), ChilloutVR `GET /users/<id>` (its `isBlocked` field; a
+  profile or note read of that person under 30 seconds old serves it). The
   answer is kept for 5 minutes per account. Whether they are a friend comes
   from the roster VRX already has.
 - **One confirmed change for one person.** Each action needs its own

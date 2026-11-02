@@ -1,4 +1,5 @@
 import { RosterRefresh } from './RosterRefresh'
+import { UserReadShare } from './UserReadShare'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import type {
   AdapterEvent,
@@ -244,6 +245,8 @@ export class CvrAdapter
     () => this.live?.captureRosterRevision?.(),
     () => this.admission.rateLimitRevision
   )
+  /** One person's `/users/{id}` answer for the profile, note and block checks. */
+  private readonly userReads = new UserReadShare()
   private sessionAbort = new AbortController()
   private loginAbort = new AbortController()
   private session: CVRCredentials | null = null
@@ -879,7 +882,7 @@ export class CvrAdapter
   async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
     const id = this.communityUserId(userId)
     const raw = await this.runCommunityRequest(lease, () =>
-      this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+      this.userReads.shared(lease.generation, id, () => this.readUser(id, lease))
     )
     const profile = parseCvrProfile(raw)
     return profile?.userId === id ? profile : null
@@ -971,7 +974,7 @@ export class CvrAdapter
   async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
     const id = this.socialUserId(userId)
     const raw = await this.runCommunityRequest(lease, () =>
-      this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+      this.userReads.shared(lease.generation, id, () => this.readUser(id, lease))
     )
     const record = recordValue(raw)
     if (!record || typeof record.id !== 'string' || record.id.toLowerCase() !== id) {
@@ -1134,8 +1137,10 @@ export class CvrAdapter
 
   async readAccountNote(userId: string, lease: RequestLease): Promise<string | null> {
     const id = this.communityUserId(userId)
+    // Always a new read, since a save must see what the account holds now; the
+    // full profile and block check that follow may use the same answer.
     const raw = await this.runCommunityRequest(lease, () =>
-      this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+      this.userReads.fresh(lease.generation, id, () => this.readUser(id, lease))
     )
     return parseAccountNoteReply(raw, id, (left, right) => left.toLowerCase() === right)
   }
@@ -1201,6 +1206,10 @@ export class CvrAdapter
       // A missing person or world is an ordinary answer; only sign-in failures count.
       recordCircuitFailure: 'auth'
     }
+  }
+
+  private readUser(id: string, lease: RequestLease): Promise<unknown> {
+    return this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
   }
 
   private async runCommunityRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
@@ -1844,6 +1853,7 @@ export class CvrAdapter
   private bumpSessionGeneration(restartPipeline = true, identityRetained = false): void {
     this.sessionAbort.abort()
     this.rosterRefresh.clear()
+    this.userReads.clear()
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.friendNames.clear()
