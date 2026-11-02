@@ -281,6 +281,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friend details: the star panel of the next friend you open no longer shows a
   "Couldn't save" left from another friend's star, and it doesn't wait for
   another friend's star to finish saving.
+- Full profiles: when a platform asks you to sign in again, the profile
+  offers Go to Accounts, like the pages.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

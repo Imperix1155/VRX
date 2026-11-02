@@ -27,6 +27,7 @@ import { useInbox } from '../queries/inbox'
 import { platformName } from '../utils/community'
 import { FRIEND_ACTION_BUTTON, FRIEND_ACTION_ERROR_KEYS } from '../utils/friendActions'
 import { CommunityTile, TileGrid } from './CommunityParts'
+import GoToAccountsButton from './GoToAccountsButton'
 import ProfileActions from './ProfileActions'
 
 /** Quoted literals keep the locale parity scan aware of these keys. */
@@ -93,6 +94,9 @@ export default function ProfileDetails({
         </p>
         {result.reason === 'unavailable' || result.reason === 'rate-limited' ? (
           <RetryButton onRetry={() => void profile.refetch()} />
+        ) : result.reason === 'not-authenticated' ? (
+          // Signing in happens in Settings → Accounts, as on the pages.
+          <GoToAccountsButton label={t('community.openAccounts')} />
         ) : null}
       </div>
     )

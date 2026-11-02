@@ -773,9 +773,9 @@ platform filter. Nothing is stored, so the list starts empty each launch.
 Community views (owner, 2026-10-31). They only read, except the profile's
 friend action and Unfriend or block (owner, 2026-11-01). Every one follows the platform
 filter, offers Go to Accounts when the filtered platform is not connected, and
-adds no line under ALL for a platform the user isn't signed in to. A page's
-notice asking to sign in to a platform again offers Go to Accounts too, never
-Try again. A list says it is empty ("You aren't in any groups yet.") only once
+adds no line under ALL for a platform the user isn't signed in to. A notice
+asking to sign in to a platform again, on a page or in a full profile, offers
+Go to Accounts too, never Try again. A list says it is empty ("You aren't in any groups yet.") only once
 every shown platform has answered with a list; until then an empty section
 stays out, heading and count included, and next to a platform that failed with
 nothing loaded its red line stands alone, as on Popular now. The Avatars page's notices and uploads work the

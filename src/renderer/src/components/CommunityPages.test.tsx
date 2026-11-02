@@ -975,6 +975,16 @@ describe('ProfileDetails', () => {
     expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
   })
 
+  it('offers Go to Accounts when the platform asks to sign in again', async () => {
+    bridge.getProfile.mockResolvedValueOnce({ ok: false, reason: 'not-authenticated' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    expect(await screen.findByText(msg('profile.error.not-authenticated'))).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: msg('community.openAccounts') }))
+    expect(useUiStore.getState().activeTab).toBe('settings')
+    expect(useUiStore.getState().settingsCategory).toBe('accounts')
+  })
+
   it('offers no friend action to a friend', async () => {
     renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
     await screen.findByText('Hello there')
