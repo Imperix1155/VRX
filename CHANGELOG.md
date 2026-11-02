@@ -84,6 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Identities: Link an account lists the other platform's friends in name
   order, as the friends list does, instead of in the order the platform sent
   them.
+- Identities: opened from one account's own view, the dialog no longer offers
+  View for that same account, which only closed the dialog.
 
 ### Fixed
 

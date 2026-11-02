@@ -367,6 +367,12 @@ export default function IdentitiesDialog({
                   member.platformAccountId === accountIds[member.platform]
                 const friend = scoped ? findFriend(member) : undefined
                 const keep = profile?.members.find((other) => other.platform !== member.platform)
+                // Friend details show this account already: View would only close.
+                const showing =
+                  scoped &&
+                  selection.target.kind === 'account' &&
+                  selection.target.account.platform === member.platform &&
+                  selection.target.account.friendId === member.friendId
                 return (
                   <div
                     key={member.platform}
@@ -384,28 +390,32 @@ export default function IdentitiesDialog({
                         {t('linking.manage.stillLinked')}
                       </p>
                     )}
-                    <div className="flex flex-wrap gap-[var(--space-2)]">
-                      <button
-                        type="button"
-                        className={buttonClass}
-                        disabled={!friend || busy}
-                        onClick={() => openAccount(member)}
-                      >
-                        {t('linking.manage.view', { platform: platformName(member.platform) })}
-                      </button>
-                      {profile && (
-                        <button
-                          type="button"
-                          className={buttonClass}
-                          disabled={!bothReady || !canWrite || busy || !keep || !findFriend(keep)}
-                          onClick={() => {
-                            if (keep) startPicker(keep)
-                          }}
-                        >
-                          {t('linking.manage.replace')}
-                        </button>
-                      )}
-                    </div>
+                    {(!showing || profile) && (
+                      <div className="flex flex-wrap gap-[var(--space-2)]">
+                        {!showing && (
+                          <button
+                            type="button"
+                            className={buttonClass}
+                            disabled={!friend || busy}
+                            onClick={() => openAccount(member)}
+                          >
+                            {t('linking.manage.view', { platform: platformName(member.platform) })}
+                          </button>
+                        )}
+                        {profile && (
+                          <button
+                            type="button"
+                            className={buttonClass}
+                            disabled={!bothReady || !canWrite || busy || !keep || !findFriend(keep)}
+                            onClick={() => {
+                              if (keep) startPicker(keep)
+                            }}
+                          >
+                            {t('linking.manage.replace')}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
