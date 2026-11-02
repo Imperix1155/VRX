@@ -887,10 +887,18 @@ describe('Accounts sign-in from this PC', () => {
 describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)', () => {
   it('puts every page switch in Appearance, in sidebar order, and setup in About', () => {
     renderSettings()
-    for (const page of ['hot', 'activity', 'inbox', 'explore', 'search', 'groups']) {
-      expect(
-        screen.getByRole('radiogroup', { name: msg(`settings.pages.${page}.label`) })
-      ).toBeTruthy()
+    const pages = ['hot', 'activity', 'inbox', 'explore', 'search', 'groups']
+    const card = document.querySelector<HTMLElement>('[data-sidebar-pages]')!
+    expect(
+      within(card)
+        .getAllByRole('radiogroup')
+        .map((group) => group.getAttribute('aria-label'))
+    ).toEqual(pages.map((page) => msg(`settings.pages.${page}.label`)))
+    // Each switch carries its note for screen readers, not only as a tooltip.
+    for (const page of pages) {
+      const group = screen.getByRole('radiogroup', { name: msg(`settings.pages.${page}.label`) })
+      const note = document.getElementById(group.getAttribute('aria-describedby')!)
+      expect(note?.textContent).toBe(msg(`settings.pages.${page}.description`))
     }
     expect(screen.queryByRole('button', { name: msg('settings.setup.run') })).toBeNull()
 
@@ -909,7 +917,7 @@ describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)'
 
     act(() => useUiStore.setState({ settingsCategory: 'about' }))
     expect(screen.getByRole('button', { name: msg('settings.setup.run') })).toBeTruthy()
-    expect(screen.queryByText(msg('settings.pages.hot.label'))).toBeNull()
+    expect(screen.queryByRole('radiogroup', { name: msg('settings.pages.hot.label') })).toBeNull()
   })
 
   it('turns the Hot Instances and Explore pages off independently', () => {

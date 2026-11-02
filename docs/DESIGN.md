@@ -659,8 +659,8 @@ sign-in storage note is one short line with the full text behind Show more
 (Locked rule 11). Settings → About offers Run setup again.
 
 **Sign-in.** Sign-in text explains OS-backed encryption and the weaker
-local-key fallback (in setup, behind Show more), and never promises keychain
-protection everywhere. The
+local-key fallback (behind Show more, in setup and on the sign-in screen), and
+never promises keychain protection everywhere. The
 sign-in screen (both tabs) and Accounts show the one-line unofficial-app notice
 in plain dim text. Settings → About → Legal, closed by default, holds the full
 text: a VRChat sentence and ChilloutVR's required disclaimer, worded the same
@@ -742,7 +742,9 @@ no line under ALL for a platform the user isn't signed in to.
   "Show full profile" in friend details (collapsed by default). Fields come in
   one order on both platforms: Pronouns, Rank, Bio, Badges, then Show worlds
   and Show groups, which read only when pressed. A missing field says "Not
-  shown"; VRChat trust uses the friend-details rank words.
+  shown"; VRChat trust uses the friend-details rank words. In friend details
+  a VRChat trust rank already shows above the profile, so the profile there
+  skips its Rank row rather than repeat it.
 - **Friend action** (owner, 2026-11-01): a profile of someone who is not a
   friend yet starts with one row, the same on both platforms. If their friend
   request waits in the Inbox it reads "Sent you a friend request." with Accept
@@ -766,8 +768,9 @@ no line under ALL for a platform the user isn't signed in to.
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
   are wider than tall: the group's square icon centered on top over a blurred
   copy of itself (never cropped), then the name, and the VRC/CVR badge with
-  "Owner" or the group code. No picture, or one that fails, shows the name's
-  first letter on the platform color instead of an empty box. A group opens the bottom sheet
+  the group code (or member count), led by "Owner ·" on a group you own. No
+  picture, or one that fails, shows the name's first letter on the platform
+  color instead of an empty box. A group opens the bottom sheet
   with its banner, platform pill and role pill, description, and Details
   (Code, Members, Your role). View only.
 - **Explore** has a segmented Popular now · New · Recently updated ·

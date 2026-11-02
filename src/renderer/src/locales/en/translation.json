@@ -801,7 +801,7 @@
     "joinInstance": "Join",
     "emptyHeading": "No hot instances currently",
     "emptyHint": "When {{threshold}} or more friends gather in the same instance, it'll show up here.",
-    "hotThresholdAria": "Hot instance threshold",
+    "hotThresholdAria": "Min. friends for a hot instance",
     "hotThresholdLabel": "Min. friends",
     "hotHelp": {
       "label": "About Hot Instances",
@@ -884,8 +884,6 @@
     "noVisibleRooms": "No visible public rooms are available.",
     "incompleteRooms": "Visible public room coverage is incomplete.",
     "partialRooms": "Only some visible public rooms are available.",
-    "public": "Public",
-    "groupPublic": "Group public",
     "joinDenied": {
       "full": "Full",
       "restricted": "Restricted",

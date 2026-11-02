@@ -15,6 +15,8 @@ import { SheetFacts, type SheetFact } from './SheetFacts'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { joinFailureMessageKey, type JoinFeedback } from '../hooks/useJoinInstance'
 import { formatCount, regionLabelKey } from '../utils/exploreFormat'
+import { instancePillFor } from '../utils/instancePill'
+import { useSettingsStore } from '../stores/settings'
 
 /** Failures where "refresh and try again" is wrong advice; they keep their own copy.
  *  Explore's `stale` means an expired selection, so refreshing is the right advice.
@@ -87,8 +89,11 @@ function RoomRow({
 }): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const detailsId = useId()
+  const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const enabled = actionAllowed && room.action.state === 'available'
-  const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
+  // The shared resolver, so a room reads exactly like the same access type
+  // anywhere else in the app.
+  const pill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
   const region = regionLabelKey(room.platform, room.region)
   const details = [region === null ? null : t(region), room.groupName].filter(
     (part): part is string => part !== null
@@ -107,10 +112,7 @@ function RoomRow({
       <div id={detailsId} className="min-w-0">
         <div className="flex flex-wrap items-center gap-[var(--space-2)]">
           {/* The same tier-colored pill as every other instance surface. */}
-          <InstancePill
-            label={access}
-            tier={room.access === 'group-public' ? 'group-public' : 'public'}
-          />
+          <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
           <span className="text-xs text-[var(--text-dim)]">
             <Count count={room.occupancy} />
             {room.capacity === null ? '' : ` / ${formatCount(room.capacity, i18n.language)}`}

@@ -184,6 +184,7 @@ function SidebarPagesCard({
   }>
 }): React.JSX.Element {
   const { t } = useTranslation()
+  const noteId = useId()
   return (
     <div className="setting-card" data-sidebar-pages="">
       {/* Name and note share one line so Appearance still fits the window
@@ -197,15 +198,25 @@ function SidebarPagesCard({
         </span>
       </p>
       <div className="mt-[var(--space-1)] grid grid-cols-2 gap-x-[var(--space-4)]">
-        {pages.map((page) => (
+        {pages.map((page, index) => (
           <div
             key={page.labelKey}
             className="flex min-w-0 items-center justify-between gap-[var(--space-3)]"
           >
+            {/* The note shows on hover and is read with the switch, so it is
+                not mouse-only. */}
             <span className="min-w-0 truncate text-sm text-[var(--text)]" title={t(page.noteKey)}>
               {t(page.labelKey)}
             </span>
-            <Toggle checked={page.checked} ariaLabel={t(page.ariaKey)} onChange={page.onChange} />
+            <span id={`${noteId}-${index}`} className="sr-only">
+              {t(page.noteKey)}
+            </span>
+            <Toggle
+              checked={page.checked}
+              ariaLabel={t(page.ariaKey)}
+              ariaDescribedBy={`${noteId}-${index}`}
+              onChange={page.onChange}
+            />
           </div>
         ))}
       </div>

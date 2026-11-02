@@ -87,7 +87,7 @@ export default function ExploreView({
         <p className="canvas-text text-sm text-[var(--text-dim)]">
           {t('explore.lists.popularHint')}
         </p>
-        <div className="flex items-center gap-[var(--space-2)]">
+        <div className="ml-auto flex items-center gap-[var(--space-2)]">
           <span className="canvas-text text-sm text-[var(--text-dim)]">
             {t('explore.worldsShown')}
           </span>

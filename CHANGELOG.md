@@ -18,10 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without scrolling.
 - Sign-in screen: the storage note is one short line, with the details behind
   Show more, like the welcome setup.
-- Explore: the room list uses the same colored access pills and green Join as
-  the rest of the app, Refresh looks like the other Refresh buttons, Popular
-  now says what it shows like the other tabs, and an unknown player count reads
-  "Count unknown".
+- Explore: the room list uses the same colored access pills, access words and
+  green Join as the rest of the app, Refresh looks like the other Refresh
+  buttons, Popular now says what it shows like the other tabs, and an unknown
+  player count reads "Count unknown".
 - Hot Instances: the friends stepper is labeled "Min. friends".
 - Groups: a group you own shows "Owner" and its code, like every other group.
 - Avatars: the avatar you are wearing shows a check and no longer says that
@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Join dialog: friends are listed in name order like the instance panel, and
   hovering a face shows the name.
 - Accounts: the platform name lines up with the text and buttons under it.
+- Scrollbars are slim and follow the theme in every list and panel, like the
+  main page.
+- Welcome setup: the first screen sits in the middle of the window.
 
 ### Fixed
 
@@ -38,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shown just above it.
 - Search: a profile of someone who is not your friend offers "Block or
   unblock", not "Unfriend or block".
+- Sign-in: a long error keeps its warning sign beside the first line.
+- Screen readers: every page switch in Settings → Appearance reads its note,
+  and the Hot Instances friends stepper is named "Min. friends" like its
+  label.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

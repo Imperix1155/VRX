@@ -402,6 +402,28 @@ describe('ExploreView', () => {
     expect(description?.textContent).toContain('1,200 / 2,400')
   })
 
+  it('names room access like every other instance and says when a count is unknown', () => {
+    const selected = world('vrchat', 'vrc', 'VRC World')
+    const groupRoom = {
+      ...room('vrchat', { state: 'available', selectionRef: 'a' }, selected.worldId),
+      access: 'group-public' as const,
+      occupancy: { state: 'unknown', value: null, source: 'vrc-room-n-users' } as const,
+      capacity: null
+    }
+    setup({
+      worlds: [selected],
+      sheet: {
+        ...source('vrchat', [selected]),
+        world: selected,
+        rooms: [groupRoom],
+        roomsComplete: true
+      }
+    })
+    // The shared instance-type words ("Group Public"), not a sheet-only variant.
+    expect(screen.getByText('Group Public')).toBeTruthy()
+    expect(screen.getByText('Count unknown')).toBeTruthy()
+  })
+
   it('never activates a fresh room row that belongs to another world', () => {
     const selected = world('vrchat', 'vrc', 'VRC World')
     const fresh: ExploreWorldSnapshot = {

@@ -96,6 +96,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const { pendingConfirm, isJoining, confirmPending, cancelPending, invalidatePending } =
     useJoinInstance()
   const joinMode = useSettingsStore((state) => state.settings.joinMode)
+  const labelScheme = useSettingsStore((state) => state.settings.labelScheme)
   const updateSettings = useSettingsStore((state) => state.updateSettings)
   const [mode, setMode] = useState<JoinMode>('desktop')
   const [moreOpen, setMoreOpen] = useState(false)
@@ -170,7 +171,9 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   }, [isJoining, pending])
   if (pending === null) return null
   const { world, room } = pending
-  const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
+  const access = t(
+    instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme).labelKey
+  )
   // The game that is already open ignores VR/desktop, so it gets no picker.
   const openGame = openGameKey(world.platform, handoff)
   const showModePicker = openGame === null && world.platform === 'chilloutvr' && joinMode === 'ask'

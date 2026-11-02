@@ -102,6 +102,13 @@ function Progress({
   )
 }
 
+/** The welcome sits in the middle of the card; the other steps start at the
+ *  top so their headings never move between steps. */
+function stepClassName(step: SetupStep): string {
+  const base = 'setup-step -mx-[30px] min-h-0 flex-1 overflow-y-auto px-[30px]'
+  return step === 'welcome' ? `${base} flex flex-col justify-center-safe` : base
+}
+
 export default function SetupWizard(): React.JSX.Element {
   const { t } = useTranslation()
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -178,14 +185,7 @@ export default function SetupWizard(): React.JSX.Element {
         <div className="relative flex min-h-0 flex-1 flex-col">
           {!skipping && <Progress step={step} onJump={setStep} />}
           {/* Keyed so each step enters fresh (and replays the enter motion). */}
-          <div
-            key={step}
-            // The welcome sits in the middle of the card; the steps start at
-            // the top so their headings never move between steps.
-            className={`setup-step -mx-[30px] min-h-0 flex-1 overflow-y-auto px-[30px] ${
-              step === 'welcome' ? 'flex flex-col justify-center-safe' : ''
-            }`}
-          >
+          <div key={step} className={stepClassName(step)}>
             {step === 'welcome' && <WelcomeStep ref={headingRef} />}
             {step === 'signin' && (
               <SignInStep ref={headingRef} skipping={skipping} readyCount={readyCount} />

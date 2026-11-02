@@ -160,6 +160,14 @@ export default function FriendDrawer({
     closeButtonRef.current?.focus()
   }, [open])
 
+  // A different friend, or the same one reopened, starts at the top. The panel
+  // stays mounted between selections, so its scroll position would otherwise
+  // carry over and open the next card partway down.
+  const scrollOwner = identityOwner ?? (shown ? `${shown.platform}:${shown.platformUserId}` : null)
+  useLayoutEffect(() => {
+    if (open && scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [open, scrollOwner])
+
   useLayoutEffect(() => {
     const destination = navigationFocusRef.current
     if (destination === null) return
@@ -169,14 +177,6 @@ export default function FriendDrawer({
     const target = panelRef.current?.querySelector<HTMLElement>(selector)
     ;(target ?? closeButtonRef.current)?.focus()
   }, [identityOwner])
-
-  // A different friend, or the same one reopened, starts at the top. The panel
-  // stays mounted between selections, so its scroll position would otherwise
-  // carry over and open the next card partway down.
-  const scrollOwner = identityOwner ?? (shown ? `${shown.platform}:${shown.platformUserId}` : null)
-  useLayoutEffect(() => {
-    if (open && scrollRef.current) scrollRef.current.scrollTop = 0
-  }, [open, scrollOwner])
 
   // Esc closes while open. NO focus trap
   // (VRX-225): the dialog is non-modal — Tab moves freely between the card and
