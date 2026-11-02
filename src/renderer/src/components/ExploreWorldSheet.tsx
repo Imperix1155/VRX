@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InstancePill from './InstancePill'
 import type {
@@ -187,6 +187,12 @@ export default function ExploreWorldSheet({
     panelRef,
     collapsed: { minHeight: '0px', maxHeight: '55vh' }
   })
+  // The scroll area is keyed by world, so another world starts at its top; the
+  // same world opened again starts there too, like the hot and community sheets.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (open && scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [open])
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const [expiredFreshnessKey, setExpiredFreshnessKey] = useState<string | null>(null)
   const freshnessKey =
@@ -323,6 +329,7 @@ export default function ExploreWorldSheet({
           <SheetGrabBar expansion={expansion} />
           {/* Keyed by world, so a sheet switched to another world starts at its top. */}
           <div
+            ref={scrollRef}
             key={`${world.platform}:${world.worldId}`}
             className="min-h-0 flex-1 overflow-y-auto p-[var(--space-4)]"
           >

@@ -238,6 +238,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Avatars: when the sign-in check can't reach a platform, the page no longer
   says it is loading that platform's avatars without end, and the other
   platform's "no uploads" line no longer waits for it.
+- Hot Instances and Explore: the panel opens each instance or world at its
+  top, also when you open the same one again, instead of where you last
+  scrolled.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

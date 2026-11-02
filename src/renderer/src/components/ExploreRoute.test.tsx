@@ -204,6 +204,22 @@ describe('ExploreRoute world sheet', () => {
     expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
   })
 
+  it('opens the same world again at the top of the sheet', async () => {
+    query.vrc = { ...source, worlds: [world] }
+    worldReads.mockResolvedValue(ready)
+    render(<ExploreRoute />)
+    const card = screen.getByRole('button', { name: /open visible rooms for a world/i })
+    fireEvent.click(card)
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    const scroller = (): Element => screen.getByRole('dialog').querySelector('.overflow-y-auto')!
+    scroller().scrollTop = 200
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.click(card)
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    expect(scroller().scrollTop).toBe(0)
+  })
+
   it('switches an open sheet to another world in place, at the top, without moving focus', async () => {
     const other: ExploreWorld = {
       ...world,

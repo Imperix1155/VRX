@@ -621,8 +621,10 @@ under the title instead of darkening it. The banner's pills and Join sit on
 the same small card-colored backing as other pills over a picture. Escape, a click outside, and Close
 return focus to the opener or a stable fallback. Picking another world while
 an Explore sheet is open switches it in place: it keeps its height, starts at
-the top, and focus stays on the picked card. A confirmation modal owns
-dismissal while open, and the Dashboard never shows both sheet types at once.
+the top, and focus stays on the picked card. A Hot Instance, Explore world,
+person or group sheet always opens at its top, also for the one shown last. A
+confirmation modal owns dismissal while open, and the Dashboard never shows
+both sheet types at once.
 
 Every bottom sheet (Hot Instance, Explore world, Avatar, person, group) opens
 collapsed, and its grab bar is a real control (`SheetGrabBar`): drag up to

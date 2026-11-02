@@ -16,7 +16,7 @@
  * - Close paths: Esc, ✕, pointerdown outside (not on a [data-hot-sheet-opener]).
  * - Focus returns to the opener card on close.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useAvatar } from '../hooks/useAvatar'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { useTranslation } from 'react-i18next'
@@ -89,6 +89,15 @@ export default function HotInstanceSheet({
     if (!open) return
     closeButtonRef.current?.focus()
   }, [open])
+
+  // Another instance, or the same one reopened, starts at the top. The panel
+  // stays mounted between instances, so its scroll position would otherwise
+  // carry over and show the next one scrolled past its picture and name.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const shownKey = shown === null ? null : `${shown.platform}:${shown.instanceId}`
+  useLayoutEffect(() => {
+    if (open && scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [open, shownKey])
 
   // Esc closes while open. NO focus trap (non-modal contract).
   useEffect(() => {
@@ -238,7 +247,10 @@ export default function HotInstanceSheet({
           {/* Grab bar: drag or click for more about this instance. */}
           <SheetGrabBar expansion={expansion} />
 
-          <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]">
+          <div
+            ref={scrollRef}
+            className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]"
+          >
             {/* Banner */}
             <div
               ref={bannerRef}

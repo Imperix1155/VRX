@@ -343,6 +343,26 @@ describe('HotInstanceSheet', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('opens another instance, or the same one again, at the top of the sheet', () => {
+    stubIntersectionObserver()
+    const first = makeHotInstance()
+    const second = makeCvrHotInstance()
+    const { rerender } = render(<HotInstanceSheet instance={first} onClose={vi.fn()} />)
+    const scroller = (): HTMLElement =>
+      screen.getByRole('dialog').querySelector<HTMLElement>('.overflow-y-auto')!
+    scroller().scrollTop = 240
+    rerender(<HotInstanceSheet instance={second} onClose={vi.fn()} />)
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe(second.worldName)
+    expect(scroller().scrollTop).toBe(0)
+    scroller().scrollTop = 120
+    // A roster refresh hands the sheet a new object for the same instance: no jump.
+    rerender(<HotInstanceSheet instance={{ ...second }} onClose={vi.fn()} />)
+    expect(scroller().scrollTop).toBe(120)
+    rerender(<HotInstanceSheet instance={null} onClose={vi.fn()} />)
+    rerender(<HotInstanceSheet instance={second} onClose={vi.fn()} />)
+    expect(scroller().scrollTop).toBe(0)
+  })
+
   it('names each member chip once, by its visible name', () => {
     stubIntersectionObserver()
     render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
