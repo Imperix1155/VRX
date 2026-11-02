@@ -86,6 +86,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   them.
 - Identities: opened from one account's own view, the dialog no longer offers
   View for that same account, which only closed the dialog.
+- Friend details: for a linked person, the VRChat and ChilloutVR buttons under
+  the name say "View VRChat profile" or "View ChilloutVR profile" to screen
+  readers and in their tooltip, and show the drawer's focus ring.
 
 ### Fixed
 

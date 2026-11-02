@@ -128,6 +128,16 @@ describe('linked drawer ownership', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to combined profile' }))
     expect(navigate).toHaveBeenCalledWith(person)
   })
+  it.each(['VRChat', 'ChilloutVR'])(
+    'names the %s pill in a combined profile by the view it opens',
+    (platform) => {
+      render(drawer(person))
+      const pill = screen.getByRole('button', { name: `View ${platform} profile` })
+      expect(pill.textContent).toBe(platform)
+      expect(pill.getAttribute('title')).toBe(`View ${platform} profile`)
+      expect(pill.className).toContain('focus:ring-1')
+    }
+  )
   it('keeps keyboard focus in the drawer when moving between the combined and account views', () => {
     const account: ProfileTarget = {
       kind: 'account',
@@ -135,7 +145,7 @@ describe('linked drawer ownership', () => {
       account: { platform: 'chilloutvr', friendId: cvr.platformUserId }
     }
     const view = render(drawer(person))
-    const cvrButton = screen.getByRole('button', { name: 'ChilloutVR' })
+    const cvrButton = screen.getByRole('button', { name: 'View ChilloutVR profile' })
     cvrButton.focus()
     fireEvent.click(cvrButton)
     view.rerender(drawer(account))
@@ -145,7 +155,9 @@ describe('linked drawer ownership', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to combined profile' }))
     view.rerender(drawer(person))
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'ChilloutVR' }))
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'View ChilloutVR profile' })
+    )
   })
 
   it('saves a shared note being typed when the page closes for a quit', async () => {

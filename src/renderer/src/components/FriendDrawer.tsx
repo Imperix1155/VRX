@@ -388,14 +388,22 @@ export default function FriendDrawer({
                           account.platform === member.platform &&
                           account.platformUserId === member.friendId
                       )
+                      const platformName = t(
+                        member.platform === 'vrchat'
+                          ? 'friends.platform.vrchat'
+                          : 'friends.platform.chilloutvr'
+                      )
+                      // It looks like the platform badge, so its name says where it goes.
+                      const view = t('linking.manage.view', { platform: platformName })
                       return (
                         <button
                           key={member.platform}
                           type="button"
                           data-drawer-account={member.platform}
                           disabled={!available}
-                          title={!available ? t('linking.unavailable') : undefined}
-                          className="rounded-pill border px-[var(--space-2)] text-[11px] disabled:opacity-50"
+                          aria-label={view}
+                          title={available ? view : t('linking.unavailable')}
+                          className="rounded-pill border px-[var(--space-2)] text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:opacity-50"
                           style={{
                             color:
                               member.platform === 'vrchat'
@@ -419,11 +427,7 @@ export default function FriendDrawer({
                             })
                           }}
                         >
-                          {t(
-                            member.platform === 'vrchat'
-                              ? 'friends.platform.vrchat'
-                              : 'friends.platform.chilloutvr'
-                          )}
+                          {platformName}
                         </button>
                       )
                     })}
