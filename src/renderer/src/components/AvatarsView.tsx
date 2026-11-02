@@ -18,8 +18,8 @@ import type { AuthStatus, Platform } from '@shared/types'
 import { useAuthStatus } from '../queries/auth'
 import { useAvatarLibrary } from '../queries/avatarLibrary'
 import { useFriendsStore } from '../stores/friends'
-import { useUiStore } from '../stores/ui'
 import { isNotConnectedAuth } from '../hooks/useNotConnectedGate'
+import GoToAccountsButton from './GoToAccountsButton'
 import { sourcesSettled, type Kept } from '../utils/community'
 import AvatarCard from './AvatarCard'
 import AvatarSheet from './AvatarSheet'
@@ -320,25 +320,12 @@ function SourceNotice({
   onRetry: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const setActiveTab = useUiStore((s) => s.setActiveTab)
-  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
   const platformName = t(platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
 
   let text: string
   let action: React.JSX.Element | null = null
   let tone = 'text-[var(--text-dim)]'
-  const accountsButton = (
-    <button
-      type="button"
-      onClick={() => {
-        setActiveTab('settings')
-        setSettingsCategory('accounts')
-      }}
-      className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-    >
-      {t('avatars.notConnected.openAccounts')}
-    </button>
-  )
+  const accountsButton = <GoToAccountsButton label={t('avatars.notConnected.openAccounts')} />
   if (state.kind === 'not-connected') {
     text = t(NOT_CONNECTED_KEYS[platform])
     action = accountsButton

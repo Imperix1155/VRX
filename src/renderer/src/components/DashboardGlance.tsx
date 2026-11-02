@@ -27,6 +27,7 @@ import { useFriends } from '../queries/friends'
 import { useAvatar } from '../hooks/useAvatar'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
+import GoToAccountsButton from './GoToAccountsButton'
 import { inboxActionText, latestInvitePerPlatform, relativeInboxTime } from '../utils/inbox'
 import { InboxAvatar } from './InboxView'
 import PlatformPill from './PlatformPill'
@@ -212,17 +213,7 @@ function WornRow({
         <PlatformPill platform={platform} />
       </div>
       {action === 'accounts' ? (
-        <button
-          type="button"
-          onClick={() => {
-            const ui = useUiStore.getState()
-            ui.setActiveTab('settings')
-            ui.setSettingsCategory('accounts')
-          }}
-          className="shrink-0 rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-        >
-          {t('avatars.notConnected.openAccounts')}
-        </button>
+        <GoToAccountsButton className="shrink-0" label={t('avatars.notConnected.openAccounts')} />
       ) : action === 'retry' ? (
         <button
           type="button"

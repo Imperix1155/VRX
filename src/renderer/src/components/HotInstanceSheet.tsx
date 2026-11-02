@@ -16,8 +16,9 @@
  * - Close paths: Esc, ✕, pointerdown outside (not on a [data-hot-sheet-opener]).
  * - Focus returns to the opener card on close.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAvatar } from '../hooks/useAvatar'
+import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { useTranslation } from 'react-i18next'
 import { isFriendJoinable } from '@shared/joinability'
@@ -90,14 +91,11 @@ export default function HotInstanceSheet({
     closeButtonRef.current?.focus()
   }, [open])
 
-  // Another instance, or the same one reopened, starts at the top. The panel
-  // stays mounted between instances, so its scroll position would otherwise
-  // carry over and show the next one scrolled past its picture and name.
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const shownKey = shown === null ? null : `${shown.platform}:${shown.instanceId}`
-  useLayoutEffect(() => {
-    if (open && scrollRef.current) scrollRef.current.scrollTop = 0
-  }, [open, shownKey])
+  // Another instance, or the same one reopened, starts at the top.
+  const scrollRef = useScrollTopOnShow(
+    open,
+    shown === null ? null : `${shown.platform}:${shown.instanceId}`
+  )
 
   // Esc closes while open. NO focus trap (non-modal contract).
   useEffect(() => {

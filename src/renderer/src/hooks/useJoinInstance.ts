@@ -103,7 +103,7 @@ export interface FriendPendingConfirm {
 }
 
 /** How a `join` was asked for. */
-export interface JoinOptions {
+interface JoinOptions {
   /** From a hot instance's card or sheet, through one of its members. */
   fromHotInstance?: boolean
 }
@@ -123,7 +123,7 @@ export interface ExplorePendingConfirm {
 
 export type PendingConfirm = FriendPendingConfirm | ExplorePendingConfirm
 
-export type ConfirmPendingResult = 'joined' | 'review-required' | 'unavailable' | 'failed'
+type ConfirmPendingResult = 'joined' | 'review-required' | 'unavailable' | 'failed'
 
 interface JoinSnapshot {
   /** True while ANY surface's join is in flight. */

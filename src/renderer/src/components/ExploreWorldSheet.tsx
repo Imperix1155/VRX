@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InstancePill from './InstancePill'
 import type {
@@ -12,6 +12,7 @@ import WorldFavoriteStar from './WorldFavoriteStar'
 import HomeWorldControl from './HomeWorldControl'
 import SheetGrabBar from './SheetGrabBar'
 import { SheetFacts, type SheetFact } from './SheetFacts'
+import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { joinFailureMessageKey, type JoinFeedback } from '../hooks/useJoinInstance'
 import { formatCount, regionLabelKey } from '../utils/exploreFormat'
@@ -189,10 +190,7 @@ export default function ExploreWorldSheet({
   })
   // The scroll area is keyed by world, so another world starts at its top; the
   // same world opened again starts there too, like the hot and community sheets.
-  const scrollRef = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    if (open && scrollRef.current) scrollRef.current.scrollTop = 0
-  }, [open])
+  const scrollRef = useScrollTopOnShow(open)
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const [expiredFreshnessKey, setExpiredFreshnessKey] = useState<string | null>(null)
   const freshnessKey =

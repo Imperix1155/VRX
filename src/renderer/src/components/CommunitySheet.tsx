@@ -6,10 +6,11 @@
  * restores focus to the opener. VRChat and ChilloutVR share this exact frame;
  * only the platform stripe and label differ.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
+import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { PictureBackedPill } from './CardPictureBackdrop'
 import PlatformPill from './PlatformPill'
@@ -70,11 +71,8 @@ export default function CommunitySheet<T>({
   // Another person or group, or the same one reopened, starts at the top. The
   // sheet stays mounted between items, so its scroll position would otherwise
   // carry over and show the next one scrolled past its banner and name.
-  const scrollRef = useRef<HTMLDivElement>(null)
   const shownKey = shown === null ? null : itemKey(shown)
-  useLayoutEffect(() => {
-    if (open && scrollRef.current) scrollRef.current.scrollTop = 0
-  }, [open, shownKey])
+  const scrollRef = useScrollTopOnShow(open, shownKey)
 
   useEffect(() => {
     if (!open) return

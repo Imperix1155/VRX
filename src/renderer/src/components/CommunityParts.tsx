@@ -8,7 +8,7 @@ import { memo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
-import { useUiStore } from '../stores/ui'
+import GoToAccountsButton from './GoToAccountsButton'
 import { platformName, type CommunityNoticeReason, type CommunitySource } from '../utils/community'
 import { initialOf } from '../utils/initialOf'
 
@@ -40,26 +40,13 @@ export function CommunityNotice({
   onRetry?: () => void
 }): React.JSX.Element | null {
   const { t } = useTranslation()
-  const setActiveTab = useUiStore((s) => s.setActiveTab)
-  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
   if (state.kind === 'ready' || state.kind === 'idle' || state.kind === 'auth-pending') return null
   const name = platformName(t, platform)
 
   let text: string
   let action: React.JSX.Element | null = null
   let tone = 'text-[var(--text-dim)]'
-  const accountsButton = (
-    <button
-      type="button"
-      onClick={() => {
-        setActiveTab('settings')
-        setSettingsCategory('accounts')
-      }}
-      className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-    >
-      {t('community.openAccounts')}
-    </button>
-  )
+  const accountsButton = <GoToAccountsButton label={t('community.openAccounts')} />
   if (state.kind === 'not-connected') {
     text = t(NOT_CONNECTED_KEYS[platform])
     action = accountsButton
