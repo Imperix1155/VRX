@@ -91,11 +91,9 @@ export default function HotInstanceSheet({
     closeButtonRef.current?.focus()
   }, [open])
 
-  // Another instance, or the same one reopened, starts at the top.
-  const scrollRef = useScrollTopOnShow(
-    open,
-    shown === null ? null : `${shown.platform}:${shown.instanceId}`
-  )
+  // Another instance, or the same one reopened, starts at the top. groupKey
+  // names the world too: two VRChat worlds can share an instance number.
+  const scrollRef = useScrollTopOnShow(open, shown === null ? null : shown.groupKey)
 
   // Esc closes while open. NO focus trap (non-modal contract).
   useEffect(() => {

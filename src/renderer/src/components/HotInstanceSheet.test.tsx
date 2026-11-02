@@ -363,6 +363,23 @@ describe('HotInstanceSheet', () => {
     expect(scroller().scrollTop).toBe(0)
   })
 
+  it('opens a VRChat instance in another world at the top, though the instance number matches', () => {
+    stubIntersectionObserver()
+    const first = makeHotInstance()
+    const second = makeHotInstance({
+      worldId: 'wrld_other',
+      worldName: 'Other World',
+      groupKey: 'vrchat other key'
+    })
+    const { rerender } = render(<HotInstanceSheet instance={first} onClose={vi.fn()} />)
+    const scroller = (): HTMLElement =>
+      screen.getByRole('dialog').querySelector<HTMLElement>('.overflow-y-auto')!
+    scroller().scrollTop = 240
+    rerender(<HotInstanceSheet instance={second} onClose={vi.fn()} />)
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Other World')
+    expect(scroller().scrollTop).toBe(0)
+  })
+
   it('names each member chip once, by its visible name', () => {
     stubIntersectionObserver()
     render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
