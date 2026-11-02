@@ -56,9 +56,9 @@ const INSTALLED_FRAME = [
   'index-abc123.js:12:345'
 ].join('/')
 
-function InstalledBomb(): React.JSX.Element {
-  const error = new Error(`Failed to load ${INSTALLED_FRAME}`)
-  error.stack = `Error: boom\n    at Panel (${INSTALLED_FRAME})\n    at ${INSTALLED_FRAME}`
+function InstalledBomb({ frame = INSTALLED_FRAME }: { frame?: string }): React.JSX.Element {
+  const error = new Error(`Failed to load ${frame}`)
+  error.stack = `Error: boom\n    at Panel (${frame})\n    at ${frame}`
   throw error
 }
 
@@ -218,6 +218,26 @@ describe('ErrorBoundary', () => {
     expect(writeText).toHaveBeenCalledOnce()
     const copied = String(writeText.mock.calls[0]?.[0])
     expect(copied).not.toMatch(/Sample|Users|AppData|file:/)
+    expect(copied).toContain('Failed to load index-abc123.js:12:345')
+    expect(copied).toContain('at Panel (index-abc123.js:12:345)')
+  })
+
+  it.each([
+    INSTALLED_FRAME.replace('Sample%20User', 'Sample%20(Home)'),
+    'file:///D:/Games%20(old)/VRX/resources/app.asar/out/renderer/assets/index-abc123.js:12:345',
+    'file://Sample-PC/Shared/Sample/VRX/resources/app.asar/out/renderer/assets/index-abc123.js:12:345'
+  ])('leaves every folder name out of %s', (frame) => {
+    const writeText = stubClipboard(() => Promise.resolve())
+    render(
+      <ErrorBoundary>
+        <InstalledBomb frame={frame} />
+      </ErrorBoundary>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.copyDiagnostics') }))
+
+    const copied = String(writeText.mock.calls[0]?.[0])
+    expect(copied).not.toMatch(/Sample|Home|Games|Shared|Users|file:/)
     expect(copied).toContain('Failed to load index-abc123.js:12:345')
     expect(copied).toContain('at Panel (index-abc123.js:12:345)')
   })

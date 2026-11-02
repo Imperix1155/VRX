@@ -6,9 +6,11 @@ type FallbackVariant = 'app' | 'panel'
 /** How long the button reads "Copied" after a copy worked. */
 const COPIED_LABEL_MS = 2_000
 
-/** Copied diagnostics leave out folder names: only file names stay (`index-….js:12:345`). */
+/** Copied diagnostics leave out folder names: only file names stay (`index-….js:12:345`).
+ *  A file URL runs to the next space (its own spaces are %20); everything up
+ *  to its last slash goes. */
 function withoutInstallFolder(text: string): string {
-  return text.replace(/file:\/\/\/[^\s)]*\//g, '')
+  return text.replace(/file:\/\/\S*\//g, '')
 }
 
 interface FallbackProps {
