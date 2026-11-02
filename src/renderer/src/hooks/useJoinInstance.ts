@@ -511,9 +511,13 @@ function createJoinStore(): JoinStore {
           },
           joining: false
         })
-        // Main is ahead of the renderer cache; force a single refetch so the
-        // wait cannot outlive a 'manual' reconcile cadence.
-        void queryClient.refetchQueries({ queryKey: friendsQueryKey(pc.platform) })
+        // Main is ahead of the renderer cache; ask for one read so the wait
+        // cannot outlive a 'manual' reconcile cadence. A read already running
+        // is reused, never restarted.
+        void queryClient.refetchQueries(
+          { queryKey: friendsQueryKey(pc.platform) },
+          { cancelRefetch: false }
+        )
         return 'review-required'
       }
       // Ordinary terminal failure: clear the dialog and show the attributed blip.

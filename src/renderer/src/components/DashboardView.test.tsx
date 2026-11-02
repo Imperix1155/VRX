@@ -1456,6 +1456,36 @@ describe('HotInstanceSheet live truth + presentation (VRX-250 review)', () => {
     }
   })
 
+  it('shows what a Join through another member said, on the card and in the sheet', async () => {
+    try {
+      useSettingsStore.setState({
+        settings: { ...DEFAULT_SETTINGS, confirmJoin: false }
+      })
+      stubQueries(
+        { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+        { data: [], isPending: false }
+      )
+      render(<DashboardView />)
+      const store = renderHook(() => useJoinInstance())
+
+      // A Join through Bo, not the card's first member Amy (the dialog's stand-in
+      // can be anyone still there). With no bridge it fails at once.
+      await act(async () => {
+        await store.result.current.join(publicWorld('usr_b', 'Bo'), { fromHotInstance: true })
+      })
+
+      const card = screen
+        .getByRole('button', { name: /SunDown hot instance details/ })
+        .closest('[data-hot-sheet-opener]') as HTMLElement
+      expect(within(card).getByRole('status').textContent).not.toBe('')
+      fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+      const sheet = screen.getByRole('dialog', { name: 'SunDown' })
+      expect(within(sheet).getByRole('status').textContent).not.toBe('')
+    } finally {
+      useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
+    }
+  })
+
   it('Esc and outside pointerdown do NOT close the sheet while a join confirm is parked', () => {
     stubQueries(
       { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },

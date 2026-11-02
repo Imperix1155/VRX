@@ -2340,9 +2340,13 @@ describe('VRX-239/241 liveness contract', () => {
 
     expect(joinInstance).toHaveBeenCalledOnce()
     expect(within(dialog).getByText(/Waiting for updated location/)).toBeTruthy()
-    // The arm path forces a single refetch so 'manual' reconcile cadences cannot
-    // strand the dialog if no WS event arrives.
-    expect(refetchSpy).toHaveBeenCalledWith({ queryKey: friendsQueryKey('vrchat') })
+    // The arm path asks for one read so 'manual' reconcile cadences cannot
+    // strand the dialog if no WS event arrives; a read already running is
+    // reused, never restarted.
+    expect(refetchSpy).toHaveBeenCalledWith(
+      { queryKey: friendsQueryKey('vrchat') },
+      { cancelRefetch: false }
+    )
 
     // Identical data but a newer dataUpdatedAt watermark: the render-subscribed
     // field advances and lifts the guard even though structural sharing would

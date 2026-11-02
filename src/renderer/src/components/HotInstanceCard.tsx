@@ -56,7 +56,12 @@ export default function HotInstanceCard({
   // target. The confirmation dialog (VRX-210) intercepts via the same flow.
   const { isJoining, joinFailureFor, join } = useJoinInstance()
   const joinTarget = instance.members.find(isFriendJoinable) ?? null
-  const joinFailure = joinTarget !== null ? joinFailureFor(joinTarget) : null
+  // What the last Join through any member said: the dialog may join through
+  // another friend still there (friendForPending), not this first one.
+  const joinFailure =
+    joinTarget !== null
+      ? (instance.members.map(joinFailureFor).find((reason) => reason !== null) ?? null)
+      : null
   const isVrc = instance.platform === 'vrchat'
   const cardRef = useRef<HTMLDivElement>(null)
   const openerRef = useRef<HTMLButtonElement>(null)

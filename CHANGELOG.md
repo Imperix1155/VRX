@@ -131,6 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hot Instances: if the friend a hot card's Join went through leaves before you
   confirm, the Join dialog joins through a friend still there, instead of
   offering that friend's new place or saying the instance can't be joined.
+- Hot Instances: a hot card and its panel show what the last Join said even
+  when it went through a different friend in the same instance.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
