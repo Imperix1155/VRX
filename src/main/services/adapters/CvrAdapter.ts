@@ -909,6 +909,9 @@ export class CvrAdapter
   }
 
   async search(query: string, lease: RequestLease): Promise<CommunitySearchPage> {
+    // The text is one path step, and "." or ".." can't be one: it finds
+    // nothing, and nothing is sent.
+    if (query === '.' || query === '..') return { people: [], worlds: [] }
     // One request answers people, worlds, avatars and props together.
     const raw = await this.runCommunityRequest(lease, () =>
       this.get(`/search/${encodeURIComponent(query)}`, z.unknown(), this.communityOptions(lease))

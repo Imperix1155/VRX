@@ -973,6 +973,8 @@ and 5-minute cache rules apply.
 
 - **Fields:** user, world and group ids must be GUIDs (stored lower case). A
   featured badge named `No badge featured` is skipped.
+- **Search text** is one path step, URL-encoded. Text that is only `.` or `..`
+  can't be one, so it finds nothing and sends nothing.
 - **When it breaks:** a reply of the wrong shape is unavailable. Auth errors
   follow the data-path rules above; a 429 surfaces as rate-limited.
 

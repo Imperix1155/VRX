@@ -204,6 +204,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Explore: picking another world while a world panel is open switches the
   panel in place and shows the new world from its top, instead of sliding the
   panel away and back and moving focus to the world you had open before.
+- Search: searching for ".." shows no ChilloutVR results instead of "Couldn't
+  reach ChilloutVR", and sends nothing to ChilloutVR.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
