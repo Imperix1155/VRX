@@ -540,8 +540,10 @@ describe('useJoinInstance', () => {
   })
 
   it('a direct join told the location changed reads the friend list once, so Join again can work', async () => {
-    // Confirmation off: the renderer cache is behind main, and nothing else
-    // refreshes it while the reconcile cadence is manual.
+    // Confirmation off: the renderer cache is behind main (it still shows the
+    // place main turned down), and nothing else refreshes it while the
+    // reconcile cadence is manual.
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
     const refetch = vi.spyOn(queryClient, 'refetchQueries').mockResolvedValue(undefined)
     try {
       joinInstance.mockResolvedValueOnce({ ok: false, reason: 'target-changed' })
@@ -566,6 +568,42 @@ describe('useJoinInstance', () => {
       })
       expect(hook.result.current.joinFailureFor(friend)).toBe('cooldown')
       expect(refetch).toHaveBeenCalledOnce()
+    } finally {
+      refetch.mockRestore()
+    }
+  })
+
+  it('a direct join told the location changed reads nothing once the list shows the move', async () => {
+    // The friend's live update lands before main's answer, as it does when the
+    // move reached main over the live connection: the list is already current.
+    const moved: Friend = {
+      ...friend,
+      instance: { ...friend.instance!, instanceId: `${friend.instance!.instanceId}-moved` }
+    }
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+    const refetch = vi.spyOn(queryClient, 'refetchQueries').mockResolvedValue(undefined)
+    try {
+      joinInstance.mockImplementationOnce(async () => {
+        queryClient.setQueryData(friendsQueryKey('vrchat'), [moved])
+        return { ok: false, reason: 'target-changed' }
+      })
+      const hook = renderHook(() => useJoinInstance())
+      await act(async () => {
+        await hook.result.current.join(friend)
+      })
+      expect(hook.result.current.joinFailureFor(friend)).toBe('target-changed')
+      expect(refetch).not.toHaveBeenCalled()
+
+      // Nor when the move made them not joinable: the row already says so.
+      queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+      joinInstance.mockImplementationOnce(async () => {
+        queryClient.setQueryData(friendsQueryKey('vrchat'), [{ ...friend, instance: null }])
+        return { ok: false, reason: 'target-changed' }
+      })
+      await act(async () => {
+        await hook.result.current.join(friend)
+      })
+      expect(refetch).not.toHaveBeenCalled()
     } finally {
       refetch.mockRestore()
     }

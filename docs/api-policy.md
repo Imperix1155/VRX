@@ -212,8 +212,10 @@ Both pipelines share [`ReconnectingPipeline`](../src/main/services/adapters/Reco
 
 Full REST rosters run on first load, on manual refresh, after a socket
 reconnects, once after a Join that main turned down because the friend's
-place had changed (`target-changed`, so the next Join sends the current
-place), and on the background reconcile timer. The timer defaults to 1
+place had changed (`target-changed`) while the friend list still shows the
+old place (so the next Join sends the current place; when the friend's live
+update has already landed, nothing is read), and on the background reconcile
+timer. The timer defaults to 1
 hour, the cadence VRCX uses for its full friend list. It can be set to 5, 10
 or 30 minutes or manual, and varies ±10% per run. Settings files from before
 schema v14 that held the old 5-minute default move to 1 hour. It is a safety

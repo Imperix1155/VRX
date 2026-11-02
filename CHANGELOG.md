@@ -157,8 +157,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the game is installed, instead of telling you to check your connection and
   try again.
 - Join: with Confirm before joining off, "Location changed — try Join again"
-  now has VRX read the friend list once, so the next Join works even when the
-  background re-sync is set to manual.
+  now has VRX read the friend list once when the list still shows the old
+  place, so the next Join works even when the background re-sync is set to
+  manual. When the friend's update has already arrived, nothing is read.
 - Hot Instances: the instance panel's Join keeps keyboard focus while a join
   runs, so the next Tab stays in the panel instead of starting over at the
   top of the window.

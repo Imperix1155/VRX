@@ -166,6 +166,14 @@ function readRosterAfterMove(platform: Platform): void {
   void queryClient.refetchQueries({ queryKey: friendsQueryKey(platform) }, { cancelRefetch: false })
 }
 
+/** Whether the friends cache still shows `friend` joinable at `target`. */
+function cacheStillShows(friend: Friend, target: JoinTarget): boolean {
+  const live = readFriendsCache(friend.platform).friends?.find(
+    (f) => f.platformUserId === friend.platformUserId
+  )
+  return live !== undefined && isFriendJoinable(live) && targetFor(live)?.key === target.key
+}
+
 /** Read the latest friends array and the query's dataUpdatedAt watermark for CAS. */
 function readFriendsCache(platform: Platform): {
   friends: Friend[] | undefined
@@ -307,9 +315,14 @@ function createJoinStore(): JoinStore {
         showJoinResult(friendKey, result)
       } else {
         showFailureBlip(friendKey, result.reason)
-        // Every retry would send the same old target, so read the roster once,
-        // as Confirm does.
-        if (result.reason === 'target-changed') readRosterAfterMove(friend.platform)
+        // Main turned down the place the list still shows, so its record is
+        // ahead of the cache and every retry would send the same old target:
+        // read the roster once, as Confirm does. A moved friend's live update
+        // has usually landed by now; then the list shows the new place and
+        // nothing is read.
+        if (result.reason === 'target-changed' && cacheStillShows(friend, target)) {
+          readRosterAfterMove(friend.platform)
+        }
       }
     } catch {
       // Bridge exceptions are user-equivalent to a denial: blip, never an
