@@ -183,11 +183,23 @@ function renderWith(node: React.ReactNode): void {
   render(<QueryClientProvider client={client}>{node}</QueryClientProvider>)
 }
 
+/** A promise with its resolver exposed, for a platform that answers late. */
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+  let resolve!: (v: T) => void
+  const promise = new Promise<T>((r) => {
+    resolve = r
+  })
+  return { promise, resolve }
+}
+
 function search(text: string): void {
   const box = screen.getByRole('searchbox', { name: msg('search.aria') })
   fireEvent.change(box, { target: { value: text } })
   fireEvent.submit(box.closest('form')!)
 }
+
+const loadingLine = (platform: 'VRChat' | 'ChilloutVR'): string =>
+  msg('community.loading', { platform })
 
 beforeEach(() => {
   Object.defineProperty(window, 'vrx', { value: bridge, configurable: true, writable: true })
@@ -433,6 +445,37 @@ describe('SearchView', () => {
     expect(picture()?.textContent).toBe('L')
   })
 
+  it('says nothing was found only once every shown platform has answered', async () => {
+    const vrchat = deferred<CommunitySearchResult>()
+    const answer = ({
+      platform,
+      query
+    }: {
+      platform: Platform
+      query: string
+    }): Promise<CommunitySearchResult> =>
+      platform === 'vrchat'
+        ? vrchat.promise
+        : Promise.resolve({
+            ok: true,
+            platform,
+            query,
+            people: [],
+            worlds: [world(platform, 1, 'chilloutvr plaza')]
+          })
+    bridge.searchCommunity.mockImplementationOnce(answer).mockImplementationOnce(answer)
+    renderWith(<SearchView />)
+    search('plaza')
+    await screen.findByTestId('world-results')
+    expect(screen.getByText(loadingLine('VRChat'))).toBeTruthy()
+    // ChilloutVR found no one, but VRChat hasn't answered yet.
+    expect(screen.queryByText(msg('search.noPeople'))).toBeNull()
+    expect(screen.queryByRole('region', { name: msg('search.people') })).toBeNull()
+    vrchat.resolve({ ok: true, platform: 'vrchat', query: 'plaza', people: [], worlds: [] })
+    expect(await screen.findByText(msg('search.noPeople'))).toBeTruthy()
+    expect(screen.queryByText(loadingLine('VRChat'))).toBeNull()
+  })
+
   it('searches only the platform the filter picks, and sends nothing for a signed-out one', async () => {
     authState.chilloutvr = 'unauthenticated'
     useFriendsStore.setState({ platformFilter: 'chilloutvr' })
@@ -539,6 +582,24 @@ describe('GroupsView', () => {
     expect(line.className).toContain('text-[var(--error)]')
     expect(screen.queryByRole('region', { name: msg('groups.heading') })).toBeNull()
   })
+
+  it('says you have no groups only once every shown platform has answered', async () => {
+    const vrchat = deferred<MyGroupsResult>()
+    const answer = ({ platform }: { platform: Platform }): Promise<MyGroupsResult> =>
+      platform === 'vrchat'
+        ? vrchat.promise
+        : Promise.resolve({ ok: true, platform, groups: [], complete: true })
+    bridge.getMyGroups.mockImplementationOnce(answer).mockImplementationOnce(answer)
+    renderWith(<GroupsView />)
+    expect(screen.getByText(loadingLine('ChilloutVR'))).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText(loadingLine('ChilloutVR'))).toBeNull())
+    // ChilloutVR has no groups, but VRChat hasn't answered yet.
+    expect(screen.getByText(loadingLine('VRChat'))).toBeTruthy()
+    expect(screen.queryByText(msg('groups.empty'))).toBeNull()
+    expect(screen.queryByRole('region', { name: msg('groups.heading') })).toBeNull()
+    vrchat.resolve({ ok: true, platform: 'vrchat', groups: [], complete: true })
+    expect(await screen.findByText(msg('groups.empty'))).toBeTruthy()
+  })
 })
 
 describe('ExploreListPanel', () => {
@@ -589,6 +650,28 @@ describe('ExploreListPanel', () => {
     act(() => answer({ ok: false, reason: 'rate-limited' }))
     expect(await screen.findByText(failed)).toBeTruthy()
     expect(bridge.getWorldList).toHaveBeenCalledTimes(2)
+  })
+
+  it('says there are no worlds only once every shown platform has answered', async () => {
+    const vrchat = deferred<WorldListResult>()
+    const answer = ({
+      platform,
+      list
+    }: {
+      platform: Platform
+      list: 'new' | 'updated'
+    }): Promise<WorldListResult> =>
+      platform === 'vrchat'
+        ? vrchat.promise
+        : Promise.resolve({ ok: true, platform, list, worlds: [] })
+    bridge.getWorldList.mockImplementationOnce(answer).mockImplementationOnce(answer)
+    renderWith(<ExploreListPanel list="new" />)
+    expect(screen.getByText(loadingLine('ChilloutVR'))).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText(loadingLine('ChilloutVR'))).toBeNull())
+    expect(screen.getByText(loadingLine('VRChat'))).toBeTruthy()
+    expect(screen.queryByText(msg('explore.lists.empty'))).toBeNull()
+    vrchat.resolve({ ok: true, platform: 'vrchat', list: 'new', worlds: [] })
+    expect(await screen.findByText(msg('explore.lists.empty'))).toBeTruthy()
   })
 
   it('adds no line under ALL for a platform the user isn’t signed in to', async () => {

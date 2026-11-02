@@ -12,7 +12,7 @@ import type { Platform } from '@shared/types'
 import { useAuthStatus } from '../queries/auth'
 import { useMyGroups, useRefreshMyGroups } from '../queries/community'
 import { useFriendsStore } from '../stores/friends'
-import { communitySource, platformName } from '../utils/community'
+import { communitySource, platformName, sourcesSettled } from '../utils/community'
 import CommunitySheet from './CommunitySheet'
 import { CommunityHeading, CommunityNotices, CommunityTile, TileGrid } from './CommunityParts'
 
@@ -53,6 +53,10 @@ export default function GroupsView(): React.JSX.Element {
       anyReady: ready.length > 0
     }
   }, [vrcReady, cvrReady, i18n.language])
+  // With nothing to list yet, the section (its count and "no groups" line)
+  // waits for every shown platform, so one platform's empty answer never
+  // reads as none at all while the other is still loading.
+  const showList = anyReady && (groups.length > 0 || sourcesSettled(sources))
 
   const refreshGroups = useRefreshMyGroups()
   const [refreshing, setRefreshing] = useState(false)
@@ -108,7 +112,7 @@ export default function GroupsView(): React.JSX.Element {
         onRetry={(platform) => void queries[platform].refetch()}
       />
 
-      {anyReady ? (
+      {showList ? (
         <section aria-label={t('groups.heading')}>
           <CommunityHeading>
             {t('groups.heading')}

@@ -220,6 +220,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   starts at the top of its panel instead of where the last one was scrolled.
 - Search: a person without a picture, or whose picture can't load, shows the
   first letter of their name instead of an empty box.
+- Search, Groups, Explore's New and Recently updated, and Avatars: lines such
+  as "You aren't in any groups yet." wait until every platform shown has
+  answered, instead of showing while the other one is still loading.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

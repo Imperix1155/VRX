@@ -147,6 +147,33 @@ describe('AvatarsView', () => {
     expect(useUiStore.getState().settingsCategory).toBe('accounts')
   })
 
+  it('says you have no uploads only once every shown platform has answered', async () => {
+    let answerVrchat: (result: AvatarLibraryResult) => void = () => undefined
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      platform === 'vrchat'
+        ? new Promise<AvatarLibraryResult>((resolve) => {
+            answerVrchat = resolve
+          })
+        : Promise.resolve<AvatarLibraryResult>({
+            ok: true,
+            platform,
+            avatars: [],
+            complete: true,
+            current: cvrWorn
+          })
+    )
+    renderView()
+    await screen.findByRole('button', { name: cardName(cvrWorn) })
+    const vrcLoading = msg('avatars.loadingPlatform', { platform: msg('dashboard.platformVrc') })
+    expect(screen.getByText(vrcLoading)).toBeTruthy()
+    // ChilloutVR has no uploads, but VRChat hasn't answered yet.
+    expect(screen.queryByText(msg('avatars.empty'))).toBeNull()
+    expect(screen.queryByRole('region', { name: msg('avatars.yourUploads') })).toBeNull()
+    answerVrchat({ ok: true, platform: 'vrchat', avatars: [], complete: true, current: null })
+    expect(await screen.findByText(msg('avatars.empty'))).toBeTruthy()
+    expect(screen.queryByText(vrcLoading)).toBeNull()
+  })
+
   it('shows a typed failure with Try again', async () => {
     bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
       Promise.resolve<AvatarLibraryResult>(

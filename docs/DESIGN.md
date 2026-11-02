@@ -769,7 +769,10 @@ platform filter. Nothing is stored, so the list starts empty each launch.
 Community views (owner, 2026-10-31). They only read, except the profile's
 friend action and Unfriend or block (owner, 2026-11-01). Every one follows the platform
 filter, offers Accounts when the filtered platform is not connected, and adds
-no line under ALL for a platform the user isn't signed in to.
+no line under ALL for a platform the user isn't signed in to. A list says it
+is empty ("You aren't in any groups yet.") only once every shown platform has
+answered; until then an empty section stays out, heading and count included.
+The Avatars page's uploads work the same way.
 
 - **Search** sends only on Enter or the Search button, never while typing.
   Pressing it again for the same text reuses a good answer and asks again

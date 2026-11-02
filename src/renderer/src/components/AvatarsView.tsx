@@ -18,7 +18,7 @@ import { useAvatarLibrary } from '../queries/avatarLibrary'
 import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
 import { isNotConnectedAuth } from '../hooks/useNotConnectedGate'
-import type { Kept } from '../utils/community'
+import { sourcesSettled, type Kept } from '../utils/community'
 import AvatarCard from './AvatarCard'
 import AvatarSheet from './AvatarSheet'
 
@@ -122,6 +122,10 @@ export default function AvatarsView(): React.JSX.Element {
     i18n.language
   )
   const drawnUploads = useProgressiveCount(uploads.length)
+  // With no uploads to draw yet, the section (its count and "none" line)
+  // waits for every shown platform, so one platform's empty library never
+  // reads as none at all while the other is still loading.
+  const showUploads = uploads.length > 0 || sourcesSettled(sources)
 
   const [selection, setSelection] = useState<AvatarItem | null>(null)
   const openerRef = useRef<HTMLElement | null>(null)
@@ -206,33 +210,35 @@ export default function AvatarsView(): React.JSX.Element {
               )
             )}
           </section>
-          <section aria-label={t('avatars.yourUploads')}>
-            <SubHeading>
-              {t('avatars.yourUploads')}
-              <span className="ml-[var(--space-2)] normal-case tracking-normal text-[var(--text-dim)]">
-                {t('avatars.uploadCount', { count: uploads.length })}
-              </span>
-            </SubHeading>
-            {uploads.length === 0 ? (
-              <p className="text-sm text-[var(--text-dim)]">{t('avatars.empty')}</p>
-            ) : (
-              <div style={UPLOAD_GRID}>
-                {uploads.slice(0, drawnUploads).map((avatar) => (
-                  <AvatarCard
-                    key={`${avatar.platform}:${avatar.avatarId}`}
-                    avatar={avatar}
-                    worn={wornIds.has(`${avatar.platform}:${avatar.avatarId}`)}
-                    onOpen={openSheet}
-                  />
-                ))}
-              </div>
-            )}
-            {anyIncomplete ? (
-              <p className="mt-[var(--space-2)] text-xs text-[var(--text-dim)]">
-                {t('avatars.partial')}
-              </p>
-            ) : null}
-          </section>
+          {showUploads ? (
+            <section aria-label={t('avatars.yourUploads')}>
+              <SubHeading>
+                {t('avatars.yourUploads')}
+                <span className="ml-[var(--space-2)] normal-case tracking-normal text-[var(--text-dim)]">
+                  {t('avatars.uploadCount', { count: uploads.length })}
+                </span>
+              </SubHeading>
+              {uploads.length === 0 ? (
+                <p className="text-sm text-[var(--text-dim)]">{t('avatars.empty')}</p>
+              ) : (
+                <div style={UPLOAD_GRID}>
+                  {uploads.slice(0, drawnUploads).map((avatar) => (
+                    <AvatarCard
+                      key={`${avatar.platform}:${avatar.avatarId}`}
+                      avatar={avatar}
+                      worn={wornIds.has(`${avatar.platform}:${avatar.avatarId}`)}
+                      onOpen={openSheet}
+                    />
+                  ))}
+                </div>
+              )}
+              {anyIncomplete ? (
+                <p className="mt-[var(--space-2)] text-xs text-[var(--text-dim)]">
+                  {t('avatars.partial')}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
         </div>
       ) : null}
 

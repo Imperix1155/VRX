@@ -93,6 +93,15 @@ export function shownPlatforms(filter: Platform | 'all'): Platform[] {
   return filter === 'all' ? ['vrchat', 'chilloutvr'] : [filter]
 }
 
+/**
+ * No shown platform is still loading or waiting for its sign-in check. Only
+ * then is an empty list a real answer ("You aren't in any groups yet."), not
+ * just the first platform's while the other is still on its way.
+ */
+export function sourcesSettled(sources: ReadonlyArray<{ state: { kind: string } }>): boolean {
+  return sources.every(({ state }) => state.kind !== 'loading' && state.kind !== 'auth-pending')
+}
+
 /** The platform's display name, through the shared Dashboard keys. */
 export function platformName(t: (key: string) => string, platform: Platform): string {
   return t(platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
