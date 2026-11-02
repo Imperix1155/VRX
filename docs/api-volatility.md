@@ -465,6 +465,9 @@ cached in main for 5 minutes; nothing runs on a timer.
   `tags` like the friends list. Hidden badges are skipped and showcased ones
   come first, at most 8. Text is cut at 2,048 characters; image URLs must be
   `https`.
+- **Search text** (both platforms) is 2 to 64 characters after trimming, or
+  one kanji, which is often a whole word. A reply to a one-character search
+  has not been captured yet.
 - **Group pictures:** a group's `iconUrl` and `bannerUrl` point at the full
   uploaded file (`/api/1/file/<file_id>/<version>[/file]`), which can be over
   the 3 MiB image limit; the most likely reason some icons never showed (not

@@ -305,6 +305,16 @@ describe('SearchView', () => {
     expect(bridge.searchCommunity).not.toHaveBeenCalled()
   })
 
+  it('searches one kanji, which is often a whole word', async () => {
+    renderWith(<SearchView />)
+    const box = screen.getByRole('searchbox', { name: msg('search.aria') })
+    fireEvent.change(box, { target: { value: ' 猫 ' } })
+    fireEvent.submit(box.closest('form')!)
+    await waitFor(() => expect(bridge.searchCommunity).toHaveBeenCalledTimes(2))
+    expect(bridge.searchCommunity).toHaveBeenCalledWith({ platform: 'vrchat', query: '猫' })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('names no platform in its hint, so a filtered page never promises one it skips', () => {
     useFriendsStore.setState({ platformFilter: 'vrchat' })
     renderWith(<SearchView />)

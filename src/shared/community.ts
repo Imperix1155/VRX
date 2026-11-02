@@ -11,8 +11,12 @@ import type { Platform, TrustRank } from './types'
 
 /** Longest search text main sends. */
 export const COMMUNITY_QUERY_MAX_LENGTH = 64
-/** Shortest search text main sends; one letter matches far too much. */
+/**
+ * Shortest search text main sends; one letter matches far too much. One kanji
+ * (猫, 城) is often a whole word, so it may stand alone (`normalizeCommunityQuery`).
+ */
 export const COMMUNITY_QUERY_MIN_LENGTH = 2
+const ONE_KANJI = /^\p{Script=Han}$/u
 /** Most people and most worlds a search keeps per platform. */
 export const COMMUNITY_SEARCH_MAX_RESULTS = 10
 /** Most worlds a New or Recently updated list keeps per platform. */
@@ -53,8 +57,8 @@ export function isCommunityUserId(platform: Platform, value: unknown): value is 
 export function normalizeCommunityQuery(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const query = value.trim().replace(/\s+/g, ' ')
-  if (query.length < COMMUNITY_QUERY_MIN_LENGTH || query.length > COMMUNITY_QUERY_MAX_LENGTH)
-    return null
+  if (query.length > COMMUNITY_QUERY_MAX_LENGTH) return null
+  if (query.length < COMMUNITY_QUERY_MIN_LENGTH && !ONE_KANJI.test(query)) return null
   return query
 }
 

@@ -71,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only one.
 - Search: in Japanese, an empty People section now says no people were found,
   so it no longer reads as if the whole search found nothing.
+- Search: one kanji, such as 猫, is enough to search, since it is often a whole
+  word. Other text still needs at least 2 characters.
 
 ### Fixed
 
