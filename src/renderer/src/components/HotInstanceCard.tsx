@@ -16,10 +16,12 @@
  *    who's-here. Used when Hot Instances is the first Dashboard section and on
  *    the Hot Instances page.
  *
- * The whole-card click/Enter/Space opens the hot-instance detail sheet (VRX-250).
- * The hero pill's Join is its OWN explicit control — a card click never joins.
+ * The world name is a real button that opens the hot-instance detail sheet
+ * (VRX-250); a click anywhere else on the card takes the same path, as on
+ * friend rows. The hero pill's Join is its OWN sibling control — a card click
+ * never joins, and no control sits inside another.
  */
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isFriendJoinable } from '@shared/joinability'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
@@ -57,6 +59,8 @@ export default function HotInstanceCard({
   const joinFailure = joinTarget !== null ? joinFailureFor(joinTarget) : null
   const isVrc = instance.platform === 'vrchat'
   const cardRef = useRef<HTMLDivElement>(null)
+  const openerRef = useRef<HTMLButtonElement>(null)
+  const descriptionId = useId()
 
   // World thumbnail through the shared main-issued image pipeline (the same
   // one the detail sheet's banner uses). A failed image falls back to the plain
@@ -77,6 +81,7 @@ export default function HotInstanceCard({
   const worldName = instance.worldName
     ? stripInstanceSuffix(instance.worldName)
     : t('friends.instance.unknownWorld')
+  const platformName = t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
   const tintClass = isVrc ? 'tint-vrc' : 'tint-cvr'
   const topEdgeStyle = {
     background: isVrc
@@ -100,11 +105,16 @@ export default function HotInstanceCard({
     if (joinTarget !== null) void join(joinTarget)
   }
 
+  // Whole-card POINTER opener, as on friend rows (VRX-228): the card is no
+  // button and no tab stop. The world-name button is the keyboard and
+  // screen-reader opener, and focus comes back to it when the sheet closes.
   function openSheet(event: React.MouseEvent<HTMLDivElement>): void {
     const target = event.target
     if (!(target instanceof Element)) return
     // Join wins over open: the hero pill is an independent sibling control.
-    if (target.closest('[data-join-pill]') !== null) return
+    // The name button opens on its own, so a key press is never blocked by
+    // the selection guard below.
+    if (target.closest('[data-join-pill], [data-hot-open]') !== null) return
     // Selection-drag guard (same as the friend row, VRX-228): a stray drag-select
     // across the card text must not open the sheet.
     const selection = window.getSelection()
@@ -115,18 +125,29 @@ export default function HotInstanceCard({
       selection.getRangeAt(0).intersectsNode(event.currentTarget)
     )
       return
-    if (cardRef.current !== null) onOpen(instance, cardRef.current)
+    if (openerRef.current !== null) onOpen(instance, openerRef.current)
   }
 
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
-    // Keyboard containment: nested controls (the Join pill, etc.) must fire
-    // themselves, not open the sheet. This mirrors the pointer target guard and
-    // covers any future nested control (VRX-250 review).
-    if (event.target !== event.currentTarget) return
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      if (cardRef.current !== null) onOpen(instance, cardRef.current)
-    }
+  // The card's opener: a native button (Enter and Space click it) named for
+  // the sheet it opens and described by the platform, access and who's here.
+  // It sits beside the Join pill, never around it.
+  function nameButton(className: string): React.JSX.Element {
+    return (
+      <button
+        ref={openerRef}
+        type="button"
+        data-hot-open
+        onClick={(event) => onOpen(instance, event.currentTarget)}
+        aria-label={t('hotSheet.ariaLabel', { world: worldName })}
+        aria-describedby={descriptionId}
+        // Tooltip shows the FULL untrimmed name (VRX-199) — reveals both a
+        // truncated long name AND the stripped `(#…)` suffix on hover.
+        title={instance.worldName ?? worldName}
+        className={`${className} min-w-0 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-left focus:outline-none`}
+      >
+        {worldName}
+      </button>
+    )
   }
 
   // The instance pill (hero). VRX-237: when a member is joinable the pill IS the
@@ -184,18 +205,17 @@ export default function HotInstanceCard({
   }
 
   // Who's-here names truncate BEFORE the shrink-proof "+N" so the overflow count
-  // never gets clipped on a narrow card. Full list is in the aria-label.
+  // never gets clipped on a narrow card. Screen readers read the full list as
+  // text instead (a label on a plain box is not read).
   function whoHere(placement: string): React.JSX.Element {
     return (
-      <div
-        className={`${placement} flex min-w-0 items-baseline text-[13.5px] leading-[1.2]`}
-        aria-label={whoHereAria}
-      >
-        <span className="min-w-0 truncate text-[var(--names-lift)]">
+      <div className={`${placement} flex min-w-0 items-baseline text-[13.5px] leading-[1.2]`}>
+        <span className="sr-only">{whoHereAria}</span>
+        <span aria-hidden="true" className="min-w-0 truncate text-[var(--names-lift)]">
           {shownNames.join(t('listSeparator'))}
         </span>
         {overflow > 0 && (
-          <span className="ml-[4px] shrink-0 font-bold text-[var(--text)]">
+          <span aria-hidden="true" className="ml-[4px] shrink-0 font-bold text-[var(--text)]">
             {t('dashboard.friendsOverflow', { count: overflow })}
           </span>
         )}
@@ -205,22 +225,29 @@ export default function HotInstanceCard({
 
   const cardProps = {
     ref: cardRef,
-    role: 'button',
-    tabIndex: 0,
     'data-hot-sheet-opener': true,
     'data-hot-card-layout': layout,
-    'aria-label': t('hotSheet.ariaLabel', { world: worldName }),
-    onClick: openSheet,
-    onKeyDown
+    onClick: openSheet
   } as const
+  // The ring shows while the name button has keyboard focus, as the card's
+  // own ring did; the Join pill keeps its own ring.
+  const focusRing =
+    'has-[[data-hot-open]:focus-visible]:ring-2 has-[[data-hot-open]:focus-visible]:ring-[var(--text-dim)]'
+  // The name button's description. Hidden, so browse mode still reads each
+  // fact once, from the card itself.
+  const description = (
+    <span id={descriptionId} hidden>
+      {[platformName, opennessLabel, whoHereAria].join(t('listSeparator'))}
+    </span>
+  )
 
   if (layout === 'picture') {
-    const platformName = t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
     return (
       <div
         {...cardProps}
-        className={`glass glass-information ${tintClass} relative flex h-full w-full min-w-0 cursor-pointer flex-col overflow-hidden hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
+        className={`glass glass-information ${tintClass} relative flex h-full w-full min-w-0 cursor-pointer flex-col overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
       >
+        {description}
         <div aria-hidden="true" className="h-[4px] w-full" style={topEdgeStyle} />
         {/* Picture area — same frame, placeholder and badge as ExploreWorldCard. */}
         <div className="relative aspect-[16/7] overflow-hidden bg-[var(--surface-hover)]">
@@ -251,12 +278,8 @@ export default function HotInstanceCard({
         <div className="relative flex flex-1 flex-col gap-[var(--space-2)] p-[var(--space-3)]">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-[var(--space-3)]">
-              <h3
-                className="min-w-0 flex-1 truncate text-[18px] font-bold leading-[1.35] text-[var(--text)]"
-                // Tooltip shows the FULL untrimmed name (VRX-199).
-                title={instance.worldName ?? worldName}
-              >
-                {worldName}
+              <h3 className="min-w-0 flex-1 text-[18px] font-bold leading-[1.35] text-[var(--text)]">
+                {nameButton('block w-full')}
               </h3>
               {heroPill('shrink-0', false)}
             </div>
@@ -271,8 +294,9 @@ export default function HotInstanceCard({
   return (
     <div
       {...cardProps}
-      className={`glass glass-information ${tintClass} relative cursor-pointer overflow-hidden hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
+      className={`glass glass-information ${tintClass} relative cursor-pointer overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
     >
+      {description}
       <CardPictureBackdrop image={image} platform={instance.platform} onError={markImageFailed} />
       {/* 4px top-edge platform stripe */}
       <div aria-hidden="true" className="relative h-[4px]" style={topEdgeStyle} />
@@ -293,14 +317,9 @@ export default function HotInstanceCard({
             'y'/'g'/'p' tails aren't clipped; relaxes VRX-198's exact-pill-height
             rule. Shares the line with the pill ("lined paper"); truncates with
             ellipsis. */}
-        <div
-          className="col-start-1 row-start-1 self-center min-w-0 text-[25px] font-bold leading-[1.5] text-[var(--text)] overflow-hidden text-ellipsis whitespace-nowrap"
-          // Tooltip shows the FULL untrimmed name (VRX-199) — reveals both a
-          // truncated long name AND the stripped `(#…)` suffix on hover.
-          title={instance.worldName ?? worldName}
-        >
-          {worldName}
-        </div>
+        {nameButton(
+          'col-start-1 row-start-1 self-center text-[25px] font-bold leading-[1.5] text-[var(--text)]'
+        )}
 
         {heroPill('col-start-2 row-start-1 self-center', image !== null)}
 

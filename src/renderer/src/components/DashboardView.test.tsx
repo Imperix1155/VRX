@@ -31,6 +31,7 @@ import { useUiStore } from '../stores/ui'
 import { useJoinInstance } from '../hooks/useJoinInstance'
 import { queryClient } from '../queries/queryClient'
 import { exploreQueryKey } from '../queries/explore'
+import { instancePillFor } from '../utils/instancePill'
 import DashboardView from './DashboardView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
@@ -433,7 +434,7 @@ describe('DashboardView states (W5)', () => {
     expect(screen.getByText('SunDown')).toBeTruthy()
     expect(screen.queryByText(hotWorldName)).toBeNull()
     // First four names (alphabetical), then "+2".
-    expect(screen.getByText(/Amy, GrayCoat, Kettle, Nyx/)).toBeTruthy()
+    expect(screen.getByText('Amy, GrayCoat, Kettle, Nyx')).toBeTruthy()
     expect(screen.getByText(msg('dashboard.friendsOverflow', { count: 2 }))).toBeTruthy()
     // The quiet platform pill carries the full platform name (a11y label).
     expect(screen.getByText(msg('dashboard.platformVrc'))).toBeTruthy()
@@ -466,9 +467,11 @@ describe('DashboardView states (W5)', () => {
     await i18n.changeLanguage('ja')
     try {
       render(<DashboardView />)
-      // Visible names and the screen-reader label both use 、 in Japanese.
+      // Visible names and the screen-reader text both use 、 in Japanese.
       expect(screen.getByText('Amy、Bea')).toBeTruthy()
-      expect(screen.getByLabelText(/Amy、Bea/)).toBeTruthy()
+      expect(
+        screen.getByText(msg('dashboard.friendsHereAria', { count: 2, names: 'Amy、Bea' }))
+      ).toBeTruthy()
     } finally {
       await i18n.changeLanguage('en')
     }
@@ -1171,7 +1174,7 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
     })
 
     hotCard.focus()
-    fireEvent.keyDown(hotCard, { key: 'Enter' })
+    fireEvent.click(hotCard, { detail: 0 })
     expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: msg('drawer.close') }))
 
@@ -1198,7 +1201,7 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
     )
 
     hotCard.focus()
-    fireEvent.keyDown(hotCard, { key: 'Enter' })
+    fireEvent.click(hotCard, { detail: 0 })
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy())
     expect(
       screen.queryByRole('dialog', { name: /Visible public rooms for Preview world/ })
@@ -1217,21 +1220,54 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
     expect(document.activeElement).toBe(exploreCard)
   })
 
-  it('Enter and Space on the card body open the sheet', () => {
-    stubQueries(
-      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
-      { data: [], isPending: false }
-    )
-    render(<DashboardView />)
-    const card = screen.getByRole('button', { name: /SunDown hot instance details/ })
+  it.each([
+    ['popular-first', 'bar'],
+    ['hot-first', 'picture']
+  ] as const)(
+    'with %s, %s cards open from a real button beside Join that names the platform, access and friends',
+    (order, layout) => {
+      useSettingsStore.setState({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          dashboardSectionOrder: order,
+          dashboardSections: dashboardSectionsFromOrder(order)
+        }
+      })
+      stubQueries(
+        { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+        { data: [], isPending: false }
+      )
+      seedExplorePreview()
+      const { container } = render(<DashboardView />)
+      const card = container.querySelector<HTMLElement>(`[data-hot-card-layout="${layout}"]`)!
+      const friendsHere = msg('dashboard.friendsHereAria', {
+        count: 2,
+        names: ['Amy', 'Bo'].join(msg('listSeparator'))
+      })
+      const access = msg(instancePillFor({ type: 'public' }, DEFAULT_SETTINGS.labelScheme).labelKey)
+      const opener = within(card).getByRole('button', {
+        name: msg('hotSheet.ariaLabel', { world: 'SunDown' }),
+        description: [msg('dashboard.platformVrc'), access, friendsHere].join(msg('listSeparator'))
+      })
+      const joinPill = within(card).getByRole('button', {
+        name: msg('friends.joinAria', { name: 'Amy', world: 'SunDown' })
+      })
+      // A native button, so Enter and Space click it; no control sits inside
+      // another, because the card itself is not a button.
+      expect(opener.tagName).toBe('BUTTON')
+      expect(opener.contains(joinPill)).toBe(false)
+      expect(card.getAttribute('role')).toBeNull()
+      expect(card.hasAttribute('tabindex')).toBe(false)
+      // Who's here reads as text, not as a label on a plain box.
+      expect(within(card).getByText(friendsHere)).toBeTruthy()
 
-    fireEvent.keyDown(card, { key: 'Enter' })
-    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
-
-    fireEvent.click(screen.getByRole('button', { name: msg('drawer.close') }))
-    fireEvent.keyDown(card, { key: ' ' })
-    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
-  })
+      // A native button dispatches its activation click with detail 0.
+      fireEvent.click(opener, { detail: 0 })
+      expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: msg('drawer.close') }))
+      expect(document.activeElement).toBe(opener)
+    }
+  )
 
   it('Enter and Space on the Join pill do NOT open the sheet; the pill still joins', () => {
     stubQueries(

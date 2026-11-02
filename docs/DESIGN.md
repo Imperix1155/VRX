@@ -548,8 +548,11 @@ section adds a quiet "See all N" button ("See 1" for one), shown only while
 the page is, that opens the Hot Instances page,
 which lists every hot instance as a picture card, most friends first, with the
 same header, empty state, and sheet. The access pill on a hot card is a
-discreet Join shortcut; don't turn it into a prominent Join button. The Hot
-Instance sheet supplies the details; no placeholder actions.
+discreet Join shortcut; don't turn it into a prominent Join button. The world
+name is the card's button for the keyboard and screen readers, beside the Join
+pill and never around it; a click elsewhere on the card, except Join and text
+selection, opens the sheet too. The Hot Instance sheet supplies the details;
+no placeholder actions.
 
 ### §9.2 Friend details
 
