@@ -52,18 +52,24 @@ clears per-session caches, and restarts or stops its socket.
 
 `main/app.ts` handles each adapter's `onSessionBoundary`:
 
-| Consumer                     | VRChat                                               | ChilloutVR      |
-| ---------------------------- | ---------------------------------------------------- | --------------- |
-| `FriendAlerts`               | `resetPlatform`                                      | `resetPlatform` |
-| `LocationAuthority`          | `clearPlatform`                                      | `clearPlatform` |
-| `ExploreService`             | `clearPlatform`                                      | `clearPlatform` |
-| `AvatarCache`                | Drops cached failures; successful images stay        | Not touched     |
-| Renderer `identity-boundary` | Sent, except for an identity-retaining data-path 401 | Always sent     |
+| Consumer                     | VRChat                                               | ChilloutVR                                   |
+| ---------------------------- | ---------------------------------------------------- | -------------------------------------------- |
+| `FriendAlerts`               | `resetPlatform`                                      | `resetPlatform`                              |
+| `LocationAuthority`          | `clearPlatform`                                      | `clearPlatform`                              |
+| `ExploreService`             | `clearPlatform`                                      | `clearPlatform`                              |
+| `AvatarCache`                | Drops cached failures; successful images stay        | Not touched                                  |
+| Renderer `identity-boundary` | Sent, except for an identity-retaining data-path 401 | Sent, except for a same-account key rotation |
 
 A VRChat data-path 401 sets `identityRetained`. The same account may only need
 its second factor again, so `AccountSession` keeps the identity and epoch, and
 main clears its own state but sends no `identity-boundary`. The `auth-invalidated` event that follows quarantines the
-renderer instead. ChilloutVR has no second factor, so it has no such case.
+renderer instead.
+
+ChilloutVR sets `identityRetained` when it confirms a data-path 403 by signing
+in again and gets a new access key for the same account. Requests are still
+fenced, but nothing account-scoped changed, so main clears nothing for
+ChilloutVR and sends no `identity-boundary`. Every other ChilloutVR boundary
+clears every row in the table and sends it.
 
 In the renderer, `useLiveFriendEvents` handles `identity-boundary` for that
 platform only. It drops buffered live state, cancels and removes friend-note

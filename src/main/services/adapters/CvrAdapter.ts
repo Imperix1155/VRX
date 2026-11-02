@@ -23,7 +23,13 @@ import { CvrPipeline } from './cvr/CvrPipeline'
 import { fetchCvrFriends } from './cvr/fetchCvrFriends'
 import { parseCvrPrivacy } from './cvr/parseCvrPrivacy'
 import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resolveCvrInstance'
-import { AuthSessionPendingError, CVRAuthError, CVRNetworkError, CVRRateLimitError } from './errors'
+import {
+  AuthSessionPendingError,
+  CVRAuthError,
+  CVRNetworkError,
+  CVRRateLimitError,
+  signInFailure
+} from './errors'
 import {
   FriendActionRefusedError,
   FriendActionUnavailableError,
@@ -369,13 +375,18 @@ export class CvrAdapter
 
     let response: Response
     try {
-      response = await this.authenticateRaw(2, email, password, { priority: 'interactive', lease })
-    } catch {
+      // A sign-in ChilloutVR asks to slow down is never sent again on its own.
+      response = await this.authenticateRaw(2, email, password, {
+        priority: 'interactive',
+        lease,
+        retry: 'none'
+      })
+    } catch (error) {
       if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
       // Keep authentication diagnostics fixed: raw exception fields can carry
       // request context and must never reach the log.
       this.live?.log?.('warn', 'cvr login: request failed')
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      return { ok: false, needs2fa: false, error: signInFailure(error) }
     }
     if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
 
@@ -451,12 +462,13 @@ export class CvrAdapter
     try {
       response = await this.authenticateRaw(1, imported.username, imported.accessKey, {
         priority: 'interactive',
-        lease
+        lease,
+        retry: 'none'
       })
-    } catch {
+    } catch (error) {
       if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
       this.live?.log?.('warn', 'cvr session import: request failed')
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      return { ok: false, needs2fa: false, error: signInFailure(error) }
     }
     if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
 

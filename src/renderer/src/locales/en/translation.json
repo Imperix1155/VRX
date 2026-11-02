@@ -371,7 +371,12 @@
       },
       "error": {
         "disconnect": "Could not sign out of this account. Please try again.",
-        "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
+        "credentialPersistence": "Sign-in did not finish because VRX could not save your session on this computer. Check that the disk isn't full and VRX can write to its data folder, then try again.",
+        "invalidCredentials": "Those sign-in details didn't work. Check them and try again.",
+        "invalidCode": "That code didn't work. Check it, or use a newer one, then try again.",
+        "rateLimited": "Too many tries right now. Wait a minute, then try again.",
+        "offline": "Couldn't connect. Check your internet connection, then try again.",
+        "serviceDown": "The sign-in service isn't answering right now. Try again in a few minutes.",
         "unknown": "Sign-in failed. Check your details and connection, then try again.",
         "importNotFoundVrchat": "No VRCX sign-in found on this PC. If VRCX is open, quit it (also from the tray) and try again, or sign in with your password.",
         "importNotFoundChilloutvr": "No ChilloutVR or CVRX sign-in found on this PC. Sign in with your password instead.",
@@ -834,12 +839,17 @@
     "usernamePlaceholder": "you@example.com",
     "password": "Password",
     "passwordPlaceholder": "••••••••",
-    "signIn": "Sign In",
+    "signIn": "Sign in",
     "signingIn": "Signing in…",
     "disclaimerShortVrchat": "Connects to VRChat for you and keeps your sign-in encrypted on this device.",
     "disclaimerVrchat": "Connects to VRChat on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery.",
     "error": {
-      "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
+      "credentialPersistence": "Sign-in did not finish because VRX could not save your session on this computer. Check that the disk isn't full and VRX can write to its data folder, then try again.",
+      "invalidCredentials": "Those sign-in details didn't work. Check them and try again.",
+      "invalidCode": "That code didn't work. Check it, or use a newer one, then try again.",
+      "rateLimited": "Too many tries right now. Wait a minute, then try again.",
+      "offline": "Couldn't connect. Check your internet connection, then try again.",
+      "serviceDown": "The sign-in service isn't answering right now. Try again in a few minutes.",
       "unknown": "Sign-in failed. Check your details and connection, then try again."
     },
     "twoFactor": {

@@ -72,6 +72,12 @@ export interface AuthFlow {
   handleBack: () => void
 }
 
+/** The code as the platform expects it: authenticator apps copy "123 456",
+ *  people type "123-456", and a Japanese IME types full-width digits. */
+export function normalizeTwoFactorCode(code: string): string {
+  return code.normalize('NFKC').replace(/[\s-]+/g, '')
+}
+
 export function useAuthFlow(
   platform: Platform,
   {
@@ -186,10 +192,11 @@ export function useAuthFlow(
     e.preventDefault()
     await run((bridge) =>
       pending2fa
-        ? // Authenticator apps often copy a code as "123 456".
-          bridge.verify2fa({ platform, code: twoFactorCode.replace(/\s+/g, '') })
+        ? bridge.verify2fa({ platform, code: normalizeTwoFactorCode(twoFactorCode) })
         : bridge
-            .login({ platform, credentials: { username, password } })
+            // A pasted username or email often carries a space at either end;
+            // the password is sent exactly as typed.
+            .login({ platform, credentials: { username: username.trim(), password } })
             // The secret leaves state the moment the login IPC settles — a
             // separate microtask so the clear renders BEFORE the needs2fa
             // transition can unmount the password input (pinned by

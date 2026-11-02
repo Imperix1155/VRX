@@ -54,11 +54,14 @@ export default function CredentialsForm({
 }): React.JSX.Element {
   const { t } = useTranslation()
   // This form replaces the one that held focus (a submit asking for a code, or
-  // Back). Without this, focus falls to the page and typing goes nowhere.
+  // Back). Without this, focus falls to the page and typing goes nowhere. Back
+  // keeps the username and drops the password, so the password is next.
+  const usernameAtMount = useRef(username)
   useEffect(() => {
     const active = document.activeElement
     if (active === null || active === document.body) {
-      document.getElementById(`${idPrefix}-username`)?.focus({ preventScroll: true })
+      const field = usernameAtMount.current.trim() === '' ? 'username' : 'password'
+      document.getElementById(`${idPrefix}-${field}`)?.focus({ preventScroll: true })
     }
   }, [idPrefix])
   // An attempt disables the fields, which drops focus to the page. When it
@@ -80,6 +83,9 @@ export default function CredentialsForm({
       ? previous
       : document.getElementById(`${idPrefix}-username`)
     target?.focus({ preventScroll: true })
+    // Selected, so the next attempt replaces the rejected text instead of
+    // adding to it (a masked password would hide the join).
+    if (target instanceof HTMLInputElement) target.select()
   }, [isSubmitting, idPrefix])
   return (
     <form

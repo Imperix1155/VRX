@@ -70,7 +70,11 @@ export default function TwoFactorForm({
     attempted.current = false
     const active = document.activeElement
     if (active !== null && active !== document.body) return
-    document.getElementById(`${idPrefix}-2fa`)?.focus({ preventScroll: true })
+    const field = document.getElementById(`${idPrefix}-2fa`)
+    field?.focus({ preventScroll: true })
+    // Selected, so the next code replaces the rejected one instead of
+    // running on from it.
+    if (field instanceof HTMLInputElement) field.select()
   }, [isSubmitting, idPrefix])
   return (
     <form onSubmit={onSubmit} noValidate className={formClassName} aria-label={ariaLabel}>

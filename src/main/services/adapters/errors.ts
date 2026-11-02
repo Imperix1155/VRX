@@ -66,3 +66,12 @@ export class CVRNetworkError extends NetworkError {
     this.name = 'CVRNetworkError'
   }
 }
+
+/**
+ * The typed code a failed sign-in request reports: `rate_limited` when the
+ * platform asked to slow down (or VRX is still waiting out such a request),
+ * `network_error` for everything else that kept an answer from arriving.
+ */
+export function signInFailure(error: unknown): 'rate_limited' | 'network_error' {
+  return error instanceof RateLimitError ? 'rate_limited' : 'network_error'
+}

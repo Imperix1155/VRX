@@ -66,6 +66,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the 500 characters it keeps, so editing it can never cut the end off and
   send the shorter copy back. Deleting text from an over-long note never cuts
   its end either.
+- Sign-in: errors say what went wrong: wrong details, a wrong or old 2FA
+  code, too many tries, no internet connection, or the sign-in service being
+  down, instead of one general message.
+- Sign-in: a sign-in or 2FA code that VRChat or ChilloutVR asks to slow down
+  is never sent again on its own. The form says to wait a minute instead of
+  calling it a network problem.
+- Sign-in: after a rejected password or 2FA code, typing replaces it, so you
+  don't have to clear the field first.
+- Sign-in: 2FA codes typed with full-width digits, spaces or a dash work, and
+  spaces around the username are ignored.
+- Sign-in: when VRX can't save your session on this computer, the message
+  says to check that the disk isn't full and VRX can write to its folder.
+- Sign-in: while the VRChat code prompt is open, the platform tabs stay put,
+  so a glance at ChilloutVR no longer throws the prompt away. Back unlocks
+  them.
+- Sign-in: Back from the code prompt puts the cursor in the empty password
+  field, and the button reads "Sign in" like "Sign out".
+- Sign-in: a VRChat account id that VRX can't store now stops the sign-in
+  before anything is saved, instead of failing after it on every start.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

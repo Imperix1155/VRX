@@ -7,11 +7,30 @@ describe('mapLoginError', () => {
     expect(mapLoginError(CREDENTIAL_PERSISTENCE_FAILED)).toBe('login.error.credentialPersistence')
   })
 
-  it('uses the generic key for every other login failure', () => {
+  it('says what went wrong for the failures a user can act on', () => {
+    expect({
+      invalid_credentials: mapLoginError('invalid_credentials'),
+      invalid_2fa_code: mapLoginError('invalid_2fa_code'),
+      rate_limited: mapLoginError('rate_limited'),
+      http_429: mapLoginError('http_429'),
+      network_error: mapLoginError('network_error'),
+      http_503: mapLoginError('http_503')
+    }).toEqual({
+      invalid_credentials: 'login.error.invalidCredentials',
+      invalid_2fa_code: 'login.error.invalidCode',
+      rate_limited: 'login.error.rateLimited',
+      http_429: 'login.error.rateLimited',
+      network_error: 'login.error.offline',
+      http_503: 'login.error.serviceDown'
+    })
+  })
+
+  it('uses the generic key for every other login failure, never the raw code', () => {
     expect([
       mapLoginError(),
-      mapLoginError('invalid_credentials'),
+      mapLoginError('http_404'),
+      mapLoginError('bad_response'),
       mapLoginError('SOMETHING_NEW_FROM_API')
-    ]).toEqual(['login.error.unknown', 'login.error.unknown', 'login.error.unknown'])
+    ]).toEqual(Array(4).fill('login.error.unknown'))
   })
 })

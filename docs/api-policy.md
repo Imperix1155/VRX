@@ -168,9 +168,14 @@ what each counts.
   stops later pages. A cooldown expiring never resumes the old batch.
   Completed data still publishes. An interrupted roster is marked partial, and
   friends it missed stay from the cache.
-- **Other requests retry a 429 at most 3 times.** This covers sign-in, session
-  checks, the VRChat pipeline token exchange, the VRChat self-invite, and
-  interactive CVR instance lookups.
+- **A sign-in is never sent again on its own.** A password sign-in, a 2FA
+  code, and "Use my sign-in from this PC" each send one request. A 429 ends
+  that try, and the sign-in form says to wait a minute. A sign-in pressed while
+  a cooldown runs sends nothing and says the same. The user decides when to
+  try again.
+- **Other requests retry a 429 at most 3 times.** This covers session checks,
+  the VRChat pipeline token exchange, the VRChat self-invite, and interactive
+  CVR instance lookups.
 - **Sockets share the cooldown.** A rejected socket upgrade with status 429
   extends the platform's REST cooldown, and every socket connect waits for that
   cooldown first. Sockets do not take an admission slot.
