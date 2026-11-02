@@ -16,9 +16,9 @@ import {
   type PersonSummary
 } from '@shared/community'
 import { useAuthStatus } from '../queries/auth'
-import { useCommunitySearch } from '../queries/community'
+import { useCommunitySearch, useSearchAgainIfRefused } from '../queries/community'
 import { useFriendsStore } from '../stores/friends'
-import { communitySource, interleave, platformName } from '../utils/community'
+import { communitySource, interleave, platformName, shownPlatforms } from '../utils/community'
 import CommunitySheet from './CommunitySheet'
 import { CommunityHeading, CommunityNotices, CommunityTile, TileGrid } from './CommunityParts'
 import ProfileDetails from './ProfileDetails'
@@ -37,6 +37,7 @@ export default function SearchView(): React.JSX.Element {
   const cvrAuth = useAuthStatus('chilloutvr')
   const vrc = useCommunitySearch('vrchat', query, showVrc)
   const cvr = useCommunitySearch('chilloutvr', query, showCvr)
+  const searchAgainIfRefused = useSearchAgainIfRefused()
   const vrcState = communitySource(vrcAuth, vrc)
   const cvrState = communitySource(cvrAuth, cvr)
   const sources = [
@@ -94,6 +95,8 @@ export default function SearchView(): React.JSX.Element {
     if (next === null) return
     setPerson(null)
     setQuery(next)
+    // Pressing Search again after "One moment" (or another refusal) asks again.
+    searchAgainIfRefused(next, shownPlatforms(platformFilter))
   }
 
   return (

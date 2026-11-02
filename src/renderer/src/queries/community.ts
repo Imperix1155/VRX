@@ -136,6 +136,42 @@ export function useCommunitySearch(
   })
 }
 
+/**
+ * A Search press. A refused answer (searches too close together, a busy
+ * line, no connection) is never kept as that text's answer: the press asks
+ * main again, once, on each platform it names. A good answer stays in use
+ * for its 2 minutes, so pressing Search again for it sends nothing.
+ */
+export function useSearchAgainIfRefused(): (query: string, platforms: readonly Platform[]) => void {
+  const client = useQueryClient()
+  const vrchat = useAvatarAccount('vrchat')
+  const chilloutvr = useAvatarAccount('chilloutvr')
+  return useCallback(
+    (query: string, platforms: readonly Platform[]) => {
+      for (const platform of platforms) {
+        const accountId = platform === 'vrchat' ? vrchat : chilloutvr
+        if (accountId === null) continue
+        // The shown search reads again now; one about to show reads on arrival.
+        void client.invalidateQueries(
+          {
+            queryKey: communityQueryKey(
+              'community-search',
+              platform,
+              accountId,
+              query.toLowerCase()
+            ),
+            exact: true,
+            predicate: (entry) =>
+              (entry.state.data as CommunitySearchResult | undefined)?.ok === false
+          },
+          { cancelRefetch: false }
+        )
+      }
+    },
+    [client, vrchat, chilloutvr]
+  )
+}
+
 /** Explore's New or Recently updated list, read when its tab opens. */
 export function useWorldList(
   platform: Platform,

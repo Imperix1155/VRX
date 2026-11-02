@@ -763,7 +763,8 @@ filter, offers Accounts when the filtered platform is not connected, and adds
 no line under ALL for a platform the user isn't signed in to.
 
 - **Search** sends only on Enter or the Search button, never while typing.
-  People and Worlds are two sections; each alternates the platforms' results
+  Pressing it again for the same text reuses a good answer and asks again
+  only after a refusal such as "One moment". People and Worlds are two sections; each alternates the platforms' results
   (first of each, then second of each) so neither platform leads. People are
   square picture tiles with the platform stripe, tint and VRC/CVR badge, and a
   quiet "Friend" line. Worlds use the Explore world card and sheet with Join.

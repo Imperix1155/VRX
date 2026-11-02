@@ -187,6 +187,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inbox: ChilloutVR invites and requests that come in the first seconds after
   VRX connects show without an alert, so ones still waiting from before no
   longer alert you again each time VRX starts.
+- Search: after "One moment. Wait a second, then search again.", pressing
+  Search again searches, instead of doing nothing for up to two minutes. The
+  same text searched again later asks again too.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

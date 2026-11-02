@@ -252,6 +252,50 @@ describe('SearchView', () => {
     expect(renewed.map((item) => item.worldId)).toEqual(['chilloutvr-world-1'])
   })
 
+  it('asks again when Search is pressed after a “One moment” answer', async () => {
+    bridge.searchCommunity
+      .mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+      .mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+    renderWith(<SearchView />)
+    const box = screen.getByRole('searchbox', { name: msg('search.aria') })
+    fireEvent.change(box, { target: { value: 'neko' } })
+    fireEvent.submit(box.closest('form')!)
+    expect(await screen.findAllByText(msg('community.error.cooldown'))).toHaveLength(2)
+    expect(bridge.searchCommunity).toHaveBeenCalledTimes(2)
+
+    fireEvent.submit(box.closest('form')!)
+    await waitFor(() => expect(bridge.searchCommunity).toHaveBeenCalledTimes(4))
+    expect(await screen.findByTestId('world-results')).toBeTruthy()
+    expect(screen.queryByText(msg('community.error.cooldown'))).toBeNull()
+  })
+
+  it('asks again for text whose last answer was a refusal, and only then', async () => {
+    bridge.searchCommunity
+      .mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+      .mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+    renderWith(<SearchView />)
+    const box = screen.getByRole('searchbox', { name: msg('search.aria') })
+    const search = async (text: string, calls: number): Promise<void> => {
+      fireEvent.change(box, { target: { value: text } })
+      fireEvent.submit(box.closest('form')!)
+      await waitFor(() => expect(bridge.searchCommunity).toHaveBeenCalledTimes(calls))
+    }
+    await search('neko', 2)
+    await screen.findAllByText(msg('community.error.cooldown'))
+    await search('nekomimi', 4)
+    await screen.findByTestId('world-results')
+    // Back to the refused text: a new answer, not the kept refusal.
+    await search('Neko', 6)
+    expect(bridge.searchCommunity).toHaveBeenLastCalledWith({
+      platform: 'chilloutvr',
+      query: 'Neko'
+    })
+    // A good answer is reused as before: pressing Search again sends nothing.
+    fireEvent.submit(box.closest('form')!)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(bridge.searchCommunity).toHaveBeenCalledTimes(6)
+  })
+
   it('asks for two letters instead of searching for one', () => {
     renderWith(<SearchView />)
     const box = screen.getByRole('searchbox', { name: msg('search.aria') })

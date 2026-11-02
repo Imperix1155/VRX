@@ -332,10 +332,12 @@ read. Refresh re-reads only once the answer is at least 30 seconds old. A
 person's full profile and, on ChilloutVR, their block check read the same
 `GET /users/{id}` as their note check, so they use an answer under 30 seconds
 old, or one still on its way, instead of reading again. The note check itself
-always reads, because a note save must see what the account holds now. All
-reads use the platform's admission queue at interactive priority with no
-automatic retry, and all state is cleared at every sign-out, account change and
-invalidated session.
+always reads, because a note save must see what the account holds now. A
+second Search press for the same text reuses a good answer; only a refused one
+(searches too close together, rate limited, unreachable) is asked again, once
+per press. All reads use the platform's admission queue at interactive
+priority with no automatic retry, and all state is cleared at every sign-out,
+account change and invalidated session.
 
 | Limit             | Value                                                                      |
 | ----------------- | -------------------------------------------------------------------------- |
