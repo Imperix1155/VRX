@@ -46,6 +46,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the Hot Instances friends stepper is named "Min. friends for a hot
   instance", starting with its visible label.
 - High Contrast: scrollbars stay visible in every panel.
+- Explore: world pictures VRX already keeps show at once, instead of waiting
+  their turn behind new downloads, so cards no longer sit without a picture.
+- Friends: the background re-sync now runs on time while friends' live
+  updates keep arriving.
+- Dashboard and Hot Instances: right after you sign in or switch accounts they
+  say Loading until your friends arrive, instead of showing 0 friends online.
+- Dashboard and Hot Instances: when one platform's friends could not load or
+  refresh, a line names it with its own Retry, like the Friends list.
+- Friends: when the first read after a sign-in fails, the line says that
+  platform's friends could not load, not that an older list is shown.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

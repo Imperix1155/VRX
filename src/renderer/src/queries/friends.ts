@@ -201,6 +201,11 @@ export type FriendQuery = Pick<
  *  verified empty roster, and the saved cache never restores it. */
 export const EMPTY_ROSTER_PLACEHOLDER = { updatedAt: 0 } as const
 
+/** That placeholder: an empty roster stamped 0, not a roster that loaded. */
+export function isRosterPlaceholder(query: Pick<FriendQuery, 'data' | 'dataUpdatedAt'>): boolean {
+  return query.data !== undefined && query.dataUpdatedAt === 0
+}
+
 export interface CombinedFriendsView {
   friends: Friend[] | undefined
   isPending: boolean
@@ -279,7 +284,12 @@ function combinedView(
           return [
             {
               platform,
-              kind: q.data === undefined ? ('missing' as const) : ('stale' as const),
+              // A failed first read after a sign-in keeps only the placeholder:
+              // nothing loaded, so nothing is being shown from before.
+              kind:
+                q.data === undefined || isRosterPlaceholder(q)
+                  ? ('missing' as const)
+                  : ('stale' as const),
               isFetching: q.isFetching,
               retry: () => void q.refetch()
             }

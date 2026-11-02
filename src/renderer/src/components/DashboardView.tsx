@@ -17,7 +17,12 @@
  */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useFriends, scopeByPlatformFilter } from '../queries/friends'
+import {
+  useFriends,
+  scopeByPlatformFilter,
+  isRosterPlaceholder,
+  useCombineFriendQueries
+} from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
 import { useFriendsStore } from '../stores/friends'
@@ -33,6 +38,7 @@ import { usePictureColumns } from '../hooks/usePictureColumns'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
+import FriendsSourceNotice from './FriendsSourceNotice'
 import HotInstanceSheet from './HotInstanceSheet'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
@@ -139,7 +145,11 @@ function DashboardContent(): React.JSX.Element {
   const notConnectedKey =
     selectedPlatform === null ? null : NOT_CONNECTED_KEY.dashboard[selectedPlatform]
 
-  const hasData = scoped.some((q) => q.data != null)
+  // The empty roster a sign-in or account switch leaves is not data: until the
+  // real one lands the Dashboard says loading (or the error), never 0 / 0 / 0.
+  const hasData = scoped.some((q) => q.data != null && !isRosterPlaceholder(q))
+  // A platform that failed while the other loaded gets its own line (issue 368).
+  const { sourceFailures } = useCombineFriendQueries(platformFilter, vrcQuery, cvrQuery)
 
   // Compute hot instances BEFORE any early return so the sheet hook runs on
   // every render without breaking hook order. The sheet derives from the full
@@ -203,10 +213,10 @@ function DashboardContent(): React.JSX.Element {
   ) : null
 
   if (!hasData) {
-    // Loading while ANY scoped query is still pending (don't flash an error
-    // while the other platform may yet deliver); error only when every scoped
-    // source has settled with nothing.
-    if (enabled.some((q) => q.isPending)) {
+    // Loading while ANY scoped query is still pending or holds a placeholder
+    // that has not failed (don't flash an error while the other platform may
+    // yet deliver); error only when every scoped source has settled with nothing.
+    if (enabled.some((q) => q.isPending || (isRosterPlaceholder(q) && !q.isError))) {
       return (
         <div>
           <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
@@ -292,8 +302,10 @@ function DashboardContent(): React.JSX.Element {
 
   return (
     <div>
-      {/* Stat cards row. Player counts live in the top bar (owner, 2026-11-01). */}
+      {/* Stat cards row. Player counts live in the top bar (owner, 2026-11-01).
+          The source line sits inside it so Popular now keeps its slot. */}
       <div style={{ marginBottom: '26px' }}>
+        <FriendsSourceNotice failures={sourceFailures} wording="summary" />
         <div
           style={{
             display: 'grid',

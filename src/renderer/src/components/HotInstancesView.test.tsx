@@ -101,6 +101,34 @@ describe('HotInstancesView', () => {
     expect(screen.getByRole('dialog', { name: 'Lake' })).toBeTruthy()
   })
 
+  it("shows loading, not the empty state, while a sign-in's placeholder roster loads", () => {
+    useFriendsMock.mockImplementation(() => ({
+      data: [],
+      isPending: false,
+      isFetching: true,
+      dataUpdatedAt: 0
+    }))
+    render(<HotInstancesView />)
+    expect(screen.getByText(msg('dashboard.loading'))).toBeTruthy()
+    expect(screen.queryByText(msg('dashboard.emptyHeading'))).toBeNull()
+  })
+
+  it('names a platform whose roster failed while the other loaded', () => {
+    useFriendsMock.mockImplementation((platform: string) =>
+      platform === 'vrchat'
+        ? { data: crowd('Lake', 3), isPending: false, dataUpdatedAt: 5 }
+        : { data: [], isPending: false, isError: true, dataUpdatedAt: 0, refetch: vi.fn() }
+    )
+    render(<HotInstancesView />)
+    // A failed first read keeps only the placeholder, so it is missing, not stale.
+    expect(
+      screen.getByText(
+        msg('dashboard.sourceState.missing', { platform: msg('dashboard.platformCvr') })
+      )
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Lake hot instance details/ })).toBeTruthy()
+  })
+
   it('ignores a signed-out platform when the other fails, and retries only the enabled one', () => {
     const vrcRefetch = vi.fn()
     const cvrRefetch = vi.fn()

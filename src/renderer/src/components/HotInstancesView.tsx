@@ -10,13 +10,19 @@
  * section; this page is always available.
  */
 import { useTranslation } from 'react-i18next'
-import { useFriends, scopeByPlatformFilter } from '../queries/friends'
+import {
+  useFriends,
+  scopeByPlatformFilter,
+  isRosterPlaceholder,
+  useCombineFriendQueries
+} from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { getHotInstances } from '../utils/dashboardAggregations'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
+import FriendsSourceNotice from './FriendsSourceNotice'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstanceSheet from './HotInstanceSheet'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
@@ -40,6 +46,7 @@ export default function HotInstancesView(): React.JSX.Element {
   const hotInstances = getHotInstances(friends, threshold, Infinity)
   const { selectedInstance, openSheet, closeSheet, fallbackFocusRef } =
     useHotInstanceSheet(hotInstances)
+  const { sourceFailures } = useCombineFriendQueries(platformFilter, vrcQuery, cvrQuery)
 
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
@@ -60,8 +67,9 @@ export default function HotInstancesView(): React.JSX.Element {
       </div>
     )
   }
-  if (!scoped.some((q) => q.data != null)) {
-    if (enabled.some((q) => q.isPending)) {
+  // Same gate as the Dashboard: a sign-in's empty placeholder is not a roster.
+  if (!scoped.some((q) => q.data != null && !isRosterPlaceholder(q))) {
+    if (enabled.some((q) => q.isPending || (isRosterPlaceholder(q) && !q.isError))) {
       return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
     }
     return (
@@ -82,6 +90,7 @@ export default function HotInstancesView(): React.JSX.Element {
 
   return (
     <div>
+      <FriendsSourceNotice failures={sourceFailures} wording="summary" />
       <section aria-label={t('dashboard.sectionHotInstances')}>
         <div className="mb-[12px]">
           <HotInstancesHeader ref={fallbackFocusRef} />

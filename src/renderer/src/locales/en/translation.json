@@ -784,6 +784,10 @@
     "loading": "Loading…",
     "error": "Could not load your friends right now",
     "retry": "Retry",
+    "sourceState": {
+      "missing": "{{platform}} friends could not load, so they are left out here.",
+      "stale": "{{platform}} friends could not refresh. Showing what loaded last."
+    },
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",
       "chilloutvr": "Connect ChilloutVR to see your friends here",

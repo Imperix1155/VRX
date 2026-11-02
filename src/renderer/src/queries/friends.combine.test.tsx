@@ -158,6 +158,15 @@ describe('per-platform source failures (issue 368)', () => {
     expect(view.sourceFailures.map((f) => [f.platform, f.kind])).toEqual([['vrchat', 'stale']])
   })
 
+  it('calls a failed first read after a sign-in missing: the placeholder kept nothing', () => {
+    const view = combineFriendQueries(
+      'all',
+      query({ data: [], dataUpdatedAt: 0, isError: true }),
+      query({ data: [cvrFriend], dataUpdatedAt: 5 })
+    )
+    expect(view.sourceFailures.map((f) => [f.platform, f.kind])).toEqual([['vrchat', 'missing']])
+  })
+
   it('reports a stale single-platform view', () => {
     const view = combineFriendQueries(
       'chilloutvr',

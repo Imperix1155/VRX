@@ -780,6 +780,10 @@
     "loading": "読み込み中…",
     "error": "フレンドを読み込めませんでした",
     "retry": "再試行",
+    "sourceState": {
+      "missing": "{{platform}} のフレンドを読み込めなかったため、ここには含まれていません。",
+      "stale": "{{platform}} のフレンドを更新できませんでした。最後に読み込んだ内容を表示しています。"
+    },
     "notConnected": {
       "vrchat": "ここでフレンドを確認するにはVRChatに接続してください",
       "chilloutvr": "ここでフレンドを確認するにはChilloutVRに接続してください",
