@@ -951,21 +951,55 @@ describe('a game that is already open', () => {
     }
   )
 
-  it("Don't ask again while still checking keeps Always ask, since no choice was shown", async () => {
+  it.each([
+    ['closed', 'launch'],
+    ['open', 'in-game']
+  ] as const)(
+    'Join waits while the VR or Desktop choice is hidden, then works (ChilloutVR %s)',
+    async (_state, handoff) => {
+      const answer = withSlowHandoff()
+      mockFriends([], [cvrFriend])
+      render(<TestSurface friend={cvrFriend} />)
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+      const join = within(dialog).getByRole('button', { name: 'Join' })
+      const dontAsk = within(dialog).getByRole('button', { name: /Don't ask again/ })
+
+      // No choice is on screen yet, so neither can launch in a mode nobody picked.
+      expect((join as HTMLButtonElement).disabled).toBe(true)
+      expect((dontAsk as HTMLButtonElement).disabled).toBe(true)
+      fireEvent.click(join)
+      expect(joinInstance).not.toHaveBeenCalled()
+
+      await answer(handoff)
+      expect((join as HTMLButtonElement).disabled).toBe(false)
+      expect((dontAsk as HTMLButtonElement).disabled).toBe(false)
+      if (handoff === 'launch') {
+        fireEvent.click(within(dialog).getByRole('radio', { name: 'VR' }))
+      }
+      await act(async () => {
+        fireEvent.click(join)
+        await Promise.resolve()
+      })
+      expect(joinInstance).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: handoff === 'launch' ? 'vr' : 'desktop' })
+      )
+    }
+  )
+
+  it('VRChat and a set ChilloutVR mode need no choice, so Join works while VRX checks', async () => {
     withSlowHandoff()
+    useSettingsStore.setState((state) => ({ settings: { ...state.settings, joinMode: 'vr' } }))
     mockFriends([], [cvrFriend])
     render(<TestSurface friend={cvrFriend} />)
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
     const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
 
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: /Don't ask again/ }))
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
       await Promise.resolve()
     })
-
-    expect(joinInstance).toHaveBeenCalledWith(expect.objectContaining({ mode: 'desktop' }))
-    expect(useSettingsStore.getState().settings.confirmJoin).toBe(false)
-    expect(useSettingsStore.getState().settings.joinMode).toBe('ask')
+    expect(joinInstance).toHaveBeenCalledWith(expect.objectContaining({ mode: 'vr' }))
   })
 
   it('the Explore dialog also keeps the picker hidden until the answer', async () => {

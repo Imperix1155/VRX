@@ -206,6 +206,8 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const asksMode = world.platform === 'chilloutvr' && joinMode === 'ask'
   // A picker hidden while VRX checks offers no choice yet (see LaunchLine).
   const showModePicker = openGame === null && !checkingGame && asksMode
+  // Join waits for that choice, so it never launches in a mode nobody picked.
+  const awaitingChoice = checkingGame && asksMode
   const resolvedMode = showModePicker ? mode : resolveWireMode(world, joinMode)
   async function joinAndNeverAskAgain(): Promise<void> {
     const result = await confirmPending(resolvedMode)
@@ -312,7 +314,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
           </button>
           <button
             type="button"
-            disabled={isJoining || room.action.state !== 'available'}
+            disabled={isJoining || room.action.state !== 'available' || awaitingChoice}
             onClick={() => {
               void confirmPending(resolvedMode)
             }}
@@ -331,7 +333,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
         <button
           type="button"
           onClick={() => void joinAndNeverAskAgain()}
-          disabled={isJoining || room.action.state !== 'available'}
+          disabled={isJoining || room.action.state !== 'available' || awaitingChoice}
           className="self-center text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
         >
           {t('joinConfirm.dontAskAgain')}
@@ -611,11 +613,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   // that hidden picker offers no choice yet.
   const openGame = openGameKey(friendForCopy.platform, handoff)
   const checkingGame = handoff === 'pending'
-  const showModePicker =
-    openGame === null &&
-    !checkingGame &&
-    friendForCopy.platform === 'chilloutvr' &&
-    joinMode === 'ask'
+  const asksMode = friendForCopy.platform === 'chilloutvr' && joinMode === 'ask'
+  const showModePicker = openGame === null && !checkingGame && asksMode
+  // Join waits for that choice, so it never launches in a mode nobody picked.
+  const awaitingChoice = checkingGame && asksMode
   const resolvedMode: JoinMode = showModePicker ? mode : resolveWireMode(friendForCopy, joinMode)
 
   // Who's-there: the SHARED hot-instance derivation (VRX-237) — same platform
@@ -810,7 +811,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
           <button
             type="button"
             onClick={() => void confirmPending(resolvedMode)}
-            disabled={isInert}
+            disabled={isInert || awaitingChoice}
             className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] disabled:pointer-events-none disabled:opacity-50"
             style={{
               borderColor:
@@ -838,7 +839,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
           <button
             type="button"
             onClick={() => void joinAndNeverAskAgain()}
-            disabled={isInert}
+            disabled={isInert || awaitingChoice}
             className="self-center text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
           >
             {t('joinConfirm.dontAskAgain')}

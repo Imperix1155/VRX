@@ -38,7 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as the room list, under the platform.
 - Join dialog: while VRX checks whether the game is already open, the VR or
   Desktop choice stays hidden in its place, so the dialog no longer shows it
-  for a moment and then jumps to the "is open" note.
+  for a moment and then jumps to the "is open" note. When ChilloutVR asks
+  each time, Join waits for that moment, so it never starts the game in a
+  mode you didn't pick.
 
 ### Fixed
 
