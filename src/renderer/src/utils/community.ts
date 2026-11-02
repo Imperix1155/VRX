@@ -58,9 +58,11 @@ export function communitySource<T extends Answer>(
   if (auth.data === undefined && auth.isPending) return { kind: 'auth-pending' }
   if (isNotConnectedAuth(auth)) return { kind: 'not-connected' }
   const result = query.data
+  // A failure being asked again (Try again, Search) reads as loading until
+  // the platform answers, so a second refusal never looks like nothing happened.
+  if (result?.ok !== true && query.fetchStatus === 'fetching') return { kind: 'loading' }
   if (result === undefined) {
-    if (query.isError) return { kind: 'failed', reason: 'unavailable' }
-    return query.fetchStatus === 'fetching' ? { kind: 'loading' } : { kind: 'idle' }
+    return query.isError ? { kind: 'failed', reason: 'unavailable' } : { kind: 'idle' }
   }
   if (!result.ok) return { kind: 'failed', reason: noticeReason(result.reason) }
   return {

@@ -470,6 +470,26 @@ describe('ExploreListPanel', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('says it is loading while Try again asks again, then shows the new answer', async () => {
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    bridge.getWorldList.mockResolvedValueOnce({ ok: false, reason: 'rate-limited' })
+    renderWith(<ExploreListPanel list="new" />)
+    const failed = msg('community.error.rate-limited', { platform: 'VRChat' })
+    expect(await screen.findByText(failed)).toBeTruthy()
+    let answer: (result: WorldListResult) => void = () => {}
+    bridge.getWorldList.mockImplementationOnce(
+      () => new Promise<WorldListResult>((resolve) => (answer = resolve))
+    )
+    fireEvent.click(screen.getByRole('button', { name: msg('community.retry') }))
+    expect(await screen.findByText(msg('community.loading', { platform: 'VRChat' }))).toBeTruthy()
+    expect(screen.queryByText(failed)).toBeNull()
+    expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
+    // A second refusal shows again, so it never looks like an ignored press.
+    act(() => answer({ ok: false, reason: 'rate-limited' }))
+    expect(await screen.findByText(failed)).toBeTruthy()
+    expect(bridge.getWorldList).toHaveBeenCalledTimes(2)
+  })
+
   it('adds no line under ALL for a platform the user isn’t signed in to', async () => {
     authState.vrchat = 'unauthenticated'
     renderWith(<ExploreListPanel list="updated" />)
