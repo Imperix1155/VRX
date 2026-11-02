@@ -716,9 +716,11 @@ names the world; a ChilloutVR world name that resolves a moment later fills
 in, and its `(#…)` instance tag is trimmed. Ask Me and Do Not Disturb friends
 never show a world, and their moves are not recorded. The top-bar filter
 scopes the list; the page's Show control (All, Online, Worlds, Offline) is a
-saved setting. Clear empties the list. A row opens that friend's details on
-the Friends page, as a linked person under All; a friend no longer on the
-list is plain text.
+saved setting. Clear empties the list as shown, like the Inbox's Hide all:
+the platforms in the top-bar filter and the kind Show picks. What the filters
+hide stays, and Clear is off while nothing shows. A row opens that friend's
+details on the Friends page, as a linked person under All; a friend no longer
+on the list is plain text.
 
 ### §9.6 Inbox
 

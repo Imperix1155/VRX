@@ -258,6 +258,35 @@ describe('ActivityFeed', () => {
     expect(onChanged).toHaveBeenCalledTimes(2)
   })
 
+  it('clears only the platforms and the kind the page shows', () => {
+    const { feed, onChanged } = setup()
+    feed.seedRoster('vrchat', [vrcFriend('offline')])
+    feed.seedRoster('chilloutvr', [cvrFriend('cvr-1', 'Kai')])
+    feed.consume(presence(vrcFriend('active')))
+    feed.consume({ type: 'friend-offline', platform: 'vrchat', platformUserId: 'usr_a' })
+    feed.consume(cvrSnapshot([]))
+    feed.consume(cvrSnapshot([{ platformUserId: 'cvr-1', instance: null }]))
+    const kinds = (): string[] => feed.list().map((entry) => `${entry.platform}:${entry.kind}`)
+    expect(kinds()).toEqual(['chilloutvr:online', 'vrchat:offline', 'vrchat:online'])
+
+    onChanged.mockClear()
+    // VRChat in view, Show set to Online: ChilloutVR and VRChat's offline stay.
+    feed.clear(['vrchat'], 'online')
+    expect(kinds()).toEqual(['chilloutvr:online', 'vrchat:offline'])
+    expect(onChanged).toHaveBeenCalledTimes(1)
+
+    // Nothing in view matches: nothing changes and nothing is announced.
+    feed.clear(['vrchat'], 'world')
+    expect(kinds()).toEqual(['chilloutvr:online', 'vrchat:offline'])
+    expect(onChanged).toHaveBeenCalledTimes(1)
+
+    feed.clear(['vrchat'], 'all')
+    expect(kinds()).toEqual(['chilloutvr:online'])
+    feed.clear(['vrchat', 'chilloutvr'], 'all')
+    expect(feed.list()).toEqual([])
+    expect(onChanged).toHaveBeenCalledTimes(3)
+  })
+
   it('caps each platform separately so one never pushes the other out', () => {
     const { feed } = setup()
     feed.seedRoster('chilloutvr', [cvrFriend('cvr-1', 'Kai')])

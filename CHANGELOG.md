@@ -169,6 +169,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or Korean, times and numbers are in English like the rest of VRX, so the
   Inbox, Dashboard and Activity no longer mix "vor 2 Stunden" in with "Just
   now".
+- Activity: Clear takes away only what the page shows. With VRChat picked in
+  the top bar it no longer wipes your ChilloutVR history too, or the kinds the
+  Show filter hides, and it is off while nothing shows.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

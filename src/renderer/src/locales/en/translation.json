@@ -648,7 +648,7 @@
     "offline": "Went offline",
     "openFriend": "Open {{name}} in Friends",
     "clear": "Clear",
-    "clearAria": "Clear all activity",
+    "clearAria": "Clear the activity shown",
     "emptyHeading": "No activity yet",
     "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open.",
     "filteredEmpty": "Nothing to show with these filters.",

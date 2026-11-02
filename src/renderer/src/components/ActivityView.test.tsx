@@ -203,13 +203,46 @@ describe('ActivityView', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, activityFilter: 'world' } })
     renderView(entries.filter((entry) => entry.kind !== 'world'))
     expect(screen.getByText(msg('activity.filteredEmpty'))).toBeTruthy()
+    // Nothing on screen, so there is nothing for Clear to take away.
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') }).disabled
+    ).toBe(true)
   })
 
   it('clears through main and empties the list at once', async () => {
     renderView()
     fireEvent.click(screen.getByRole('button', { name: msg('activity.clearAria') }))
-    expect(clearActivity).toHaveBeenCalledOnce()
+    expect(clearActivity).toHaveBeenCalledExactlyOnceWith({
+      platforms: ['vrchat', 'chilloutvr'],
+      filter: 'all'
+    })
     await waitFor(() => expect(screen.getByText(msg('activity.emptyHeading'))).toBeTruthy())
+  })
+
+  it('clears only what is on screen: the filtered platform and the shown kind', async () => {
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, activityFilter: 'online' } })
+    renderView()
+    expect(rowTexts()).toEqual([expect.stringContaining('Former Friend')])
+    fireEvent.click(screen.getByRole('button', { name: msg('activity.clearAria') }))
+    expect(clearActivity).toHaveBeenCalledExactlyOnceWith({
+      platforms: ['vrchat'],
+      filter: 'online'
+    })
+    await waitFor(() => expect(screen.queryAllByRole('listitem')).toHaveLength(0))
+    // ChilloutVR's history and VRChat's other kinds are still there.
+    expect(client.getQueryData<ActivityEntry[]>(activityKey)?.map((entry) => entry.id)).toEqual([
+      4, 3, 2
+    ])
+  })
+
+  it('offers no Clear while the filtered platform has nothing stored', () => {
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    renderView(entries.filter((entry) => entry.platform === 'chilloutvr'))
+    expect(screen.getByText(msg('activity.emptyHeading'))).toBeTruthy()
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') }).disabled
+    ).toBe(true)
   })
 
   it('asks to connect a single filtered platform that is signed out', () => {
