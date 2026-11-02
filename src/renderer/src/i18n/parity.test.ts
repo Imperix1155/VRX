@@ -136,3 +136,25 @@ describe('unofficial-app notice', () => {
     expect(en.settings.legal.chilloutvr).toBe(CVR_DISCLAIMER)
   })
 })
+
+describe('Japanese terms', () => {
+  function texts(obj: Record<string, unknown>): string[] {
+    return Object.values(obj).flatMap((value) =>
+      value !== null && typeof value === 'object'
+        ? texts(value as Record<string, unknown>)
+        : [String(value)]
+    )
+  }
+  const all = texts(ja)
+
+  it('calls Identities アカウントの関連付け everywhere, as its button and title do', () => {
+    expect(ja.linking.identities).toBe('アカウントの関連付け')
+    expect(all.filter((text) => text.includes('アカウント管理'))).toEqual([])
+  })
+
+  it('calls a friend request フレンドリクエスト everywhere, as the Inbox does', () => {
+    expect(all.filter((text) => text.includes('フレンド申請'))).toEqual([])
+    // The button's words stay part of its full name for screen readers.
+    expect(ja.friendActions.addAria).toContain(ja.friendActions.add)
+  })
+})

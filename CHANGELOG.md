@@ -89,6 +89,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friend details: for a linked person, the VRChat and ChilloutVR buttons under
   the name say "View VRChat profile" or "View ChilloutVR profile" to screen
   readers and in their tooltip, and show the drawer's focus ring.
+- Friend details: in Japanese, Identities is 「アカウントの関連付け」
+  everywhere, including its Back button, and a friend request is always
+  「フレンドリクエスト」 as in the Inbox, so Add friend reads
+  「フレンドリクエストを送る」.
 
 ### Fixed
 
