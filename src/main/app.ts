@@ -53,7 +53,7 @@ import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdap
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { BroadcastAdapterEvent } from '@shared/ipc'
-import type { Platform } from '@shared/types'
+import type { Friend, Platform } from '@shared/types'
 import { ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
@@ -87,6 +87,7 @@ import { LinkGraphStore } from './services/linkGraphStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
+import { createFriendRosterReader } from './services/friendRoster'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import {
   createFriendNotificationNotifier,
@@ -98,6 +99,7 @@ import {
 import { createVrOverlayAlerts } from './vrOverlayAlerts'
 import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
+import { RosterCatchUp } from './rosterCatchUp'
 import { importCvrSession } from './services/cvrSessionImport'
 import { importVrcxSession } from './services/vrcxSessionImport'
 import { createSessionImporter } from './services/sessionImport'
@@ -827,6 +829,28 @@ app
     })
     friendActionsBoundary.current = friendActions
 
+    // With no window open (macOS after closing it), main runs the reconnect
+    // roster read itself (rosterCatchUp.ts), the same read `get-friends` serves.
+    const rosterCatchUp = new RosterCatchUp({
+      hasWindow: () => BrowserWindow.getAllWindows().some((window) => !window.isDestroyed()),
+      readRoster: (platform) => readFriendRoster(platform),
+      logFailure: (platform) => log.warn('roster catch-up failed', { platform })
+    })
+    // Each roster read, after the location authority is seeded.
+    const onFriendRoster = (platform: Platform, friends: Friend[]): void => {
+      // Settle requests first: it cannot throw, and an alert failure must not skip it.
+      inbox.settleRoster(platform, friends)
+      rosterCatchUp.rosterRead(platform)
+      friendAlerts.seedRoster(platform, friends)
+      activityFeed.seedRoster(platform, friends)
+    }
+    const readFriendRoster = createFriendRosterReader(
+      adapters,
+      locationAuthority,
+      appStatus,
+      onFriendRoster
+    )
+
     registerIpcHandlers(adapters, {
       explore,
       homeWorld,
@@ -919,12 +943,7 @@ app
       },
       locationAuthority,
       onRendererHydrated,
-      onFriendRoster: (platform, friends) => {
-        // Settle requests first: it cannot throw, and an alert failure must not skip it.
-        inbox.settleRoster(platform, friends)
-        friendAlerts.seedRoster(platform, friends)
-        activityFeed.seedRoster(platform, friends)
-      },
+      onFriendRoster,
       instance: {
         joinCoordinator,
         gameHandoff,
@@ -963,6 +982,7 @@ app
       friendAlerts,
       activityFeed,
       inbox,
+      rosterCatchUp,
       broadcast
     })
     // A socket can look open after sleep while its connection is gone.

@@ -4,6 +4,7 @@ import type { Friend, Platform } from '@shared/types'
 import type { FriendRoster, IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { RateLimitError, RequestQueueFullError } from '../services/adapters/errors'
 import type { AppStatusService } from '../services/appStatus'
+import { createFriendRosterReader, type FriendRosterRead } from '../services/friendRoster'
 import type { LocationAuthority } from '../services/locationAuthority'
 import { isTrustedIpcSender } from './security'
 
@@ -43,15 +44,13 @@ export function registerFriendsHandlers(
   appStatus: AppStatusService,
   onRoster?: (platform: Platform, friends: Friend[]) => void
 ): void {
+  const readRoster = createFriendRosterReader(adapters, authority, appStatus, onRoster)
   ipcMain.handle('get-friends', async (event, req: IpcInvoke['get-friends']['req']) => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
     if (!req || !VALID_PLATFORMS.has(req.platform)) throw new Error('Invalid platform')
-    const adapter = adapters.get(req.platform)
-    if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
-    const revision = authority.captureSeedRevision(req.platform)
-    let roster: FriendRoster
+    let read: FriendRosterRead
     try {
-      roster = await adapter.getFriends()
+      read = await readRoster(req.platform)
     } catch (error) {
       // Error properties do not survive Electron's invoke wrapping. Reuse the
       // preload-normalized marker that the query client never retries.
@@ -60,27 +59,6 @@ export function registerFriendsHandlers(
       }
       throw error
     }
-    if (roster.seeds) {
-      for (const seed of roster.seeds) {
-        authority.seed(req.platform, seed.friends, seed.revision, seed.completeness)
-      }
-    } else {
-      authority.seed(req.platform, roster.friends, revision, roster.completeness)
-    }
-    appStatus.recordReconcile(req.platform)
-    try {
-      // Hand on the authority's merged view, not the raw rows: a live removal
-      // or move that landed while this read was in flight must win over it.
-      if (onRoster) {
-        const accepted = roster.friends.flatMap((friend) => {
-          const resolved = authority.resolve(req.platform, friend.platformUserId)
-          return resolved.ok ? [resolved.friend] : []
-        })
-        onRoster(req.platform, accepted)
-      }
-    } catch {
-      /* A consumer failure must not fail the roster read. */
-    }
-    return serializeFriendRoster(req.platform, roster, revision)
+    return serializeFriendRoster(req.platform, read.roster, read.revision)
   })
 }

@@ -181,6 +181,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inbox: after you accept or decline a ChilloutVR friend request, a new
   request from the same person shows up and alerts you again, instead of
   staying hidden until VRX restarts.
+- Alerts: on a Mac with the VRX window closed, friends coming online alert you
+  again and show in Activity after the connection drops and comes back,
+  instead of each friend's first change being missed.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

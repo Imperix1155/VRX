@@ -23,8 +23,9 @@ etiquette rules apply in full; this file adds local detail.
 - Top-level modules own cross-cutting concerns: event fan-out
   (`adapterWiring.ts`), navigation guards, native notifications, tray, updater,
   logging and redaction, main-process copy (`i18n.ts`), sockets, live-socket
-  reconnect after wake (`wakeReconnect.ts`), window reveal (`showGate.ts`), and
-  the error box shown before a fatal exit (`fatalErrorBox.ts`).
+  reconnect after wake (`wakeReconnect.ts`), the reconnect roster read with no
+  window open (`rosterCatchUp.ts`), window reveal (`showGate.ts`), and the
+  error box shown before a fatal exit (`fatalErrorBox.ts`).
 - [`../preload`](../preload/index.ts) belongs to this contract. `index.ts`
   exposes `window.vrx`; `index.d.ts` types it. Bridge rules are in the IPC
   child contract.
@@ -138,7 +139,10 @@ etiquette rules apply in full; this file adds local detail.
 - `adapterWiring.ts` feeds each event to app status, `LocationAuthority`,
   `FriendAlerts`, `ActivityFeed`, `InboxService`, then the broadcast, isolating
   each consumer. `inbox` events go to `InboxService` only and are never
-  broadcast. The broadcast
+  broadcast. On `live` with no window open (macOS after its window closes),
+  `RosterCatchUp` runs the `get-friends` roster read, the one reconnect read an
+  open window would make. With a window open it reads nothing, and after
+  `auth-invalidated` it waits for a roster read that works. The broadcast
   stamps `rosterRevision` from the same monotonic counter as roster seeds;
   event revisions never move per-friend location fences.
 - A session boundary clears that platform's alerts, location authority, inbox

@@ -225,7 +225,10 @@ Concurrent roster requests in one session share a single run. Events that
 arrive during that run add at most one final read. An event that arrives once
 that final read is out makes the next roster request wait for it and read once
 more, so the change is not missed; a 429 or cooldown during the run skips
-that read.
+that read. The open window runs the reconnect read. With no window open
+(macOS keeps VRX running after its window closes), main runs that one read
+itself, except for a platform whose session failed a check, until a read
+works again. The timer and manual refresh still need the window.
 
 Sign-in status is checked on demand, never on a timer and never because a page
 opened: the renderer keeps a settled status until a sign-in, sign-out or
