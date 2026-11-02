@@ -85,9 +85,35 @@ const OPEN_GAME_KEYS: Record<Platform, Partial<Record<JoinHandoff, string>>> = {
   chilloutvr: { 'in-game': 'joinConfirm.openGame.chilloutvrInGame' }
 }
 
-/** The copy for a Join into an already-open game, or null when Join launches. */
-function openGameKey(platform: Platform, handoff: JoinHandoff | null): string | null {
-  return handoff === null ? null : (OPEN_GAME_KEYS[platform][handoff] ?? null)
+/** The copy for a Join into an already-open game, or null when Join launches
+ *  (or main has not answered yet). */
+function openGameKey(platform: Platform, handoff: JoinHandoff | 'pending' | null): string | null {
+  return handoff === null || handoff === 'pending'
+    ? null
+    : (OPEN_GAME_KEYS[platform][handoff] ?? null)
+}
+
+/**
+ * The launch line (mode picker or launch note) while main checks whether the
+ * game is already open: it keeps its place but stays hidden and inert, so the
+ * dialog never shows a picker that then turns into the open-game note.
+ */
+function LaunchLine({
+  checking,
+  children
+}: {
+  checking: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div
+      className={checking ? 'invisible' : undefined}
+      inert={checking}
+      aria-hidden={checking || undefined}
+    >
+      {children}
+    </div>
+  )
 }
 
 /** The one modal shell renders a distinct, typed Explore source; it never fabricates a Friend. */
@@ -175,7 +201,10 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const accessPill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
   // The game that is already open ignores VR/desktop, so it gets no picker.
   const openGame = openGameKey(world.platform, handoff)
-  const showModePicker = openGame === null && world.platform === 'chilloutvr' && joinMode === 'ask'
+  const checkingGame = handoff === 'pending'
+  const asksMode = world.platform === 'chilloutvr' && joinMode === 'ask'
+  // A picker hidden while VRX checks offers no choice yet (see LaunchLine).
+  const showModePicker = openGame === null && !checkingGame && asksMode
   const resolvedMode = showModePicker ? mode : resolveWireMode(world, joinMode)
   async function joinAndNeverAskAgain(): Promise<void> {
     const result = await confirmPending(resolvedMode)
@@ -252,20 +281,24 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
         </div>
         {openGame !== null ? (
           <p className="text-xs text-[var(--text-dim)]">{t(openGame)}</p>
-        ) : showModePicker ? (
-          <SegmentedControl
-            values={MODE_VALUES}
-            active={mode}
-            labelKeys={MODE_LABEL_KEYS}
-            ariaLabel={t('joinConfirm.mode.aria')}
-            disabled={isJoining}
-            onChange={setMode}
-          />
-        ) : world.platform === 'vrchat' ? (
-          <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
-        ) : joinMode !== 'ask' ? (
-          <p className="text-xs text-[var(--text-dim)]">{t(WILL_LAUNCH_KEYS[joinMode])}</p>
-        ) : null}
+        ) : (
+          <LaunchLine checking={checkingGame}>
+            {world.platform === 'vrchat' ? (
+              <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
+            ) : joinMode === 'ask' ? (
+              <SegmentedControl
+                values={MODE_VALUES}
+                active={mode}
+                labelKeys={MODE_LABEL_KEYS}
+                ariaLabel={t('joinConfirm.mode.aria')}
+                disabled={isJoining || checkingGame}
+                onChange={setMode}
+              />
+            ) : (
+              <p className="text-xs text-[var(--text-dim)]">{t(WILL_LAUNCH_KEYS[joinMode])}</p>
+            )}
+          </LaunchLine>
+        )}
         <div className="mt-[var(--space-1)] flex items-center justify-end gap-[var(--space-2)]">
           <button
             ref={cancelRef}
@@ -573,9 +606,15 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   // mode over its launch URI, so it gets the honest one-line note instead of
   // a fake control.
   // A game that is already open ignores VR/desktop, so it gets a note instead.
+  // While VRX checks, the launch line keeps its place hidden (LaunchLine), and
+  // that hidden picker offers no choice yet.
   const openGame = openGameKey(friendForCopy.platform, handoff)
+  const checkingGame = handoff === 'pending'
   const showModePicker =
-    openGame === null && friendForCopy.platform === 'chilloutvr' && joinMode === 'ask'
+    openGame === null &&
+    !checkingGame &&
+    friendForCopy.platform === 'chilloutvr' &&
+    joinMode === 'ask'
   const resolvedMode: JoinMode = showModePicker ? mode : resolveWireMode(friendForCopy, joinMode)
 
   // Who's-there: the SHARED hot-instance derivation (VRX-237) — same platform
@@ -735,23 +774,25 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
 
         {openGame !== null ? (
           <p className="text-xs text-[var(--text-dim)]">{t(openGame)}</p>
-        ) : showModePicker ? (
-          <SegmentedControl
-            values={MODE_VALUES}
-            active={mode}
-            labelKeys={MODE_LABEL_KEYS}
-            ariaLabel={t('joinConfirm.mode.aria')}
-            disabled={isInert}
-            onChange={setMode}
-          />
-        ) : isVrc ? (
-          <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
         ) : (
-          // CVR with an explicit preference: no picker, but the dialog still
-          // says what confirming will do. ('ask' is the picker branch above.)
-          <p className="text-xs text-[var(--text-dim)]">
-            {t(WILL_LAUNCH_KEYS[joinMode === 'ask' ? 'desktop' : joinMode])}
-          </p>
+          <LaunchLine checking={checkingGame}>
+            {isVrc ? (
+              <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
+            ) : joinMode === 'ask' ? (
+              <SegmentedControl
+                values={MODE_VALUES}
+                active={mode}
+                labelKeys={MODE_LABEL_KEYS}
+                ariaLabel={t('joinConfirm.mode.aria')}
+                disabled={isInert || checkingGame}
+                onChange={setMode}
+              />
+            ) : (
+              // CVR with an explicit preference: no picker, but the dialog
+              // still says what confirming will do.
+              <p className="text-xs text-[var(--text-dim)]">{t(WILL_LAUNCH_KEYS[joinMode])}</p>
+            )}
+          </LaunchLine>
         )}
 
         <div className="mt-[var(--space-1)] flex items-center justify-end gap-[var(--space-2)]">

@@ -902,6 +902,98 @@ describe('a game that is already open', () => {
     expect(within(dialog).queryByRole('radiogroup')).toBeNull()
   })
 
+  /** Holds main's answer so a test can look at the dialog while VRX checks. */
+  function withSlowHandoff(): (handoff: 'launch' | 'in-game') => Promise<void> {
+    let answer!: (handoff: 'launch' | 'in-game') => void
+    ;(window.vrx as unknown as { getJoinHandoff: unknown }).getJoinHandoff = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve
+        })
+    )
+    return async (handoff) => {
+      await act(async () => {
+        answer(handoff)
+        await Promise.resolve()
+      })
+    }
+  }
+
+  it.each([
+    ['open', 'in-game'],
+    ['closed', 'launch']
+  ] as const)(
+    'while checking whether ChilloutVR is open (%s), the picker keeps its place hidden',
+    async (_state, handoff) => {
+      const answer = withSlowHandoff()
+      mockFriends([], [cvrFriend])
+      render(<TestSurface friend={cvrFriend} />)
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+
+      // Nothing to pick yet, so no choice can be made and then ignored, but
+      // the space stays taken so the dialog does not jump.
+      expect(within(dialog).queryByRole('radiogroup')).toBeNull()
+      const reserved = within(dialog).getByRole('radiogroup', { hidden: true })
+      expect(reserved.closest('[inert]')).not.toBeNull()
+
+      await answer(handoff)
+      if (handoff === 'in-game') {
+        expect(
+          within(dialog).getByText('ChilloutVR is open, so Join takes you there in the game.')
+        ).toBeTruthy()
+        expect(within(dialog).queryByRole('radiogroup', { hidden: true })).toBeNull()
+      } else {
+        const picker = within(dialog).getByRole('radiogroup', { name: 'Launch mode' })
+        expect(picker).toBe(reserved)
+        expect(picker.closest('[inert]')).toBeNull()
+      }
+    }
+  )
+
+  it("Don't ask again while still checking keeps Always ask, since no choice was shown", async () => {
+    withSlowHandoff()
+    mockFriends([], [cvrFriend])
+    render(<TestSurface friend={cvrFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: /Don't ask again/ }))
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledWith(expect.objectContaining({ mode: 'desktop' }))
+    expect(useSettingsStore.getState().settings.confirmJoin).toBe(false)
+    expect(useSettingsStore.getState().settings.joinMode).toBe('ask')
+  })
+
+  it('the Explore dialog also keeps the picker hidden until the answer', async () => {
+    const answer = withSlowHandoff()
+    const cvrWorld: ExploreWorld = { ...exploreWorld, platform: 'chilloutvr', worldId: 'cvr_world' }
+    const cvrRoom: ExploreRoom = {
+      ...exploreRoom,
+      platform: 'chilloutvr',
+      worldId: 'cvr_world',
+      roomId: 'cvr_room',
+      action: { state: 'available', selectionRef: 'cvr-selection-ref' }
+    }
+    render(<ExploreTestSurface world={cvrWorld} room={cvrRoom} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+
+    expect(within(dialog).queryByRole('radiogroup')).toBeNull()
+    expect(
+      within(dialog).getByRole('radiogroup', { hidden: true }).closest('[inert]')
+    ).not.toBeNull()
+
+    await answer('in-game')
+    expect(
+      within(dialog).getByText('ChilloutVR is open, so Join takes you there in the game.')
+    ).toBeTruthy()
+    expect(within(dialog).queryByRole('radiogroup', { hidden: true })).toBeNull()
+  })
+
   it('VRChat open → says whether Join goes there or sends an invite', async () => {
     withHandoff({ vrchat: 'in-game', chilloutvr: 'launch' })
     const view = render(<TestSurface friend={joinableFriend} />)

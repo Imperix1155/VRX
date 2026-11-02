@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   did when joining from Explore.
 - Explore: the Join dialog shows the room's access as the same colored pill
   as the room list, under the platform.
+- Join dialog: while VRX checks whether the game is already open, the VR or
+  Desktop choice stays hidden in its place, so the dialog no longer shows it
+  for a moment and then jumps to the "is open" note.
 
 ### Fixed
 

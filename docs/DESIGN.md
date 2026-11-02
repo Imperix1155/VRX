@@ -249,7 +249,9 @@ copy, the same way on both platforms: the join dialog shows one quiet note in
 place of the mode picker or launch note ("VRChat is open, so Join takes you
 there in the game.", "ChilloutVR is open, …"), and afterwards the status line
 under Join says "Sent to your open game" or, for a VRChat invite, "Invite
-sent. Accept it in VRChat." for 8 seconds.
+sent. Accept it in VRChat." for 8 seconds. While VRX checks whether the game
+is open, that line keeps its place but stays blank, so the dialog never shows
+the picker and then swaps it for the note.
 
 **Trust.** Names stay neutral. When VRChat provides a trust rank, it appears
 as quiet 12 px plain text below Notes in the drawer; a combined linked
