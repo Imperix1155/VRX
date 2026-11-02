@@ -12,8 +12,10 @@ import type {
 import { useTranslation } from 'react-i18next'
 import {
   FRIEND_LIST_SECTIONS,
+  FRIEND_SORTS,
   type Friend,
   type FriendListSection,
+  type FriendSort,
   type Platform
 } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
@@ -47,6 +49,9 @@ import { inPlatformOrder } from '../utils/platformOrder'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { readPixelDesignToken, RENDERER_PIXEL_TOKENS } from '../utils/designTokens'
+import { latestActivityByFriend, sortFriendRows } from '../utils/friendSort'
+import { useActivityForFriendsOrder } from '../queries/activity'
+import SegmentedControl from './SegmentedControl'
 
 const INITIAL_VIRTUAL_VIEWPORT = { width: 0, height: 720 }
 const SECTION_ROW_ESTIMATE = 32
@@ -54,6 +59,23 @@ const COMPACT_FRIEND_ROW_ESTIMATE = 60
 const DETAIL_FRIEND_ROW_ESTIMATE = 72
 const VIRTUAL_OVERSCAN = 5
 const EMPTY_LINKED_ROWS: LinkedRow[] = []
+/** A favorite in game shows twice: under Favorites and in its own group. The
+ *  Favorites copy gets its own row key so focus, arrows and the virtual list
+ *  tell the two apart. */
+const FAVORITE_COPY_PREFIX = 'favorite-copy:'
+
+function projectionKeyOf(rowKey: string): string {
+  return rowKey.startsWith(FAVORITE_COPY_PREFIX)
+    ? rowKey.slice(FAVORITE_COPY_PREFIX.length)
+    : rowKey
+}
+
+const SORT_LABEL_KEY: Record<FriendSort, string> = {
+  name: 'friends.sort.name',
+  recent: 'friends.sort.recent',
+  world: 'friends.sort.world',
+  joinable: 'friends.sort.joinable'
+}
 
 function findActiveStickyIndex(
   stickyIndexes: readonly number[],
@@ -154,6 +176,7 @@ function PlatformTab({
 // The virtual window keeps only a small row set mounted. memo still avoids
 // re-rendering an unchanged visible row when unrelated list state changes.
 const FriendRow = memo(function FriendRow({
+  rowKey,
   friend,
   projection,
   linkedProfile,
@@ -177,6 +200,8 @@ const FriendRow = memo(function FriendRow({
   favorite,
   measureElement
 }: {
+  /** The list row's own key; differs from the projection key on a Favorites copy. */
+  rowKey: string
   friend: Friend
   projection: LinkedRow
   linkedProfile: LinkedProfile | undefined
@@ -225,7 +250,7 @@ const FriendRow = memo(function FriendRow({
   // row clicks delegate to the same open path with THIS element as the opener
   // so focus return still lands on the avatar (VRX-228 contract).
   const avatarButtonRef = useRef<HTMLButtonElement>(null)
-  const key = projection.key
+  const key = rowKey
   const combined = projection.target.kind === 'person'
   const destinations = projection.accounts.filter(isFriendJoinable)
   const destination = destinations[0]
@@ -348,7 +373,7 @@ const FriendRow = memo(function FriendRow({
   }
 
   // Ids for the opener's composed accessible name (aria-labelledby below).
-  const rowId = `friend-row-${friend.platform}-${friend.platformUserId}`
+  const rowId = `friend-row-${key === projection.key ? '' : 'favorite-'}${friend.platform}-${friend.platformUserId}`
 
   return (
     <li
@@ -372,7 +397,9 @@ const FriendRow = memo(function FriendRow({
             : account.instance?.instanceId
         ])
       ])}
-      onPointerEnter={() => onRowHover(key.startsWith('person:') ? key : null)}
+      onPointerEnter={() =>
+        onRowHover(projection.key.startsWith('person:') ? projection.key : null)
+      }
       onPointerLeave={() => onRowHover(null)}
       aria-posinset={positionInSet}
       aria-setsize={setSize}
@@ -797,6 +824,21 @@ export default function FriendsList(): React.JSX.Element {
   const collapsedSections = useSettingsStore((s) => s.settings.collapsedFriendSections)
   const density = useSettingsStore((s) => s.settings.density)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
+  // Recent reads the Activity list VRX already keeps; with that page off it
+  // keeps nothing, so the choice steps aside and the list orders by name.
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
+  const storedSort = useSettingsStore((s) => s.settings.friendSort)
+  const sortChoices = useMemo(
+    () => FRIEND_SORTS.filter((sort) => sort !== 'recent' || showActivityPage),
+    [showActivityPage]
+  )
+  const friendSort: FriendSort = sortChoices.includes(storedSort) ? storedSort : 'name'
+  const activity = useActivityForFriendsOrder(friendSort === 'recent')
+  const latestActivity = useMemo(
+    () =>
+      friendSort === 'recent' ? latestActivityByFriend(activity.data) : new Map<string, number>(),
+    [friendSort, activity.data]
+  )
   // One trimmed query drives filtering, highlighting and the section lock, so
   // "alex " still highlights and a spaces-only query doesn't lock sections open.
   const searchQuery = appliedSearch.trim()
@@ -809,21 +851,33 @@ export default function FriendsList(): React.JSX.Element {
       filter: platformFilter,
       search: searchQuery
     })
-    const rows = projected.rows.map((row) =>
-      row.target.personId === null ? withFriendRowKey(row) : row
+    const rows = sortFriendRows(
+      projected.rows.map((row) => (row.target.personId === null ? withFriendRowKey(row) : row)),
+      friendSort,
+      { latestActivity }
     )
     const filteredFriends = friends === undefined ? undefined : rows
     return { filteredFriends, searchActive, personCount: projected.personCount }
-  }, [friends, allFriends, links.data, accountIds, platformFilter, searchQuery])
+  }, [
+    friends,
+    allFriends,
+    links.data,
+    accountIds,
+    platformFilter,
+    searchQuery,
+    friendSort,
+    latestActivity
+  ])
   const stableRows = useStableLinkedRows(
     filteredFriends ?? EMPTY_LINKED_ROWS,
     interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null
   )
-  // Favorites (owner, 2026-11-01): starred friends who are on now lead the
-  // list, In-Game first, and leave their presence section. A starred friend
-  // who is offline stays under Offline with the row's star. The section only
-  // shows while it has someone in it. A friend in one of the account's own
-  // favorite groups counts the same as VRX's star.
+  // Favorites (owner, 2026-11-02, replacing 2026-11-01): the group answers
+  // "which of my favorites can I jump in with right now", so it lists only
+  // starred friends who are in game. They also stay in In-Game; online and
+  // offline favorites stay in their own group. Every starred row carries the
+  // star. The group only shows while it has someone in it. A friend in one of
+  // the account's own favorite groups counts the same as VRX's star.
   const localFavoriteKeys = useFavoriteFriendKeys()
   const gameFavoriteKeys = useGameFavoriteFriendKeys()
   const favoriteKeys = useMemo(
@@ -835,14 +889,14 @@ export default function FriendsList(): React.JSX.Element {
   )
   const sections = useMemo(() => {
     if (filteredFriends === undefined) return undefined
-    const leadsFavorites = (row: LinkedRow): boolean =>
-      row.section !== 'offline' && isFavoriteAccount(favoriteKeys, row.accounts)
     return FRIEND_LIST_SECTIONS.map((section) => ({
       section,
       friends:
         section === 'favorites'
-          ? stableRows.filter(leadsFavorites)
-          : stableRows.filter((row) => row.section === section && !leadsFavorites(row))
+          ? stableRows.filter(
+              (row) => row.section === 'in-game' && isFavoriteAccount(favoriteKeys, row.accounts)
+            )
+          : stableRows.filter((row) => row.section === section)
     })).filter(({ section, friends }) => section !== 'favorites' || friends.length > 0)
   }, [filteredFriends, stableRows, favoriteKeys])
 
@@ -879,7 +933,12 @@ export default function FriendsList(): React.JSX.Element {
             })?.header ??
             projection.accounts[0] ??
             null
-          rows.push({ kind: 'friend', key: projection.key, friend, projection })
+          rows.push({
+            kind: 'friend',
+            key: section === 'favorites' ? FAVORITE_COPY_PREFIX + projection.key : projection.key,
+            friend,
+            projection
+          })
         }
       }
     }
@@ -1036,10 +1095,11 @@ export default function FriendsList(): React.JSX.Element {
   }, [stableRows, friendKeys, friendPositionByKey, friendVirtualIndexByKey])
   const onRowFocus = useCallback((key: string): void => {
     focusedRowKeyRef.current = key
-    setFocusedLinkedRowKey(key.startsWith('person:') ? key : null)
+    const projectionKey = projectionKeyOf(key)
+    setFocusedLinkedRowKey(projectionKey.startsWith('person:') ? projectionKey : null)
     focusedPersonRef.current =
       latestRowsRef.current.stableRows.find(
-        (row) => row.key === key && row.target.personId !== null
+        (row) => row.key === projectionKey && row.target.personId !== null
       )?.personKey ?? null
     // Join is a separate native control after the avatar in each row. If Tab
     // reaches it, that row must also own the roving avatar stop so a live
@@ -1048,7 +1108,8 @@ export default function FriendsList(): React.JSX.Element {
   }, [])
   const onRowBlur = useCallback((key: string): void => {
     if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null
-    setFocusedLinkedRowKey((current) => (current === key ? null : current))
+    const projectionKey = projectionKeyOf(key)
+    setFocusedLinkedRowKey((current) => (current === projectionKey ? null : current))
   }, [])
   const onSectionFocus = useCallback((section: FriendListSection): void => {
     setFocusedSection(section)
@@ -1298,17 +1359,25 @@ export default function FriendsList(): React.JSX.Element {
       }}
       className="glass-information rounded-panel border border-[var(--border)] p-[var(--space-4)]"
     >
-      <div className="mb-[var(--space-3)] flex items-center justify-end gap-[var(--space-2)]">
+      <div className="mb-[var(--space-3)] flex flex-wrap items-center justify-end gap-[var(--space-2)]">
         {/* Names the section for assistive tech; the top bar already shows the
             page's one visible "Friends" heading (DESIGN.md §8). */}
         <h2 id="friends-list-heading" className="sr-only">
           {t('friends.title')}
         </h2>
+        {/* Order inside each group (owner, 2026-11-02): the same control as
+            the platform picker, on the left above Search friends. */}
+        <div className="mr-auto">
+          <SegmentedControl
+            values={sortChoices}
+            active={friendSort}
+            labelKeys={SORT_LABEL_KEY}
+            ariaLabel={t('friends.sort.aria')}
+            onChange={(value) => updateSettings({ friendSort: value })}
+          />
+        </div>
         {links.data?.profiles.length ? (
-          <span
-            data-testid="linked-person-count"
-            className="ml-auto text-xs text-[var(--text-dim)]"
-          >
+          <span data-testid="linked-person-count" className="text-xs text-[var(--text-dim)]">
             {t('linking.people', { count: personCount })}
           </span>
         ) : null}
@@ -1481,6 +1550,7 @@ export default function FriendsList(): React.JSX.Element {
                 return (
                   <FriendRow
                     key={virtualItem.key}
+                    rowKey={row.key}
                     friend={row.friend}
                     projection={row.projection}
                     linkedProfile={links.data?.profiles.find(

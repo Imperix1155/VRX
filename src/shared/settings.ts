@@ -57,6 +57,8 @@
  *                            CVRX (owner, 2026-11-01; default on, v24)
  *   useGameFavorites       → stars also use the favorites in the user's own accounts, as in
  *                            VRCX and CVRX (owner, 2026-11-01; default on, v26)
+ *   friendSort             → the order inside each friends-list group: Name, Recent, World
+ *                            or Joinable (owner, 2026-11-02; default name, v27)
  *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
  *                            only for a brand-new settings file or "Run setup again")
  */
@@ -77,6 +79,7 @@ import {
   DRAWER_OPENERS,
   FRIEND_ALERT_SCOPES,
   FRIEND_LIST_SECTIONS,
+  FRIEND_SORTS,
   JOIN_MODE_PREFERENCES,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
@@ -91,7 +94,7 @@ import { ACTIVITY_FILTERS } from './activity'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 26 as const
+export const SETTINGS_VERSION = 27 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -160,6 +163,8 @@ export const SettingsSchema = z.object({
     .catch(HOT_INSTANCE_THRESHOLD),
   /** Friends-list presence sections the user collapsed (VRX-67). Offline is collapsed by default. */
   collapsedFriendSections: z.array(z.enum(FRIEND_LIST_SECTIONS)).catch(['offline']),
+  /** The order inside each friends-list group. Groups stay; the name breaks ties. */
+  friendSort: z.enum(FRIEND_SORTS).catch('name'),
   /** Native friend-transition alert toggles (VRX-84). */
   // VRX-205 (owner, 2026-07-11): QUIET DEFAULTS — every alert ships OFF; the
   // user opts in (and VRX-203's follow-a-friend becomes the natural opt-in
@@ -234,7 +239,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v24 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v27 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -304,7 +309,10 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   24: (prev) => ({ ...prev }),
   // v25 → v26: `useGameFavorites` is additive. The version boundary stops an
   // older build from stripping a user's Off.
-  25: (prev) => ({ ...prev })
+  25: (prev) => ({ ...prev }),
+  // v26 → v27: `friendSort` is additive. The version boundary stops an older
+  // build from stripping a user's chosen order.
+  26: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

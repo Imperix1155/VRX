@@ -50,6 +50,7 @@ describe('settings schema', () => {
       labelScheme: 'vrchat',
       hotInstanceThreshold: 2,
       collapsedFriendSections: ['offline'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: false,
@@ -288,6 +289,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -348,6 +350,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -408,6 +411,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -468,6 +472,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -528,6 +533,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -588,6 +594,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -1330,5 +1337,25 @@ describe('Account notes setting', () => {
     Reflect.deleteProperty(oldNormalized, 'useGameFavorites')
     if (shouldPersistSettings(disk, 25)) disk = oldNormalized
     expect(parseSettings(disk)).toMatchObject({ useGameFavorites: false })
+  })
+})
+
+describe('Friends order setting', () => {
+  it('reads the friends order (default Name) and keeps a choice across a v26 round-trip', () => {
+    expect(parseSettings({ version: 26 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      friendSort: 'name'
+    })
+    expect(parseSettings({ friendSort: 'joinable' })).toMatchObject({ friendSort: 'joinable' })
+    expect(parseSettings({ friendSort: 'loudest' })).toMatchObject({ friendSort: 'name' })
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 27,
+      friendSort: 'world'
+    }
+    const oldNormalized = { ...disk, version: 26 }
+    Reflect.deleteProperty(oldNormalized, 'friendSort')
+    if (shouldPersistSettings(disk, 26)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ friendSort: 'world' })
   })
 })

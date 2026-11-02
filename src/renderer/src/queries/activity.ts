@@ -6,6 +6,7 @@ import {
   type UseQueryResult
 } from '@tanstack/react-query'
 import type { ActivityEntry } from '@shared/activity'
+import { queryClient } from './queryClient'
 
 /** Not persisted: only the `friends` namespace survives a restart (cache.ts). */
 export const activityKey = ['activity'] as const
@@ -25,6 +26,29 @@ export function useActivity(): UseQueryResult<ActivityEntry[], Error> {
     networkMode: 'always',
     enabled: typeof window !== 'undefined' && typeof window.vrx?.getActivity === 'function'
   })
+}
+
+/** The same list for the Friends list's Recent order. It uses the shared
+ *  client directly (like the favorites hooks) so the list renders without a
+ *  provider, and reads nothing until `enabled`. */
+export function useActivityForFriendsOrder(
+  enabled: boolean
+): UseQueryResult<ActivityEntry[], Error> {
+  return useQuery(
+    {
+      queryKey: activityKey,
+      queryFn: async () => {
+        if (typeof window.vrx?.getActivity !== 'function') return []
+        return window.vrx.getActivity()
+      },
+      staleTime: Infinity,
+      retry: false,
+      networkMode: 'always',
+      enabled:
+        enabled && typeof window !== 'undefined' && typeof window.vrx?.getActivity === 'function'
+    },
+    queryClient
+  )
 }
 
 /** Change pushes re-read the list. An account change drops that platform's

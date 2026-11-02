@@ -555,6 +555,13 @@
     "clearSearch": "Clear search",
     "searchNoResults": "No friends match your search",
     "refresh": "Refresh",
+    "sort": {
+      "aria": "Order inside each group",
+      "name": "Name",
+      "recent": "Recent",
+      "world": "World",
+      "joinable": "Joinable"
+    },
     "error": "Could not load friends",
     "sourceState": {
       "missing": "{{platform}} friends could not load. This list is missing them.",
