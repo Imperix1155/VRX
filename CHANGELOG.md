@@ -257,6 +257,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friend details: an open Unfriend or Block question closes with friend
   details when that friend leaves your list, instead of staying on screen with
   keyboard focus lost after Cancel.
+- Friend details: the star panel of the next friend you open no longer shows a
+  "Couldn't save" left from another friend's star, and it doesn't wait for
+  another friend's star to finish saving.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

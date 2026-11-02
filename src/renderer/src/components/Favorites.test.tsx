@@ -261,6 +261,52 @@ describe('favorite friends', () => {
     expect(screen.getByText('Showing your game favorites is off.')).toBeTruthy()
     expect(window.vrx!.getGameFavorites).not.toHaveBeenCalled()
   })
+
+  // Friend details stay open while the user picks the next friend in the list.
+  it("keeps a failed VRX star with its friend, out of the next friend's panel", async () => {
+    signIn('vrchat')
+    const bridge = window.vrx as unknown as Record<string, ReturnType<typeof vi.fn>>
+    bridge.setFavoriteFriend!.mockResolvedValue({ ok: false, reason: 'invalid' })
+    const view = render(
+      <FriendFavoriteStar accounts={[friend('vrchat', 'usr_alex')]} name="Alex" />
+    )
+    await openMenu('Alex')
+    const alex = choice('Star in VRX (this PC only)')
+    await waitFor(() => expect(alex.disabled).toBe(false))
+    await act(async () => fireEvent.click(alex))
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      "Couldn't save. Try again."
+    )
+
+    fireEvent.pointerDown(document.body)
+    view.rerender(<FriendFavoriteStar accounts={[friend('vrchat', 'usr_bea')]} name="Bea" />)
+    await openMenu('Bea')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it("lets the next friend be starred while the last friend's save is still running", async () => {
+    signIn('vrchat')
+    const bridge = window.vrx as unknown as Record<string, ReturnType<typeof vi.fn>>
+    let finish: (result: { ok: true }) => void = () => undefined
+    bridge.setFavoriteFriend!.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    const view = render(
+      <FriendFavoriteStar accounts={[friend('vrchat', 'usr_alex')]} name="Alex" />
+    )
+    await openMenu('Alex')
+    const alex = choice('Star in VRX (this PC only)')
+    await waitFor(() => expect(alex.disabled).toBe(false))
+    await act(async () => fireEvent.click(alex))
+    expect(alex.disabled).toBe(true)
+
+    fireEvent.pointerDown(document.body)
+    view.rerender(<FriendFavoriteStar accounts={[friend('vrchat', 'usr_bea')]} name="Bea" />)
+    await openMenu('Bea')
+    expect(choice('Star in VRX (this PC only)').disabled).toBe(false)
+    await act(async () => finish({ ok: true }))
+  })
 })
 
 describe('favorite worlds', () => {
