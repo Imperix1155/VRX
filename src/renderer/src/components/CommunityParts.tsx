@@ -48,25 +48,29 @@ export function CommunityNotice({
   let text: string
   let action: React.JSX.Element | null = null
   let tone = 'text-[var(--text-dim)]'
+  const accountsButton = (
+    <button
+      type="button"
+      onClick={() => {
+        setActiveTab('settings')
+        setSettingsCategory('accounts')
+      }}
+      className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
+    >
+      {t('community.openAccounts')}
+    </button>
+  )
   if (state.kind === 'not-connected') {
     text = t(NOT_CONNECTED_KEYS[platform])
-    action = (
-      <button
-        type="button"
-        onClick={() => {
-          setActiveTab('settings')
-          setSettingsCategory('accounts')
-        }}
-        className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-      >
-        {t('community.openAccounts')}
-      </button>
-    )
+    action = accountsButton
   } else if (state.kind === 'failed') {
     text = t(ERROR_KEYS[state.reason], { platform: name })
     tone = 'text-[var(--error)]'
+    // "Sign in again" is done in Accounts; another try would only fail the same way.
     action =
-      onRetry && state.reason !== 'invalid-query' ? (
+      state.reason === 'not-authenticated' ? (
+        accountsButton
+      ) : onRetry && state.reason !== 'invalid-query' ? (
         <button
           type="button"
           onClick={onRetry}

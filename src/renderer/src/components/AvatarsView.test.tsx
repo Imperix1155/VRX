@@ -147,6 +147,21 @@ describe('AvatarsView', () => {
     expect(useUiStore.getState().settingsCategory).toBe('accounts')
   })
 
+  it('offers Accounts, not Try again, when a platform asks to sign in again', async () => {
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>(
+        platform === 'vrchat' ? { ok: false, reason: 'not-authenticated' } : library(platform)
+      )
+    )
+    renderView()
+    const text = msg('avatars.error.not-authenticated', { platform: msg('dashboard.platformVrc') })
+    expect(await screen.findByText(text)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('avatars.retry') })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: msg('avatars.notConnected.openAccounts') }))
+    expect(useUiStore.getState().activeTab).toBe('settings')
+    expect(useUiStore.getState().settingsCategory).toBe('accounts')
+  })
+
   it('says you have no uploads only once every shown platform has answered', async () => {
     let answerVrchat: (result: AvatarLibraryResult) => void = () => undefined
     bridge.getAvatarLibrary.mockImplementation(({ platform }) =>

@@ -73,6 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so it no longer reads as if the whole search found nothing.
 - Search: one kanji, such as 猫, is enough to search, since it is often a whole
   word. Other text still needs at least 2 characters.
+- Search, Groups and Explore's New and Recently updated: the button to
+  Accounts reads "Go to Accounts", like everywhere else.
 
 ### Fixed
 
@@ -223,6 +225,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Search, Groups, Explore's New and Recently updated, and Avatars: lines such
   as "You aren't in any groups yet." wait until every platform shown has
   answered, instead of showing while the other one is still loading.
+- Search, Groups, Explore's New and Recently updated, and Avatars: when a
+  platform asks you to sign in again, the line offers Go to Accounts instead
+  of a Try again that couldn't help.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

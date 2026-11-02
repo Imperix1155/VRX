@@ -19,6 +19,7 @@ import type { ExploreWorld } from '@shared/explore'
 import type { AuthStatus, Platform } from '@shared/types'
 import i18n from '../i18n'
 import { useFriendsStore } from '../stores/friends'
+import { useUiStore } from '../stores/ui'
 import { interleave } from '../utils/community'
 import SearchView from './SearchView'
 import GroupsView from './GroupsView'
@@ -485,6 +486,11 @@ describe('SearchView', () => {
     fireEvent.submit(box.closest('form')!)
     expect(await screen.findByText(msg('community.notConnected.chilloutvr'))).toBeTruthy()
     expect(bridge.searchCommunity).not.toHaveBeenCalled()
+    // Worded like every other way to Accounts.
+    expect(msg('community.openAccounts')).toBe(msg('avatars.notConnected.openAccounts'))
+    fireEvent.click(screen.getByRole('button', { name: msg('community.openAccounts') }))
+    expect(useUiStore.getState().activeTab).toBe('settings')
+    expect(useUiStore.getState().settingsCategory).toBe('accounts')
   })
 })
 
@@ -599,6 +605,25 @@ describe('GroupsView', () => {
     expect(screen.queryByRole('region', { name: msg('groups.heading') })).toBeNull()
     vrchat.resolve({ ok: true, platform: 'vrchat', groups: [], complete: true })
     expect(await screen.findByText(msg('groups.empty'))).toBeTruthy()
+  })
+
+  it('offers Accounts, not Try again, when a platform asks to sign in again', async () => {
+    const answer = ({ platform }: { platform: Platform }): Promise<MyGroupsResult> =>
+      Promise.resolve(
+        platform === 'vrchat'
+          ? { ok: false, reason: 'not-authenticated' }
+          : { ok: true, platform, groups: [], complete: true }
+      )
+    bridge.getMyGroups.mockImplementationOnce(answer).mockImplementationOnce(answer)
+    renderWith(<GroupsView />)
+    const notice = await screen.findByText(
+      msg('community.error.not-authenticated', { platform: 'VRChat' })
+    )
+    const line = within(notice.closest<HTMLElement>('[data-community-notice]')!)
+    expect(line.queryByRole('button', { name: msg('community.retry') })).toBeNull()
+    fireEvent.click(line.getByRole('button', { name: msg('community.openAccounts') }))
+    expect(useUiStore.getState().activeTab).toBe('settings')
+    expect(useUiStore.getState().settingsCategory).toBe('accounts')
   })
 })
 

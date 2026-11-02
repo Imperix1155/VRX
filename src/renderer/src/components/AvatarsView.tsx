@@ -310,32 +310,37 @@ function SourceNotice({
   let text: string
   let action: React.JSX.Element | null = null
   let tone = 'text-[var(--text-dim)]'
+  const accountsButton = (
+    <button
+      type="button"
+      onClick={() => {
+        setActiveTab('settings')
+        setSettingsCategory('accounts')
+      }}
+      className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
+    >
+      {t('avatars.notConnected.openAccounts')}
+    </button>
+  )
   if (state.kind === 'not-connected') {
     text = t(NOT_CONNECTED_KEYS[platform])
-    action = (
-      <button
-        type="button"
-        onClick={() => {
-          setActiveTab('settings')
-          setSettingsCategory('accounts')
-        }}
-        className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-      >
-        {t('avatars.notConnected.openAccounts')}
-      </button>
-    )
+    action = accountsButton
   } else if (state.kind === 'failed') {
     text = t(ERROR_KEYS[state.reason], { platform: platformName })
     tone = 'text-[var(--error)]'
-    action = (
-      <button
-        type="button"
-        onClick={onRetry}
-        className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
-      >
-        {t('avatars.retry')}
-      </button>
-    )
+    // "Sign in again" is done in Accounts; another try would only fail the same way.
+    action =
+      state.reason === 'not-authenticated' ? (
+        accountsButton
+      ) : (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+        >
+          {t('avatars.retry')}
+        </button>
+      )
   } else if (state.kind === 'stale') {
     // Dim: the library that loaded last still shows. Refresh tries again.
     text = t('avatars.stale', { platform: platformName })

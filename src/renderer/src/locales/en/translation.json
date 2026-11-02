@@ -1207,7 +1207,7 @@
   "community": {
     "loading": "Loading {{platform}}…",
     "retry": "Try again",
-    "openAccounts": "Open Accounts",
+    "openAccounts": "Go to Accounts",
     "notConnected": {
       "vrchat": "Connect VRChat to see it here",
       "chilloutvr": "Connect ChilloutVR to see it here"
