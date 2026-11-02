@@ -812,7 +812,8 @@
       "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows two: the top one from each platform when both have one, otherwise the top two. The Hot Instances page shows all of them, with the most friends first.",
       "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you turn them on in Settings → Notifications."
     },
-    "seeAll": "See all {{count}}",
+    "seeAll_one": "See {{count}}",
+    "seeAll_other": "See all {{count}}",
     "seeAllAria_one": "See {{count}} hot instance",
     "seeAllAria_other": "See all {{count}} hot instances",
     "glance": {

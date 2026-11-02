@@ -56,6 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refresh, a line names it with its own Retry, like the Friends list.
 - Friends: when the first read after a sign-in fails, the line says that
   platform's friends could not load, not that an older list is shown.
+- Friends search: hiragana finds katakana and the other way round, so たろう
+  finds タロウ.
+- Dashboard: with one hot instance or invite the button reads "See 1", not
+  "See all 1".
+- Top bar: the connection dot is never the green live dot while no platform
+  is signed in.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

@@ -1710,6 +1710,17 @@ describe('Dashboard two-card sections and order (owner, 2026-10-18)', () => {
     expect(useUiStore.getState().activeTab).toBe('hot')
   })
 
+  it('says "See 1" for one hot instance, inside its spoken name', () => {
+    stubQueries(
+      { data: crowd('vrchat', 'Lake', 2), isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+    const seeOne = screen.getByRole('button', { name: msg('dashboard.seeAllAria', { count: 1 }) })
+    expect(seeOne.textContent).toBe('See 1')
+    expect(seeOne.getAttribute('aria-label')).toContain(seeOne.textContent)
+  })
+
   it('drops See all when the Hot Instances page is turned off, keeping the section', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, showHotInstancesPage: false } })
     stubQueries(
