@@ -5,7 +5,7 @@
  * switched from the sheet, and nothing loads for a signed-out platform.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { AvatarItem, AvatarLibraryResult } from '@shared/avatarLibrary'
 import type { AuthStatus, Platform } from '@shared/types'
@@ -248,6 +248,34 @@ describe('AvatarsView', () => {
     expect(screen.getByRole('button', { name: cardName(cvrOther) })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: msg('avatars.retry') }))
     await waitFor(() => expect(bridge.getAvatarLibrary).toHaveBeenCalledTimes(3))
+  })
+
+  it('says it is loading while Try again asks again, then shows the new answer', async () => {
+    let answer: (result: AvatarLibraryResult) => void = () => {}
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>(
+        platform === 'vrchat' ? { ok: false, reason: 'unavailable' } : library(platform)
+      )
+    )
+    renderView()
+    const vrc = msg('dashboard.platformVrc')
+    expect(
+      await screen.findByText(msg('avatars.error.unavailable', { platform: vrc }))
+    ).toBeTruthy()
+
+    bridge.getAvatarLibrary.mockImplementation(
+      () => new Promise<AvatarLibraryResult>((resolve) => (answer = resolve))
+    )
+    fireEvent.click(screen.getByRole('button', { name: msg('avatars.retry') }))
+    // The press shows: the platform's loading line, no red line, no second Try again.
+    expect(await screen.findByText(msg('avatars.loadingPlatform', { platform: vrc }))).toBeTruthy()
+    expect(screen.queryByText(msg('avatars.error.unavailable', { platform: vrc }))).toBeNull()
+    expect(screen.queryByRole('button', { name: msg('avatars.retry') })).toBeNull()
+
+    await act(async () => answer({ ok: false, reason: 'unavailable' }))
+    expect(
+      await screen.findByText(msg('avatars.error.unavailable', { platform: vrc }))
+    ).toBeTruthy()
   })
 
   it('keeps the loaded avatars when a Refresh fails, and says so in a dim line', async () => {

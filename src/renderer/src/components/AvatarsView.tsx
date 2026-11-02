@@ -95,9 +95,11 @@ function sourceState(auth: UseQueryResult<AuthStatus, Error>, library: LibraryQu
   if (auth.data === undefined && auth.isPending) return { kind: 'auth-pending' }
   if (isNotConnectedAuth(auth)) return { kind: 'not-connected' }
   const result = library.data
+  // A failure being asked again (Try again) reads as loading until the
+  // platform answers, as on the community pages.
+  if (result?.ok !== true && library.fetchStatus === 'fetching') return { kind: 'loading' }
   if (result === undefined) {
-    if (library.isError) return { kind: 'failed', reason: 'unavailable' }
-    return library.fetchStatus === 'fetching' ? { kind: 'loading' } : { kind: 'idle' }
+    return library.isError ? { kind: 'failed', reason: 'unavailable' } : { kind: 'idle' }
   }
   if (!result.ok) return { kind: 'failed', reason: result.reason }
   return { kind: result.refreshFailed === true ? 'stale' : 'ready', result }

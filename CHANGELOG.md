@@ -58,9 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   leaving one word on a line of its own.
 - Inbox: with a platform not connected, the page says connecting shows your
   invites and friend requests there, not only your invites.
-- Search, Explore and Groups: Try again now shows "Loading VRChat…" (or
-  ChilloutVR) until the platform answers, so a second refusal no longer looks
-  like an ignored press.
+- Search, Explore, Groups and Avatars: Try again now shows the platform's
+  loading line ("Loading VRChat…") until the platform answers, so a second
+  refusal no longer looks like an ignored press.
 - Explore: a world panel keeps a plain space for the world's picture until it
   arrives, so the rooms and Join buttons no longer jump down when it does.
 - Explore: Refresh reads "Refreshing…" and waits until the worlds or favorites
