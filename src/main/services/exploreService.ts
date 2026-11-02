@@ -317,8 +317,14 @@ export class ExploreService {
     // A picture already kept costs no request, so it never waits for (or
     // uses up) the fetch budget below (docs/api-policy.md: new fetches only).
     const peek = state.imagePending.has(url) ? undefined : this.options.peekImage?.(url)
-    const kept = peek ? await peek.catch(() => null) : null
-    if (kept) return this.handOutImage(platform, state, worldRef, url, kept)
+    if (peek) {
+      const kept = await peek.catch(() => null)
+      if (kept) return this.handOutImage(platform, state, worldRef, url, kept)
+      // The account or the list may have changed during the lookup: a picture
+      // for a card no longer shown never starts a download.
+      if (!this.active.has(platform) || !this.current(platform, state)) return null
+      if (!this.findWorld(state, worldRef)) return null
+    }
     const pending = state.imagePending.get(url) ?? this.startImageFetch(platform, state, url)
     if (typeof pending === 'string') return this.imageDeferral(platform, worldRef, pending)
     const dataUrl = await pending

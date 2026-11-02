@@ -628,6 +628,18 @@ describe('ExploreService guard rails', () => {
     for (const [wanted] of h.images.mock.calls) expect(kept.has(wanted as string)).toBe(false)
   })
 
+  it('starts no picture download for an account that changed during the kept-picture lookup', async () => {
+    const lookup = defer<string | null>()
+    const h = make('vrchat', { peekImage: () => lookup.promise })
+    h.adapter.candidates = [world(0, 'https://files.vrchat.cloud/0.png')]
+    const refs = await candidate(h)
+    const result = h.service.getImage('vrchat', refs[0]!)
+    h.account.setIdentity('vrchat', 'next')
+    lookup.resolve(null)
+    await expect(result).resolves.toBeNull()
+    expect(h.images).not.toHaveBeenCalled()
+  })
+
   it('keeps two outstanding and six rolling image operations across an account boundary', async () => {
     const h = make()
     const entries = Array.from({ length: 7 }, (_, index) =>
