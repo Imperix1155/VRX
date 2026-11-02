@@ -92,6 +92,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Avatars: when VRChat or ChilloutVR asks VRX to slow down, the avatar list
   and Wearing now stop and say to try again in a minute, instead of showing
   Loading while they ask up to three more times.
+- Alerts: if VRChat or ChilloutVR can't be reached when VRX starts, VRX
+  keeps checking once a minute while it sits in the tray, so live updates and
+  friend alerts start as soon as the platform answers, without opening the
+  window.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

@@ -90,6 +90,52 @@ it('re-checks an error status once a minute until it recovers, and stops after',
   }
 })
 
+it('keeps re-checking an error status while the window is hidden in the tray', async () => {
+  vi.useFakeTimers()
+  // A window closed to the tray or minimized reports itself hidden.
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+  try {
+    const getAuthStatus = vi
+      .fn<() => Promise<AuthStatus>>()
+      .mockResolvedValueOnce({
+        platform: 'vrchat',
+        state: 'error',
+        accountId: null,
+        displayName: null
+      })
+      .mockResolvedValueOnce({
+        platform: 'vrchat',
+        state: 'error',
+        accountId: null,
+        displayName: null
+      })
+      .mockResolvedValue({
+        platform: 'vrchat',
+        state: 'authenticated',
+        accountId: 'usr_a',
+        displayName: 'A'
+      })
+    Object.assign(window, { vrx: { getAuthStatus } })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <Gate />
+      </QueryClientProvider>
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getAuthStatus).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(AUTH_ERROR_RECHECK_MS * 2)
+    expect(getAuthStatus).toHaveBeenCalledTimes(3)
+    // Once a check succeeds the interval ends, hidden or not.
+    await vi.advanceTimersByTimeAsync(AUTH_ERROR_RECHECK_MS * 3)
+    expect(getAuthStatus).toHaveBeenCalledTimes(3)
+    client.clear()
+  } finally {
+    Reflect.deleteProperty(document, 'visibilityState')
+    vi.useRealTimers()
+  }
+})
+
 it('still reads the sign-in state while the OS reports offline', async () => {
   const getAuthStatus = vi.fn<() => Promise<AuthStatus>>().mockResolvedValue({
     platform: 'vrchat',

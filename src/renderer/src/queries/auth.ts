@@ -45,6 +45,9 @@ export function useAuthStatus(platform: Platform): UseQueryResult<AuthStatus, Er
     // becomes usable and the friends list fails without ever reaching the network.
     refetchInterval: (query) =>
       query.state.data?.state === 'error' ? AUTH_ERROR_RECHECK_MS : false,
+    // Also while the window is hidden in the tray: only a successful check
+    // starts a restored session's live connection, which friend alerts need.
+    refetchIntervalInBackground: true,
     // Recovery surfaces mount after failure; mounting them must not restart
     // the initial check and send App back through its pending gate.
     retryOnMount: false,
