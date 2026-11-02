@@ -25,7 +25,11 @@ const ERROR_KEYS: Record<CommunityNoticeReason, string> = {
   'invalid-query': 'community.error.invalid-query'
 }
 
-/** One platform's not-connected, loading or failed line. Ready and idle show nothing. */
+/**
+ * One platform's not-connected, loading, failed or stale line. Ready and idle
+ * show nothing. Failed is red (nothing loaded); stale is dim, because the
+ * answer that loaded last still shows (DESIGN.md §9.4).
+ */
 export function CommunityNotice({
   platform,
   state,
@@ -71,6 +75,9 @@ export function CommunityNotice({
           {t('community.retry')}
         </button>
       ) : null
+  } else if (state.kind === 'stale') {
+    // The page's own Refresh is the way to try again.
+    text = t('community.stale', { platform: name })
   } else {
     text = t('community.loading', { platform: name })
   }

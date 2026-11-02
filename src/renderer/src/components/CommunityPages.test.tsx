@@ -6,7 +6,7 @@
  * the user asks, and a signed-out platform adds no request.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type {
   CommunityGroup,
@@ -403,6 +403,41 @@ describe('GroupsView', () => {
     )
     expect(bridge.getMyGroups).toHaveBeenCalledWith({ platform: 'chilloutvr', refresh: true })
   })
+
+  it('keeps the loaded groups when a Refresh fails, and says so in a dim line', async () => {
+    renderWith(<GroupsView />)
+    const region = await screen.findByRole('region', { name: msg('groups.heading') })
+    expect(within(region).getAllByRole('button')).toHaveLength(3)
+    // VRChat's Refresh fails; ChilloutVR's answers as before.
+    const failVrchat = ({ platform }: { platform: Platform }): Promise<MyGroupsResult> =>
+      platform === 'vrchat'
+        ? Promise.resolve({ ok: false, reason: 'unavailable' })
+        : Promise.resolve({
+            ok: true,
+            platform,
+            groups: [group('chilloutvr', 'Meadow', 'member')],
+            complete: true
+          })
+    bridge.getMyGroups.mockImplementationOnce(failVrchat).mockImplementationOnce(failVrchat)
+    fireEvent.click(screen.getByRole('button', { name: msg('groups.refresh') }))
+    const line = await screen.findByText(msg('community.stale', { platform: 'VRChat' }))
+    expect(line.className).toContain('text-[var(--text-dim)]')
+    expect(
+      within(screen.getByRole('region', { name: msg('groups.heading') })).getAllByRole('button')
+    ).toHaveLength(3)
+    expect(
+      screen.queryByText(msg('community.error.unavailable', { platform: 'VRChat' }))
+    ).toBeNull()
+  })
+
+  it('still shows a red line when the first read fails', async () => {
+    bridge.getMyGroups.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    renderWith(<GroupsView />)
+    const line = await screen.findByText(msg('community.error.unavailable', { platform: 'VRChat' }))
+    expect(line.className).toContain('text-[var(--error)]')
+    expect(screen.queryByRole('region', { name: msg('groups.heading') })).toBeNull()
+  })
 })
 
 describe('ExploreListPanel', () => {
@@ -421,6 +456,18 @@ describe('ExploreListPanel', () => {
     const renewed = await lastRecover.current!('vrchat')
     expect(bridge.getWorldList).toHaveBeenLastCalledWith({ platform: 'vrchat', list: 'updated' })
     expect(renewed).toHaveLength(2)
+  })
+
+  it('keeps the loaded worlds when a later read fails', async () => {
+    renderWith(<ExploreListPanel list="new" />)
+    const shown = (await screen.findByTestId('world-results')).textContent
+    bridge.getWorldList.mockResolvedValueOnce({ ok: false, reason: 'rate-limited' })
+    await act(async () => {
+      await lastRecover.current!('vrchat')
+    })
+    expect(await screen.findByText(msg('community.stale', { platform: 'VRChat' }))).toBeTruthy()
+    expect(screen.getByTestId('world-results').textContent).toBe(shown)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('adds no line under ALL for a platform the user isn’t signed in to', async () => {

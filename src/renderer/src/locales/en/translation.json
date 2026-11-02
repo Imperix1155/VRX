@@ -976,6 +976,7 @@
     "uploadCount_one": "{{count}} avatar",
     "uploadCount_other": "{{count}} avatars",
     "loadingPlatform": "Loading your {{platform}} avatars…",
+    "stale": "Couldn't refresh your {{platform}} avatars. Showing what loaded last.",
     "empty": "You haven't uploaded any avatars yet.",
     "noCurrent": {
       "vrchat": "VRX couldn't tell which VRChat avatar you're wearing.",
@@ -1210,6 +1211,7 @@
       "vrchat": "Connect VRChat to see it here",
       "chilloutvr": "Connect ChilloutVR to see it here"
     },
+    "stale": "Couldn't get the latest from {{platform}}. Showing what loaded last.",
     "error": {
       "unavailable": "Couldn't reach {{platform}}. Try again in a moment.",
       "rate-limited": "{{platform}} asked VRX to slow down. Try again in a minute.",

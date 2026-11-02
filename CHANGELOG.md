@@ -190,6 +190,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Search: after "One moment. Wait a second, then search again.", pressing
   Search again searches, instead of doing nothing for up to two minutes. The
   same text searched again later asks again too.
+- Explore, Groups and Avatars: when a Refresh or a later read fails, the
+  worlds, groups or avatars that loaded stay on screen with a dim line saying
+  so, instead of being replaced by an error.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

@@ -8,13 +8,33 @@ import { isNotConnectedAuth } from '../hooks/useNotConnectedGate'
 
 export type CommunityNoticeReason = CommunityFailure | 'cooldown' | 'invalid-query'
 
-/** What one platform's part of a page shows right now. */
+/**
+ * What one platform's part of a page shows right now. `stale` still shows the
+ * answer that loaded last, because a later read of it failed.
+ */
 export type CommunitySource<T> =
   | { kind: 'idle' | 'auth-pending' | 'not-connected' | 'loading' }
   | { kind: 'failed'; reason: CommunityNoticeReason }
-  | { kind: 'ready'; result: T }
+  | { kind: 'ready' | 'stale'; result: T }
 
-type Answer = { ok: true } | { ok: false; reason: string }
+/** A cached answer; `refreshFailed` marks a loaded one whose later read failed. */
+export type Kept<T> = T & { readonly refreshFailed?: true }
+
+type Answer = Kept<{ ok: true } | { ok: false; reason: string }>
+
+/**
+ * A later read that fails (a Refresh, or a re-read when the page opens again)
+ * never replaces what already loaded: the last good answer stays, marked
+ * `refreshFailed`, and the page says so in a dim line (DESIGN.md §9.4). A good
+ * answer replaces it; a failure with nothing loaded yet stays a failure.
+ */
+export function keepShown<T extends { ok: boolean }>(
+  previous: Kept<T> | undefined,
+  next: T
+): Kept<T> {
+  if (next.ok || previous?.ok !== true) return next
+  return { ...previous, refreshFailed: true }
+}
 
 const NOTICE_REASONS: readonly CommunityNoticeReason[] = [
   'not-authenticated',
@@ -42,9 +62,11 @@ export function communitySource<T extends Answer>(
     if (query.isError) return { kind: 'failed', reason: 'unavailable' }
     return query.fetchStatus === 'fetching' ? { kind: 'loading' } : { kind: 'idle' }
   }
-  return result.ok
-    ? { kind: 'ready', result: result as Extract<T, { ok: true }> }
-    : { kind: 'failed', reason: noticeReason(result.reason) }
+  if (!result.ok) return { kind: 'failed', reason: noticeReason(result.reason) }
+  return {
+    kind: result.refreshFailed === true ? 'stale' : 'ready',
+    result: result as Extract<T, { ok: true }>
+  }
 }
 
 /**

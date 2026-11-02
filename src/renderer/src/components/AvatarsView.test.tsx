@@ -161,6 +161,27 @@ describe('AvatarsView', () => {
     await waitFor(() => expect(bridge.getAvatarLibrary).toHaveBeenCalledTimes(3))
   })
 
+  it('keeps the loaded avatars when a Refresh fails, and says so in a dim line', async () => {
+    renderView()
+    await screen.findAllByRole('button', { name: cardName(vrcOther) })
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>(
+        platform === 'vrchat' ? { ok: false, reason: 'unavailable' } : library(platform)
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: msg('avatars.refresh') }))
+    const line = await screen.findByText(
+      msg('avatars.stale', { platform: msg('dashboard.platformVrc') })
+    )
+    expect(line.className).toContain('text-[var(--text-dim)]')
+    expect(screen.getAllByRole('button', { name: cardName(vrcOther) }).length).toBeGreaterThan(0)
+    expect(
+      screen.queryByText(
+        msg('avatars.error.unavailable', { platform: msg('dashboard.platformVrc') })
+      )
+    ).toBeNull()
+  })
+
   it('opens the details sheet and wears an avatar', async () => {
     renderView()
     fireEvent.click(await screen.findByRole('button', { name: cardName(cvrOther) }))

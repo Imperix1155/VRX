@@ -18,6 +18,7 @@ import { useAvatarLibrary } from '../queries/avatarLibrary'
 import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
 import { isNotConnectedAuth } from '../hooks/useNotConnectedGate'
+import type { Kept } from '../utils/community'
 import AvatarCard from './AvatarCard'
 import AvatarSheet from './AvatarSheet'
 
@@ -71,22 +72,24 @@ function useProgressiveCount(total: number): number {
   return Math.min(count, total)
 }
 
+/** `stale` still shows the library that loaded last; a later read failed. */
 type SourceState =
   | { kind: 'auth-pending' | 'not-connected' | 'loading' }
   | { kind: 'failed'; reason: AvatarLibraryFailure }
   | { kind: 'ready'; result: ReadyLibrary }
+  | { kind: 'stale'; result: ReadyLibrary }
 
-function sourceState(
-  auth: UseQueryResult<AuthStatus, Error>,
-  library: UseQueryResult<AvatarLibraryResult, Error>
-): SourceState {
+type LibraryQuery = UseQueryResult<Kept<AvatarLibraryResult>, Error>
+
+function sourceState(auth: UseQueryResult<AuthStatus, Error>, library: LibraryQuery): SourceState {
   if (auth.data === undefined && auth.isPending) return { kind: 'auth-pending' }
   if (isNotConnectedAuth(auth)) return { kind: 'not-connected' }
   const result = library.data
   if (result === undefined) {
     return library.isError ? { kind: 'failed', reason: 'unavailable' } : { kind: 'loading' }
   }
-  return result.ok ? { kind: 'ready', result } : { kind: 'failed', reason: result.reason }
+  if (!result.ok) return { kind: 'failed', reason: result.reason }
+  return { kind: result.refreshFailed === true ? 'stale' : 'ready', result }
 }
 
 export default function AvatarsView(): React.JSX.Element {
@@ -99,7 +102,7 @@ export default function AvatarsView(): React.JSX.Element {
   const cvrAuth = useAuthStatus('chilloutvr')
   const vrcLibrary = useAvatarLibrary('vrchat', shown.includes('vrchat'))
   const cvrLibrary = useAvatarLibrary('chilloutvr', shown.includes('chilloutvr'))
-  const libraries: Record<Platform, UseQueryResult<AvatarLibraryResult, Error>> = {
+  const libraries: Record<Platform, LibraryQuery> = {
     vrchat: vrcLibrary,
     chilloutvr: cvrLibrary
   }
@@ -246,7 +249,9 @@ function readyResult(
   platform: Platform,
   state: SourceState
 ): ReadyLibrary | null {
-  return shown.includes(platform) && state.kind === 'ready' ? state.result : null
+  return shown.includes(platform) && (state.kind === 'ready' || state.kind === 'stale')
+    ? state.result
+    : null
 }
 
 function useLibrarySummary(
@@ -325,6 +330,9 @@ function SourceNotice({
         {t('avatars.retry')}
       </button>
     )
+  } else if (state.kind === 'stale') {
+    // Dim: the library that loaded last still shows. Refresh tries again.
+    text = t('avatars.stale', { platform: platformName })
   } else {
     text = t('avatars.loadingPlatform', { platform: platformName })
   }

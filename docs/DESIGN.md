@@ -644,6 +644,10 @@ stay unknown, never zero. Nothing here may add polling. Under All, a platform
 the user isn't signed in to adds no line; filtered to that platform, Explore
 shows the same Connect gate with Go to Accounts as the Dashboard.
 
+A failed Refresh or re-read never clears a list that loaded. New, Recently
+updated, Groups and Avatars keep that platform's cards and add a dim line
+naming it; the error color is for a platform with nothing loaded.
+
 When one platform's roster fails, Friends keeps the usable list and shows a
 line under the header naming that platform, with a Retry for that platform
 only. The Dashboard and Hot Instances show the same line above their content.
