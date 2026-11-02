@@ -228,15 +228,16 @@ export default function ExploreRoute(): React.JSX.Element {
         {tab !== 'favorites' || gameFavoritesOn ? (
           <button
             type="button"
-            onClick={
-              tab === 'popular'
-                ? refresh
-                : tab === 'favorites'
-                  ? refreshFavorites
-                  : refreshShownList
-            }
-            disabled={refreshing}
-            className="canvas-control shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 motion-safe:transition-colors"
+            onClick={() => {
+              if (refreshing) return
+              if (tab === 'popular') refresh()
+              else if (tab === 'favorites') refreshFavorites()
+              else refreshShownList()
+            }}
+            // aria-disabled, not disabled: a pressed Refresh that turned itself
+            // off would drop keyboard focus to the page.
+            aria-disabled={refreshing || undefined}
+            className="canvas-control shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-colors"
           >
             {refreshing ? t('explore.refreshing') : t('explore.refresh')}
           </button>

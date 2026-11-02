@@ -99,9 +99,14 @@ export default function GroupsView(): React.JSX.Element {
         <p className="canvas-text text-sm text-[var(--text-dim)]">{t('groups.hint')}</p>
         <button
           type="button"
-          onClick={refresh}
-          disabled={busy || refreshable.length === 0}
-          className="canvas-control shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 motion-safe:transition-colors"
+          onClick={() => {
+            if (!busy) refresh()
+          }}
+          // A pressed Refresh stays focusable while it runs (aria-disabled), so
+          // keyboard focus stays on it; with nothing to refresh it is off.
+          aria-disabled={busy || undefined}
+          disabled={refreshable.length === 0}
+          className="canvas-control shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-colors"
         >
           {busy ? t('groups.refreshing') : t('groups.refresh')}
         </button>

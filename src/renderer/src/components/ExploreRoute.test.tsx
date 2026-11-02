@@ -698,16 +698,21 @@ describe('ExploreRoute Refresh', () => {
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('radio', { name: 'New' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Refresh' })
+    button.focus()
+    fireEvent.click(button)
     const busy = screen.getByRole<HTMLButtonElement>('button', { name: 'Refreshing…' })
-    expect(busy.disabled).toBe(true)
+    // Off while it runs, yet still focusable, so keyboard focus stays on it.
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
+    expect(busy.disabled).toBe(false)
+    expect(document.activeElement).toBe(busy)
     fireEvent.click(busy)
     expect(refreshWorldListMock).toHaveBeenCalledTimes(1)
     expect(refreshWorldListMock).toHaveBeenCalledWith('vrchat', 'new')
 
     await act(async () => answer())
     const idle = screen.getByRole<HTMLButtonElement>('button', { name: 'Refresh' })
-    expect(idle.disabled).toBe(false)
+    expect(idle.getAttribute('aria-disabled')).toBeNull()
   })
 
   it('reads Refreshing… while Popular now is still finding worlds', () => {
@@ -716,13 +721,19 @@ describe('ExploreRoute Refresh', () => {
     // Cards stay on screen and the status lines stay quiet (DESIGN.md §9.4).
     expect(screen.getByText('A world')).toBeTruthy()
     expect(screen.queryByText('Worlds loading…')).toBeNull()
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Refreshing…' }).disabled).toBe(
-      true
-    )
+    expect(
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: 'Refreshing…' })
+        .getAttribute('aria-disabled')
+    ).toBe('true')
 
     query.vrc = { ...source, status: 'ready' }
     rerender(<ExploreRoute />)
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Refresh' }).disabled).toBe(false)
+    expect(
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: 'Refresh' })
+        .getAttribute('aria-disabled')
+    ).toBeNull()
   })
 })
 

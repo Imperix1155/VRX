@@ -177,10 +177,14 @@ export default function AvatarsView(): React.JSX.Element {
         <button
           type="button"
           onClick={() => {
+            if (refreshing) return
             for (const platform of refreshable) void libraries[platform].refetch()
           }}
-          disabled={refreshing || refreshable.length === 0}
-          className="canvas-control rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 motion-safe:transition-colors"
+          // A pressed Refresh stays focusable while it runs (aria-disabled), so
+          // keyboard focus stays on it; with nothing to refresh it is off.
+          aria-disabled={refreshing || undefined}
+          disabled={refreshable.length === 0}
+          className="canvas-control rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-colors"
         >
           {refreshing ? t('avatars.refreshing') : t('avatars.refresh')}
         </button>
