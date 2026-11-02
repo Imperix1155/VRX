@@ -96,6 +96,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Identities: its dialogs close with the same ✕ button and keyboard focus
   ring as friend details, and so do a linked person's Choose a destination,
   Your VRChat or ChilloutVR profile in Accounts, and Picked friends.
+- Friend details: in a linked person's Choose a destination, each Join on
+  button looks like the drawer's own Join, and Cancel is a button like the
+  other buttons in Identities, both with the keyboard focus ring.
 
 ### Fixed
 

@@ -23,6 +23,18 @@ const PLATFORM_KEY = {
   chilloutvr: 'friends.platform.chilloutvr'
 } as const
 
+// Each choice looks like friend details' Join, which opened this chooser;
+// Cancel looks like the buttons of the other linking dialogs.
+const JOIN_CLASS =
+  'mt-[var(--space-3)] w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]'
+const JOIN_STYLE = {
+  borderColor: 'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+  background: 'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
+  color: 'var(--op-public-text)'
+}
+const CANCEL_CLASS =
+  'rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-2)] text-[12px] text-[var(--text)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:opacity-50'
+
 function captureDestinations(accounts: Friend[]): ReviewedDestination[] {
   return accounts.flatMap((friend) => {
     if (!isFriendJoinable(friend) || friend.instance === null) return []
@@ -129,7 +141,8 @@ export default function LinkedDestinationChooser({
               ) : null}
               <button
                 type="button"
-                className="mt-[var(--space-3)] rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-2)] text-sm disabled:opacity-50"
+                className={JOIN_CLASS}
+                style={JOIN_STYLE}
                 disabled={disabled || unavailable}
                 onClick={() => {
                   const live =
@@ -151,14 +164,11 @@ export default function LinkedDestinationChooser({
             </article>
           )
         })}
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={busy}
-          className="text-sm text-[var(--text-dim)]"
-        >
-          {t('linking.cancel')}
-        </button>
+        <div className="flex justify-end">
+          <button type="button" onClick={onClose} disabled={busy} className={CANCEL_CLASS}>
+            {t('linking.cancel')}
+          </button>
+        </div>
       </div>
     </LinkedDialog>
   )
