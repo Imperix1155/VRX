@@ -568,6 +568,7 @@
       "retrying": "Retrying {{platform}}…"
     },
     "joinAria": "Join {{name}} in {{world}}",
+    "joinPillAria": "{{access}}: Join {{name}} in {{world}}",
     "joinFailed": "Couldn't join. Check the game and connection, then use Join to try again.",
     "joinFailure": {
       "stale": "Live connection not ready — joins resume when the live feed reconnects",
@@ -1343,7 +1344,7 @@
     "declined": "Declined {{name}}'s friend request.",
     "add": "Add friend",
     "adding": "Sending…",
-    "addAria": "Send {{name}} a friend request on {{platform}}",
+    "addAria": "Add friend: {{name}} on {{platform}}",
     "sent": "Friend request sent.",
     "incoming": "Sent you a friend request.",
     "error": {

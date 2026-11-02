@@ -506,7 +506,9 @@ The avatar opens friend details. By default the whole card opens them too,
 except the Join control and text selection; the "Avatar only" choice in
 Settings → Behavior → Friend details open from keeps the row body inert.
 The instance pill's Join stays a separate control with the normal
-confirmation and denial behavior.
+confirmation and denial behavior. Its spoken name starts with the access words
+it shows ("Public: Join Amy in SunDown"), as the hot cards' pills do, so speech
+users can say what they see; Add friend's name starts with its words too.
 
 Dashboard statistic cards are one set (owner, 2026-11-01): each card has the
 same layout, a VT323 number in `--text` and its label in `--text-dim`, with no

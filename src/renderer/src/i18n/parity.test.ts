@@ -158,3 +158,23 @@ describe('Japanese terms', () => {
     expect(ja.friendActions.addAria).toContain(ja.friendActions.add)
   })
 })
+
+// A control's spoken name holds the words it shows (WCAG 2.5.3), so speech
+// users can say what they see.
+describe('names that hold their visible words', () => {
+  it.each([
+    ['en', en],
+    ['ja', ja]
+  ] as const)('%s: the Join pills start with their access words', (_lang, bundle) => {
+    expect(bundle.friends.joinPillAria.startsWith('{{access}}')).toBe(true)
+  })
+
+  it.each([
+    ['en', en],
+    ['ja', ja]
+  ] as const)('%s: Add friend says its button words', (_lang, bundle) => {
+    expect(bundle.friendActions.addAria.toLowerCase()).toContain(
+      bundle.friendActions.add.toLowerCase()
+    )
+  })
+})

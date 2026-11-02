@@ -555,9 +555,11 @@ const FriendRow = memo(function FriendRow({
               onJoin={joinFriend}
               disabled={isJoining}
               tabIndex={isFullyVisible ? undefined : -1}
-              aria-label={t('friends.joinAria', {
+              // Starts with the pill's own words, so the name holds what it shows.
+              aria-label={t('friends.joinPillAria', {
+                access: instancePill,
                 name: combined ? projection.name : friend.displayName,
-                world: instance?.worldName ?? instancePill
+                world: instance?.worldName ?? t('friends.instance.unknownWorld')
               })}
             />
           </span>

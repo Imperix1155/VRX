@@ -283,6 +283,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   another friend's star to finish saving.
 - Full profiles: when a platform asks you to sign in again, the profile
   offers Go to Accounts, like the pages.
+- Screen readers and voice control: the Join pills on friend rows and hot
+  cards, and Add friend, now say the words they show first ("Public: Join
+  Amy in SunDown"), so saying what you see presses them.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

@@ -182,7 +182,9 @@ export default function HotInstanceCard({
             className="w-full min-w-[78px]"
             onJoin={joinCardTarget}
             disabled={isJoining}
-            aria-label={t('friends.joinAria', {
+            // Starts with the pill's own words, so the name holds what it shows.
+            aria-label={t('friends.joinPillAria', {
+              access: opennessLabel,
               name: joinTarget.displayName,
               // The STRIPPED display name — same as the visible title, never
               // the raw `(#…)`-suffixed wire name.

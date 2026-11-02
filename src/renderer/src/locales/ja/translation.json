@@ -565,6 +565,7 @@
       "retrying": "{{platform}} を再試行中…"
     },
     "joinAria": "{{name}}さんがいる{{world}}に参加",
+    "joinPillAria": "{{access}}：{{name}}さんがいる{{world}}に参加",
     "joinFailed": "参加できませんでした。ゲームと接続を確認してから、参加ボタンで再試行してください。",
     "joinFailure": {
       "stale": "ライブ接続の準備ができていません — ライブフィードの再接続後に参加できます",
