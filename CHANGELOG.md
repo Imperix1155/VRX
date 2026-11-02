@@ -99,6 +99,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friends: when the computer reports no internet connection, the list says
   it couldn't refresh, with Retry, instead of showing an old list as if it
   were current or saying Loading with no end.
+- Friends: a new ChilloutVR friend who arrives while VRX is still reading the
+  list after another change now appears, instead of staying missing until the
+  next refresh.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
