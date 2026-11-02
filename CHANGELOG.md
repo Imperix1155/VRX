@@ -99,6 +99,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friend details: in a linked person's Choose a destination, each Join on
   button looks like the drawer's own Join, and Cancel is a button like the
   other buttons in Identities, both with the keyboard focus ring.
+- Friends search: a linked person found by another of their names, such as
+  their ChilloutVR account's name, shows that name beside the row's name with
+  the match marked, so the row no longer looks like a false match.
 
 ### Fixed
 

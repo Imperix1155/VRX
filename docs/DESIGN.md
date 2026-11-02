@@ -864,7 +864,10 @@ breaking ties. A merged picture changes artwork only, never the status source.
 Two locations use a hard, centered 45-degree split, VRChat upper-right and
 ChilloutVR lower-left. In the row, two joinable locations share one
 "2 locations" pill whose halves carry each access tier by color, so the world
-line names each tier in words after its platform tag.
+line names each tier in words after its platform tag. Search finds a person
+by any of their names; when the row's own name has no match, the name that
+matched takes the custom status's place beside it, dim, with the match
+marked.
 
 Combined Join always opens the destination chooser, even with one eligible
 choice, and never picks for the user. Single-platform views use the normal
