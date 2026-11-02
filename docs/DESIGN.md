@@ -53,8 +53,8 @@ These decisions are settled. Changing one needs the owner's explicit approval.
    space, and the first section actually shown gets the picture cards.
 8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
    hot instance, most friends first. It shows by default and can be hidden in
-   Settings → Behavior (§8). While it shows, the Dashboard section's "See
-   all" button opens it (§9.1).
+   Settings → Appearance → Sidebar pages (§8). While it shows, the Dashboard
+   section's "See all" button opens it (§9.1).
 9. **Privacy first.** Friends set to Ask Me or Do Not Disturb never reveal
    their world or instance anywhere, including notifications (§5).
 10. **Liquid glass.** Glass is the material, with a blue top-left and orange
@@ -324,12 +324,12 @@ usable.
 Don't design a mobile layout from a narrow documentation viewport.
 
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
-Explore, Settings. Hot Instances and Explore can be hidden in Settings →
-Behavior, Activity and Inbox in Settings → Appearance, and all four in the
-welcome setup; a hidden page leaves the sidebar and its links, while its
-Dashboard section and alerts keep their own switches. A hidden page that is
-open, or that a hot-instance alert asks for, falls back to the Dashboard.
-Groups is not a planned page and never appears as a placeholder.
+Explore, Search, Groups, Avatars, Settings. Hot Instances, Activity, Inbox,
+Explore, Search and Groups can be hidden in Settings → Appearance → Sidebar
+pages and in the welcome setup; a hidden page leaves the sidebar and its
+links, while its Dashboard section and alerts keep their own switches. A
+hidden page that is open, or that a hot-instance alert asks for, falls back
+to the Dashboard.
 
 **Top bar.** It holds the page's single heading; panels below it, the
 Friends list included, keep their section headings for screen readers only.
