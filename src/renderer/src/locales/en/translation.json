@@ -544,7 +544,9 @@
     "heading": "Something went wrong",
     "hint": "An unexpected error occurred. You can try reloading the app.",
     "reload": "Reload",
-    "copyDiagnostics": "Copy diagnostics"
+    "copyDiagnostics": "Copy diagnostics",
+    "copied": "Copied",
+    "copyFailed": "Couldn't copy the diagnostics. Try again."
   },
   "greeting": "Welcome to VRX",
   "friends": {

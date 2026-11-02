@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Window: the box shown when the VRX window stops working says so in plain
   words, in English and Japanese, and says Reload brings it back. It no longer
   shows a developer reason code.
+- Error screen: Copy diagnostics says "Copied" when it worked, and says so
+  when it couldn't copy.
 
 ### Fixed
 
@@ -143,6 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pressing Enter on it can no longer reload a window that works.
 - Window: a window VRX opens again (on macOS after you closed it) appears once
   it is drawn, without an empty flash first.
+- Error screen: copied diagnostics leave out folder names.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
