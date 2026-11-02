@@ -74,7 +74,7 @@ export interface AuthFlow {
 
 /** The code as the platform expects it: authenticator apps copy "123 456",
  *  people type "123-456", and a Japanese IME types full-width digits. */
-export function normalizeTwoFactorCode(code: string): string {
+function normalizeTwoFactorCode(code: string): string {
   return code.normalize('NFKC').replace(/[\s-]+/g, '')
 }
 

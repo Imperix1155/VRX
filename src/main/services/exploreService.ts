@@ -314,36 +314,46 @@ export class ExploreService {
     if (!url) return null
     const cached = state.images.get(url)
     if (cached) return { ok: true, dataUrl: cached }
-    let pending = state.imagePending.get(url)
-    if (!pending && this.options.peekImage) {
-      // A picture already kept costs no request, so it never waits for (or
-      // uses up) the fetch budget below (docs/api-policy.md: new fetches only).
-      const kept = await this.options.peekImage(url).catch(() => null)
-      if (kept) {
-        if (!this.current(platform, state) || !this.findWorld(state, worldRef)) return null
-        this.keepImage(state, url, kept)
-        return { ok: true, dataUrl: kept }
-      }
-      pending = state.imagePending.get(url)
-    }
-    if (!pending) {
-      if ((this.imageOutstanding.get(platform) ?? 0) >= 2)
-        return this.imageDeferral(platform, worldRef, 'capacity')
-      if (!this.take(this.imageStarts, platform, 6))
-        return this.imageDeferral(platform, worldRef, 'window')
-      this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 0) + 1)
-      pending = Promise.resolve()
-        .then(() => this.options.getImage(url))
-        .catch(() => null)
-      state.imagePending.set(url, pending)
-      const owned = pending
-      void pending.then(() => {
-        this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 1) - 1)
-        if (state.imagePending.get(url) === owned) state.imagePending.delete(url)
-      })
-    }
+    // A picture already kept costs no request, so it never waits for (or
+    // uses up) the fetch budget below (docs/api-policy.md: new fetches only).
+    const peek = state.imagePending.has(url) ? undefined : this.options.peekImage?.(url)
+    const kept = peek ? await peek.catch(() => null) : null
+    if (kept) return this.handOutImage(platform, state, worldRef, url, kept)
+    const pending = state.imagePending.get(url) ?? this.startImageFetch(platform, state, url)
+    if (typeof pending === 'string') return this.imageDeferral(platform, worldRef, pending)
     const dataUrl = await pending
-    if (!dataUrl || !this.current(platform, state) || !this.findWorld(state, worldRef)) return null
+    return dataUrl ? this.handOutImage(platform, state, worldRef, url, dataUrl) : null
+  }
+
+  /** Starts one picture download inside the budget, or says why it must wait. */
+  private startImageFetch(
+    platform: Platform,
+    state: State,
+    url: string
+  ): Promise<string | null> | 'capacity' | 'window' {
+    if ((this.imageOutstanding.get(platform) ?? 0) >= 2) return 'capacity'
+    if (!this.take(this.imageStarts, platform, 6)) return 'window'
+    this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 0) + 1)
+    const pending = Promise.resolve()
+      .then(() => this.options.getImage(url))
+      .catch(() => null)
+    state.imagePending.set(url, pending)
+    void pending.then(() => {
+      this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 1) - 1)
+      if (state.imagePending.get(url) === pending) state.imagePending.delete(url)
+    })
+    return pending
+  }
+
+  /** A picture for a world still shown to the same account, kept for reuse. */
+  private handOutImage(
+    platform: Platform,
+    state: State,
+    worldRef: string,
+    url: string,
+    dataUrl: string
+  ): ExploreImageResult {
+    if (!this.current(platform, state) || !this.findWorld(state, worldRef)) return null
     this.keepImage(state, url, dataUrl)
     return { ok: true, dataUrl }
   }

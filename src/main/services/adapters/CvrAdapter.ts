@@ -135,6 +135,15 @@ const EXPLORE_ROOM_ID_LIMIT = 100
 const cvrExploreWorldId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const cvrExploreRoomId = /^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$/i
 
+/**
+ * A sign-in or imported-session request: interactive, and never sent again on
+ * its own. A request ChilloutVR asks to slow down ends that try, since
+ * resending would only stretch the limit (docs/api-policy.md).
+ */
+function signInRequestOptions(lease: RequestLease): AdapterRequestOptions {
+  return { priority: 'interactive', lease, retry: 'none' }
+}
+
 function recordValue(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -375,18 +384,9 @@ export class CvrAdapter
 
     let response: Response
     try {
-      // A sign-in ChilloutVR asks to slow down is never sent again on its own.
-      response = await this.authenticateRaw(2, email, password, {
-        priority: 'interactive',
-        lease,
-        retry: 'none'
-      })
+      response = await this.authenticateRaw(2, email, password, signInRequestOptions(lease))
     } catch (error) {
-      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
-      // Keep authentication diagnostics fixed: raw exception fields can carry
-      // request context and must never reach the log.
-      this.live?.log?.('warn', 'cvr login: request failed')
-      return { ok: false, needs2fa: false, error: signInFailure(error) }
+      return this.unansweredSignIn(operationGeneration, error, 'cvr login: request failed')
     }
     if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
 
@@ -460,15 +460,14 @@ export class CvrAdapter
 
     let response: Response
     try {
-      response = await this.authenticateRaw(1, imported.username, imported.accessKey, {
-        priority: 'interactive',
-        lease,
-        retry: 'none'
-      })
+      response = await this.authenticateRaw(
+        1,
+        imported.username,
+        imported.accessKey,
+        signInRequestOptions(lease)
+      )
     } catch (error) {
-      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
-      this.live?.log?.('warn', 'cvr session import: request failed')
-      return { ok: false, needs2fa: false, error: signInFailure(error) }
+      return this.unansweredSignIn(operationGeneration, error, 'cvr session import: request failed')
     }
     if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
 
@@ -1660,6 +1659,21 @@ export class CvrAdapter
 
   private isLoginOperationCurrent(operationGeneration: number): boolean {
     return operationGeneration === this.loginOperationGeneration
+  }
+
+  /**
+   * The result of a sign-in or imported-session request that got no answer.
+   * The log line is fixed text: raw exception fields can carry request
+   * context and must never reach the log.
+   */
+  private unansweredSignIn(
+    operationGeneration: number,
+    error: unknown,
+    logLine: string
+  ): LoginResult {
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
+    this.live?.log?.('warn', logLine)
+    return { ok: false, needs2fa: false, error: signInFailure(error) }
   }
 
   private supersededLoginResult(): LoginResult {

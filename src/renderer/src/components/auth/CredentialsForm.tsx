@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import AuthInput from './AuthInput'
 import ErrorBanner from './ErrorBanner'
 import type { AuthCopy } from './copy'
+import { useRefocusAfterAttempt } from './useRefocusAfterAttempt'
 
 /**
  * Presentational username/password form (VRX-221) — the platform, copy, and
@@ -64,29 +65,14 @@ export default function CredentialsForm({
       document.getElementById(`${idPrefix}-${field}`)?.focus({ preventScroll: true })
     }
   }, [idPrefix])
-  // An attempt disables the fields, which drops focus to the page. When it
-  // fails and this form stays up, focus goes back to where it last was in the
-  // form. Tracked on focus, since the drop can happen before any effect runs.
+  // After a failed attempt, focus goes back to where it last was in the form.
+  // Tracked on focus, since the drop can happen before any effect runs.
   const lastFocused = useRef<HTMLElement | null>(null)
-  const attempted = useRef(false)
-  useEffect(() => {
-    if (isSubmitting) {
-      attempted.current = true
-      return
-    }
-    if (!attempted.current) return
-    attempted.current = false
-    const active = document.activeElement
-    if (active !== null && active !== document.body) return
+  const refocusTarget = useCallback((): HTMLElement | null => {
     const previous = lastFocused.current
-    const target = previous?.isConnected
-      ? previous
-      : document.getElementById(`${idPrefix}-username`)
-    target?.focus({ preventScroll: true })
-    // Selected, so the next attempt replaces the rejected text instead of
-    // adding to it (a masked password would hide the join).
-    if (target instanceof HTMLInputElement) target.select()
-  }, [isSubmitting, idPrefix])
+    return previous?.isConnected ? previous : document.getElementById(`${idPrefix}-username`)
+  }, [idPrefix])
+  useRefocusAfterAttempt(isSubmitting, refocusTarget)
   return (
     <form
       onSubmit={onSubmit}

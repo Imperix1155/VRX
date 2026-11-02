@@ -438,22 +438,15 @@ export class VrcAdapter
 
     let response: Response
     try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}/auth/user`,
-        () => ({
-          method: 'GET',
-          headers: {
-            Authorization: basicAuthHeader(creds.username, creds.password),
-            'User-Agent': VRC_USER_AGENT
-          }
-        }),
-        // A sign-in VRChat asks to slow down is never sent again on its own:
-        // resending credentials would only stretch the limit.
-        { priority: 'interactive', lease: this.authRequestLease(operationId), retry: 'none' }
-      )
+      response = await this.signInRequest(operationId, '/auth/user', () => ({
+        method: 'GET',
+        headers: {
+          Authorization: basicAuthHeader(creds.username, creds.password),
+          'User-Agent': VRC_USER_AGENT
+        }
+      }))
     } catch (error) {
-      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
-      return { ok: false, needs2fa: false, error: signInFailure(error) }
+      return this.unansweredSignIn(operationId, error)
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
 
@@ -568,17 +561,12 @@ export class VrcAdapter
 
     let response: Response
     try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}/auth/user`,
-        () => ({
-          method: 'GET',
-          headers: { Cookie: cookie, 'User-Agent': VRC_USER_AGENT }
-        }),
-        { priority: 'interactive', lease: this.authRequestLease(operationId), retry: 'none' }
-      )
+      response = await this.signInRequest(operationId, '/auth/user', () => ({
+        method: 'GET',
+        headers: { Cookie: cookie, 'User-Agent': VRC_USER_AGENT }
+      }))
     } catch (error) {
-      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
-      return { ok: false, needs2fa: false, error: signInFailure(error) }
+      return this.unansweredSignIn(operationId, error)
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
     if (response.status === 401) {
@@ -662,20 +650,15 @@ export class VrcAdapter
 
     let response: Response
     try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}${endpoint}`,
-        () => ({
-          method: 'POST',
-          headers: {
-            ...(verificationCookie ? { Cookie: verificationCookie } : {}),
-            'User-Agent': VRC_USER_AGENT,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ code })
-        }),
-        // Never resent: the same code a moment later is likely stale anyway.
-        { priority: 'interactive', lease: this.authRequestLease(operationId), retry: 'none' }
-      )
+      response = await this.signInRequest(operationId, endpoint, () => ({
+        method: 'POST',
+        headers: {
+          ...(verificationCookie ? { Cookie: verificationCookie } : {}),
+          'User-Agent': VRC_USER_AGENT,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ code })
+      }))
     } catch (error) {
       if (!this.isAuthOperationCurrent(operationId)) {
         return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
@@ -2217,6 +2200,29 @@ export class VrcAdapter
     this.authOperationAbort.abort()
     this.authOperationCancellationGeneration += 1
     this.activeAuthOperation = null
+  }
+
+  /**
+   * One sign-in request: a password, an imported session, or a code. It is
+   * never sent again on its own. A request VRChat asks to slow down ends that
+   * try, since resending would only stretch the limit (docs/api-policy.md).
+   */
+  private signInRequest(
+    operationId: number,
+    path: string,
+    init: () => RequestInit
+  ): Promise<Response> {
+    return this.rawRequest(`${VRC_API_BASE}${path}`, init, {
+      priority: 'interactive',
+      lease: this.authRequestLease(operationId),
+      retry: 'none'
+    })
+  }
+
+  /** The result of a password or imported-session sign-in that got no answer. */
+  private unansweredSignIn(operationId: number, error: unknown): LoginResult {
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    return { ok: false, needs2fa: false, error: signInFailure(error) }
   }
 
   private supersededAuthResult(): LoginResult {
