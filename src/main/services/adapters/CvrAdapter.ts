@@ -733,8 +733,8 @@ export class CvrAdapter
   async getOwnAvatars(lease: RequestLease): Promise<OwnAvatarsPage> {
     const accountId = this.accountId
     if (accountId === null) throw new CVRAuthError()
-    const raw = await this.runAvatarRequest(lease, () =>
-      this.get('/avatars', z.unknown(), this.avatarRequestOptions(lease))
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get('/avatars', z.unknown(), this.communityOptions(lease))
     )
     const parsed = parseCvrOwnAvatars(raw, accountId, this.displayName)
     if (!parsed) throw new AvatarDataError('ChilloutVR avatar list response was malformed')
@@ -748,12 +748,8 @@ export class CvrAdapter
   async getCurrentAvatar(lease: RequestLease): Promise<AvatarItem | null> {
     const accountId = this.accountId
     if (accountId === null) return null
-    const raw = await this.runAvatarRequest(lease, () =>
-      this.get(
-        `/users/${encodeURIComponent(accountId)}`,
-        z.unknown(),
-        this.avatarRequestOptions(lease)
-      )
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
     )
     return parseCvrCurrentAvatar(raw)
   }
@@ -762,11 +758,11 @@ export class CvrAdapter
     if (!isAvatarId('chilloutvr', avatarId)) {
       throw new AvatarDataError('Invalid ChilloutVR avatar id')
     }
-    const raw = await this.runAvatarRequest(lease, () =>
+    const raw = await this.runCommunityRequest(lease, () =>
       this.get(
         `/avatars/${encodeURIComponent(avatarId)}`,
         z.unknown(),
-        this.avatarRequestOptions(lease)
+        this.communityOptions(lease)
       )
     )
     const avatar = parseCvrAvatarDetails(raw)
@@ -778,9 +774,9 @@ export class CvrAdapter
       throw new AvatarDataError('Invalid ChilloutVR avatar id')
     }
     // ChilloutVR switches with a GET (CVRX uses the same route).
-    await this.runAvatarRequest(lease, () =>
+    await this.runCommunityRequest(lease, () =>
       this.get(`/avatars/${encodeURIComponent(avatarId)}/switchAvatar`, z.unknown(), {
-        ...this.avatarRequestOptions(lease),
+        ...this.communityOptions(lease),
         // A write is never sent twice on its own; the user can press again.
         retry: 'none'
       })
@@ -881,9 +877,7 @@ export class CvrAdapter
 
   async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
     const id = this.communityUserId(userId)
-    const raw = await this.runCommunityRequest(lease, () =>
-      this.userReads.shared(lease.generation, id, () => this.readUser(id, lease))
-    )
+    const raw = await this.readSharedUser(id, lease)
     const profile = parseCvrProfile(raw)
     return profile?.userId === id ? profile : null
   }
@@ -973,9 +967,7 @@ export class CvrAdapter
 
   async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
     const id = this.socialUserId(userId)
-    const raw = await this.runCommunityRequest(lease, () =>
-      this.userReads.shared(lease.generation, id, () => this.readUser(id, lease))
-    )
+    const raw = await this.readSharedUser(id, lease)
     const record = recordValue(raw)
     if (!record || typeof record.id !== 'string' || record.id.toLowerCase() !== id) {
       throw new SocialDataError('ChilloutVR user response was malformed')
@@ -1201,9 +1193,11 @@ export class CvrAdapter
     return {
       lease,
       priority: 'interactive',
-      // A read is never resent on its own; the user can press again.
+      // A read is never resent on its own, and a 429 stops a list's paging;
+      // the user can press again.
       retry: 'none',
-      // A missing person or world is an ordinary answer; only sign-in failures count.
+      // A missing person, world or avatar is an ordinary answer; only sign-in
+      // failures count.
       recordCircuitFailure: 'auth'
     }
   }
@@ -1212,31 +1206,14 @@ export class CvrAdapter
     return this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
   }
 
+  /** The person's record, or one a note, profile or block check read under 30 s ago. */
+  private readSharedUser(id: string, lease: RequestLease): Promise<unknown> {
+    return this.runCommunityRequest(lease, () =>
+      this.userReads.shared(lease.generation, id, () => this.readUser(id, lease))
+    )
+  }
+
   private async runCommunityRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
-    try {
-      const value = await request()
-      assertRequestLease(lease)
-      return value
-    } catch (error) {
-      if (lease.isCurrent() && error instanceof CVRAuthError) {
-        this.handleDataAuthFailure(error)
-      }
-      throw error
-    }
-  }
-
-  private avatarRequestOptions(lease: RequestLease): AdapterRequestOptions {
-    return {
-      lease,
-      priority: 'interactive',
-      // A read is never resent on its own; the user can press Refresh.
-      retry: 'none',
-      // A deleted avatar is an ordinary answer; only sign-in failures count.
-      recordCircuitFailure: 'auth'
-    }
-  }
-
-  private async runAvatarRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
     try {
       const value = await request()
       assertRequestLease(lease)

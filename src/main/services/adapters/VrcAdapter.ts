@@ -1077,8 +1077,8 @@ export class VrcAdapter
         n: String(VRC_AVATAR_PAGE_SIZE),
         offset: String(offset)
       })
-      const raw = await this.runAvatarRequest(lease, () =>
-        this.get(`/avatars?${query.toString()}`, z.unknown(), this.avatarRequestOptions(lease))
+      const raw = await this.runCommunityRequest(lease, () =>
+        this.get(`/avatars?${query.toString()}`, z.unknown(), this.communityOptions(lease))
       )
       const page = parseVrcAvatarPage(raw)
       if (!page) throw new AvatarDataError('VRChat avatar list response was malformed')
@@ -1096,11 +1096,11 @@ export class VrcAdapter
   async getCurrentAvatar(lease: RequestLease): Promise<AvatarItem | null> {
     const accountId = this.accountId
     if (accountId === null) return null
-    const raw = await this.runAvatarRequest(lease, () =>
+    const raw = await this.runCommunityRequest(lease, () =>
       this.get(
         `/users/${encodeURIComponent(accountId)}/avatar`,
         z.unknown(),
-        this.avatarRequestOptions(lease)
+        this.communityOptions(lease)
       )
     )
     return parseVrcAvatar(raw)
@@ -1108,11 +1108,11 @@ export class VrcAdapter
 
   async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
     if (!isAvatarId('vrchat', avatarId)) throw new AvatarDataError('Invalid VRChat avatar id')
-    const raw = await this.runAvatarRequest(lease, () =>
+    const raw = await this.runCommunityRequest(lease, () =>
       this.get(
         `/avatars/${encodeURIComponent(avatarId)}`,
         z.unknown(),
-        this.avatarRequestOptions(lease)
+        this.communityOptions(lease)
       )
     )
     const avatar = parseVrcAvatar(raw)
@@ -1121,9 +1121,9 @@ export class VrcAdapter
 
   async switchAvatar(avatarId: string, lease: RequestLease): Promise<void> {
     if (!isAvatarId('vrchat', avatarId)) throw new AvatarDataError('Invalid VRChat avatar id')
-    await this.runAvatarRequest(lease, () =>
+    await this.runCommunityRequest(lease, () =>
       this.put(`/avatars/${encodeURIComponent(avatarId)}/select`, z.unknown(), {
-        ...this.avatarRequestOptions(lease),
+        ...this.communityOptions(lease),
         // A write is never sent twice on its own; the user can press again.
         retry: 'none'
       })
@@ -1570,9 +1570,11 @@ export class VrcAdapter
     return {
       lease,
       priority: 'interactive',
-      // A read is never resent on its own; the user can press again.
+      // A read is never resent on its own, and a 429 stops a list's paging;
+      // the user can press again.
       retry: 'none',
-      // A missing person or world is an ordinary answer; only sign-in failures count.
+      // A missing person, world or avatar is an ordinary answer; only sign-in
+      // failures count.
       recordCircuitFailure: 'auth'
     }
   }
@@ -1586,30 +1588,6 @@ export class VrcAdapter
   }
 
   private async runCommunityRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
-    try {
-      const value = await request()
-      assertRequestLease(lease)
-      return value
-    } catch (error) {
-      if (lease.isCurrent() && error instanceof AuthError && error.status === 401) {
-        this.invalidateDataPathSession()
-      }
-      throw error
-    }
-  }
-
-  private avatarRequestOptions(lease: RequestLease): AdapterRequestOptions {
-    return {
-      lease,
-      priority: 'interactive',
-      // A read is never resent on its own, and a 429 stops the list's paging.
-      retry: 'none',
-      // A deleted avatar is an ordinary answer; only sign-in failures count.
-      recordCircuitFailure: 'auth'
-    }
-  }
-
-  private async runAvatarRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
     try {
       const value = await request()
       assertRequestLease(lease)
