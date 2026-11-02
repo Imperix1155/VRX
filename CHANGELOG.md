@@ -163,6 +163,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings: when VRX can't read your saved settings at start, a notice says it
   is showing the defaults for now and that your saved settings are kept,
   instead of quietly looking as if your choices were forgotten.
+- Accounts: Sign out now asks once before it signs you out, so a stray click
+  beside Edit profile no longer ends your session.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

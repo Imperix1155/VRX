@@ -354,6 +354,8 @@
       "retry": "Retry",
       "retrying": "Retrying…",
       "signOut": "Sign out",
+      "signOutConfirm": "Sign out of {{platform}}?",
+      "cancel": "Cancel",
       "username": "Username or email",
       "email": "Email address",
       "usernamePlaceholder": "you@example.com",

@@ -351,6 +351,8 @@
       "retry": "再試行",
       "retrying": "再試行中…",
       "signOut": "サインアウト",
+      "signOutConfirm": "{{platform}} からサインアウトしますか？",
+      "cancel": "キャンセル",
       "username": "ユーザー名またはメールアドレス",
       "email": "メールアドレス",
       "usernamePlaceholder": "you@example.com",
