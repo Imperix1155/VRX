@@ -113,9 +113,9 @@ export default function LinkedDialog({
             disabled={busy}
             aria-label={t('drawer.close')}
             onClick={onClose}
-            className="rounded-control px-[var(--space-2)] text-[var(--text-dim)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+            className="grid h-[28px] w-[28px] shrink-0 place-items-center rounded-[9px] text-base leading-none text-[var(--text-dim)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:opacity-50 motion-safe:transition-colors"
           >
-            ×
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         {children}

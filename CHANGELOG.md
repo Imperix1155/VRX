@@ -93,6 +93,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   everywhere, including its Back button, and a friend request is always
   「フレンドリクエスト」 as in the Inbox, so Add friend reads
   「フレンドリクエストを送る」.
+- Identities: its dialogs close with the same ✕ button and keyboard focus
+  ring as friend details, and so do a linked person's Choose a destination,
+  Your VRChat or ChilloutVR profile in Accounts, and Picked friends.
 
 ### Fixed
 
