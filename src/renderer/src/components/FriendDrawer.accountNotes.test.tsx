@@ -163,6 +163,27 @@ describe('FriendDrawer account notes', () => {
     )
   })
 
+  it('says a longer account note stays on the account, and offers nothing to take', async () => {
+    syncFriendNote.mockResolvedValueOnce({
+      ok: true,
+      state: 'account-too-long',
+      note: 'Plays drums'
+    })
+    render(<FriendsList />)
+    const scoped = within(open())
+    await waitFor(
+      () =>
+        expect(
+          scoped.getByText(
+            'Your VRChat account has a longer note for this friend than VRX keeps (500 characters), so it stays there.'
+          )
+        ).toBeTruthy(),
+      slow
+    )
+    expect(scoped.getByDisplayValue('Plays drums')).toBeTruthy()
+    expect(syncFriendNote).toHaveBeenCalledTimes(1)
+  })
+
   it('takes a newer account copy on its own when VRX copy did not change', async () => {
     syncFriendNote
       .mockResolvedValueOnce({

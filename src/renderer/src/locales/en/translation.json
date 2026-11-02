@@ -704,6 +704,7 @@
         "localOnly": "Only on this PC so far.",
         "save": "Save to {{platform}}",
         "tooLong": "Only on this PC: {{platform}} keeps notes up to {{max}} characters.",
+        "accountTooLong": "Your {{platform}} account has a longer note for this friend than VRX keeps ({{max}} characters), so it stays there.",
         "failed": "Couldn't reach {{platform}}. Saved on this PC.",
         "conflict": "Your {{platform}} account has a different note for this friend:",
         "empty": "(no note)",

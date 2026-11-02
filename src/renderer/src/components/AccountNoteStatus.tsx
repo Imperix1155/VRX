@@ -6,7 +6,7 @@
  * being checked, so opening a drawer does not flicker.
  */
 import { useTranslation } from 'react-i18next'
-import { VRCHAT_ACCOUNT_NOTE_MAX_LENGTH } from '@shared/accountNotes'
+import { FRIEND_NOTE_MAX_LENGTH, VRCHAT_ACCOUNT_NOTE_MAX_LENGTH } from '@shared/accountNotes'
 import type { Platform } from '@shared/types'
 import type { UseAccountNoteResult } from '../hooks/useAccountNote'
 import { platformName } from '../utils/community'
@@ -94,6 +94,13 @@ export default function AccountNoteStatus({
       text = t('drawer.notes.account.tooLong', {
         platform: name,
         max: VRCHAT_ACCOUNT_NOTE_MAX_LENGTH
+      })
+      break
+    case 'account-too-long':
+      glyph = '•'
+      text = t('drawer.notes.account.accountTooLong', {
+        platform: name,
+        max: FRIEND_NOTE_MAX_LENGTH
       })
       break
     case 'failed':

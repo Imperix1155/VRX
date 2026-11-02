@@ -615,7 +615,12 @@ export function useFriendNote({
   const setValue = useCallback(
     (value: string) => {
       if (!isWritable || epochFor(platform) !== boundaryEpoch) return
-      const next = value.slice(0, MAX_NOTE_LENGTH)
+      // The cap stops growth only: deleting from a note that is already over it
+      // (taken from an account before VRX kept to the cap) never cuts its end.
+      const next =
+        value.length > MAX_NOTE_LENGTH && value.length > draftRef.current.value.length
+          ? value.slice(0, MAX_NOTE_LENGTH)
+          : value
       // Completion handlers can run in the same React batch as input. Keep
       // their guard in step with the visible draft rather than waiting for the
       // passive synchronization effect.

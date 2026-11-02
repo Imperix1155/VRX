@@ -231,6 +231,29 @@ describe('AccountNoteService', () => {
     expect(adapter.writes).toEqual([])
   })
 
+  it('leaves an account note longer than VRX keeps on the account, uncut', async () => {
+    // ChilloutVR has no known cap; VRX keeps 500. Taking a longer copy would
+    // cut it on the next edit and send the cut copy back.
+    const long = `${'a'.repeat(660)} tail that matters`
+    adapter.account = long
+    await expect(service.sync(request('check'))).resolves.toEqual({
+      ok: true,
+      state: 'account-too-long',
+      note: ''
+    })
+    await expect(service.sync(request('use-account'))).resolves.toEqual({
+      ok: true,
+      state: 'account-too-long',
+      note: ''
+    })
+    expect(local()).toBeUndefined()
+    // A note typed in VRX afterwards is a choice for the user, never a silent write.
+    setLocal('short')
+    await expect(service.sync(request('save'))).resolves.toMatchObject({ state: 'conflict' })
+    expect(adapter.writes).toEqual([])
+    expect(adapter.account).toBe(long)
+  })
+
   it('refuses to write when the reply did not say what the account holds', async () => {
     setLocal('mine')
     adapter.account = null

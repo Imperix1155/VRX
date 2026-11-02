@@ -701,6 +701,7 @@
         "localOnly": "今はこの PC のみに保存されています。",
         "save": "{{platform}} に保存",
         "tooLong": "この PC のみに保存: {{platform}} のメモは {{max}} 文字までです。",
+        "accountTooLong": "{{platform}} アカウントには、このフレンドの VRX で保存できる長さ（{{max}} 文字）を超えるメモがあるため、そのまま残しています。",
         "failed": "{{platform}} に接続できませんでした。この PC には保存済みです。",
         "conflict": "{{platform}} アカウントには、このフレンドの別のメモがあります:",
         "empty": "（メモなし）",

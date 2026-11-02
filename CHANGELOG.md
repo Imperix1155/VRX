@@ -62,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "See all 1".
 - Top bar: the connection dot is never the green live dot while no platform
   is signed in.
+- Notes: VRX no longer takes a note from your account that is longer than
+  the 500 characters it keeps, so editing it can never cut the end off and
+  send the shorter copy back. Deleting text from an over-long note never cuts
+  its end either.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

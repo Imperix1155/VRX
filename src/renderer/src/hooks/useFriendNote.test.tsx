@@ -245,6 +245,20 @@ describe('useFriendNote', () => {
     expect(result.current.value).toHaveLength(500)
   })
 
+  it('never cuts the end of a note already over 500 when the user deletes from it', async () => {
+    // A long note taken from an account by an older build.
+    const long = `${'a'.repeat(660)} tail that matters`
+    getFriendNote.mockResolvedValue({ note: long, revision: makeRevision('self', 1) })
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
+
+    await waitFor(() => expect(result.current.value).toBe(long))
+    act(() => result.current.setValue(long.slice(1)))
+    expect(result.current.value).toBe(long.slice(1))
+    expect(result.current.value.endsWith('tail that matters')).toBe(true)
+  })
+
   it('renders empty and read-only when the preload bridge is absent', () => {
     Object.defineProperty(window, 'vrx', { configurable: true, value: undefined })
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
