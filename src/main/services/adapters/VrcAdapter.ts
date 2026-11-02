@@ -793,7 +793,7 @@ export class VrcAdapter
             lease: this.captureSessionLease()
           }
         )
-      } catch {
+      } catch (error) {
         if (this.authPersistencePending) {
           const tentative = await this.awaitTentativeAuthStatus()
           if (tentative !== null) return tentative
@@ -805,7 +805,11 @@ export class VrcAdapter
           if (this.cookie) continue
           return this.status('unauthenticated')
         }
-        return this.status('error')
+        // No answer at all (offline, timeout) is the one error a hidden window
+        // may re-check; a 429 that outlasted its retries is a refusal.
+        return error instanceof NetworkError
+          ? { ...this.status('error'), unreachable: true }
+          : this.status('error')
       }
       // Fence every response outcome before it can describe or mutate the current
       // session. In particular, an old 401 must never clear a newly logged-in user.

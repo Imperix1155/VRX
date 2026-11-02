@@ -235,11 +235,14 @@ works again. The timer and manual refresh still need the window.
 Sign-in status is checked on demand, never on a timer and never because a page
 opened: the renderer keeps a settled status until a sign-in, sign-out or
 `auth-invalidated` event replaces it. The one exception: a status of `error`
-(the check could not reach the platform, for example when VRX starts offline)
-is checked again once a minute (`AUTH_ERROR_RECHECK_MS`), also while the
-window is hidden in the tray, until a check succeeds. Only a successful check
-starts a restored session's live connection. Each check is one request through
-the admission queue.
+is checked again once a minute (`AUTH_ERROR_RECHECK_MS`) while the window
+shows, until a check succeeds. While the window is hidden in the tray, only a
+check that got no answer at all (`unreachable`: offline, a name that didn't
+resolve, a timeout) repeats, since nothing reached the platform; a platform
+that answered and refused (429, 403, 5xx, an unreadable reply) is not asked
+again until the window shows. Only a successful check starts a restored
+session's live connection. Each check goes through the admission queue and
+waits out a cooldown; a 429 gets the bounded session-check retries above.
 
 ## Explore limits
 

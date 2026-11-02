@@ -29,6 +29,7 @@ import {
   CVRAuthError,
   CVRNetworkError,
   CVRRateLimitError,
+  NetworkError,
   signInFailure
 } from './errors'
 import {
@@ -536,10 +537,17 @@ export class CvrAdapter
         recordCircuitFailure: false,
         lease: this.captureSessionLease()
       })
-    } catch {
+    } catch (error) {
       // Network trouble or an already-open circuit — the session may still be
       // fine; report error WITHOUT clearing (a flaky boot must not log out).
-      return this.currentStatusIfSwapped(validated) ?? this.status('error')
+      // Only no answer at all may be re-checked while the window is hidden; a
+      // 429 is a refusal.
+      return (
+        this.currentStatusIfSwapped(validated) ??
+        (error instanceof NetworkError
+          ? { ...this.status('error'), unreachable: true }
+          : this.status('error'))
+      )
     }
 
     // A newer session landed under us → this result is stale; don't mutate.
