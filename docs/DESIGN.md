@@ -727,7 +727,8 @@ on the list is plain text.
 The Inbox page lists invites, invite requests and friend requests that the two
 platform sockets deliver while VRX is open. Friend requests can be answered
 here (owner, 2026-11-01): Accept and Decline each send one answer to that
-platform, and the row leaves once the platform took it. Invites and invite
+platform, and the row leaves once the platform took it; a later request from
+the same person shows again. Invites and invite
 requests stay view-only, and the "?" help says to answer those in the game.
 Hide removes a row inside VRX only; Hide all hides every row in the current
 platform filter. Nothing is stored, so the list starts empty each launch.

@@ -172,6 +172,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Activity: Clear takes away only what the page shows. With VRChat picked in
   the top bar it no longer wipes your ChilloutVR history too, or the kinds the
   Show filter hides, and it is off while nothing shows.
+- Inbox: after you accept or decline a ChilloutVR friend request, a new
+  request from the same person shows up and alerts you again, instead of
+  staying hidden until VRX restarts.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

@@ -6,7 +6,12 @@ import {
   type InboxKind
 } from '@shared/inbox'
 import type { AdapterEvent, Friend, Platform } from '@shared/types'
-import { INBOX_ALERT_LIMIT, INBOX_ALERT_WINDOW_MS, InboxService } from './inbox'
+import {
+  INBOX_ALERT_LIMIT,
+  INBOX_ALERT_WINDOW_MS,
+  INBOX_ANSWERED_HOLD_MS,
+  InboxService
+} from './inbox'
 
 function rig(alerts: Partial<Record<InboxKind, boolean>> = {}): {
   inbox: InboxService
@@ -187,6 +192,30 @@ describe('InboxService', () => {
     r.inbox.clear(['vrchat'])
     r.inbox.consume(add('vrchat', entry()))
     expect(r.inbox.snapshot().items).toEqual([])
+  })
+
+  it('an answered row leaves and is held back only briefly, so its sender can ask again', () => {
+    const r = rig()
+    // ChilloutVR's request ID is the sender's own ID, the same on every request.
+    const request = entry({ sourceId: 'g1', kind: 'friend-request', senderId: 'g1' })
+    r.inbox.consume(add('chilloutvr', request))
+    expect(r.inbox.answered('chilloutvr', 'friend-request:g1')).toBe(true)
+    expect(r.inbox.answered('chilloutvr', 'friend-request:g1')).toBe(false)
+    expect(r.inbox.snapshot().items).toEqual([])
+
+    r.advance(INBOX_ANSWERED_HOLD_MS - 1)
+    r.inbox.consume(add('chilloutvr', request))
+    expect(r.inbox.snapshot().items).toEqual([])
+
+    r.advance(1)
+    r.inbox.consume(add('chilloutvr', request))
+    expect(r.inbox.snapshot().items.map((item) => item.id)).toEqual(['friend-request:g1'])
+
+    // A boundary forgets the hold along with everything else.
+    r.inbox.answered('chilloutvr', 'friend-request:g1')
+    r.inbox.resetPlatform('chilloutvr')
+    r.inbox.consume(add('chilloutvr', request))
+    expect(r.inbox.snapshot().items).toHaveLength(1)
   })
 
   it('a boundary forgets the platform completely, the other platform untouched', () => {

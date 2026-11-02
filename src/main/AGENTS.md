@@ -187,8 +187,10 @@ etiquette rules apply in full; this file adds local detail.
 - `InboxService` is main-memory only: it never calls a platform, never
   persists, and Hide is local. Keep its per-platform row cap, bounded
   hidden-ID memory, and alert limits (`isInboxAlertEnabled`: `notifyInvites`,
-  `notifyFriendRequests`). An invite may name its world because the sender
-  shared it; nothing else in the inbox reads presence.
+  `notifyFriendRequests`). An answered request's ID is held back only
+  briefly, since a ChilloutVR request's ID is its sender. An invite may name
+  its world because the sender shared it; nothing else in the inbox reads
+  presence.
 - `FriendActionsService` owns the only friend writes: Accept or Decline on an
   inbox friend-request row main holds, and Add friend for someone a search
   listed this session who is not a friend. One press sends once, never
