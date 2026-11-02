@@ -43,8 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unblock", not "Unfriend or block".
 - Sign-in: a long error keeps its warning sign beside the first line.
 - Screen readers: every page switch in Settings → Appearance reads its note,
-  and the Hot Instances friends stepper is named "Min. friends" like its
-  label.
+  and the Hot Instances friends stepper is named "Min. friends for a hot
+  instance", starting with its visible label.
+- High Contrast: scrollbars stay visible in every panel.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

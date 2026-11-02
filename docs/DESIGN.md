@@ -323,13 +323,18 @@ added around it); on a smaller screen the minimum shrinks so the app stays
 usable.
 Don't design a mobile layout from a narrow documentation viewport.
 
+**Scrollbars.** Every scroll area, the main page included, uses one slim
+9 px rounded bar in `--scrollbar-thumb` on a clear track, set once in
+`main.css`; High Contrast draws the thumb in the text color.
+
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
 Explore, Search, Groups, Avatars, Settings. Hot Instances, Activity, Inbox,
 Explore, Search and Groups can be hidden in Settings → Appearance → Sidebar
 pages and in the welcome setup; a hidden page leaves the sidebar and its
 links, while its Dashboard section and alerts keep their own switches. A
-hidden page that is open, or that a hot-instance alert asks for, falls back
-to the Dashboard.
+hidden page that is open falls back to the Dashboard; a hot-instance alert
+click still opens Hot Instances while that page is hidden, until the user goes
+elsewhere.
 
 **Top bar.** It holds the page's single heading; panels below it, the
 Friends list included, keep their section headings for screen readers only.
