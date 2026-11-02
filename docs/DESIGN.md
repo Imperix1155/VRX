@@ -816,7 +816,9 @@ no line under ALL for a platform the user isn't signed in to.
   Favorites control. The lists alternate platforms like Search and open the
   same world sheet. Favorites (owner, 2026-11-01) lists the worlds starred in
   VRX, newest first, then the account's own favorite worlds. Its Refresh reads
-  the account's favorites again (hidden while game favorites are off). The
+  the account's favorites again (hidden while game favorites are off). When
+  the account's favorites never loaded, a red line says so instead of the
+  empty-list line. The
   world sheet's star follows the world name and opens the same favorite panel
   as a friend's, below the title. Like Groups and Avatars, Refresh reads
   "Refreshing…" and stays off until its reads answer; on Popular now, until

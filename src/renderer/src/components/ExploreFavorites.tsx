@@ -70,15 +70,14 @@ export default function ExploreFavorites(): React.JSX.Element {
       <p className="canvas-text mb-[var(--space-3)] text-sm text-[var(--text-dim)]">
         {t('explore.lists.favoritesHint')}
       </p>
+      {/* Red: main keeps favorites that loaded, so a failure means none did
+          (DESIGN.md Locked rule 5). The list isn't known to be empty then. */}
       {failed.map((platform) => (
-        <p
-          key={platform}
-          className="canvas-text mb-[var(--space-2)] text-sm text-[var(--text-dim)]"
-        >
+        <p key={platform} className="canvas-text mb-[var(--space-2)] text-sm text-[var(--error)]">
           {t('favorites.menu.loadFailed', { platform: t(GAME_FAVORITES_HEADING[platform]) })}
         </p>
       ))}
-      {!loading && worlds.length === 0 ? (
+      {!loading && worlds.length === 0 && failed.length === 0 ? (
         <p className="canvas-text text-sm text-[var(--text-dim)]">
           {t('explore.lists.favoritesEmpty')}
         </p>

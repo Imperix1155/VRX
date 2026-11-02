@@ -206,6 +206,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   panel away and back and moving focus to the world you had open before.
 - Search: searching for ".." shows no ChilloutVR results instead of "Couldn't
   reach ChilloutVR", and sends nothing to ChilloutVR.
+- Explore → Favorites: when your VRChat or ChilloutVR favorites couldn't load,
+  the line saying so is red, and the page no longer also says you have no
+  favorite worlds yet.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

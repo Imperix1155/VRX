@@ -344,6 +344,18 @@ describe('favorite worlds', () => {
     ).toBeTruthy()
   })
 
+  it("says in the error color when the account's favorites never loaded, not that there are none", async () => {
+    signIn('vrchat')
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    game.vrchat = { state: 'unavailable' }
+    render(<ExploreFavorites />)
+    const failed = await screen.findByText("Couldn't load your VRChat favorites.")
+    expect(failed.className).toContain('text-[var(--error)]')
+    expect(
+      screen.queryByText('No favorite worlds yet. Open a world and press the star to keep it here.')
+    ).toBeNull()
+  })
+
   it("adds the account's own favorite worlds after VRX's stars, once each", async () => {
     signIn('vrchat')
     useFriendsStore.setState({ platformFilter: 'vrchat' })
