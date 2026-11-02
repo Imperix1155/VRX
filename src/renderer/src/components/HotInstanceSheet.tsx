@@ -165,7 +165,8 @@ export default function HotInstanceSheet({
     // aria-disabled, not disabled, while a join runs (as InstancePill does): a
     // focused button that disabled itself would drop keyboard focus to the page.
     if (isJoining) return
-    if (joinTarget !== null) void join(joinTarget)
+    // For the instance, not this member: the dialog keeps it while anyone is there.
+    if (joinTarget !== null) void join(joinTarget, { fromHotInstance: true })
   }
 
   return (

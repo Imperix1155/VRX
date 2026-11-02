@@ -596,7 +596,10 @@ a successful save is quiet. A presence change never retargets a draft.
 Join confirmation is a true heavy-frosted modal. It keeps focus inside, offers
 Cancel, respects permission denials, reviews the live target, and handles
 session changes and in-flight states. The main process has the final say, and
-confirmation preferences never bypass permission or target checks.
+confirmation preferences never bypass permission or target checks. A Join
+from a hot card or its sheet is for the instance: if the friend it went
+through leaves, the dialog joins through another friend still there, and
+shows the move or "no longer available" only once nobody is left.
 
 Explore and Hot Instance sheets are contained and non-modal and share one
 layout: platform stripe, grab bar, then the picture starting below Close.

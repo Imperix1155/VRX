@@ -2473,6 +2473,90 @@ describe('VRX-239/241 liveness contract', () => {
   })
 })
 
+describe('a Join from a hot instance follows the instance', () => {
+  const bea: Friend = { ...joinableFriend, platformUserId: 'usr_bea', displayName: 'Bea' }
+  const elsewhere: InstanceInfo = {
+    ...publicInstance,
+    worldId: 'wrld_other',
+    instanceId: 'wrld_other:999~public'
+  }
+
+  /** The hot card and sheet open the dialog through one member, for the instance. */
+  function OpenHotJoin({ friend }: { friend: Friend }): React.JSX.Element {
+    const { join } = useJoinInstance()
+    return (
+      <button type="button" onClick={() => void join(friend, { fromHotInstance: true })}>
+        open hot join
+      </button>
+    )
+  }
+
+  function Surface({ hot }: { hot: boolean }): React.JSX.Element {
+    return (
+      <>
+        {hot ? <OpenHotJoin friend={joinableFriend} /> : <OpenJoin friend={joinableFriend} />}
+        <JoinConfirmDialog />
+      </>
+    )
+  }
+
+  const moved: Friend = { ...joinableFriend, instance: elsewhere }
+  const offline: Friend = { ...joinableFriend, presence: { state: 'offline' }, instance: null }
+
+  async function openThenAlexLeaves(
+    hot: boolean,
+    roster: Friend[],
+    alexNow: Friend = moved
+  ): Promise<HTMLElement> {
+    mockFriends(roster)
+    const { rerender } = render(<Surface hot={hot} />)
+    fireEvent.click(screen.getByRole('button', { name: hot ? 'open hot join' : 'open join' }))
+    const dialog = confirmDialog()
+    updateFriend(alexNow)
+    rerender(<Surface hot={hot} />)
+    await act(async () => await Promise.resolve())
+    return dialog
+  }
+
+  it.each([
+    ['moves on', moved],
+    ['goes offline', offline]
+  ])('joins through a friend still there when the one it went through %s', async (_, alexNow) => {
+    const dialog = await openThenAlexLeaves(true, [joinableFriend, bea], alexNow)
+
+    // Bea is still in the instance the user picked: nothing to review.
+    expect(within(dialog).queryByText(/moved to a different instance/)).toBeNull()
+    expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
+    expect(within(dialog).getByText(/Bea is in The Great Pug/)).toBeTruthy()
+    const confirm = within(dialog).getByRole('button', { name: 'Join' })
+    expect(confirm).toHaveProperty('disabled', false)
+    await act(async () => {
+      fireEvent.click(confirm)
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        friendId: 'usr_bea',
+        expectedTarget: { worldId: publicInstance.worldId, instanceId: publicInstance.instanceId }
+      })
+    )
+  })
+
+  it('shows the move once nobody is left in the instance', async () => {
+    const dialog = await openThenAlexLeaves(true, [joinableFriend])
+    expect(within(dialog).getByText(/Alex moved to a different instance/)).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', true)
+  })
+
+  it('a Join from a friend still follows that friend', async () => {
+    const dialog = await openThenAlexLeaves(false, [joinableFriend, bea])
+    expect(within(dialog).getByText(/Alex moved to a different instance/)).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', true)
+  })
+})
+
 describe('defensive latch clear (VRX-239/241)', () => {
   it.each(['identity', 'auth', 'unmount'] as const)(
     'clears and fences a direct join at %s boundary',

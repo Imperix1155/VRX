@@ -102,7 +102,8 @@ export default function HotInstanceCard({
     // Belt-and-suspenders containment for the day the whole-card click (VRX-59)
     // lands: join wins over open, always — same law as the friend row.
     event.stopPropagation()
-    if (joinTarget !== null) void join(joinTarget)
+    // For the instance, not this member: the dialog keeps it while anyone is there.
+    if (joinTarget !== null) void join(joinTarget, { fromHotInstance: true })
   }
 
   // Whole-card POINTER opener, as on friend rows (VRX-228): the card is no

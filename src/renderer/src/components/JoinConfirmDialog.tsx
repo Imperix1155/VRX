@@ -34,6 +34,7 @@ import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { useFriends } from '../queries/friends'
 import {
+  friendForPending,
   resolveWireMode,
   useJoinInstance,
   type FriendPendingConfirm
@@ -388,9 +389,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   const liveQuery = useFriends(pendingConfirm?.platform ?? 'vrchat')
   const dataUpdatedAt = liveQuery.dataUpdatedAt ?? 0
 
-  const liveFriend = pendingConfirm
-    ? liveQuery.data?.find((f) => f.platformUserId === pendingConfirm.platformUserId)
-    : undefined
+  // The same pick as Confirm: for a Join from a hot instance, a friend still
+  // in it stands in once the one Join went through has left.
+  const liveFriend = pendingConfirm ? friendForPending(liveQuery.data, pendingConfirm) : undefined
 
   const liveInstance = liveFriend?.instance ?? null
   const liveKey =

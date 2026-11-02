@@ -578,6 +578,10 @@ describe('HotInstanceCard Join (VRX-237)', () => {
     // (with the gate off the probe would read 'none' and the bridge/blip path
     // would have run instead).
     expect(screen.getByTestId('pending').textContent).toBe('Amy')
+    // Parked for the instance, so another member can stand in if Amy leaves.
+    expect(renderHook(() => useJoinInstance()).result.current.pendingConfirm).toMatchObject({
+      fromHotInstance: true
+    })
 
     // A second click while the dialog is parked is ignored — exactly one join
     // is pending, for the same friend (the modal latch in the shared flow).
@@ -1044,6 +1048,10 @@ describe('HotInstanceSheet (VRX-250)', () => {
     })
     fireEvent.click(sheetJoin)
     expect(screen.getByTestId('pending').textContent).toBe('Amy')
+    // Parked for the instance, so another member can stand in if Amy leaves.
+    expect(renderHook(() => useJoinInstance()).result.current.pendingConfirm).toMatchObject({
+      fromHotInstance: true
+    })
 
     act(() => {
       screen.getByTestId('cancel').click()

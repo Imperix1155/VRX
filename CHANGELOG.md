@@ -126,6 +126,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hot Instances: with a screen reader, a hot card's world name is a button that
   also says the platform, the access and who is there, and Join is no longer
   inside another button.
+- Hot Instances: if the friend a hot card's Join went through leaves before you
+  confirm, the Join dialog joins through a friend still there, instead of
+  offering that friend's new place or saying the instance can't be joined.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
