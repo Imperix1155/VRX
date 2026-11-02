@@ -31,6 +31,9 @@ function AvatarCard({ avatar, worn, onOpen, layout = 'card' }: AvatarCardProps):
   const isVrc = avatar.platform === 'vrchat'
   const platformLabel = t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
   const bar = layout === 'bar'
+  // The "Wearing now" line marks the worn avatar among the uploads. The bar
+  // sits under a "Wearing now" heading already, so it doesn't repeat it.
+  const wornLine = worn && !bar
 
   return (
     <button
@@ -39,7 +42,7 @@ function AvatarCard({ avatar, worn, onOpen, layout = 'card' }: AvatarCardProps):
       data-avatar-card-layout={layout}
       onClick={(event) => onOpen(avatar, event.currentTarget)}
       aria-label={t('avatars.openAria', { name: avatar.name, platform: platformLabel })}
-      aria-describedby={worn ? wornId : undefined}
+      aria-describedby={wornLine ? wornId : undefined}
       className={`glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex w-full min-w-0 flex-col overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] ${bar ? '' : 'h-full'}`}
     >
       <div
@@ -88,7 +91,7 @@ function AvatarCard({ avatar, worn, onOpen, layout = 'card' }: AvatarCardProps):
           >
             {avatar.name}
           </span>
-          {worn ? (
+          {wornLine ? (
             <span id={wornId} className="text-xs font-semibold text-[var(--text)]">
               {t('avatars.wearingNow')}
             </span>

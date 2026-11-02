@@ -124,6 +124,19 @@ describe('AvatarsView', () => {
         .map((button) => button.getAttribute('aria-label'))
     ).toEqual([cardName(cvrWorn), cardName(cvrOther), cardName(vrcWorn), cardName(vrcOther)])
     expect(within(uploads).getByText(msg('avatars.uploadCount', { count: 4 }))).toBeTruthy()
+    // The row's heading already says "Wearing now"; its cards don't repeat it.
+    expect(within(worn).getAllByText(msg('avatars.wearingNow'))).toHaveLength(1)
+    for (const card of within(worn).getAllByRole('button')) {
+      expect(card.hasAttribute('aria-describedby')).toBe(false)
+    }
+    // In the uploads grid the line marks the worn ones among the rest.
+    expect(within(uploads).getAllByText(msg('avatars.wearingNow'))).toHaveLength(2)
+    expect(
+      within(uploads).getByRole('button', {
+        name: cardName(vrcWorn),
+        description: msg('avatars.wearingNow')
+      })
+    ).toBeTruthy()
   })
 
   it('reads only the platform the filter shows', async () => {
