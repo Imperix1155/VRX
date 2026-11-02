@@ -118,6 +118,11 @@ describe('notificationPresenter', () => {
       title: 'Friends Gathering',
       body: '1 friend is in the same instance — join them?'
     })
+    // With the threshold at 1, one friend is never "together" with anyone.
+    expect(notificationPresenter(hotAlert(1, 'The Great Pug'))).toEqual({
+      title: 'Friends Gathering',
+      body: '1 friend is in The Great Pug — join them?'
+    })
   })
 
   it('strips trailing instance labels from hot-instance world copy', () => {

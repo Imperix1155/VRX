@@ -52,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   since closing the window only hides it in the tray.
 - Welcome setup: the summary reads "no glow" when the background glow is off,
   instead of "Off glow".
+- Alerts: with Min. friends set to 1, the hot instance alert reads "1 friend
+  is in Pug Lounge", not "1 friend is together in Pug Lounge".
 
 ### Fixed
 

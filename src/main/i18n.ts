@@ -20,7 +20,7 @@ const en = {
   'notify.offline.title': 'Friend Offline',
   'notify.offline.body': '{{name}} went offline',
   'notify.hot.title': 'Friends Gathering',
-  'notify.hot.body_one': '1 friend is together in {{world}} — join them?',
+  'notify.hot.body_one': '1 friend is in {{world}} — join them?',
   'notify.hot.body_other': '{{count}} friends are together in {{world}} — join them?',
   'notify.hot.bodyNoWorld_one': '1 friend is in the same instance — join them?',
   'notify.hot.bodyNoWorld_other': '{{count}} friends are in the same instance — join them?',
