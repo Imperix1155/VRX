@@ -253,6 +253,16 @@ function createJoinStore(): JoinStore {
       if (generation !== sessionGeneration) return
       if (result.ok) showJoinResult(friendKey, result)
       else showFailureBlip(friendKey, result.reason)
+      if (!result.ok && result.reason === 'target-changed') {
+        // Main is ahead of the renderer cache, and every retry would send the
+        // same old target: read the roster once, as Confirm does, so "try Join
+        // again" can work under a 'manual' reconcile cadence. A read already
+        // running is reused, never restarted.
+        void queryClient.refetchQueries(
+          { queryKey: friendsQueryKey(friend.platform) },
+          { cancelRefetch: false }
+        )
+      }
     } catch {
       // Bridge exceptions are user-equivalent to a denial: blip, never an
       // unhandled rejection.

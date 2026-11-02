@@ -539,6 +539,38 @@ describe('useJoinInstance', () => {
     expect(joinInstance).toHaveBeenCalledOnce()
   })
 
+  it('a direct join told the location changed reads the friend list once, so Join again can work', async () => {
+    // Confirmation off: the renderer cache is behind main, and nothing else
+    // refreshes it while the reconcile cadence is manual.
+    const refetch = vi.spyOn(queryClient, 'refetchQueries').mockResolvedValue(undefined)
+    try {
+      joinInstance.mockResolvedValueOnce({ ok: false, reason: 'target-changed' })
+      const hook = renderHook(() => useJoinInstance())
+
+      await act(async () => {
+        await hook.result.current.join(friend)
+      })
+
+      expect(hook.result.current.joinFailureFor(friend)).toBe('target-changed')
+      expect(refetch).toHaveBeenCalledOnce()
+      // Never a second read while one is already running.
+      expect(refetch).toHaveBeenCalledWith(
+        { queryKey: friendsQueryKey('vrchat') },
+        { cancelRefetch: false }
+      )
+
+      // Any other denial reads nothing.
+      joinInstance.mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+      await act(async () => {
+        await hook.result.current.join(friend)
+      })
+      expect(hook.result.current.joinFailureFor(friend)).toBe('cooldown')
+      expect(refetch).toHaveBeenCalledOnce()
+    } finally {
+      refetch.mockRestore()
+    }
+  })
+
   it('confirmPending returns unavailable when the live friend is no longer joinable', async () => {
     useSettingsStore.setState({
       settings: { ...DEFAULT_SETTINGS, confirmJoin: true },

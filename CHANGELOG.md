@@ -112,6 +112,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Join: when this PC can't start the game, the message says to check that
   the game is installed, instead of telling you to check your connection and
   try again.
+- Join: with Confirm before joining off, "Location changed — try Join again"
+  now has VRX read the friend list once, so the next Join works even when the
+  background re-sync is set to manual.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
