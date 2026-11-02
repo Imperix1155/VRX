@@ -712,6 +712,23 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden; /* §8: shell fixed; only .main scrolls */
 }
+/* Every scroll area (friend details, sheets, dialogs, the welcome setup) uses
+   the main page's slim rounded scrollbar instead of the system one with arrow
+   buttons, which looked out of place on the glass. Unlayered on purpose: the
+   main page's own utilities match it. */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Japanese wraps at phrase boundaries, never mid-word (Chromium's auto-phrase);
    break-word still splits a phrase that cannot fit its line. Inherited, so any
    element that sets its own word-break keeps it. Other languages are untouched. */

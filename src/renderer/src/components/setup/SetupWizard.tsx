@@ -180,7 +180,11 @@ export default function SetupWizard(): React.JSX.Element {
           {/* Keyed so each step enters fresh (and replays the enter motion). */}
           <div
             key={step}
-            className="setup-step -mx-[30px] min-h-0 flex-1 overflow-y-auto px-[30px]"
+            // The welcome sits in the middle of the card; the steps start at
+            // the top so their headings never move between steps.
+            className={`setup-step -mx-[30px] min-h-0 flex-1 overflow-y-auto px-[30px] ${
+              step === 'welcome' ? 'flex flex-col justify-center-safe' : ''
+            }`}
           >
             {step === 'welcome' && <WelcomeStep ref={headingRef} />}
             {step === 'signin' && (
