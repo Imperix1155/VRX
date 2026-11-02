@@ -23,7 +23,13 @@ vi.mock('../queries/auth', async (importOriginal) => ({
     const data: AuthStatus =
       state === 'authenticated'
         ? { platform, state, accountId: `${platform}-me`, displayName: 'Me' }
-        : { platform, state: 'unauthenticated', accountId: null, displayName: null }
+        : {
+            platform,
+            // 'error': the sign-in check couldn't reach the platform.
+            state: state === 'error' ? 'error' : 'unauthenticated',
+            accountId: null,
+            displayName: null
+          }
     return { data, isSuccess: true, isFetching: false, isPending: false }
   }
 }))
@@ -208,6 +214,26 @@ describe('AvatarsView', () => {
     answerVrchat({ ok: true, platform: 'vrchat', avatars: [], complete: true, current: null })
     expect(await screen.findByText(msg('avatars.empty'))).toBeTruthy()
     expect(screen.queryByText(vrcLoading)).toBeNull()
+  })
+
+  it('shows no endless Loading line while a sign-in check could not reach a platform', async () => {
+    authState.vrchat = 'error'
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>({
+        ok: true,
+        platform,
+        avatars: [],
+        complete: true,
+        current: cvrWorn
+      })
+    )
+    renderView()
+    // Nothing is read for VRChat, so ChilloutVR's empty library is the whole answer.
+    expect(await screen.findByText(msg('avatars.empty'))).toBeTruthy()
+    expect(
+      screen.queryByText(msg('avatars.loadingPlatform', { platform: msg('dashboard.platformVrc') }))
+    ).toBeNull()
+    expect(bridge.getAvatarLibrary).not.toHaveBeenCalledWith({ platform: 'vrchat' })
   })
 
   it('shows a typed failure with Try again', async () => {

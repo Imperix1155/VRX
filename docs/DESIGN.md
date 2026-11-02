@@ -530,7 +530,8 @@ for the Inbox, "See 1" when there is one) over one glass list, and every row is 
 picture, the name, and the platform as a word (PlatformPill), so VRChat and
 ChilloutVR read alike. Wearing now has one row per signed-in platform in the
 filter: the 4:3 avatar picture and name, or a one-line loading, not-reported,
-or failed state with Try again. A row opens the Avatars page. Latest invites
+or failed state with Try again (Go to Accounts when the platform asks to sign
+in again). A row opens the Avatars page. Latest invites
 shows the newest invite or invite request per platform, VRChat's first, in
 the Inbox row's words and age; a row opens the Inbox, and with the Inbox page
 hidden the rows are plain text. With nothing waiting it shows one quiet line,
@@ -774,7 +775,8 @@ notice asking to sign in to a platform again offers Go to Accounts too, never
 Try again. A list says it is empty ("You aren't in any groups yet.") only once
 every shown platform has answered; until then an empty section stays out,
 heading and count included. The Avatars page's notices and uploads work the
-same way.
+same way. A platform whose sign-in check couldn't reach it reads nothing and
+shows no loading line until the check answers.
 
 - **Search** sends only on Enter or the Search button, never while typing.
   Pressing it again for the same text reuses a good answer and asks again

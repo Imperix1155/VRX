@@ -74,12 +74,20 @@ function useProgressiveCount(total: number): number {
   return Math.min(count, total)
 }
 
-/** `stale` still shows the library that loaded last; a later read failed. */
+/**
+ * `stale` still shows the library that loaded last; a later read failed.
+ * `idle`: nothing is being read, because the sign-in check couldn't say who is
+ * signed in; it shows no line, like the community pages.
+ */
 type SourceState =
   | { kind: 'auth-pending' | 'not-connected' | 'loading' }
+  | { kind: 'idle' }
   | { kind: 'failed'; reason: AvatarLibraryFailure }
   | { kind: 'ready'; result: ReadyLibrary }
   | { kind: 'stale'; result: ReadyLibrary }
+
+/** The states that show a line above the avatars. */
+type NoticeState = Exclude<SourceState, { kind: 'ready' } | { kind: 'idle' }>
 
 type LibraryQuery = UseQueryResult<Kept<AvatarLibraryResult>, Error>
 
@@ -88,7 +96,8 @@ function sourceState(auth: UseQueryResult<AuthStatus, Error>, library: LibraryQu
   if (isNotConnectedAuth(auth)) return { kind: 'not-connected' }
   const result = library.data
   if (result === undefined) {
-    return library.isError ? { kind: 'failed', reason: 'unavailable' } : { kind: 'loading' }
+    if (library.isError) return { kind: 'failed', reason: 'unavailable' }
+    return library.fetchStatus === 'fetching' ? { kind: 'loading' } : { kind: 'idle' }
   }
   if (!result.ok) return { kind: 'failed', reason: result.reason }
   return { kind: result.refreshFailed === true ? 'stale' : 'ready', result }
@@ -116,7 +125,10 @@ export default function AvatarsView(): React.JSX.Element {
   // Under ALL, a platform the user isn't signed in to is a choice, not
   // missing data, so it adds no line; a single-platform filter says so.
   const noticed = sources.filter(
-    ({ state }) => platformFilter !== 'all' || state.kind !== 'not-connected'
+    (source): source is { platform: Platform; state: NoticeState } =>
+      source.state.kind !== 'ready' &&
+      source.state.kind !== 'idle' &&
+      (platformFilter !== 'all' || source.state.kind !== 'not-connected')
   )
   const vrcReady = readyResult(shown, 'vrchat', states.vrchat)
   const cvrReady = readyResult(shown, 'chilloutvr', states.chilloutvr)
@@ -174,18 +186,16 @@ export default function AvatarsView(): React.JSX.Element {
         </button>
       </div>
 
-      {noticed.some(({ state }) => state.kind !== 'ready') ? (
+      {noticed.length > 0 ? (
         <div className="mb-[var(--space-4)] flex flex-col gap-[var(--space-2)]">
-          {noticed.map(({ platform, state }) =>
-            state.kind === 'ready' ? null : (
-              <SourceNotice
-                key={platform}
-                platform={platform}
-                state={state}
-                onRetry={() => void libraries[platform].refetch()}
-              />
-            )
-          )}
+          {noticed.map(({ platform, state }) => (
+            <SourceNotice
+              key={platform}
+              platform={platform}
+              state={state}
+              onRetry={() => void libraries[platform].refetch()}
+            />
+          ))}
         </div>
       ) : null}
 
@@ -306,7 +316,7 @@ function SourceNotice({
   onRetry
 }: {
   platform: Platform
-  state: Exclude<SourceState, { kind: 'ready' }>
+  state: NoticeState
   onRetry: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()

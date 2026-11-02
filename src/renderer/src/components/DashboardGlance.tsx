@@ -192,24 +192,38 @@ function WornRow({
 
   let text: string
   let tone = 'text-[var(--text-dim)]'
-  let retry = false
+  let action: 'retry' | 'accounts' | null = null
   if (result === undefined && !state.isError) {
     text = t('avatars.loadingPlatform', { platform: name })
   } else if (result?.ok === true) {
     text = t(NO_CURRENT_KEYS[platform])
   } else {
-    text = t(ERROR_KEYS[result?.ok === false ? result.reason : 'unavailable'], { platform: name })
+    const reason = result?.ok === false ? result.reason : 'unavailable'
+    text = t(ERROR_KEYS[reason], { platform: name })
     tone = 'text-[var(--error)]'
-    retry = true
+    // "Sign in again" happens in Accounts; another try would only fail the same way.
+    action = reason === 'not-authenticated' ? 'accounts' : 'retry'
   }
   return (
-    <div className={ROW} role={retry ? 'alert' : 'status'}>
+    <div className={ROW} role={action !== null ? 'alert' : 'status'}>
       <WornPicture url={null} />
       <div className="flex min-w-0 flex-1 flex-col items-start gap-[var(--space-1)]">
         <p className={`text-sm ${tone}`}>{text}</p>
         <PlatformPill platform={platform} />
       </div>
-      {retry ? (
+      {action === 'accounts' ? (
+        <button
+          type="button"
+          onClick={() => {
+            const ui = useUiStore.getState()
+            ui.setActiveTab('settings')
+            ui.setSettingsCategory('accounts')
+          }}
+          className="shrink-0 rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
+        >
+          {t('avatars.notConnected.openAccounts')}
+        </button>
+      ) : action === 'retry' ? (
         <button
           type="button"
           onClick={state.refetch}

@@ -233,6 +233,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Search, Groups, Explore's New and Recently updated, and Avatars: when a
   platform asks you to sign in again, the line offers Go to Accounts instead
   of a Try again that couldn't help.
+- Dashboard: in Wearing now, a platform that asks you to sign in again
+  offers Go to Accounts instead of Try again, like the Avatars page.
+- Avatars: when the sign-in check can't reach a platform, the page no longer
+  says it is loading that platform's avatars without end, and the other
+  platform's "no uploads" line no longer waits for it.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
