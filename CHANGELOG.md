@@ -77,6 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Accounts reads "Go to Accounts", like everywhere else.
 - Avatars: the cards in the Wearing now row no longer repeat "Wearing now"
   under the heading that already says it.
+- Avatars: with ALL selected, a platform you aren't signed in to no longer
+  adds a "Connect" line, like every other page. Picking that platform in the
+  filter still shows it with Go to Accounts.
 
 ### Fixed
 

@@ -148,13 +148,21 @@ describe('AvatarsView', () => {
     expect(screen.queryByRole('button', { name: cardName(vrcOther) })).toBeNull()
   })
 
-  it('shows the same connect notice for a signed-out platform and reads nothing for it', async () => {
+  it('adds no line under ALL for a signed-out platform and reads nothing for it', async () => {
     authState.chilloutvr = 'unauthenticated'
     renderView()
     await screen.findByRole('button', { name: cardName(vrcOther) })
-    expect(screen.getByText(msg('avatars.notConnected.chilloutvr'))).toBeTruthy()
+    expect(screen.queryByText(msg('avatars.notConnected.chilloutvr'))).toBeNull()
     expect(bridge.getAvatarLibrary).toHaveBeenCalledWith({ platform: 'vrchat' })
     expect(bridge.getAvatarLibrary).not.toHaveBeenCalledWith({ platform: 'chilloutvr' })
+  })
+
+  it('shows the connect notice when the filter picks a signed-out platform', async () => {
+    authState.chilloutvr = 'unauthenticated'
+    useFriendsStore.setState({ platformFilter: 'chilloutvr' })
+    renderView()
+    expect(await screen.findByText(msg('avatars.notConnected.chilloutvr'))).toBeTruthy()
+    expect(bridge.getAvatarLibrary).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: msg('avatars.notConnected.openAccounts') }))
     expect(useUiStore.getState().activeTab).toBe('settings')
     expect(useUiStore.getState().settingsCategory).toBe('accounts')

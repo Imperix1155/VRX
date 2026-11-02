@@ -773,8 +773,8 @@ adds no line under ALL for a platform the user isn't signed in to. A line
 asking to sign in to a platform again offers Go to Accounts too, never Try
 again. A list says it is empty ("You aren't in any groups yet.") only once
 every shown platform has answered; until then an empty section stays out,
-heading and count included. On the Avatars page, the sign-in-again line and
-the uploads work the same way.
+heading and count included. The Avatars page's notices and uploads work the
+same way.
 
 - **Search** sends only on Enter or the Search button, never while typing.
   Pressing it again for the same text reuses a good answer and asks again

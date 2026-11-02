@@ -5,8 +5,10 @@
  * One unified page, like Friends: with ALL selected, VRChat and ChilloutVR
  * share the same "Wearing now" row (side by side, equal size) and one uploads
  * grid sorted by name, so neither platform leads. Per-platform states (not
- * connected, loading, failed) use the same one-line notice. Data loads when
- * the page opens and when the user presses Refresh, never on a timer.
+ * connected, loading, failed) use the same one-line notice; under ALL, like
+ * every other page, a platform the user isn't signed in to adds none. Data
+ * loads when the page opens and when the user presses Refresh, never on a
+ * timer.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -111,6 +113,11 @@ export default function AvatarsView(): React.JSX.Element {
     chilloutvr: sourceState(cvrAuth, cvrLibrary)
   }
   const sources = shown.map((platform) => ({ platform, state: states[platform] }))
+  // Under ALL, a platform the user isn't signed in to is a choice, not
+  // missing data, so it adds no line; a single-platform filter says so.
+  const noticed = sources.filter(
+    ({ state }) => platformFilter !== 'all' || state.kind !== 'not-connected'
+  )
   const vrcReady = readyResult(shown, 'vrchat', states.vrchat)
   const cvrReady = readyResult(shown, 'chilloutvr', states.chilloutvr)
   // Query results keep their identity between renders, so the merged, sorted
@@ -167,9 +174,9 @@ export default function AvatarsView(): React.JSX.Element {
         </button>
       </div>
 
-      {sources.some(({ state }) => state.kind !== 'ready') ? (
+      {noticed.some(({ state }) => state.kind !== 'ready') ? (
         <div className="mb-[var(--space-4)] flex flex-col gap-[var(--space-2)]">
-          {sources.map(({ platform, state }) =>
+          {noticed.map(({ platform, state }) =>
             state.kind === 'ready' ? null : (
               <SourceNotice
                 key={platform}
