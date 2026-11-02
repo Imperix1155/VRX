@@ -112,7 +112,7 @@ export default function GroupsView(): React.JSX.Element {
         <section aria-label={t('groups.heading')}>
           <CommunityHeading>
             {t('groups.heading')}
-            <span className="ml-[var(--space-2)] normal-case tracking-normal text-[var(--text-faint)]">
+            <span className="ml-[var(--space-2)] normal-case tracking-normal text-[var(--text-dim)]">
               {t('groups.count', { count: groups.length })}
             </span>
           </CommunityHeading>

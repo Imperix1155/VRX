@@ -206,7 +206,7 @@ export default function AvatarsView(): React.JSX.Element {
           <section aria-label={t('avatars.yourUploads')}>
             <SubHeading>
               {t('avatars.yourUploads')}
-              <span className="ml-[var(--space-2)] normal-case tracking-normal text-[var(--text-faint)]">
+              <span className="ml-[var(--space-2)] normal-case tracking-normal text-[var(--text-dim)]">
                 {t('avatars.uploadCount', { count: uploads.length })}
               </span>
             </SubHeading>

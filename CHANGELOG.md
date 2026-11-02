@@ -87,6 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   field, and the button reads "Sign in" like "Sign out".
 - Sign-in: a VRChat account id that VRX can't store now stops the sign-in
   before anything is saved, instead of failing after it on every start.
+- Avatars and Groups: the count beside each heading is as easy to read as
+  the other counts.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
