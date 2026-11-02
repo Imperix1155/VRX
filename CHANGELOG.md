@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scrollbars are slim and follow the theme in every list and panel, like the
   main page.
 - Welcome setup: the first screen sits in the middle of the window.
+- Join dialog: while the game starts, Join reads "Joining…", as it already
+  did when joining from Explore.
+- Explore: the Join dialog shows the room's access as the same colored pill
+  as the room list, under the platform.
 
 ### Fixed
 

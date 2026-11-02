@@ -1235,6 +1235,33 @@ describe('modal behavior', () => {
     expect(stripe?.className).not.toContain('rounded-t-[20px]')
   })
 
+  it('says Joining… on Join while the launch runs, like the Explore dialog', async () => {
+    let resolveJoin!: (result: { ok: true }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    const busy = within(dialog).getByRole('button', { name: i18n.t('explore.joinDenied.busy') })
+    expect(busy).toHaveProperty('disabled', true)
+    expect(within(dialog).queryByRole('button', { name: 'Join' })).toBeNull()
+
+    await act(async () => {
+      resolveJoin({ ok: true })
+      await Promise.resolve()
+    })
+  })
+
   it('Tab with focus OUTSIDE the panel re-enters the trap', () => {
     render(
       <>
@@ -2573,6 +2600,18 @@ describe('Explore confirmation source', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
     const dialog = screen.getByRole('dialog', { name: 'Explore World' })
     expect(within(dialog).getByText(i18n.t('friends.instance.type.group-public'))).toBeTruthy()
+  })
+
+  it('shows the access as the shared instance pill under the platform pill', () => {
+    render(<ExploreTestSurface />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+
+    // The same pill (and tier colour) as the friend dialog and the world sheet.
+    const pill = within(dialog).getByText('Public')
+    expect(pill.getAttribute('data-instance-pill')).toBe('')
+    expect(pill.style.color).toBe('var(--op-public-text)')
+    expect(pill.parentElement?.querySelector('[data-platform-pill]')).not.toBeNull()
   })
 
   it('says the count is unknown instead of guessing a number', () => {

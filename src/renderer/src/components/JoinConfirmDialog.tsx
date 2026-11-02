@@ -171,9 +171,8 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   }, [isJoining, pending])
   if (pending === null) return null
   const { world, room } = pending
-  const access = t(
-    instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme).labelKey
-  )
+  // The same access pill as the friend dialog and the world sheet.
+  const accessPill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
   // The game that is already open ignores VR/desktop, so it gets no picker.
   const openGame = openGameKey(world.platform, handoff)
   const showModePicker = openGame === null && world.platform === 'chilloutvr' && joinMode === 'ask'
@@ -222,9 +221,11 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
           >
             {world.name}
           </h2>
-          <PlatformPill platform={world.platform} />
+          <div className="flex flex-col items-end gap-[var(--space-1)]">
+            <PlatformPill platform={world.platform} />
+            <InstancePill label={t(accessPill.labelKey)} tier={accessPill.tier} />
+          </div>
         </div>
-        <p className="text-sm text-[var(--text-dim)]">{access}</p>
         <div>
           <PolicySpacePill space="public" />
         </div>
@@ -777,7 +778,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
               color: 'var(--op-public-text)'
             }}
           >
-            {t('joinConfirm.confirm')}
+            {isJoining ? t('explore.joinDenied.busy') : t('joinConfirm.confirm')}
           </button>
         </div>
 
