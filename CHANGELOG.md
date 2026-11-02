@@ -56,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is in Pug Lounge", not "1 friend is together in Pug Lounge".
 - Activity and Inbox: the empty page's hint wraps into even lines instead of
   leaving one word on a line of its own.
+- Inbox: with a platform not connected, the page says connecting shows your
+  invites and friend requests there, not only your invites.
 
 ### Fixed
 

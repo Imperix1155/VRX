@@ -1197,8 +1197,8 @@
       "live": "The inbox lists what arrives while VRX is open and forgets it when VRX closes."
     },
     "notConnected": {
-      "vrchat": "Connect VRChat to see your invites here",
-      "chilloutvr": "Connect ChilloutVR to see your invites here"
+      "vrchat": "Connect VRChat to see your invites and friend requests here",
+      "chilloutvr": "Connect ChilloutVR to see your invites and friend requests here"
     },
     "loadError": "Could not load your inbox right now"
   },

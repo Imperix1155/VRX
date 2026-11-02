@@ -1189,8 +1189,8 @@
       "live": "受信箱にはVRXの起動中に届いたものが表示され、VRXを終了すると消えます。"
     },
     "notConnected": {
-      "vrchat": "ここで招待を確認するにはVRChatに接続してください",
-      "chilloutvr": "ここで招待を確認するにはChilloutVRに接続してください"
+      "vrchat": "ここで招待とフレンドリクエストを確認するにはVRChatに接続してください",
+      "chilloutvr": "ここで招待とフレンドリクエストを確認するにはChilloutVRに接続してください"
     },
     "loadError": "受信箱を読み込めませんでした"
   },
