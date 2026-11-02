@@ -776,7 +776,9 @@ no line under ALL for a platform the user isn't signed in to.
   only after a refusal such as "One moment". People and Worlds are two sections; each alternates the platforms' results
   (first of each, then second of each) so neither platform leads. People are
   square picture tiles with the platform stripe, tint and VRC/CVR badge, and a
-  quiet "Friend" line. Worlds use the Explore world card and sheet with Join.
+  quiet "Friend" line; with no picture, or one that fails, the tile shows the
+  name's first letter, as friend pictures do, never an empty box. Worlds use
+  the Explore world card and sheet with Join.
 - **Full profile** opens in the non-modal bottom sheet (Search) or behind
   "Show full profile" in friend details (collapsed by default). Fields come in
   one order on both platforms: Pronouns, Rank, Bio, Badges, then Show worlds

@@ -218,6 +218,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   favorite worlds yet.
 - Search and Groups: opening another person or group, or the same one again,
   starts at the top of its panel instead of where the last one was scrolled.
+- Search: a person without a picture, or whose picture can't load, shows the
+  first letter of their name instead of an empty box.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

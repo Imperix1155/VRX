@@ -169,7 +169,7 @@ export interface CommunityTileProps {
   detail?: string | null
   imageUrl: string | null
   /**
-   * `square`: a small picture beside the name (people, profile groups).
+   * `square`: a small picture beside the name (people in Search).
    * `wide`: the picture on top (worlds). `icon`: a square icon centered above
    * the name on a soft copy of itself (the Groups page), wider than tall.
    */
@@ -181,8 +181,9 @@ export interface CommunityTileProps {
 
 /**
  * One person, group or world as a picture tile. The picture loads through
- * main's image proxy when the tile nears the viewport and falls back to a
- * neutral fill. Memoized: a page can hold many tiles.
+ * main's image proxy when the tile nears the viewport. Until then, or without
+ * one, a person or group shows the name's first letter and a world a neutral
+ * fill. Memoized: a page can hold many tiles.
  */
 export const CommunityTile = memo(function CommunityTile({
   platform,
@@ -228,10 +229,11 @@ export const CommunityTile = memo(function CommunityTile({
     </span>
   )
   const shown = image && failedImage !== image ? image : null
-  // People and profile groups: a small square picture beside the name, so a
-  // page of them stays scannable. Worlds: the picture on top, like Explore.
-  // The Groups page: the icon on top, centered over a blurred copy of itself so
-  // a square logo is never cropped; with no picture, the name's first letter.
+  // People: a small square picture beside the name, so a page of them stays
+  // scannable; with no picture, the name's first letter, as friend pictures
+  // have. Worlds: the picture on top, like Explore. The Groups page: the icon
+  // on top, centered over a blurred copy of itself so a square logo is never
+  // cropped; with no picture, the name's first letter on the platform color.
   const body =
     shape === 'icon' ? (
       <>
@@ -300,9 +302,14 @@ export const CommunityTile = memo(function CommunityTile({
         <div className="flex min-w-0 flex-1 items-center gap-[var(--space-3)] p-[var(--space-2)]">
           <div
             ref={pictureRef}
-            className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[10px] bg-[var(--surface-hover)]"
+            data-community-tile-picture={shown ? 'image' : 'initial'}
+            className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-[var(--surface-hover)]"
           >
-            {picture}
+            {picture ?? (
+              <span aria-hidden="true" className="text-lg font-semibold text-[var(--text-dim)]">
+                {initialOf(title)}
+              </span>
+            )}
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-[var(--space-1)]">
             {name}

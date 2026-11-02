@@ -407,6 +407,32 @@ describe('SearchView', () => {
     expect(scroller().scrollTop).toBe(0)
   })
 
+  it('shows a person’s first letter instead of an empty box when there is no picture', async () => {
+    renderWith(<SearchView />)
+    search('lumen')
+    const tile = await screen.findByRole('button', {
+      name: msg('search.openPersonAria', { name: 'Ember', platform: 'ChilloutVR' })
+    })
+    const picture = tile.querySelector('[data-community-tile-picture]')
+    expect(picture?.getAttribute('data-community-tile-picture')).toBe('initial')
+    expect(picture?.textContent).toBe('E')
+  })
+
+  it('shows the first letter when a person’s picture fails to load', async () => {
+    avatarPicture.current = 'data:image/png;base64,AAAA'
+    renderWith(<SearchView />)
+    search('lumen')
+    const tile = await screen.findByRole('button', {
+      name: msg('search.openPersonAria', { name: 'Lumen', platform: 'VRChat' })
+    })
+    const picture = (): Element | null => tile.querySelector('[data-community-tile-picture]')
+    expect(picture()?.getAttribute('data-community-tile-picture')).toBe('image')
+    expect(picture()?.textContent).toBe('')
+    fireEvent.error(picture()!.querySelector('img')!)
+    expect(picture()?.getAttribute('data-community-tile-picture')).toBe('initial')
+    expect(picture()?.textContent).toBe('L')
+  })
+
   it('searches only the platform the filter picks, and sends nothing for a signed-out one', async () => {
     authState.chilloutvr = 'unauthenticated'
     useFriendsStore.setState({ platformFilter: 'chilloutvr' })
