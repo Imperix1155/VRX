@@ -571,7 +571,8 @@
       "targetChanged": "Location changed — try Join again",
       "joiningDisabled": "Joining is disabled in Settings",
       "notJoinable": "No longer joinable — they may have moved or gone offline",
-      "inviteFailed": "Couldn't send the VRChat invite. Use Join to try again."
+      "inviteFailed": "Couldn't send the VRChat invite. Use Join to try again.",
+      "launchFailed": "Couldn't start the game. Check that it is installed."
     },
     "joinNotice": {
       "inGame": "Sent to your open game",

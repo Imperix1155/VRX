@@ -469,7 +469,7 @@ describe('ExploreView', () => {
   it.each([
     ['joining-disabled', 'Joining is disabled in Settings'],
     ['rate-limited', 'Too many attempts — try again shortly'],
-    ['launch-failed', "Couldn't join. Check the game and connection, then use Join to try again."],
+    ['launch-failed', "Couldn't start the game. Check that it is installed."],
     ['not-joinable', 'Couldn’t join this room. Try again after refreshing.'],
     ['stale', 'Couldn’t join this room. Try again after refreshing.']
   ] as const)('explains a %s room join failure', (reason, copy) => {

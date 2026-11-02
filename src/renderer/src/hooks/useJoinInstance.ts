@@ -60,6 +60,9 @@ export function joinFailureMessageKey(reason: JoinFeedback): string {
   if (reason === 'target-changed') return 'friends.joinFailure.targetChanged'
   if (reason === 'joining-disabled') return 'friends.joinFailure.joiningDisabled'
   if (reason === 'invite-failed') return 'friends.joinFailure.inviteFailed'
+  // Nothing on this PC opened the game's link (often the game isn't installed):
+  // the connection has nothing to do with it, and another try won't help.
+  if (reason === 'launch-failed') return 'friends.joinFailure.launchFailed'
   return 'friends.joinFailed'
 }
 

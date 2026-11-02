@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import type { ExploreRoom, ExploreWorld } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
+import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import { queryClient } from '../queries/queryClient'
 import { friendsQueryKey } from '../queries/friends'
@@ -268,9 +269,18 @@ describe('useJoinInstance', () => {
   it('says a friend is no longer joinable instead of blaming the game', () => {
     expect(joinFailureMessageKey('not-joinable')).toBe('friends.joinFailure.notJoinable')
     expect(joinFailureMessageKey('unknown-friend')).toBe('friends.joinFailure.notJoinable')
-    // A failed launch keeps the check-the-game advice; a failed invite says so.
+    // A failed invite says so; anything unexplained keeps the general advice.
     expect(joinFailureMessageKey('invite-failed')).toBe('friends.joinFailure.inviteFailed')
-    expect(joinFailureMessageKey('launch-failed')).toBe('friends.joinFailed')
+    expect(joinFailureMessageKey('unknown')).toBe('friends.joinFailed')
+  })
+
+  it('says to check the game is installed when its link did not open, not the connection', () => {
+    // Nothing on this PC opened the game's link: retrying or the network
+    // will not change that.
+    expect(joinFailureMessageKey('launch-failed')).toBe('friends.joinFailure.launchFailed')
+    expect(i18n.t('friends.joinFailure.launchFailed')).toBe(
+      "Couldn't start the game. Check that it is installed."
+    )
   })
 
   it('says where a Join went when it used the open game, then clears on its own', async () => {

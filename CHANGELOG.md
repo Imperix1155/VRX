@@ -109,6 +109,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friend details: the note check, the full profile and, on ChilloutVR, the
   block options share one look-up of the person, instead of asking VRChat or
   ChilloutVR up to three times.
+- Join: when this PC can't start the game, the message says to check that
+  the game is installed, instead of telling you to check your connection and
+  try again.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
