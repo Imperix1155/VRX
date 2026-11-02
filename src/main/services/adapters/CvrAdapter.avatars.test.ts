@@ -72,6 +72,28 @@ describe('CvrAdapter avatar library', () => {
     expect(fetchMock.mock.calls[0]![0]).toBe(`https://api.abinteractive.net/1/users/${ME}`)
   })
 
+  it('ends each avatar read at the first 429 without sending it again', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const fetchMock = vi.fn(
+      async () => new Response(null, { status: 429, headers: { 'Retry-After': '0' } })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+
+    await expect(adapter.getOwnAvatars(adapter.captureAvatarLease())).rejects.toBeInstanceOf(
+      CVRRateLimitError
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await expect(adapter.getCurrentAvatar(adapter.captureAvatarLease())).rejects.toBeInstanceOf(
+      CVRRateLimitError
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    await expect(adapter.getAvatarDetails(A, adapter.captureAvatarLease())).rejects.toBeInstanceOf(
+      CVRRateLimitError
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('switches with one GET to switchAvatar and never retries it', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const fetchMock = vi

@@ -1220,6 +1220,8 @@ export class CvrAdapter
     return {
       lease,
       priority: 'interactive',
+      // A read is never resent on its own; the user can press Refresh.
+      retry: 'none',
       // A deleted avatar is an ordinary answer; only sign-in failures count.
       recordCircuitFailure: 'auth'
     }

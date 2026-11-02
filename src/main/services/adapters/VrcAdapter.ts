@@ -1589,6 +1589,8 @@ export class VrcAdapter
     return {
       lease,
       priority: 'interactive',
+      // A read is never resent on its own, and a 429 stops the list's paging.
+      retry: 'none',
       // A deleted avatar is an ordinary answer; only sign-in failures count.
       recordCircuitFailure: 'auth'
     }

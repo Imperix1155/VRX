@@ -89,6 +89,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before anything is saved, instead of failing after it on every start.
 - Avatars and Groups: the count beside each heading is as easy to read as
   the other counts.
+- Avatars: when VRChat or ChilloutVR asks VRX to slow down, the avatar list
+  and Wearing now stop and say to try again in a minute, instead of showing
+  Loading while they ask up to three more times.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

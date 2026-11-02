@@ -163,9 +163,10 @@ what each counts.
 - Every attempt, including every retry, re-enters admission and waits for the
   latest cooldown before it can send.
 - **Batch work stops at the first 429.** Roster pages, world, group, and
-  instance enrichment, background CVR instance lookups, and Explore reads use
-  no-retry admission. A 429 ends the batch, rejects its queued requests, and
-  stops later pages. A cooldown expiring never resumes the old batch.
+  instance enrichment, background CVR instance lookups, Explore reads, and
+  avatar reads use no-retry admission. A 429 ends the batch, rejects its
+  queued requests, and stops later pages. A cooldown expiring never resumes
+  the old batch.
   Completed data still publishes. An interrupted roster is marked partial, and
   friends it missed stay from the cache.
 - **A sign-in is never sent again on its own.** A password sign-in, a 2FA
@@ -282,10 +283,12 @@ default; Off always launches).
 The Avatars page reads only when it opens with a platform in view and when the
 user presses Refresh. The Dashboard's Wearing now reads only the worn avatar,
 when the Dashboard opens with no answer from the last 5 minutes. There is no timer and no read on window focus. Reads use
-the platform's admission queue at interactive priority, and the renderer keeps
-a result fresh for 5 minutes per account. It keeps the last result in memory
-for the rest of the session, so reopening the page shows it at once and reads
-again only once it is older than 5 minutes.
+the platform's admission queue at interactive priority with no automatic
+retry: a 429 ends the read and its later list pages, and VRX says to try
+again in a minute. The renderer keeps a result fresh for 5 minutes per
+account. It keeps the last result in memory for the rest of the session, so
+reopening the page shows it at once and reads again only once it is older
+than 5 minutes.
 
 | Limit                 | Value                                                                                   |
 | --------------------- | --------------------------------------------------------------------------------------- |
