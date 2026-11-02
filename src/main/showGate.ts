@@ -1,6 +1,12 @@
 export interface ShowGate {
   ready(): void
   hydrated(): void
+  /**
+   * Someone asked for the window (tray, second launch, alert click). Starts the
+   * fallback timeout if it isn't running, so a window that never says it can
+   * paint still shows (VRX-185).
+   */
+  requested(): void
   dispose(): void
   /** True once the gate has shown the window (or was disposed with it). */
   isShown(): boolean
@@ -39,13 +45,18 @@ export function createShowGate({ timeoutMs, onShow, onTimeout }: ShowGateOptions
     ready: () => {
       if (ready || shown) return
       ready = true
-      timeout = setTimeout(() => show(true), timeoutMs)
+      // A request may have started the fallback already; it keeps running.
+      timeout ??= setTimeout(() => show(true), timeoutMs)
       showIfComplete()
     },
     hydrated: () => {
       if (hydrated || shown) return
       hydrated = true
       showIfComplete()
+    },
+    requested: () => {
+      if (shown) return
+      timeout ??= setTimeout(() => show(true), timeoutMs)
     },
     dispose: () => {
       shown = true

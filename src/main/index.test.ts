@@ -133,11 +133,12 @@ describe('main window recovery wiring', () => {
     expect(focusBody()).toMatch(/rendererRecoveries\.get\(window\.webContents\)\?\.revive\(\)/)
   })
 
-  it('leaves a window its show gate has not revealed to the gate', () => {
+  it('leaves a window its show gate has not revealed to the gate, and starts its fallback', () => {
     const body = focusBody()
     const gateCheck = body.search(
-      /if \(rendererHydrationGates\.get\(window\.webContents\)\?\.isShown\(\) === false\) return window/
+      /if \(gate\?\.isShown\(\) === false\) \{\s+gate\.requested\(\)\s+return window\s+\}/
     )
+    expect(body).toMatch(/const gate = rendererHydrationGates\.get\(window\.webContents\)/)
     expect(gateCheck).toBeGreaterThan(-1)
     expect(gateCheck).toBeLessThan(body.indexOf('window.show()'))
   })

@@ -302,7 +302,13 @@ function focusMainWindow(): BrowserWindow {
   // again (tray, second launch, alert click) brings it back.
   rendererRecoveries.get(window.webContents)?.revive()
   // A window that is new, or still starting, shows itself once it has painted.
-  if (rendererHydrationGates.get(window.webContents)?.isShown() === false) return window
+  // The request starts the gate's fallback, so one that never says it can
+  // paint still shows within it (VRX-185).
+  const gate = rendererHydrationGates.get(window.webContents)
+  if (gate?.isShown() === false) {
+    gate.requested()
+    return window
+  }
   if (window.isMinimized()) window.restore()
   window.show()
   window.focus()

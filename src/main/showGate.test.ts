@@ -54,6 +54,40 @@ describe('createShowGate', () => {
     expect(late.isShown()).toBe(true)
   })
 
+  it('shows a requested window that never says it can paint, after the timeout', () => {
+    vi.useFakeTimers()
+    const onShow = vi.fn()
+    const onTimeout = vi.fn()
+    const gate = createShowGate({ timeoutMs: 3_000, onShow, onTimeout })
+
+    gate.hydrated()
+    vi.advanceTimersByTime(60_000)
+    expect(onShow).not.toHaveBeenCalled()
+
+    gate.requested()
+    gate.requested()
+    vi.advanceTimersByTime(2_999)
+    expect(onShow).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(onShow).toHaveBeenCalledOnce()
+    expect(onTimeout).toHaveBeenCalledOnce()
+    expect(gate.isShown()).toBe(true)
+  })
+
+  it('keeps a request’s fallback running when the window says it can paint later', () => {
+    vi.useFakeTimers()
+    const onShow = vi.fn()
+    const gate = createShowGate({ timeoutMs: 3_000, onShow, onTimeout: vi.fn() })
+
+    gate.requested()
+    vi.advanceTimersByTime(2_000)
+    gate.ready()
+    vi.advanceTimersByTime(1_000)
+    expect(onShow).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(10_000)
+    expect(onShow).toHaveBeenCalledOnce()
+  })
+
   it('never shows twice after duplicate signals or a later timeout', () => {
     vi.useFakeTimers()
     const onShow = vi.fn()
