@@ -183,6 +183,12 @@ function renderWith(node: React.ReactNode): void {
   render(<QueryClientProvider client={client}>{node}</QueryClientProvider>)
 }
 
+function search(text: string): void {
+  const box = screen.getByRole('searchbox', { name: msg('search.aria') })
+  fireEvent.change(box, { target: { value: text } })
+  fireEvent.submit(box.closest('form')!)
+}
+
 beforeEach(() => {
   Object.defineProperty(window, 'vrx', { value: bridge, configurable: true, writable: true })
   class Observer {
@@ -375,6 +381,30 @@ describe('SearchView', () => {
     expect(bridge.getProfileWorlds).toHaveBeenCalledTimes(1)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(tile).toBe(document.activeElement)
+  })
+
+  it('opens another person, or the same one again, at the top of the sheet', async () => {
+    renderWith(<SearchView />)
+    search('lumen')
+    const lumen = await screen.findByRole('button', {
+      name: msg('search.openPersonAria', { name: 'Lumen', platform: 'VRChat' })
+    })
+    const ember = screen.getByRole('button', {
+      name: msg('search.openPersonAria', { name: 'Ember', platform: 'ChilloutVR' })
+    })
+    const scroller = (): HTMLElement =>
+      screen.getByRole('dialog').querySelector<HTMLElement>('.overflow-y-auto')!
+    fireEvent.click(lumen)
+    scroller().scrollTop = 240
+    fireEvent.click(ember)
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe(
+      msg('profile.aria', { name: 'Ember', platform: 'ChilloutVR' })
+    )
+    expect(scroller().scrollTop).toBe(0)
+    scroller().scrollTop = 120
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(ember)
+    expect(scroller().scrollTop).toBe(0)
   })
 
   it('searches only the platform the filter picks, and sends nothing for a signed-out one', async () => {

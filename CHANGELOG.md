@@ -216,6 +216,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Explore → Favorites: when your VRChat or ChilloutVR favorites couldn't load,
   the line saying so is red, and the page no longer also says you have no
   favorite worlds yet.
+- Search and Groups: opening another person or group, or the same one again,
+  starts at the top of its panel instead of where the last one was scrolled.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
