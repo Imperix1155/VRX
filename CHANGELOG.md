@@ -196,6 +196,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Explore, Groups and Avatars: when a Refresh or a later read fails, the
   worlds, groups or avatars that loaded stay on screen with a dim line saying
   so, instead of being replaced by an error.
+- Explore: picking another world while a world panel is open switches the
+  panel in place and shows the new world from its top, instead of sliding the
+  panel away and back and moving focus to the world you had open before.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

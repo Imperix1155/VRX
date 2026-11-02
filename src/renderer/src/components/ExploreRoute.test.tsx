@@ -204,6 +204,67 @@ describe('ExploreRoute world sheet', () => {
     expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
   })
 
+  it('switches an open sheet to another world in place, at the top, without moving focus', async () => {
+    const other: ExploreWorld = {
+      ...world,
+      worldId: 'other',
+      worldRef: 'other-ref',
+      name: 'B world'
+    }
+    query.vrc = { ...source, worlds: [world, other] }
+    worldReads.mockResolvedValueOnce(ready)
+    render(<ExploreRoute />)
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    const scroller = (): Element => screen.getByRole('dialog').querySelector('.overflow-y-auto')!
+    scroller().scrollTop = 200
+
+    let answer: (snapshot: ExploreWorldSnapshot) => void = () => {}
+    worldReads.mockImplementationOnce(
+      () => new Promise<ExploreWorldSnapshot>((resolve) => (answer = resolve))
+    )
+    const card = screen.getByRole('button', { name: /open visible rooms for b world/i })
+    card.focus()
+    fireEvent.click(card)
+    // While B loads, the sheet already names it and stays open and expanded.
+    expect(
+      screen.getByRole('dialog', { name: 'Visible public rooms for B world on VRChat' })
+    ).toBeTruthy()
+    expect(screen.getByText('Loading visible public rooms…')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Show less' })).toBeTruthy()
+    expect(document.activeElement).toBe(card)
+    expect(scroller().scrollTop).toBe(0)
+
+    await act(async () => {
+      answer({
+        ...ready,
+        world: other,
+        rooms: ready.rooms.map((room) => ({ ...room, worldId: 'other' }))
+      })
+      await Promise.resolve()
+    })
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    expect(document.activeElement).toBe(card)
+  })
+
+  it('closes a switched sheet instead of loading forever when the bridge fails', async () => {
+    const other: ExploreWorld = {
+      ...world,
+      worldId: 'other',
+      worldRef: 'other-ref',
+      name: 'B world'
+    }
+    query.vrc = { ...source, worlds: [world, other] }
+    worldReads.mockResolvedValueOnce(ready).mockRejectedValueOnce(new Error('bridge closed'))
+    render(<ExploreRoute />)
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for b world/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(worldReads).toHaveBeenCalledTimes(2)
+  })
+
   it('uses the explicit sheet refresh instead of a hidden retry', async () => {
     worldReads.mockResolvedValue({ ...ready, isStale: true })
     render(<ExploreRoute />)

@@ -321,7 +321,11 @@ export default function ExploreWorldSheet({
           {/* Same grab bar as the Hot Instance sheet: it gives the close button
               its own row, so the world picture never sits under it. */}
           <SheetGrabBar expansion={expansion} />
-          <div className="min-h-0 flex-1 overflow-y-auto p-[var(--space-4)]">
+          {/* Keyed by world, so a sheet switched to another world starts at its top. */}
+          <div
+            key={`${world.platform}:${world.worldId}`}
+            className="min-h-0 flex-1 overflow-y-auto p-[var(--space-4)]"
+          >
             {image && failedImage !== image ? (
               <img
                 src={image}
