@@ -290,6 +290,8 @@ function AvatarSheetPanel({
                       background: 'color-mix(in srgb, var(--glass-information) 78%, transparent)'
                     }}
                   >
+                    {/* A check, so the state does not read as a button. */}
+                    <span aria-hidden="true">✓ </span>
                     {t('avatars.sheet.wornNow')}
                   </span>
                 ) : (
@@ -336,9 +338,12 @@ function AvatarSheetPanel({
               >
                 {shown.description ?? t('avatars.details.noDescription')}
               </p>
-              <p className="mt-[var(--space-3)] text-[12px] text-[var(--text-dim)]">
-                {t('avatars.sheet.wearHint', { platform: platformName })}
-              </p>
+              {/* Only next to a Wear button: the worn avatar has nothing to change. */}
+              {!worn && (
+                <p className="mt-[var(--space-3)] text-[12px] text-[var(--text-dim)]">
+                  {t('avatars.sheet.wearHint', { platform: platformName })}
+                </p>
+              )}
             </div>
             <div className="shrink-0 sm:w-[240px]">
               <h3 className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]">

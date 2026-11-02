@@ -373,15 +373,17 @@ Accounts, and About. Each setting sits on a compact neutral card.
   card), and Instance labels. A picture too small, too tall or too wide to
   fill the landscape window is refused with a plain reason; a usable one that
   will be cropped hard or look soft gets one short warning line in the card.
-  Last, one pages card: Activity page and Inbox page (both on by default).
-  They sit here, not with the other page switches, so Behavior and
-  Notifications fit without scrolling. Hiding either keeps its alerts;
-  Activity off also stops VRX keeping activity and forgets what it kept.
+  Last, one Sidebar pages card with every optional page switch in sidebar
+  order (Hot Instances, Activity, Inbox, Explore, Search, Groups; all on by
+  default), so Behavior and Notifications fit without scrolling. Hiding a
+  page keeps its alerts and Dashboard section; Activity off also stops VRX
+  keeping activity and forgets what it kept.
 - Dashboard: Hide empty sections, then Wearing now, Latest invites, Section
   order, Popular now, Hot Instances, and Hot instance threshold, as separate
   rows in Dashboard order.
-- Behavior: Hot Instances page and Explore page (one card), Friend details
-  open from (whole card or avatar only), Friends background re-sync, and
+- Behavior: Friend details open from (whole card or avatar only), Save notes
+  to my accounts and Use my game favorites (one card), Friends background
+  re-sync, and
   Allow joining friends, which contains Confirm before joining, Join in, and
   When the game is already open (Go there, Send invite, or Off; Send invite
   changes only VRChat, since ChilloutVR has one way). Off keeps the saved
@@ -644,8 +646,8 @@ side at equal height, and the line under its title doubles as the live sign-in
 status, so the step fits the default window without scrolling; one ready
 account is enough to continue. Every other step
 changes the real settings as the user picks and keeps the defaults (all alerts
-off, VRChat instance labels) until changed. Pages lists Hot Instances, Activity, Inbox
-and Explore; Alerts lists the same six alerts as Settings → Notifications, friend alerts
+off, VRChat instance labels) until changed. Pages lists Hot Instances, Activity, Inbox,
+Explore, Search and Groups in one card; Alerts lists the same six alerts as Settings → Notifications, friend alerts
 in one card and inbox alerts in another, so the step fits without scrolling. Look also offers the background
 picture (same picker, checks and wording as Settings; the fade stays in
 Settings) and asks for the instance label style. Skip setup is a visible button on every screen before the

@@ -1,4 +1,4 @@
-import { forwardRef, useId, useState } from 'react'
+import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthState, BackgroundGlow, LabelScheme, Platform, Theme } from '@shared/types'
 import {
@@ -24,6 +24,7 @@ import {
 } from '../NavIcons'
 import { BackgroundPictureControls, BackgroundPictureMessage } from '../BackgroundPicturePicker'
 import { useBackgroundPicturePicker } from '../../hooks/useBackgroundPicturePicker'
+import FinePrint from '../FinePrint'
 import { useAppBackground } from '../../queries/appBackground'
 import { SECONDARY_BUTTON, SETUP_ALERTS, SETUP_PLATFORMS } from './setupModel'
 
@@ -127,43 +128,6 @@ const ALERT_GROUPS = ['friends', 'inbox'] as const
 
 const FINE_PRINT = 'text-[11.5px] leading-[1.45] text-[var(--text-dim)]'
 
-/**
- * Simple by default, more on demand (owner, 2026-10-22): one short line of
- * fine print that swaps to the full text in place, so opening it adds only a
- * line or two.
- */
-function FinePrint({
-  summary,
-  full,
-  centered = false
-}: {
-  summary: string
-  full: string
-  centered?: boolean
-}): React.JSX.Element {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const textId = useId()
-  return (
-    <p
-      id={textId}
-      aria-live="polite"
-      className={`${FINE_PRINT}${centered ? ' max-w-[52ch] text-center text-balance' : ''}`}
-    >
-      {open ? full : summary}{' '}
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={textId}
-        onClick={() => setOpen((value) => !value)}
-        className="whitespace-nowrap text-[var(--text-dim)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors"
-      >
-        {t(open ? 'setup.showLess' : 'setup.showMore')}
-      </button>
-    </p>
-  )
-}
-
 // ─── Welcome ─────────────────────────────────────────────────────────────────
 
 export const WelcomeStep = forwardRef<HTMLHeadingElement>(function WelcomeStep(_props, ref) {
@@ -256,15 +220,20 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
       <StepHeading ref={ref} title={t('setup.pages.title')} lead={t('setup.pages.lead')} />
-      <div className="settings-cards">
-        <Row icon={<IconHot />} label={t('shell.nav.hot')} description={t('setup.pages.hot')}>
+      {/* One card like the Alerts step, so all six pages fit without scrolling. */}
+      <div className="setting-card grid gap-[var(--space-2)] py-[10px]">
+        <RowContent
+          icon={<IconHot />}
+          label={t('shell.nav.hot')}
+          description={t('setup.pages.hot')}
+        >
           <Toggle
             checked={showHot}
             ariaLabel={t('setup.pages.hotAria')}
             onChange={(checked) => update({ showHotInstancesPage: checked })}
           />
-        </Row>
-        <Row
+        </RowContent>
+        <RowContent
           icon={<IconActivity />}
           label={t('shell.nav.activity')}
           description={t('setup.pages.activity')}
@@ -274,15 +243,19 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             ariaLabel={t('setup.pages.activityAria')}
             onChange={(checked) => update({ showActivityPage: checked })}
           />
-        </Row>
-        <Row icon={<IconInbox />} label={t('shell.nav.inbox')} description={t('setup.pages.inbox')}>
+        </RowContent>
+        <RowContent
+          icon={<IconInbox />}
+          label={t('shell.nav.inbox')}
+          description={t('setup.pages.inbox')}
+        >
           <Toggle
             checked={showInbox}
             ariaLabel={t('setup.pages.inboxAria')}
             onChange={(checked) => update({ showInboxPage: checked })}
           />
-        </Row>
-        <Row
+        </RowContent>
+        <RowContent
           icon={<IconExplore />}
           label={t('shell.nav.explore')}
           description={t('setup.pages.explore')}
@@ -292,8 +265,8 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             ariaLabel={t('setup.pages.exploreAria')}
             onChange={(checked) => update({ showExplorePage: checked })}
           />
-        </Row>
-        <Row
+        </RowContent>
+        <RowContent
           icon={<IconSearch />}
           label={t('shell.nav.search')}
           description={t('setup.pages.search')}
@@ -303,8 +276,8 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             ariaLabel={t('setup.pages.searchAria')}
             onChange={(checked) => update({ showSearchPage: checked })}
           />
-        </Row>
-        <Row
+        </RowContent>
+        <RowContent
           icon={<IconGroups />}
           label={t('shell.nav.groups')}
           description={t('setup.pages.groups')}
@@ -314,7 +287,7 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             ariaLabel={t('setup.pages.groupsAria')}
             onChange={(checked) => update({ showGroupsPage: checked })}
           />
-        </Row>
+        </RowContent>
       </div>
     </div>
   )

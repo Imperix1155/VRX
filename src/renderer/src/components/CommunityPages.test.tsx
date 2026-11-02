@@ -310,7 +310,8 @@ describe('GroupsView', () => {
       msg('groups.openAria', { name: 'Meadow', platform: 'ChilloutVR' }),
       msg('groups.openAria', { name: 'Zephyr Club', platform: 'VRChat' })
     ])
-    expect(within(tiles[0]!).getByText(msg('groups.role.owner'))).toBeTruthy()
+    // An owned group says so in front of its code, like every other tile's code.
+    expect(within(tiles[0]!).getByText(new RegExp(`^${msg('groups.role.owner')} · `))).toBeTruthy()
     // No picture: a tidy first-letter tile instead of an empty box.
     const picture = tiles[0]!.querySelector('[data-community-tile-picture]')
     expect(picture?.getAttribute('data-community-tile-picture')).toBe('initial')
@@ -507,6 +508,13 @@ describe('ProfileDetails', () => {
     renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
     expect(await screen.findByText(msg('drawer.trustRank.trusted'))).toBeTruthy()
     expect(screen.getByText('they/them')).toBeTruthy()
+  })
+
+  it('leaves the trust rank out where the friend card already shows it', async () => {
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} showTrust={false} />)
+    expect(await screen.findByText('they/them')).toBeTruthy()
+    expect(screen.queryByText(msg('drawer.trustRank.trusted'))).toBeNull()
+    expect(screen.queryByText(msg('profile.rank'))).toBeNull()
   })
 
   it('says when a profile is gone, without a retry', async () => {

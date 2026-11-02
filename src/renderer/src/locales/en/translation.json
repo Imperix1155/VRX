@@ -196,7 +196,7 @@
       "warning": {
         "tall": "Tall pictures get cropped, so only the middle shows. Wide pictures work best.",
         "wide": "Very wide pictures get cropped, so only the middle shows on most screens.",
-        "lowRes": "This picture is small, so it may look blurry on big screens."
+        "lowRes": "Small picture: it may look blurry on big screens."
       }
     },
     "reconcileInterval": {
@@ -211,7 +211,7 @@
     },
     "labelScheme": {
       "label": "Instance labels",
-      "description": "Which platform's terms the instance-type pills use.",
+      "description": "Which words the instance pills use.",
       "aria": "Instance label scheme selector",
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
@@ -226,12 +226,12 @@
     },
     "saveNotesToAccounts": {
       "label": "Save notes to my accounts",
-      "description": "Friend notes also go to your VRChat or ChilloutVR account, so you see them in the game too. Off keeps them on this PC only.",
+      "description": "Notes also go to your game accounts. Off keeps them on this PC.",
       "aria": "Save friend notes to my VRChat and ChilloutVR accounts"
     },
     "useGameFavorites": {
       "label": "Use my game favorites",
-      "description": "The star also shows and changes the favorite groups in your VRChat and ChilloutVR accounts, like VRCX and CVRX. Off keeps stars in VRX only.",
+      "description": "The star also uses your game accounts' favorites. Off keeps stars in VRX.",
       "aria": "Use the favorites in my VRChat and ChilloutVR accounts"
     },
     "behavior": {
@@ -256,7 +256,7 @@
     },
     "joinMode": {
       "label": "Join in",
-      "description": "Which mode ChilloutVR launches in. VRChat always picks from its own launch settings.",
+      "description": "How ChilloutVR starts. VRChat uses its own launch settings.",
       "aria": "Join launch mode",
       "ask": "Always ask",
       "vr": "VR",
@@ -264,7 +264,7 @@
     },
     "openGameJoin": {
       "label": "When the game is already open",
-      "description": "Join takes you into the running game instead of starting it again. Send invite is for VRChat only.",
+      "description": "Join goes into the game you have open. Send invite is VRChat only.",
       "aria": "How Join works when the game is already open",
       "go": "Go there",
       "invite": "Send invite",
@@ -802,6 +802,7 @@
     "emptyHeading": "No hot instances currently",
     "emptyHint": "When {{threshold}} or more friends gather in the same instance, it'll show up here.",
     "hotThresholdAria": "Hot instance threshold",
+    "hotThresholdLabel": "Min. friends",
     "hotHelp": {
       "label": "About Hot Instances",
       "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows two: the top one from each platform when both have one, otherwise the top two. The Hot Instances page shows all of them, with the most friends first.",
@@ -829,6 +830,7 @@
     "passwordPlaceholder": "••••••••",
     "signIn": "Sign In",
     "signingIn": "Signing in…",
+    "disclaimerShortVrchat": "Connects to VRChat for you and keeps your sign-in encrypted on this device.",
     "disclaimerVrchat": "Connects to VRChat on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery.",
     "error": {
       "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
@@ -846,6 +848,7 @@
       "aria": "Sign-in platform"
     },
     "formAria": "{{platform}} sign-in",
+    "disclaimerShortChilloutvr": "Connects to ChilloutVR for you and keeps your sign-in encrypted on this device.",
     "disclaimerChilloutvr": "Connects to ChilloutVR on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery."
   },
   "stepper": {
@@ -864,6 +867,7 @@
     "joinFailed": "Couldn’t join this room. Try again after refreshing.",
     "visiblePublicRooms": "Visible public rooms",
     "unknownCount": "Unknown",
+    "countUnknown": "Count unknown",
     "sourceState": {
       "loading": "Worlds loading…",
       "error": "{{platform}} worlds could not load.",
@@ -908,6 +912,7 @@
       "aria": "Which worlds to show",
       "new": "New",
       "updated": "Recently updated",
+      "popularHint": "The busiest public worlds on each platform right now.",
       "newHint": "The newest public worlds on each platform.",
       "updatedHint": "Public worlds their creators updated most recently.",
       "empty": "No worlds to show right now.",
@@ -1232,6 +1237,8 @@
     "actions": {
       "show": "Unfriend or block",
       "hide": "Hide unfriend and block",
+      "showBlock": "Block or unblock",
+      "hideBlock": "Hide block and unblock",
       "hint": "These change your {{platform}} account, one person at a time.",
       "checking": "Checking…",
       "checkError": "Couldn't check whether they're blocked.",

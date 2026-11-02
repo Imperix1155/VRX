@@ -48,10 +48,14 @@ const SMALL_HEADING =
 
 export default function ProfileDetails({
   platform,
-  userId
+  userId,
+  showTrust = true
 }: {
   platform: Platform
   userId: string
+  /** False where the VRChat trust rank already shows just above (the friend
+   *  card), so the profile does not repeat it. */
+  showTrust?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const profile = useProfile(platform, userId)
@@ -83,7 +87,7 @@ export default function ProfileDetails({
       </div>
     )
   }
-  return <ProfileBody profile={result.profile} />
+  return <ProfileBody profile={result.profile} showTrust={showTrust} />
 }
 
 function RetryButton({ onRetry }: { onRetry: () => void }): React.JSX.Element {
@@ -99,7 +103,13 @@ function RetryButton({ onRetry }: { onRetry: () => void }): React.JSX.Element {
   )
 }
 
-function ProfileBody({ profile }: { profile: PersonProfile }): React.JSX.Element {
+function ProfileBody({
+  profile,
+  showTrust
+}: {
+  profile: PersonProfile
+  showTrust: boolean
+}): React.JSX.Element {
   const { t } = useTranslation()
   const notShown = t('profile.notShown')
   const rank =
@@ -108,9 +118,10 @@ function ProfileBody({ profile }: { profile: PersonProfile }): React.JSX.Element
       : profile.rank.kind === 'vrchat-trust'
         ? t(TRUST_RANK_KEY[profile.rank.value])
         : profile.rank.value
+  const repeatsTrust = !showTrust && profile.rank?.kind === 'vrchat-trust'
   const facts: Array<[string, string]> = [
     ['profile.pronouns', profile.pronouns ?? notShown],
-    ['profile.rank', rank]
+    ...(repeatsTrust ? [] : [['profile.rank', rank] as [string, string]])
   ]
   return (
     <div className="flex flex-col gap-[var(--space-4)]" data-profile-details={profile.platform}>
@@ -155,6 +166,7 @@ function ProfileBody({ profile }: { profile: PersonProfile }): React.JSX.Element
         platform={profile.platform}
         userId={profile.userId}
         name={profile.displayName}
+        notFriend={profile.isFriend === false}
       />
     </div>
   )

@@ -208,7 +208,7 @@
     },
     "labelScheme": {
       "label": "インスタンスラベル",
-      "description": "インスタンス種別ピルに使う用語を選択します。",
+      "description": "インスタンスピルの用語。",
       "aria": "インスタンスラベルのスキーム選択",
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
@@ -223,12 +223,12 @@
     },
     "saveNotesToAccounts": {
       "label": "メモをアカウントにも保存",
-      "description": "フレンドのメモを VRChat・ChilloutVR のアカウントにも保存します。オフにすると、この PC のみに保存します。",
+      "description": "メモをゲームのアカウントにも保存。オフでこの PC のみ。",
       "aria": "フレンドのメモを VRChat と ChilloutVR のアカウントにも保存"
     },
     "useGameFavorites": {
       "label": "ゲームのお気に入りを使う",
-      "description": "星から VRChat・ChilloutVR のアカウントのお気に入りグループも表示・変更します（VRCX・CVRX と同じ）。オフにすると、星は VRX にだけ保存します。",
+      "description": "星でゲームのお気に入りグループも使います。オフで VRX のみ。",
       "aria": "VRChat と ChilloutVR のアカウントのお気に入りを使う"
     },
     "behavior": {
@@ -253,7 +253,7 @@
     },
     "joinMode": {
       "label": "参加モード",
-      "description": "ChilloutVRをどのモードで起動するか。VRChatは常にVRChat側の起動設定に従います。",
+      "description": "ChilloutVRの起動モード。VRChatは独自の設定。",
       "aria": "参加の起動モード",
       "ask": "毎回確認",
       "vr": "VR",
@@ -261,7 +261,7 @@
     },
     "openGameJoin": {
       "label": "ゲームが起動中のとき",
-      "description": "もう一度起動せず、起動中のゲームで参加します。「招待を送る」はVRChatのみです。",
+      "description": "起動中のゲームで参加。招待はVRChatのみ。",
       "aria": "ゲームが起動中のときの参加方法",
       "go": "移動する",
       "invite": "招待を送る",
@@ -797,6 +797,7 @@
     "emptyHeading": "ホットインスタンスはありません",
     "emptyHint": "{{threshold}}人以上のフレンドが同じインスタンスにいると、ここに表示されます。",
     "hotThresholdAria": "ホットインスタンスのしきい値",
+    "hotThresholdLabel": "最少フレンド数",
     "hotHelp": {
       "label": "ホットインスタンスについて",
       "description": "ホットインスタンスには、同じインスタンスに集まっているフレンドが表示されます。ゲーム内にいて、居場所が公開されているフレンドだけを数えます。プラットフォームフィルターに従い、VRChatとChilloutVRは別々に集計します。ダッシュボードには2件を表示します。両方のプラットフォームにある場合はそれぞれの上位1件、そうでない場合は上位2件です。ホットインスタンスのページにはすべてを、フレンドが多い順に表示します。",
@@ -823,6 +824,7 @@
     "passwordPlaceholder": "••••••••",
     "signIn": "サインイン",
     "signingIn": "サインイン中…",
+    "disclaimerShortVrchat": "VRXがあなたに代わってVRChatに接続し、サインイン情報はこの端末に暗号化して保存します。",
     "disclaimerVrchat": "あなたに代わってVRChatに接続します。セッションはこの端末で、利用可能な場合はOSの暗号化機能を使って保存します。それ以外は保護が弱いローカルのインストールキーを使用します。キーと暗号化データの両方にアクセスされると、セッションを復元される可能性があります。",
     "error": {
       "credentialPersistence": "VRX がセッションを安全に保存できなかったため、サインインは完了しませんでした。OS の資格情報ストアのロックを解除または設定してから、もう一度お試しください。",
@@ -840,6 +842,7 @@
       "aria": "サインインするプラットフォーム"
     },
     "formAria": "{{platform}} にサインイン",
+    "disclaimerShortChilloutvr": "VRXがあなたに代わってChilloutVRに接続し、サインイン情報はこの端末に暗号化して保存します。",
     "disclaimerChilloutvr": "あなたに代わってChilloutVRに接続します。セッションはこの端末で、利用可能な場合はOSの暗号化機能を使って保存します。それ以外は保護が弱いローカルのインストールキーを使用します。キーと暗号化データの両方にアクセスされると、セッションを復元される可能性があります。"
   },
   "stepper": {
@@ -858,6 +861,7 @@
     "joinFailed": "このルームに参加できませんでした。更新してからもう一度お試しください。",
     "visiblePublicRooms": "表示可能なパブリックルーム",
     "unknownCount": "不明",
+    "countUnknown": "人数不明",
     "sourceState": {
       "loading": "ワールドを読み込み中…",
       "error": "{{platform}} のワールドを読み込めませんでした。",
@@ -902,6 +906,7 @@
       "aria": "表示するワールド",
       "new": "新着",
       "updated": "最近の更新",
+      "popularHint": "各プラットフォームでいま人が多い公開ワールド。",
       "newHint": "各プラットフォームの最新の公開ワールド。",
       "updatedHint": "作者が最近更新した公開ワールド。",
       "empty": "いま表示できるワールドはありません。",
@@ -1225,6 +1230,8 @@
     "actions": {
       "show": "フレンド解除・ブロック",
       "hide": "フレンド解除・ブロックを閉じる",
+      "showBlock": "ブロック・ブロック解除",
+      "hideBlock": "ブロック・ブロック解除を閉じる",
       "hint": "{{platform}} のアカウントを変更します。一度に一人ずつです。",
       "checking": "確認中…",
       "checkError": "ブロックしているか確認できませんでした。",

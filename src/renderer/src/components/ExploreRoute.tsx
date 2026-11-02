@@ -213,7 +213,7 @@ export default function ExploreRoute(): React.JSX.Element {
                   ? refreshFavorites
                   : refreshShownList
             }
-            className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text-dim)] hover:bg-[var(--surface-hover)]"
+            className="canvas-control shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
           >
             {t('explore.refresh')}
           </button>

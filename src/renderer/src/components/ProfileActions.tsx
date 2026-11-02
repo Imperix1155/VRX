@@ -68,11 +68,15 @@ const DESTRUCTIVE_STYLE: React.CSSProperties = {
 export default function ProfileActions({
   platform,
   userId,
-  name
+  name,
+  notFriend = false
 }: {
   platform: Platform
   userId: string
   name: string
+  /** Someone who is not a friend: there is nothing to unfriend, so the toggle
+   *  names blocking only. */
+  notFriend?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -154,7 +158,15 @@ export default function ProfileActions({
           onClick={() => setOpen((value) => !value)}
           className={QUIET_BUTTON}
         >
-          {t(open ? 'profile.actions.hide' : 'profile.actions.show')}
+          {t(
+            notFriend
+              ? open
+                ? 'profile.actions.hideBlock'
+                : 'profile.actions.showBlock'
+              : open
+                ? 'profile.actions.hide'
+                : 'profile.actions.show'
+          )}
         </button>
       </div>
       <div id={panelId} hidden={!open} className="flex flex-col gap-[var(--space-2)]">

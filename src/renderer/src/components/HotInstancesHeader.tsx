@@ -31,6 +31,11 @@ const HotInstancesHeader = forwardRef<HTMLElement, HotInstancesHeaderProps>(
           {heading ?? <span />}
           <div className="flex shrink-0 items-center gap-[var(--space-2)]">
             {extra}
+            {/* Named like Explore's "Worlds shown" stepper, so the number is
+                not a bare digit. */}
+            <span className="canvas-text text-sm text-[var(--text-dim)]" aria-hidden="true">
+              {t('dashboard.hotThresholdLabel')}
+            </span>
             <NumberStepper
               ref={stepperRef}
               value={threshold}
