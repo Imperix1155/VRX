@@ -208,6 +208,8 @@ describe('InboxView', () => {
     snapshot = { items: [] }
     renderInbox()
     expect(await screen.findByText(msg('inbox.emptyHeading'))).toBeTruthy()
+    // The hint wraps into even lines, never leaving one word alone.
+    expect(screen.getByText(msg('inbox.emptyHint')).className).toContain('text-balance')
     expect(screen.queryByRole('button', { name: msg('inbox.hideAll') })).toBeNull()
     const help = screen.getByRole('button', { name: msg('inbox.help.label') })
     expect(help.getAttribute('aria-expanded')).toBe('false')

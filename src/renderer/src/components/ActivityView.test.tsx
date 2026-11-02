@@ -195,6 +195,8 @@ describe('ActivityView', () => {
   it('shows a short empty state, and a different line when only the filter hides rows', () => {
     renderView([])
     expect(screen.getByText(msg('activity.emptyHeading'))).toBeTruthy()
+    // The hint wraps into even lines, never leaving one word alone.
+    expect(screen.getByText(msg('activity.emptyHint')).className).toContain('text-balance')
     expect(
       screen.getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') }).disabled
     ).toBe(true)

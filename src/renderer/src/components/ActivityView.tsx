@@ -255,7 +255,7 @@ export default function ActivityView(): React.JSX.Element {
             <p className="text-sm font-semibold text-[var(--text-dim)]">
               {t('activity.emptyHeading')}
             </p>
-            <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
+            <p className="mt-[var(--space-1)] max-w-[52ch] text-balance text-xs text-[var(--text-dim)]">
               {t('activity.emptyHint')}
             </p>
           </>
