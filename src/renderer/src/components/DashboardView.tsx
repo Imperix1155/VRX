@@ -17,10 +17,8 @@
  */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useFriends, scopeByPlatformFilter } from '../queries/friends'
-import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
+import { useFriendSummary } from '../hooks/useFriendSummary'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
-import { useFriendsStore } from '../stores/friends'
 import { dashboardSectionOrderOf, type Platform } from '@shared/types'
 import {
   dashboardBlocks,
@@ -32,7 +30,7 @@ import {
 import { usePictureColumns } from '../hooks/usePictureColumns'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
-import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
+import FriendsSourceNotice from './FriendsSourceNotice'
 import HotInstanceSheet from './HotInstanceSheet'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
@@ -107,8 +105,6 @@ function SectionHeading({
  */
 function DashboardContent(): React.JSX.Element {
   const { t } = useTranslation()
-  const vrcQuery = useFriends('vrchat')
-  const cvrQuery = useFriends('chilloutvr')
   // Live from the store — changes apply immediately and persist via
   // useSettingsPersistence (VRX-184).
   const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
@@ -125,27 +121,27 @@ function DashboardContent(): React.JSX.Element {
 
   // The Dashboard is a social surface, so it honors the global platform filter
   // (VRX-66): the stats + hot instances reflect only the selected platform(s).
-  const platformFilter = useFriendsStore((s) => s.platformFilter)
-  const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
+  // A platform that failed while the other loaded gets its own line (issue 368).
+  const {
+    platformFilter,
+    friends,
+    hasData,
+    isLoading,
+    retry,
+    sourceFailures,
+    isAuthStatusPending,
+    isNotConnected,
+    notConnectedKey,
+    openAccounts
+  } = useFriendSummary()
   const scopedPlatforms = useMemo(
     (): Platform[] => (platformFilter === 'all' ? ['vrchat', 'chilloutvr'] : [platformFilter]),
     [platformFilter]
   )
-  // A signed-out platform's disabled query stays pending forever and refetch
-  // bypasses its gate, so only enabled queries drive loading and Retry.
-  const enabled = scoped.filter((q) => q.isEnabled !== false)
-  const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
-    useNotConnectedGate(platformFilter)
-  const notConnectedKey =
-    selectedPlatform === null ? null : NOT_CONNECTED_KEY.dashboard[selectedPlatform]
-
-  const hasData = scoped.some((q) => q.data != null)
-
   // Compute hot instances BEFORE any early return so the sheet hook runs on
   // every render without breaking hook order. The sheet derives from the full
   // uncapped list (the page's list), so an open sheet stays put even if its
   // card drops out of the two shown.
-  const friends = scoped.flatMap((q) => q.data ?? [])
   const hotInstances = hotEnabled ? getHotInstances(friends, hotThreshold, Infinity) : []
   const allHotCount = hotInstances.length
   // Picture cards fill one row on wide windows; bars stay two across.
@@ -203,10 +199,10 @@ function DashboardContent(): React.JSX.Element {
   ) : null
 
   if (!hasData) {
-    // Loading while ANY scoped query is still pending (don't flash an error
-    // while the other platform may yet deliver); error only when every scoped
-    // source has settled with nothing.
-    if (enabled.some((q) => q.isPending)) {
+    // Loading while ANY scoped query is still pending or holds a placeholder
+    // that has not failed (don't flash an error while the other platform may
+    // yet deliver); error only when every scoped source has settled with nothing.
+    if (isLoading) {
       return (
         <div>
           <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
@@ -222,9 +218,7 @@ function DashboardContent(): React.JSX.Element {
           <p className="text-sm text-[var(--error)]">{t('dashboard.error')}</p>
           <button
             type="button"
-            onClick={() => {
-              for (const q of enabled) void q.refetch()
-            }}
+            onClick={retry}
             className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
           >
             {t('dashboard.retry')}
@@ -292,8 +286,10 @@ function DashboardContent(): React.JSX.Element {
 
   return (
     <div>
-      {/* Stat cards row. Player counts live in the top bar (owner, 2026-11-01). */}
+      {/* Stat cards row. Player counts live in the top bar (owner, 2026-11-01).
+          The source line sits inside it so Popular now keeps its slot. */}
       <div style={{ marginBottom: '26px' }}>
+        <FriendsSourceNotice failures={sourceFailures} wording="summary" />
         <div
           style={{
             display: 'grid',

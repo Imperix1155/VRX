@@ -53,7 +53,7 @@ import { useTranslation } from 'react-i18next'
 import type { Friend, Platform, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
-import { useFriendNote } from '../hooks/useFriendNote'
+import { isOverNoteLimit, useFriendNote } from '../hooks/useFriendNote'
 import { usePersonNote } from '../hooks/usePersonNote'
 import { useAccountNote } from '../hooks/useAccountNote'
 import AccountNoteStatus from './AccountNoteStatus'
@@ -266,6 +266,8 @@ export default function FriendDrawer({
     saveFailed: noteSaveFailed,
     retry: retryNoteSave
   } = note
+  // Shown instead of a save that main would refuse (see isOverNoteLimit).
+  const noteOverLimit = !noteLoadFailed && isOverNoteLimit(noteValue)
   const noteOwner = !open
     ? 'closed'
     : combined
@@ -524,11 +526,13 @@ export default function FriendDrawer({
                   id="friend-notes"
                   value={noteValue}
                   readOnly={!noteWritable}
-                  aria-describedby={
-                    noteLoadFailed || noteSaveFailed
-                      ? 'friend-notes-error friend-notes-counter'
-                      : 'friend-notes-counter'
-                  }
+                  aria-describedby={[
+                    noteLoadFailed || noteSaveFailed ? 'friend-notes-error' : null,
+                    noteOverLimit ? 'friend-notes-over-limit' : null,
+                    'friend-notes-counter'
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   onChange={(event) => setNoteValue(event.target.value)}
                   onBlur={onNoteBlur}
                   maxLength={500}
@@ -563,6 +567,11 @@ export default function FriendDrawer({
                       {t('drawer.notes.retry')}
                     </button>
                   </div>
+                )}
+                {noteOverLimit && (
+                  <p id="friend-notes-over-limit" className="text-[12px] text-[var(--text-dim)]">
+                    {t('drawer.notes.overLimit')}
+                  </p>
                 )}
                 {!combined && shown && accountSync.view.kind === 'conflict' && (
                   <AccountNoteStatus

@@ -124,6 +124,23 @@ describe('VrcAdapter.importSession', () => {
     await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
   })
 
+  it('says it was rate limited after one request and installs nothing', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(new Response(null, { status: 429, headers: { 'Retry-After': '60' } }))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const binding = ownerBindingHarness<string>()
+    const adapter = new VrcAdapter(binding.store, instantAdmission())
+
+    await expect(adapter.importSession(IMPORTED)).resolves.toEqual({
+      ok: false,
+      needs2fa: false,
+      error: 'rate_limited'
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(binding.getAttemptedAccountIds()).toEqual([])
+  })
+
   it('turns an expired second factor into the code prompt, then verifies against the imported cookie', async () => {
     const fetchMock = vi
       .fn()

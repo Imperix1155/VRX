@@ -132,6 +132,9 @@ export interface ExploreServiceOptions {
   joinCoordinator: JoinCoordinator
   isJoinAllowed: () => boolean
   getImage: (url: string) => Promise<string | null>
+  /** A picture already kept in memory or on disk, or null. Never a request,
+   *  so it is answered before the image fetch budget is charged. */
+  peekImage?: (url: string) => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   /** Reach a game that is already open (`GameHandoff.deliver`). Without it,
    *  a Join always launches through `openExternal`. */
@@ -311,29 +314,78 @@ export class ExploreService {
     if (!url) return null
     const cached = state.images.get(url)
     if (cached) return { ok: true, dataUrl: cached }
-    let pending = state.imagePending.get(url)
-    if (!pending) {
-      if ((this.imageOutstanding.get(platform) ?? 0) >= 2)
-        return this.imageDeferral(platform, worldRef, 'capacity')
-      if (!this.take(this.imageStarts, platform, 6))
-        return this.imageDeferral(platform, worldRef, 'window')
-      this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 0) + 1)
-      pending = Promise.resolve()
-        .then(() => this.options.getImage(url))
-        .catch(() => null)
-      state.imagePending.set(url, pending)
-      const owned = pending
-      void pending.then(() => {
-        this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 1) - 1)
-        if (state.imagePending.get(url) === owned) state.imagePending.delete(url)
-      })
+    if (!state.imagePending.has(url)) {
+      const kept = await this.keptImage(platform, state, worldRef, url)
+      if (kept !== undefined) return kept
     }
+    const pending = state.imagePending.get(url) ?? this.startImageFetch(platform, state, url)
+    if (typeof pending === 'string') return this.imageDeferral(platform, worldRef, pending)
     const dataUrl = await pending
-    if (!dataUrl || !this.current(platform, state) || !this.findWorld(state, worldRef)) return null
+    return dataUrl ? this.handOutImage(platform, state, worldRef, url, dataUrl) : null
+  }
+
+  /**
+   * A picture already kept costs no request, so it never waits for (or uses
+   * up) the fetch budget (docs/api-policy.md: new fetches only). Undefined
+   * means "download it". The lookup waits on the disk, so a card that the
+   * account or list dropped meanwhile gets null and starts no download.
+   */
+  private async keptImage(
+    platform: Platform,
+    state: State,
+    worldRef: string,
+    url: string
+  ): Promise<ExploreImageResult | undefined> {
+    const peek = this.options.peekImage?.(url)
+    if (!peek) return undefined
+    const kept = await peek.catch(() => null)
+    if (kept) return this.handOutImage(platform, state, worldRef, url, kept)
+    return this.stillShown(platform, state, worldRef) ? undefined : null
+  }
+
+  private stillShown(platform: Platform, state: State, worldRef: string): boolean {
+    if (!this.active.has(platform) || !this.current(platform, state)) return false
+    return this.findWorld(state, worldRef) !== null
+  }
+
+  /** Starts one picture download inside the budget, or says why it must wait. */
+  private startImageFetch(
+    platform: Platform,
+    state: State,
+    url: string
+  ): Promise<string | null> | 'capacity' | 'window' {
+    if ((this.imageOutstanding.get(platform) ?? 0) >= 2) return 'capacity'
+    if (!this.take(this.imageStarts, platform, 6)) return 'window'
+    this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 0) + 1)
+    const pending = Promise.resolve()
+      .then(() => this.options.getImage(url))
+      .catch(() => null)
+    state.imagePending.set(url, pending)
+    void pending.then(() => {
+      this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 1) - 1)
+      if (state.imagePending.get(url) === pending) state.imagePending.delete(url)
+    })
+    return pending
+  }
+
+  /** A picture for a world still shown to the same account, kept for reuse. */
+  private handOutImage(
+    platform: Platform,
+    state: State,
+    worldRef: string,
+    url: string,
+    dataUrl: string
+  ): ExploreImageResult {
+    if (!this.current(platform, state) || !this.findWorld(state, worldRef)) return null
+    this.keepImage(state, url, dataUrl)
+    return { ok: true, dataUrl }
+  }
+
+  /** Remembers the last 12 pictures handed out, most recent last. */
+  private keepImage(state: State, url: string, dataUrl: string): void {
     state.images.delete(url)
     state.images.set(url, dataUrl)
     while (state.images.size > 12) state.images.delete(state.images.keys().next().value!)
-    return { ok: true, dataUrl }
   }
 
   async joinRoom(

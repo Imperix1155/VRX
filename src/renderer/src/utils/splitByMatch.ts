@@ -14,6 +14,10 @@ interface FoldedText {
 const COMBINING_MARK = /(?![\u3099\u309A])\p{M}/gu
 const KANA_VOICING = /^[\u3099\u309A]$/
 const KANA = /[\u3040-\u30FF]/
+// Katakana with a hiragana twin (ァ–ヶ and ヽヾ) sit exactly 0x60 above it, so
+// たろう finds タロウ: an IME types hiragana first, and many names are katakana.
+const KATAKANA_WITH_HIRAGANA = /[\u30A1-\u30F6\u30FD\u30FE]/g
+const toHiragana = (letter: string): string => String.fromCharCode(letter.charCodeAt(0) - 0x60)
 
 /**
  * Case- and diacritic-fold text while retaining offsets into the original
@@ -62,13 +66,15 @@ function foldWithOffsets(text: string): FoldedText {
     }
   }
 
-  return { value, starts, ends }
+  // Last, after voicing marks joined their letter (ﾜﾞ still finds ヷ): one code
+  // unit for one, so the offsets stay true.
+  return { value: value.replace(KATAKANA_WITH_HIRAGANA, toHiragana), starts, ends }
 }
 
 /**
  * Split a display name into matched and unmatched segments. Matching is
- * case-insensitive and diacritic-insensitive, while returned text always
- * preserves the original spelling and code points.
+ * case-insensitive, diacritic-insensitive and hiragana/katakana-insensitive,
+ * while returned text always preserves the original spelling and code points.
  */
 export function splitByMatch(name: string, query: string): MatchSegment[] {
   if (name.length === 0) return []

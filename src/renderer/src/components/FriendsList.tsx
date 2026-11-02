@@ -1120,8 +1120,9 @@ export default function FriendsList(): React.JSX.Element {
     }
   }, [getScrollElement, virtualRows.length])
 
-  // Look up in the UNFILTERED (but platform-scoped) list so an active search
-  // can't close an open drawer. A friend that leaves the roster closes it.
+  // Look up in the UNFILTERED list of both platforms, so neither an active
+  // search nor the platform filter closes an open drawer. A friend that leaves
+  // the roster closes it.
   const selectedProfile = resolveLinkedProfile(target, {
     friends: allFriends,
     profiles: links.data?.profiles ?? [],

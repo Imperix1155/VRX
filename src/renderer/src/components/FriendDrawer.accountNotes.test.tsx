@@ -163,6 +163,27 @@ describe('FriendDrawer account notes', () => {
     )
   })
 
+  it('says a longer account note stays on the account, and offers nothing to take', async () => {
+    syncFriendNote.mockResolvedValueOnce({
+      ok: true,
+      state: 'account-too-long',
+      note: 'Plays drums'
+    })
+    render(<FriendsList />)
+    const scoped = within(open())
+    await waitFor(
+      () =>
+        expect(
+          scoped.getByText(
+            'Your VRChat account has a longer note for this friend than VRX keeps (500 characters), so it stays there.'
+          )
+        ).toBeTruthy(),
+      slow
+    )
+    expect(scoped.getByDisplayValue('Plays drums')).toBeTruthy()
+    expect(syncFriendNote).toHaveBeenCalledTimes(1)
+  })
+
   it('takes a newer account copy on its own when VRX copy did not change', async () => {
     syncFriendNote
       .mockResolvedValueOnce({
@@ -210,6 +231,40 @@ describe('FriendDrawer account notes', () => {
       )
     )
     await waitFor(() => expect(scoped.queryByRole('button', { name: 'Keep mine' })).toBeNull())
+  })
+
+  it('says a note over 500 characters must be shortened before it can be saved', async () => {
+    const long = 'x'.repeat(600)
+    getFriendNote.mockResolvedValue({ note: long, revision })
+    syncFriendNote.mockResolvedValue({ ok: true, state: 'saved', note: long })
+    render(<FriendsList />)
+    const scoped = within(open())
+    const textarea = await waitFor(() => scoped.getByDisplayValue(long), slow)
+    const line = scoped.getByText(
+      'This note is over 500 characters. Shorten it to save your changes.'
+    )
+    expect(textarea.getAttribute('aria-describedby')).toContain(line.id)
+
+    fireEvent.change(textarea, { target: { value: long.slice(1) } })
+    fireEvent.blur(textarea)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(setFriendNote).not.toHaveBeenCalled()
+  })
+
+  it('offers only Keep mine when the account note is longer than VRX keeps', async () => {
+    syncFriendNote.mockResolvedValueOnce({
+      ok: true,
+      state: 'conflict',
+      note: 'Plays drums',
+      accountNote: 'x'.repeat(501)
+    })
+    render(<FriendsList />)
+    const scoped = within(open())
+    await scoped.findByRole('button', { name: 'Keep mine' }, slow)
+    expect(scoped.queryByRole('button', { name: 'Use the VRChat note' })).toBeNull()
+    expect(
+      scoped.getByText("VRX can't take this one: it keeps notes up to 500 characters.")
+    ).toBeTruthy()
   })
 
   it('shows a retry when the account cannot be reached', async () => {

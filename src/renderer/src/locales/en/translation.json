@@ -371,7 +371,12 @@
       },
       "error": {
         "disconnect": "Could not sign out of this account. Please try again.",
-        "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
+        "credentialPersistence": "Sign-in did not finish because VRX could not save your session on this computer. Check that the disk isn't full and VRX can write to its data folder, then try again.",
+        "invalidCredentials": "Those sign-in details didn't work. Check them and try again.",
+        "invalidCode": "That code didn't work. Check it, or use a newer one, then try again.",
+        "rateLimited": "Too many tries right now. Wait a minute, then try again.",
+        "offline": "Couldn't connect. Check your internet connection, then try again.",
+        "serviceDown": "The sign-in service isn't answering right now. Try again in a few minutes.",
         "unknown": "Sign-in failed. Check your details and connection, then try again.",
         "importNotFoundVrchat": "No VRCX sign-in found on this PC. If VRCX is open, quit it (also from the tray) and try again, or sign in with your password.",
         "importNotFoundChilloutvr": "No ChilloutVR or CVRX sign-in found on this PC. Sign in with your password instead.",
@@ -698,15 +703,18 @@
       "loadFailed": "Couldn't load this note. Retry before editing so VRX can save changes safely.",
       "saveFailed": "Couldn't save this note. Your newest draft remains local and will not survive closing VRX.",
       "retry": "Retry",
+      "overLimit": "This note is over 500 characters. Shorten it to save your changes.",
       "account": {
         "saved": "Also saved to your {{platform}} account",
         "saving": "Saving to your {{platform}} account…",
         "localOnly": "Only on this PC so far.",
         "save": "Save to {{platform}}",
         "tooLong": "Only on this PC: {{platform}} keeps notes up to {{max}} characters.",
+        "accountTooLong": "Your {{platform}} account has a longer note for this friend than VRX keeps ({{max}} characters), so it stays there.",
         "failed": "Couldn't reach {{platform}}. Saved on this PC.",
         "conflict": "Your {{platform}} account has a different note for this friend:",
         "empty": "(no note)",
+        "theirsTooLong": "VRX can't take this one: it keeps notes up to {{max}} characters.",
         "useTheirs": "Use the {{platform}} note",
         "keepMine": "Keep mine"
       }
@@ -784,6 +792,10 @@
     "loading": "Loading…",
     "error": "Could not load your friends right now",
     "retry": "Retry",
+    "sourceState": {
+      "missing": "{{platform}} friends could not load, so they are left out here.",
+      "stale": "{{platform}} friends could not refresh. Showing what loaded last."
+    },
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",
       "chilloutvr": "Connect ChilloutVR to see your friends here",
@@ -808,7 +820,8 @@
       "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows two: the top one from each platform when both have one, otherwise the top two. The Hot Instances page shows all of them, with the most friends first.",
       "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you turn them on in Settings → Notifications."
     },
-    "seeAll": "See all {{count}}",
+    "seeAll_one": "See {{count}}",
+    "seeAll_other": "See all {{count}}",
     "seeAllAria_one": "See {{count}} hot instance",
     "seeAllAria_other": "See all {{count}} hot instances",
     "glance": {
@@ -828,12 +841,17 @@
     "usernamePlaceholder": "you@example.com",
     "password": "Password",
     "passwordPlaceholder": "••••••••",
-    "signIn": "Sign In",
+    "signIn": "Sign in",
     "signingIn": "Signing in…",
     "disclaimerShortVrchat": "Connects to VRChat for you and keeps your sign-in encrypted on this device.",
     "disclaimerVrchat": "Connects to VRChat on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery.",
     "error": {
-      "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
+      "credentialPersistence": "Sign-in did not finish because VRX could not save your session on this computer. Check that the disk isn't full and VRX can write to its data folder, then try again.",
+      "invalidCredentials": "Those sign-in details didn't work. Check them and try again.",
+      "invalidCode": "That code didn't work. Check it, or use a newer one, then try again.",
+      "rateLimited": "Too many tries right now. Wait a minute, then try again.",
+      "offline": "Couldn't connect. Check your internet connection, then try again.",
+      "serviceDown": "The sign-in service isn't answering right now. Try again in a few minutes.",
       "unknown": "Sign-in failed. Check your details and connection, then try again."
     },
     "twoFactor": {

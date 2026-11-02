@@ -83,7 +83,9 @@ beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'vrx-picture-'))
 })
 afterEach(async () => {
-  await rm(root, { recursive: true, force: true })
+  // A picture save a test did not wait for can land mid-delete; Windows then
+  // refuses to remove the folder, so retry instead of failing the run.
+  await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
 })
 
 describe('vrcFullPictureUrl', () => {
@@ -101,6 +103,82 @@ describe('vrcFullPictureUrl', () => {
     expect(vrcFullPictureUrl('https://api.vrchat.cloud/api/1/image/file_1/3/256?x=1')).toBeNull()
     expect(vrcFullPictureUrl('https://evil.example/api/1/image/file_1/3/256')).toBeNull()
     expect(vrcFullPictureUrl('https://api.vrchat.cloud/api/1/image/../1/3/256')).toBeNull()
+  })
+})
+
+describe('AvatarCache.peekKeptPicture', () => {
+  it('answers from a kept copy, full picture first, and never makes a request', async () => {
+    const fetchFn = fetchWith({ [FULL(1)]: { body: 'sharp' } })
+    const cache = new AvatarCache({
+      fetchFn,
+      apiAdmission: fastLane(),
+      vrcSessionProvider: lease,
+      makePictureRendition: reencode
+    })
+    await expect(cache.peekKeptPicture(THUMB(1))).resolves.toBeNull()
+    expect(fetchFn).not.toHaveBeenCalled()
+
+    await expect(cache.getPicture(THUMB(1))).resolves.toBe(SHARP)
+    const requests = fetchFn.mock.calls.length
+    await expect(cache.peekKeptPicture(THUMB(1))).resolves.toBe(SHARP)
+    await expect(cache.peekKeptPicture('https://evil.example/x.png')).resolves.toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(requests)
+  })
+
+  it('finds a kept thumbnail when the full picture was never kept', async () => {
+    const fetchFn = fetchWith({ [FULL(2)]: { status: 404 }, [THUMB(2)]: { body: 'thumb' } })
+    const cache = new AvatarCache({
+      fetchFn,
+      apiAdmission: fastLane(),
+      vrcSessionProvider: lease,
+      makePictureRendition: reencode
+    })
+    await expect(cache.getPicture(THUMB(2))).resolves.toBe(THUMB_DATA)
+    const requests = fetchFn.mock.calls.length
+    await expect(cache.peekKeptPicture(THUMB(2))).resolves.toBe(THUMB_DATA)
+    expect(fetchFn).toHaveBeenCalledTimes(requests)
+  })
+
+  it('stops offering the kept thumbnail once getPicture would try the full picture again', async () => {
+    let now = 1_000_000
+    const fetchFn = fetchWith({ [FULL(2)]: { status: 404 }, [THUMB(2)]: { body: 'thumb' } })
+    const cache = new AvatarCache({
+      fetchFn,
+      now: () => now,
+      // The thumbnail stays kept past the refusal.
+      positiveCacheMs: 4 * PICTURE_REFUSED_MS,
+      apiAdmission: fastLane(),
+      vrcSessionProvider: lease,
+      makePictureRendition: reencode
+    })
+    await expect(cache.getPicture(THUMB(2))).resolves.toBe(THUMB_DATA)
+    await expect(cache.peekKeptPicture(THUMB(2))).resolves.toBe(THUMB_DATA)
+
+    // The refusal is over: the caller should fetch, which asks for the full picture.
+    now += PICTURE_REFUSED_MS + 1
+    const requests = fetchFn.mock.calls.length
+    await expect(cache.peekKeptPicture(THUMB(2))).resolves.toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(requests)
+  })
+
+  it('reads a picture kept on disk by an earlier run, with no request', async () => {
+    const store = new ImageDiskStore({
+      directory: join(root, 'image-cache'),
+      allowedMimeTypes: AVATAR_ALLOWED_MIME_TYPES,
+      maxBodyBytes: AVATAR_MAX_BODY_BYTES
+    })
+    await new AvatarCache({
+      fetchFn: fetchWith({ [FULL(3)]: { body: 'sharp' } }),
+      apiAdmission: fastLane(),
+      vrcSessionProvider: lease,
+      diskStore: store,
+      makePictureRendition: reencode
+    }).getPicture(THUMB(3))
+    await vi.waitFor(() => expect(store.size).toBe(1))
+    const fetchFn = fetchWith({})
+    const relaunched = new AvatarCache({ fetchFn, vrcSessionProvider: lease, diskStore: store })
+    await expect(relaunched.peekKeptPicture(THUMB(3))).resolves.toBe(SHARP)
+    expect(fetchFn).not.toHaveBeenCalled()
   })
 })
 

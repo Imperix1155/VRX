@@ -5,6 +5,7 @@ import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   friendNoteCoordinatorCountsForTests,
+  isOverNoteLimit,
   replaceFriendNoteCoordinatorForHmrTests,
   resetFriendNoteFailureStoreForTests,
   retainFriendNoteCoordinatorForHmrTests,
@@ -243,6 +244,42 @@ describe('useFriendNote', () => {
     await waitFor(() => expect(result.current.isWritable).toBe(true))
     act(() => result.current.setValue('a'.repeat(501)))
     expect(result.current.value).toHaveLength(500)
+  })
+
+  it('never cuts the end of a note already over 500 when the user deletes from it', async () => {
+    // A long note taken from an account by an older build.
+    const long = `${'a'.repeat(660)} tail that matters`
+    getFriendNote.mockResolvedValue({ note: long, revision: makeRevision('self', 1) })
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
+
+    await waitFor(() => expect(result.current.value).toBe(long))
+    act(() => result.current.setValue(long.slice(1)))
+    expect(result.current.value).toBe(long.slice(1))
+    expect(result.current.value.endsWith('tail that matters')).toBe(true)
+  })
+
+  it('sends no save main would refuse while a note is still over 500, then saves once it fits', async () => {
+    const long = `${'a'.repeat(660)} tail`
+    getFriendNote.mockResolvedValue({ note: long, revision: makeRevision('self', 1) })
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
+
+    await waitFor(() => expect(result.current.value).toBe(long))
+    expect(isOverNoteLimit(result.current.value)).toBe(true)
+    act(() => result.current.setValue(long.slice(1)))
+    act(() => result.current.onBlur())
+    expect(setFriendNote).not.toHaveBeenCalled()
+    expect(result.current.saveFailed).toBe(false)
+
+    const fits = long.slice(-500)
+    act(() => result.current.setValue(fits))
+    expect(isOverNoteLimit(result.current.value)).toBe(false)
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledOnce())
+    expect(setFriendNote.mock.calls[0]?.[0]).toMatchObject({ note: fits })
   })
 
   it('renders empty and read-only when the preload bridge is absent', () => {

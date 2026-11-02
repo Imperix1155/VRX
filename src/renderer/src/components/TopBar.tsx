@@ -227,11 +227,14 @@ export default function TopBar(): React.JSX.Element {
     ...(vrcSignedIn ? [connectionHealth.vrchat] : []),
     ...(cvrSignedIn ? [connectionHealth.chilloutvr] : [])
   ]
-  const worstHealth: ConnectionHealth = countedHealth.includes('down')
-    ? 'down'
-    : countedHealth.includes('reconnecting')
-      ? 'reconnecting'
-      : 'live'
+  // With nothing signed in nothing is live: the label says Signed out, so the
+  // dot must not stay green.
+  const worstHealth: ConnectionHealth =
+    countedHealth.length === 0 || countedHealth.includes('down')
+      ? 'down'
+      : countedHealth.includes('reconnecting')
+        ? 'reconnecting'
+        : 'live'
   const healthColor =
     worstHealth === 'live'
       ? 'var(--ingame)'

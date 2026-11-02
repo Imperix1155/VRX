@@ -13,6 +13,12 @@ import type { Platform } from '@shared/types'
 
 const MAX_NOTE_LENGTH = 500
 
+/** Longer than main saves. Only a note taken from an account before VRX kept
+ *  to the cap can be: the field never grows past it. */
+export function isOverNoteLimit(value: string): boolean {
+  return value.trimEnd().length > MAX_NOTE_LENGTH
+}
+
 type NoteData = IpcInvoke['get-friend-note']['res']
 type SaveResult = IpcInvoke['set-friend-note']['res']
 
@@ -553,6 +559,10 @@ export function useFriendNote({
       if (query.data?.revision === undefined || setFriendNote === null) {
         return
       }
+      // Main refuses a note over the cap. A note already over it (taken from
+      // an account before VRX kept to the cap) stays as saved until the user
+      // shortens it, and the drawer says so.
+      if (isOverNoteLimit(draft.value)) return
       const stateKey = key
       const saveState = saveStates.get(stateKey)
       const activeFailedKey = failedDraftKey(key, draft.platformAccountId)
@@ -615,7 +625,12 @@ export function useFriendNote({
   const setValue = useCallback(
     (value: string) => {
       if (!isWritable || epochFor(platform) !== boundaryEpoch) return
-      const next = value.slice(0, MAX_NOTE_LENGTH)
+      // The cap stops growth only: deleting from a note that is already over it
+      // (taken from an account before VRX kept to the cap) never cuts its end.
+      const next =
+        value.length > MAX_NOTE_LENGTH && value.length > draftRef.current.value.length
+          ? value.slice(0, MAX_NOTE_LENGTH)
+          : value
       // Completion handlers can run in the same React batch as input. Keep
       // their guard in step with the visible draft rather than waiting for the
       // passive synchronization effect.

@@ -46,6 +46,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the Hot Instances friends stepper is named "Min. friends for a hot
   instance", starting with its visible label.
 - High Contrast: scrollbars stay visible in every panel.
+- Explore: world pictures VRX already keeps show at once, instead of waiting
+  their turn behind new downloads, so cards no longer sit without a picture.
+- Friends: the background re-sync now runs on time while friends' live
+  updates keep arriving.
+- Dashboard and Hot Instances: right after you sign in or switch accounts they
+  say Loading until your friends arrive, instead of showing 0 friends online.
+- Dashboard and Hot Instances: when one platform's friends could not load or
+  refresh, a line names it with its own Retry, like the Friends list.
+- Friends: when the first read after a sign-in fails, the line says that
+  platform's friends could not load, not that an older list is shown.
+- Friends search: hiragana finds katakana and the other way round, so たろう
+  finds タロウ.
+- Dashboard: with one hot instance or invite the button reads "See 1", not
+  "See all 1".
+- Top bar: the connection dot is never the green live dot while no platform
+  is signed in.
+- Notes: VRX no longer takes a note from your account that is longer than
+  the 500 characters it keeps, so editing it can never cut the end off and
+  send the shorter copy back. Deleting text from an over-long note never cuts
+  its end either, and the note says to shorten it to 500 characters before a
+  change can be saved. When both copies changed and the account's is too
+  long, the choice offers only Keep mine and says why.
+- Sign-in: errors say what went wrong: wrong details, a wrong or old 2FA
+  code, too many tries, no internet connection, or the sign-in service being
+  down, instead of one general message.
+- Sign-in: a sign-in or 2FA code that VRChat or ChilloutVR asks to slow down
+  is never sent again on its own. The form says to wait a minute instead of
+  calling it a network problem.
+- Sign-in: after a rejected password or 2FA code, typing replaces it, so you
+  don't have to clear the field first.
+- Sign-in: 2FA codes typed with full-width digits, spaces or a dash work, and
+  spaces around the username are ignored.
+- Sign-in: when VRX can't save your session on this computer, the message
+  says to check that the disk isn't full and VRX can write to its folder.
+- Sign-in: while the VRChat code prompt is open, the platform tabs stay put,
+  so a glance at ChilloutVR no longer throws the prompt away. Back unlocks
+  them.
+- Sign-in: Back from the code prompt puts the cursor in the empty password
+  field, and the button reads "Sign in" like "Sign out".
+- Sign-in: a VRChat account id that VRX can't store now stops the sign-in
+  before anything is saved, instead of failing after it on every start.
+- Avatars and Groups: the count beside each heading is as easy to read as
+  the other counts.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

@@ -17,6 +17,8 @@ import type { Platform } from './types'
 
 /** VRChat keeps notes on one line, at most 256 characters (VRCX uses the same cap). */
 export const VRCHAT_ACCOUNT_NOTE_MAX_LENGTH = 256
+/** VRX keeps friend notes up to this many characters. */
+export const FRIEND_NOTE_MAX_LENGTH = 500
 /** Spacing between two note writes on the same platform. */
 export const ACCOUNT_NOTE_WRITE_SPACING_MS = 2_000
 /** A check reuses the account copy it read this recently instead of asking again. */
@@ -41,9 +43,11 @@ export type AccountNoteSyncResult =
        * - `saved`: both copies hold the same note.
        * - `local-only`: VRX's copy is not on the account yet; a save sends it.
        * - `too-long`: VRX's copy is longer than the platform keeps.
+       * - `account-too-long`: the account copy changed but is longer than VRX
+       *   keeps, so VRX leaves it on the account rather than cut it.
        * - `off`: the user turned account notes off in Settings.
        */
-      state: 'saved' | 'local-only' | 'too-long' | 'off'
+      state: 'saved' | 'local-only' | 'too-long' | 'account-too-long' | 'off'
       /** VRX's copy after the call (it changes after `use-account`). */
       note: string
     }
@@ -119,6 +123,11 @@ export function comparableNote(platform: Platform, note: string): string {
   return readableAccountNote(platform, accountNoteToSend(platform, note))
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+/** Whether an account copy fits in VRX, which never cuts a note it takes. */
+export function fitsVrxNote(platform: Platform, accountNote: string): boolean {
+  return readableAccountNote(platform, accountNote).length <= FRIEND_NOTE_MAX_LENGTH
 }
 
 /** Whether VRX's copy fits on the account. */

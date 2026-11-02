@@ -13,10 +13,26 @@ describe('accountLoginErrorKey', () => {
     )
   })
 
+  it('says what went wrong, like the sign-in screen', () => {
+    expect([
+      accountLoginErrorKey('chilloutvr', 'invalid_credentials'),
+      accountLoginErrorKey('vrchat', 'invalid_2fa_code'),
+      accountLoginErrorKey('vrchat', 'rate_limited'),
+      accountLoginErrorKey('chilloutvr', 'network_error'),
+      accountLoginErrorKey('vrchat', 'http_502')
+    ]).toEqual([
+      'settings.accounts.error.invalidCredentials',
+      'settings.accounts.error.invalidCode',
+      'settings.accounts.error.rateLimited',
+      'settings.accounts.error.offline',
+      'settings.accounts.error.serviceDown'
+    ])
+  })
+
   it('uses the generic key for every other account connection failure', () => {
     expect([
       accountLoginErrorKey('vrchat'),
-      accountLoginErrorKey('chilloutvr', 'invalid_credentials'),
+      accountLoginErrorKey('chilloutvr', 'unexpected_response'),
       accountLoginErrorKey('vrchat', 'SOMETHING_NEW_FROM_API')
     ]).toEqual([
       'settings.accounts.error.unknown',

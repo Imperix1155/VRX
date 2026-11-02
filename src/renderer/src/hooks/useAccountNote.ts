@@ -16,6 +16,7 @@ export type AccountNoteView =
   | { kind: 'saved' }
   | { kind: 'local-only' }
   | { kind: 'too-long' }
+  | { kind: 'account-too-long' }
   | { kind: 'account-changed'; accountNote: string; localNote: string }
   | { kind: 'conflict'; accountNote: string }
   | { kind: 'failed'; mode: AccountNoteSyncMode }

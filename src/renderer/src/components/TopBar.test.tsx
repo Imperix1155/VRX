@@ -273,6 +273,19 @@ describe('TopBar connection health (VRX-223)', () => {
     expect(indicator.getAttribute('style')).toContain('var(--error)')
   })
 
+  it('never shows the live dot when neither platform is signed in', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    stubFriends([], [])
+    // The shell can open on a failed status read with no status at all.
+    useAuthStatusMock.mockImplementation(() => ({ data: undefined }))
+    stubAppStatus('live', 'live')
+    render(<TopBar />)
+
+    const indicator = await findIndicator('VRChat: Signed out; ChilloutVR: Signed out')
+    expect(indicator.getAttribute('style')).toContain('var(--error)')
+    expect(indicator.className).not.toContain('animate-pulse')
+  })
+
   it('names a VRChat session waiting for a code as Needs code, not Signed out', async () => {
     stubFriends([], [])
     useAuthStatusMock.mockImplementation((platform: Platform) => ({

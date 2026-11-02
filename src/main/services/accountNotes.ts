@@ -5,6 +5,7 @@ import {
   comparableNote,
   decideAccountNote,
   fitsAccountNote,
+  fitsVrxNote,
   readableAccountNote,
   type AccountNoteSyncFailure,
   type AccountNoteSyncMode,
@@ -128,6 +129,11 @@ export class AccountNoteService {
       // The user (or the drawer, when only the account changed) takes the copy
       // VRX showed them. Without one there is nothing safe to take: check again.
       if (seenNow === undefined) return this.run({ ...request, mode: 'check' }, key)
+      // Taking a copy VRX cannot hold would cut it on the next edit, and that
+      // cut copy would go back to the account.
+      if (!fitsVrxNote(platform, seenNow.note)) {
+        return { ok: true, state: 'account-too-long', note: local }
+      }
       const note = readableAccountNote(platform, seenNow.note)
       return this.storeLocally(context, friendId, note)
     }
@@ -170,6 +176,9 @@ export class AccountNoteService {
         return this.storeAgreed(context, friendId, localForm, local)
       case 'take-account':
       case 'conflict':
+        if (decision === 'take-account' && !fitsVrxNote(platform, account)) {
+          return { ok: true, state: 'account-too-long', note: local }
+        }
         return {
           ok: true,
           state: decision === 'take-account' ? 'account-changed' : 'conflict',

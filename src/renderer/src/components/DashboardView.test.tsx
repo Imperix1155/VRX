@@ -65,6 +65,10 @@ const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key,
 type QueryStub = {
   data: Friend[] | undefined
   isPending: boolean
+  isFetching?: boolean
+  isError?: boolean
+  isEnabled?: boolean
+  dataUpdatedAt?: number
   refetch?: ReturnType<typeof vi.fn>
 }
 
@@ -228,6 +232,64 @@ describe('DashboardView states (W5)', () => {
     render(<DashboardView />)
     expect(screen.getByText(msg('dashboard.error'))).toBeTruthy()
     expect(screen.queryByText(msg('dashboard.emptyHeading'))).toBeNull()
+  })
+
+  it("shows loading, not 0 / 0 / 0, while a sign-in's empty placeholder roster loads", () => {
+    // What a sign-in or account switch leaves: [] stamped 0, with the fetch running.
+    const placeholder = { data: [], isPending: false, isFetching: true, dataUpdatedAt: 0 }
+    stubQueries(placeholder, placeholder)
+    render(<DashboardView />)
+    expect(screen.getByText(msg('dashboard.loading'))).toBeTruthy()
+    expect(screen.queryByText(msg('dashboard.statOnlineLabel'))).toBeNull()
+  })
+
+  it("does not count a signed-out platform's placeholder as data while the other loads", () => {
+    stubQueries(
+      { data: [], isPending: false, isFetching: true, dataUpdatedAt: 0 },
+      { data: [], isPending: false, isEnabled: false, dataUpdatedAt: 0 }
+    )
+    render(<DashboardView />)
+    expect(screen.getByText(msg('dashboard.loading'))).toBeTruthy()
+    expect(screen.queryByText(msg('dashboard.statOnlineLabel'))).toBeNull()
+  })
+
+  it('shows the error when the first roster after a sign-in fails', () => {
+    const failed = { data: [], isPending: false, isError: true, dataUpdatedAt: 0 }
+    stubQueries(failed, failed)
+    render(<DashboardView />)
+    expect(screen.getByText(msg('dashboard.error'))).toBeTruthy()
+    expect(screen.queryByText(msg('dashboard.statOnlineLabel'))).toBeNull()
+  })
+
+  it('names a platform that failed while the other loaded, with its own Retry', () => {
+    const vrcRefetch = vi.fn()
+    const cvrRefetch = vi.fn()
+    stubQueries(
+      { data: undefined, isPending: false, isError: true, refetch: vrcRefetch },
+      { data: [], isPending: false, dataUpdatedAt: 5, refetch: cvrRefetch }
+    )
+    render(<DashboardView />)
+    const platform = msg('dashboard.platformVrc')
+    expect(screen.getByText(msg('dashboard.sourceState.missing', { platform }))).toBeTruthy()
+    // The numbers still show for the platform that loaded.
+    expect(screen.getByText(msg('dashboard.statOnlineLabel'))).toBeTruthy()
+    fireEvent.click(
+      screen.getByRole('button', { name: msg('friends.sourceState.retry', { platform }) })
+    )
+    expect(vrcRefetch).toHaveBeenCalledTimes(1)
+    expect(cvrRefetch).not.toHaveBeenCalled()
+  })
+
+  it('dims the line for a platform that kept its last roster after a failed refresh', () => {
+    stubQueries(
+      { data: [makeFriend()], isPending: false, isError: true, dataUpdatedAt: 5 },
+      { data: [], isPending: false, dataUpdatedAt: 5 }
+    )
+    render(<DashboardView />)
+    const line = screen.getByText(
+      msg('dashboard.sourceState.stale', { platform: msg('dashboard.platformVrc') })
+    )
+    expect(line.closest('li')?.className).toContain('text-[var(--text-dim)]')
   })
 
   it('offers a retry in the error state that refetches both platforms', () => {
@@ -1646,6 +1708,17 @@ describe('Dashboard two-card sections and order (owner, 2026-10-18)', () => {
     const seeAll = screen.getByRole('button', { name: msg('dashboard.seeAllAria', { count: 3 }) })
     fireEvent.click(seeAll)
     expect(useUiStore.getState().activeTab).toBe('hot')
+  })
+
+  it('says "See 1" for one hot instance, inside its spoken name', () => {
+    stubQueries(
+      { data: crowd('vrchat', 'Lake', 2), isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+    const seeOne = screen.getByRole('button', { name: msg('dashboard.seeAllAria', { count: 1 }) })
+    expect(seeOne.textContent).toBe('See 1')
+    expect(seeOne.getAttribute('aria-label')).toContain(seeOne.textContent)
   })
 
   it('drops See all when the Hot Instances page is turned off, keeping the section', () => {

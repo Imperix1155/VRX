@@ -21,7 +21,13 @@ import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import type { AdapterEvent } from '@shared/types'
 import type { AdapterRequestOptions } from './BaseAdapter'
 import { assertRequestLease, type RequestLease, type AvatarRequestLease } from './RequestLease'
-import { AuthError, AuthSessionPendingError, NetworkError, RateLimitError } from './errors'
+import {
+  AuthError,
+  AuthSessionPendingError,
+  NetworkError,
+  RateLimitError,
+  signInFailure
+} from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
@@ -160,11 +166,12 @@ export interface VrcMetadataPersistence {
 export const VRC_METADATA_SAVE_DELAY_MS = 5_000
 
 const canonicalVrcUserId = /^usr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-// No exact legacy-id grammar is evidenced in this codebase. Keep the fallback
-// conservative: non-empty, at most 64 characters, and no whitespace, control
-// characters, colon, or malformed canonical `usr_` prefix.
-// eslint-disable-next-line no-control-regex -- rejecting control chars is the contract
-const conservativeLegacyVrcUserId = /^(?!usr_)[^\s\u0000-\u001f\u007f:]{1,64}$/
+// No exact legacy-id grammar is evidenced in this codebase (known ones are short
+// letters and digits). Keep the fallback conservative and inside the account-id
+// grammar AccountSession keys on, so an id VRX cannot keep fails the sign-in
+// before anything is saved: 1 to 64 letters, digits, `_` or `-`, and never a
+// malformed canonical `usr_` prefix.
+const conservativeLegacyVrcUserId = /^(?!usr_)[A-Za-z0-9_-]{1,64}$/
 const vrcUserIdSchema = z
   .string()
   .refine((id) => canonicalVrcUserId.test(id) || conservativeLegacyVrcUserId.test(id))
@@ -431,20 +438,15 @@ export class VrcAdapter
 
     let response: Response
     try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}/auth/user`,
-        () => ({
-          method: 'GET',
-          headers: {
-            Authorization: basicAuthHeader(creds.username, creds.password),
-            'User-Agent': VRC_USER_AGENT
-          }
-        }),
-        { priority: 'interactive', lease: this.authRequestLease(operationId) }
-      )
-    } catch {
-      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      response = await this.signInRequest(operationId, '/auth/user', () => ({
+        method: 'GET',
+        headers: {
+          Authorization: basicAuthHeader(creds.username, creds.password),
+          'User-Agent': VRC_USER_AGENT
+        }
+      }))
+    } catch (error) {
+      return this.unansweredSignIn(operationId, error)
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
 
@@ -559,17 +561,12 @@ export class VrcAdapter
 
     let response: Response
     try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}/auth/user`,
-        () => ({
-          method: 'GET',
-          headers: { Cookie: cookie, 'User-Agent': VRC_USER_AGENT }
-        }),
-        { priority: 'interactive', lease: this.authRequestLease(operationId) }
-      )
-    } catch {
-      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      response = await this.signInRequest(operationId, '/auth/user', () => ({
+        method: 'GET',
+        headers: { Cookie: cookie, 'User-Agent': VRC_USER_AGENT }
+      }))
+    } catch (error) {
+      return this.unansweredSignIn(operationId, error)
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
     if (response.status === 401) {
@@ -653,25 +650,21 @@ export class VrcAdapter
 
     let response: Response
     try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}${endpoint}`,
-        () => ({
-          method: 'POST',
-          headers: {
-            ...(verificationCookie ? { Cookie: verificationCookie } : {}),
-            'User-Agent': VRC_USER_AGENT,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ code })
-        }),
-        { priority: 'interactive', lease: this.authRequestLease(operationId) }
-      )
-    } catch {
+      response = await this.signInRequest(operationId, endpoint, () => ({
+        method: 'POST',
+        headers: {
+          ...(verificationCookie ? { Cookie: verificationCookie } : {}),
+          'User-Agent': VRC_USER_AGENT,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ code })
+      }))
+    } catch (error) {
       if (!this.isAuthOperationCurrent(operationId)) {
         return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
       }
       this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      return { ok: false, needs2fa: false, error: signInFailure(error) }
     }
     if (!this.isAuthOperationCurrent(operationId)) {
       return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
@@ -679,7 +672,9 @@ export class VrcAdapter
 
     if (!response.ok) {
       this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
-      return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
+      // A server error says nothing about the code.
+      const error = response.status >= 500 ? `http_${response.status}` : 'invalid_2fa_code'
+      return { ok: false, needs2fa: false, error }
     }
 
     // Require VRChat's explicit `verified: true` — a 204, malformed body, or
@@ -2205,6 +2200,29 @@ export class VrcAdapter
     this.authOperationAbort.abort()
     this.authOperationCancellationGeneration += 1
     this.activeAuthOperation = null
+  }
+
+  /**
+   * One sign-in request: a password, an imported session, or a code. It is
+   * never sent again on its own. A request VRChat asks to slow down ends that
+   * try, since resending would only stretch the limit (docs/api-policy.md).
+   */
+  private signInRequest(
+    operationId: number,
+    path: string,
+    init: () => RequestInit
+  ): Promise<Response> {
+    return this.rawRequest(`${VRC_API_BASE}${path}`, init, {
+      priority: 'interactive',
+      lease: this.authRequestLease(operationId),
+      retry: 'none'
+    })
+  }
+
+  /** The result of a password or imported-session sign-in that got no answer. */
+  private unansweredSignIn(operationId: number, error: unknown): LoginResult {
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    return { ok: false, needs2fa: false, error: signInFailure(error) }
   }
 
   private supersededAuthResult(): LoginResult {

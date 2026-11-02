@@ -82,8 +82,15 @@ export function useLiveFriendEvents(): void {
       platform: Friend['platform'],
       event: Parameters<typeof applyFriendEvent>[1]
     ): void => {
-      queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), (cached) =>
-        cached === undefined ? undefined : applyOrderedFriendEvent(queryClient, cached, event)
+      const queryKey = friendsQueryKey(platform)
+      // A live event patches the sign-in placeholder but never makes it a
+      // roster that loaded: it keeps its 0 stamp until the real read lands.
+      const placeholder = queryClient.getQueryState(queryKey)?.dataUpdatedAt === 0
+      queryClient.setQueryData<Friend[]>(
+        queryKey,
+        (cached) =>
+          cached === undefined ? undefined : applyOrderedFriendEvent(queryClient, cached, event),
+        placeholder ? EMPTY_ROSTER_PLACEHOLDER : undefined
       )
     }
 

@@ -274,6 +274,24 @@ export class AvatarCache {
     return parsed === null ? null : this.readStored(parsed.href, 'picture')
   }
 
+  /**
+   * What `getPicture` would show for this URL, but only when a copy is already
+   * kept in memory or on disk: the full VRChat picture first, then the
+   * thumbnail. Makes no request, so a caller's fetch budget can skip it. A
+   * kept thumbnail counts only while `getPicture` would not try the full
+   * picture (refused, or full downloads paused); otherwise this answers null.
+   */
+  async peekKeptPicture(value: string): Promise<string | null> {
+    const parsed = parseAllowedAvatarUrl(value)
+    if (parsed === null) return null
+    const full = vrcFullPictureUrl(value)
+    if (full === null) return this.peekPicture(parsed.href)
+    const sharp = await this.peekPicture(full)
+    if (sharp !== null) return sharp
+    const fullHeldBack = this.isRefused(full) || this.fullPicturesPausedUntil > this.now()
+    return fullHeldBack ? this.peekPicture(parsed.href) : null
+  }
+
   /** A `picture` copy already in memory or on disk, without any request. */
   private async peekPicture(url: string): Promise<string | null> {
     const key = renditionKey(url, 'picture')

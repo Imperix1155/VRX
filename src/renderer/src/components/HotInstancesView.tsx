@@ -10,33 +10,30 @@
  * section; this page is always available.
  */
 import { useTranslation } from 'react-i18next'
-import { useFriends, scopeByPlatformFilter } from '../queries/friends'
-import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
+import { useFriendSummary } from '../hooks/useFriendSummary'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
-import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { getHotInstances } from '../utils/dashboardAggregations'
-import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
+import FriendsSourceNotice from './FriendsSourceNotice'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstanceSheet from './HotInstanceSheet'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 
 export default function HotInstancesView(): React.JSX.Element {
   const { t } = useTranslation()
-  const vrcQuery = useFriends('vrchat')
-  const cvrQuery = useFriends('chilloutvr')
   const threshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
-  const platformFilter = useFriendsStore((s) => s.platformFilter)
-  const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
-  // A signed-out platform's disabled query stays pending forever and refetch
-  // bypasses its gate, so only enabled queries drive loading and Retry.
-  const enabled = scoped.filter((q) => q.isEnabled !== false)
-  const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
-    useNotConnectedGate(platformFilter)
-  const notConnectedKey =
-    selectedPlatform === null ? null : NOT_CONNECTED_KEY.dashboard[selectedPlatform]
-
-  const friends = scoped.flatMap((q) => q.data ?? [])
+  // The same sources and loading rules as the Dashboard.
+  const {
+    friends,
+    hasData,
+    isLoading,
+    retry,
+    sourceFailures,
+    isAuthStatusPending,
+    isNotConnected,
+    notConnectedKey,
+    openAccounts
+  } = useFriendSummary()
   const hotInstances = getHotInstances(friends, threshold, Infinity)
   const { selectedInstance, openSheet, closeSheet, fallbackFocusRef } =
     useHotInstanceSheet(hotInstances)
@@ -60,8 +57,9 @@ export default function HotInstancesView(): React.JSX.Element {
       </div>
     )
   }
-  if (!scoped.some((q) => q.data != null)) {
-    if (enabled.some((q) => q.isPending)) {
+  // Same gate as the Dashboard: a sign-in's empty placeholder is not a roster.
+  if (!hasData) {
+    if (isLoading) {
       return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
     }
     return (
@@ -69,9 +67,7 @@ export default function HotInstancesView(): React.JSX.Element {
         <p className="text-sm text-[var(--error)]">{t('dashboard.error')}</p>
         <button
           type="button"
-          onClick={() => {
-            for (const q of enabled) void q.refetch()
-          }}
+          onClick={retry}
           className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
         >
           {t('dashboard.retry')}
@@ -82,6 +78,7 @@ export default function HotInstancesView(): React.JSX.Element {
 
   return (
     <div>
+      <FriendsSourceNotice failures={sourceFailures} wording="summary" />
       <section aria-label={t('dashboard.sectionHotInstances')}>
         <div className="mb-[12px]">
           <HotInstancesHeader ref={fallbackFocusRef} />

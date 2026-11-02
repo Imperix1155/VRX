@@ -44,7 +44,9 @@ beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'vrx-avatar-disk-'))
 })
 afterEach(async () => {
-  await rm(root, { recursive: true, force: true })
+  // A picture save a test did not wait for can land mid-delete; Windows then
+  // refuses to remove the folder, so retry instead of failing the run.
+  await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
 })
 
 describe('AvatarCache disk tier', () => {
@@ -148,5 +150,8 @@ describe('AvatarCache disk tier', () => {
     expect(fetchFn).not.toHaveBeenCalled()
     await expect(cache.get(VRC_IMAGE_URL)).resolves.toBe(PICTURE)
     expect(fetchFn).toHaveBeenCalledTimes(2)
+    // That fetch saves the picture again. Let the save finish so cleanup never
+    // races it: Windows refuses to delete a folder that gains a file mid-delete.
+    await vi.waitFor(() => expect(store.size).toBe(1))
   })
 })

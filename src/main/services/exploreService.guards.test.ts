@@ -10,7 +10,7 @@ import type {
 } from './adapters/ExploreAdapter'
 import type { RequestLease } from './adapters/RequestLease'
 import { JoinCoordinator } from './joinCoordinator'
-import { ExploreService } from './exploreService'
+import { ExploreService, type ExploreServiceOptions } from './exploreService'
 
 const unknown = (): ExploreCount => ({ state: 'unknown', value: null, source: 'unknown' })
 const id = (n: number): string => `wrld_00000000-0000-0000-0000-${String(n).padStart(12, '0')}`
@@ -120,7 +120,10 @@ interface Harness {
   allowed: { value: boolean }
   service: ExploreService
 }
-function make(platform: Platform = 'vrchat'): Harness {
+function make(
+  platform: Platform = 'vrchat',
+  extra: Pick<ExploreServiceOptions, 'peekImage'> = {}
+): Harness {
   const now = { value: 0 }
   const account = new AccountSession()
   account.setIdentity(platform, 'account')
@@ -140,6 +143,7 @@ function make(platform: Platform = 'vrchat'): Harness {
     joinCoordinator: new JoinCoordinator(() => now.value),
     isJoinAllowed: () => allowed.value,
     getImage: images,
+    ...extra,
     openExternal: launched,
     onChanged: vi.fn(),
     clock: () => now.value,
@@ -604,6 +608,36 @@ describe('ExploreService guard rails', () => {
     boundary.held.resolve(boundary.h.adapter.rooms.values().next().value!)
     await expect(boundaryJoin).resolves.toEqual({ ok: false, reason: 'stale' })
     expect(boundary.h.launched).not.toHaveBeenCalled()
+  })
+
+  it('answers pictures it already keeps at once, without using the fetch budget', async () => {
+    const url = (index: number): string => `https://files.vrchat.cloud/${index}.png`
+    const kept = new Map(
+      Array.from({ length: 8 }, (_, index) => [url(index), `data:image/png;base64,kept${index}`])
+    )
+    const h = make('vrchat', { peekImage: async (wanted) => kept.get(wanted) ?? null })
+    h.adapter.candidates = Array.from({ length: 12 }, (_, index) => world(index, url(index)))
+    h.images.mockImplementation(async () => 'data:image/png;base64,new')
+    const refs = await candidate(h)
+    const results = []
+    for (const ref of refs) results.push(await h.service.getImage('vrchat', ref))
+    // Twelve cards, eight already kept: every card gets its picture, and only
+    // the four new ones were fetched (the budget allows six a minute).
+    expect(results.every((result) => result?.ok === true)).toBe(true)
+    expect(h.images).toHaveBeenCalledTimes(4)
+    for (const [wanted] of h.images.mock.calls) expect(kept.has(wanted as string)).toBe(false)
+  })
+
+  it('starts no picture download for an account that changed during the kept-picture lookup', async () => {
+    const lookup = defer<string | null>()
+    const h = make('vrchat', { peekImage: () => lookup.promise })
+    h.adapter.candidates = [world(0, 'https://files.vrchat.cloud/0.png')]
+    const refs = await candidate(h)
+    const result = h.service.getImage('vrchat', refs[0]!)
+    h.account.setIdentity('vrchat', 'next')
+    lookup.resolve(null)
+    await expect(result).resolves.toBeNull()
+    expect(h.images).not.toHaveBeenCalled()
   })
 
   it('keeps two outstanding and six rolling image operations across an account boundary', async () => {

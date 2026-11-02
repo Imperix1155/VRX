@@ -6,7 +6,7 @@
  * being checked, so opening a drawer does not flicker.
  */
 import { useTranslation } from 'react-i18next'
-import { VRCHAT_ACCOUNT_NOTE_MAX_LENGTH } from '@shared/accountNotes'
+import { FRIEND_NOTE_MAX_LENGTH, VRCHAT_ACCOUNT_NOTE_MAX_LENGTH } from '@shared/accountNotes'
 import type { Platform } from '@shared/types'
 import type { UseAccountNoteResult } from '../hooks/useAccountNote'
 import { platformName } from '../utils/community'
@@ -31,6 +31,9 @@ export default function AccountNoteStatus({
   const { view } = account
 
   if (view.kind === 'conflict') {
+    // VRX can't take a copy longer than it keeps (main answers
+    // account-too-long), so that choice is not offered.
+    const theirsFits = view.accountNote.length <= FRIEND_NOTE_MAX_LENGTH
     return (
       <div
         role="group"
@@ -52,10 +55,15 @@ export default function AccountNoteStatus({
         >
           {view.accountNote || t('drawer.notes.account.empty')}
         </blockquote>
+        {!theirsFits && (
+          <p>{t('drawer.notes.account.theirsTooLong', { max: FRIEND_NOTE_MAX_LENGTH })}</p>
+        )}
         <div className="flex flex-wrap justify-end gap-[var(--space-1)]">
-          <button type="button" onClick={account.useAccountCopy} className={ACTION}>
-            {t('drawer.notes.account.useTheirs', { platform: name })}
-          </button>
+          {theirsFits && (
+            <button type="button" onClick={account.useAccountCopy} className={ACTION}>
+              {t('drawer.notes.account.useTheirs', { platform: name })}
+            </button>
+          )}
           <button type="button" onClick={account.keepMine} className={ACTION}>
             {t('drawer.notes.account.keepMine')}
           </button>
@@ -94,6 +102,13 @@ export default function AccountNoteStatus({
       text = t('drawer.notes.account.tooLong', {
         platform: name,
         max: VRCHAT_ACCOUNT_NOTE_MAX_LENGTH
+      })
+      break
+    case 'account-too-long':
+      glyph = '•'
+      text = t('drawer.notes.account.accountTooLong', {
+        platform: name,
+        max: FRIEND_NOTE_MAX_LENGTH
       })
       break
     case 'failed':

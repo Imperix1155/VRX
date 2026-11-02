@@ -64,12 +64,16 @@ function PlatformLoginForm({
   platform,
   initialTwoFactor = null,
   onSubmittingChange,
+  onTabsLockChange,
   onSubmissionSettled
 }: {
   platform: Platform
   initialTwoFactor?: TwoFactorMethod | null
   /** Lifts the flow's pending state so the screen can lock the platform tabs. */
   onSubmittingChange: (isSubmitting: boolean) => void
+  /** Lifts whether the platform tabs must stay put: a request in flight or a
+   *  code prompt open. */
+  onTabsLockChange: (locked: boolean) => void
   /** Records terminal session cleanup before the screen applies a deferred 2FA transition. */
   onSubmissionSettled: (sessionCleared: boolean) => void
 }): React.JSX.Element {
@@ -88,6 +92,13 @@ function PlatformLoginForm({
   useEffect(() => {
     onSubmittingChange(flow.isSubmitting)
   }, [flow.isSubmitting, onSubmittingChange])
+  // The code prompt holds a sign-in that has already started: a tab switch
+  // would throw it away (and a new try sends the password again). Back is the
+  // way out, and it unlocks the tabs.
+  const tabsLocked = flow.isSubmitting || flow.pending2fa !== null
+  useEffect(() => {
+    onTabsLockChange(tabsLocked)
+  }, [tabsLocked, onTabsLockChange])
 
   const formAriaLabel = t('login.formAria', { platform: t(config.labelKey) })
   const submitClassName = `${SUBMIT_BASE_CLASS} ${PLATFORM_SUBMIT_CLASS[platform]}`
@@ -151,6 +162,8 @@ export default function LoginScreen({
   )
   // Lifted from the active form: true while its login/verify IPC is in flight.
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Lifted from the active form: true while a request runs or the code prompt is open.
+  const [tabsLocked, setTabsLocked] = useState(false)
   const [previousInitialTwoFactor, setPreviousInitialTwoFactor] = useState<TwoFactorMethod | null>(
     initialTwoFactor
   )
@@ -227,7 +240,7 @@ export default function LoginScreen({
                 setLastSubmissionClearedSession(false)
                 setPlatform(nextPlatform)
               }}
-              disabled={isSubmitting}
+              disabled={tabsLocked}
             />
           </div>
 
@@ -238,6 +251,7 @@ export default function LoginScreen({
             platform={platform}
             initialTwoFactor={initialTwoFactor}
             onSubmittingChange={handleSubmittingChange}
+            onTabsLockChange={setTabsLocked}
             onSubmissionSettled={handleSubmissionSettled}
           />
 
