@@ -1,6 +1,7 @@
 import type { ActivityEntry } from '@shared/activity'
 import { FRIEND_SECTIONS, type Friend, type FriendSort, type OpennessTier } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
+import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { isWorldHidden } from './statusRing'
 import type { LinkedRow } from './projectLinkedFriends'
 
@@ -43,17 +44,23 @@ export function latestActivityByFriend(
   return latest
 }
 
-/** The shown world a row is in, or null when it is in none we can see. */
-function visibleInstance(row: LinkedRow): Friend['instance'] {
-  for (const account of row.accounts) {
-    if (account.presence.state !== 'in-game' || isWorldHidden(account)) continue
-    if (account.instance !== null) return account.instance
-  }
-  return null
+interface ShownInstance {
+  /** The shared instance identity (`hotInstanceKey`), namespaced by platform. */
+  key: string
+  worldName: string
 }
 
-function instanceKey(instance: NonNullable<Friend['instance']>): string {
-  return `${instance.worldId}\u0000${instance.instanceId}`
+/** The shown instance a row is in, or null when it is in none we can see. */
+function visibleInstance(row: LinkedRow): ShownInstance | null {
+  for (const account of row.accounts) {
+    if (account.presence.state !== 'in-game' || isWorldHidden(account)) continue
+    const instance = account.instance
+    if (instance === null) continue
+    const key = hotInstanceKey(account.platform, instance.instanceId, instance.worldId)
+    if (key === null) continue
+    return { key: `${account.platform}\u0000${key}`, worldName: instance.worldName ?? '' }
+  }
+  return null
 }
 
 function joinRank(row: LinkedRow): number {
@@ -98,8 +105,7 @@ export function sortFriendRows(
     for (const row of rows) {
       const instance = visibleInstance(row)
       if (instance === null) continue
-      const key = instanceKey(instance)
-      crowd.set(key, (crowd.get(key) ?? 0) + 1)
+      crowd.set(instance.key, (crowd.get(instance.key) ?? 0) + 1)
     }
   }
   const compareKey = (left: LinkedRow, right: LinkedRow): number => {
@@ -117,15 +123,12 @@ export function sortFriendRows(
     if (leftInstance === null || rightInstance === null) {
       return (leftInstance === null ? 1 : 0) - (rightInstance === null ? 1 : 0)
     }
-    const leftKey = instanceKey(leftInstance)
-    const rightKey = instanceKey(rightInstance)
+    const leftKey = leftInstance.key
+    const rightKey = rightInstance.key
     if (leftKey === rightKey) return 0
     const bySize = (crowd.get(rightKey) ?? 0) - (crowd.get(leftKey) ?? 0)
     if (bySize !== 0) return bySize
-    const byWorld = nameCollator.compare(
-      leftInstance.worldName ?? '',
-      rightInstance.worldName ?? ''
-    )
+    const byWorld = nameCollator.compare(leftInstance.worldName, rightInstance.worldName)
     return byWorld !== 0 ? byWorld : leftKey < rightKey ? -1 : 1
   }
   return [...rows].sort((left, right) => {

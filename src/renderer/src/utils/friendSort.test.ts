@@ -60,8 +60,8 @@ describe('sortFriendRows', () => {
   const lobby = instance('wrld_Lobby', '1', 'public')
   const cafe = instance('wrld_Cafe', '7', 'friends')
   const roster = [
-    friend('vrchat', 'Anna', 'in-game', cafe),
-    friend('chilloutvr', 'Ben', 'in-game', lobby),
+    friend('chilloutvr', 'Anna', 'in-game', cafe),
+    friend('vrchat', 'Ben', 'in-game', lobby),
     friend('vrchat', 'Cleo', 'in-game', lobby),
     friend('chilloutvr', 'Dan', 'in-game', null),
     friend('vrchat', 'Eve', 'active'),
@@ -84,6 +84,19 @@ describe('sortFriendRows', () => {
       'Finn',
       'Gus'
     ])
+  })
+
+  it('keeps one ChilloutVR instance together while its world is still being looked up', () => {
+    // CVR's live feed first reports the instance id as the world id; the
+    // resolved world id arrives later. The instance id alone names the crowd.
+    const pending = { ...instance('i+abc', 'i+abc', 'public'), worldName: null }
+    const resolved = instance('wrld_Zoo', 'i+abc', 'public')
+    const crowd = [
+      friend('vrchat', 'Anna', 'in-game', instance('wrld_Alpha', '1', 'public')),
+      friend('chilloutvr', 'Ben', 'in-game', pending),
+      friend('chilloutvr', 'Cleo', 'in-game', resolved)
+    ]
+    expect(names(sortFriendRows(rows(crowd), 'world', none))).toEqual(['Ben', 'Cleo', 'Anna'])
   })
 
   it('puts the most open instance you can join first', () => {
