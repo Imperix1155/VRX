@@ -150,7 +150,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   were current or saying Loading with no end.
 - Friends: a new ChilloutVR friend who arrives while VRX is still reading the
   list after another change now appears, instead of staying missing until the
-  next refresh.
+  next refresh. VRX reads the list once more for it (never after the platform
+  asked it to slow down).
 - Friend details: the note check, the full profile and, on ChilloutVR, the
   block options share one look-up of the person, instead of asking VRChat or
   ChilloutVR up to three times.
@@ -207,7 +208,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   staying hidden until VRX restarts.
 - Alerts: on a Mac with the VRX window closed, friends coming online alert you
   again and show in Activity after the connection drops and comes back,
-  instead of each friend's first change being missed.
+  instead of each friend's first change being missed. VRX reads the friend
+  list once when the connection comes back, as an open window does.
 - Inbox: ChilloutVR invites and requests that come in the first seconds after
   VRX connects show without an alert, so ones still waiting from before no
   longer alert you again each time VRX starts.
