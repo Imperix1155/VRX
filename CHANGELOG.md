@@ -121,6 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hot Instances: the instance panel's Join keeps keyboard focus while a join
   runs, so the next Tab stays in the panel instead of starting over at the
   top of the window.
+- Hot Instances: after Join on a hot card, its message gets its own line under
+  the world name, so the name and the access pill keep their size.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

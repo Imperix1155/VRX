@@ -11,7 +11,16 @@
  * DashboardView consumes only { data, isPending } from useFriends.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, act, waitFor, within } from '@testing-library/react'
+import {
+  render,
+  renderHook,
+  screen,
+  cleanup,
+  fireEvent,
+  act,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { dashboardSectionsFromOrder, type Friend, type VrcFriend } from '@shared/types'
 import type { ExplorePlatformSnapshot, ExploreWorld, ExploreWorldSnapshot } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -687,6 +696,48 @@ describe('HotInstanceCard Join (VRX-237)', () => {
     expect(pill.getAttribute('data-instance-pill')).toBe('')
     expect(pill.style.color).toBe('var(--op-invite-text)')
   })
+
+  it.each([
+    ['popular-first', 'bar'],
+    ['hot-first', 'picture']
+  ] as const)(
+    'with %s, a Join message gets its own line under the name and pill (%s cards)',
+    (order, layout) => {
+      useSettingsStore.setState({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          confirmJoin: false,
+          dashboardSectionOrder: order,
+          dashboardSections: dashboardSectionsFromOrder(order)
+        }
+      })
+      stubQueries(
+        { data: [pyramid('usr_a', 'Amy'), pyramid('usr_b', 'Bo')], isPending: false },
+        { data: [], isPending: false }
+      )
+      seedExplorePreview()
+      const { container } = render(<DashboardView />)
+      const card = container.querySelector<HTMLElement>(`[data-hot-card-layout="${layout}"]`)!
+      try {
+        // This bridge has no join, so the press fails at once and says so.
+        fireEvent.click(
+          within(card).getByRole('button', {
+            name: msg('friends.joinAria', { name: 'Amy', world: 'Fish Pyramid' })
+          })
+        )
+        const status = within(card).getByRole('status')
+        expect(status.textContent).toBe(msg('friends.joinFailed'))
+        // Kept out of the pill's box, the message can't stretch the pill or
+        // squeeze the world name: it is a full-width line beside the name.
+        expect(status.closest('[data-join-pill]')).toBeNull()
+        expect(status.parentElement?.contains(within(card).getByText('Fish Pyramid'))).toBe(true)
+        if (layout === 'bar') expect(status.className).toContain('col-span-full')
+      } finally {
+        const { result } = renderHook(() => useJoinInstance())
+        act(() => result.current.invalidatePending())
+      }
+    }
+  )
 })
 
 // ─── HotInstanceSheet (VRX-250) ───────────────────────────────────────────────

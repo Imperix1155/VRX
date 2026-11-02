@@ -3,12 +3,14 @@
  *
  * Two layouts share every fact and control (owner, 2026-10-18):
  *  - `bar`: the compact card. Visual-weight order, top to bottom: world name →
- *    instance pill (hero) → who's-here → platform (quiet a11y label). A 2×2
- *    grid: the world name (r1c1) and who's-here (r2c1) share the left 1fr
- *    column; the instance pill (r1c2) and platform pill (r2c2) share a right
- *    column floored at 78px and grown to `max-content`, so the two pills are
- *    always the SAME width and their edges line up. When the world thumbnail
- *    is known it sits behind the bar under a scrim and the platform tint.
+ *    instance pill (hero) → who's-here → platform (quiet a11y label). A
+ *    two-column grid: the world name (r1c1) and who's-here (r3c1) share the
+ *    left 1fr column; the instance pill (r1c2) and platform pill (r3c2) share
+ *    a right column floored at 78px and grown to `max-content`, so the two
+ *    pills are always the SAME width and their edges line up. Row 2 is the
+ *    Join message's full-width line, empty until a Join says something. When
+ *    the world thumbnail is known it sits behind the bar under a scrim and the
+ *    platform tint.
  *  - `picture`: the Popular now card shape (ExploreWorldCard) — picture with
  *    the VRC/CVR badge, then world name beside the instance pill, then
  *    who's-here. Used when Hot Instances is the first Dashboard section and on
@@ -160,16 +162,24 @@ export default function HotInstanceCard({
               world: worldName
             })}
           />
-          {/* Its own line under the pill (as on friend rows): failures stay until
-              the next attempt, so an overlay would cover Join and clip. */}
-          <span
-            role="status"
-            className="block text-center text-[12px] leading-snug break-words text-[var(--text-dim)] [&:not(:empty)]:mt-[var(--space-1)]"
-          >
-            {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
-          </span>
         </span>
       </PictureBackedPill>
+    )
+  }
+
+  // What the last Join said, on its own full-width line under the world name
+  // and pill (as on friend rows). Failures stay until the next attempt, so an
+  // overlay would cover Join; inside the pill's box the text would stretch the
+  // pill and squeeze the world name. Empty, it takes no room.
+  function joinStatus(placement: string): React.JSX.Element | null {
+    if (joinTarget === null) return null
+    return (
+      <span
+        role="status"
+        className={`${placement} block text-[12px] leading-snug break-words text-[var(--text-dim)] [&:not(:empty)]:mt-[var(--space-1)]`}
+      >
+        {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
+      </span>
     )
   }
 
@@ -239,15 +249,18 @@ export default function HotInstanceCard({
           </span>
         </div>
         <div className="relative flex flex-1 flex-col gap-[var(--space-2)] p-[var(--space-3)]">
-          <div className="flex min-w-0 items-center gap-[var(--space-3)]">
-            <h3
-              className="min-w-0 flex-1 truncate text-[18px] font-bold leading-[1.35] text-[var(--text)]"
-              // Tooltip shows the FULL untrimmed name (VRX-199).
-              title={instance.worldName ?? worldName}
-            >
-              {worldName}
-            </h3>
-            {heroPill('shrink-0', false)}
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-[var(--space-3)]">
+              <h3
+                className="min-w-0 flex-1 truncate text-[18px] font-bold leading-[1.35] text-[var(--text)]"
+                // Tooltip shows the FULL untrimmed name (VRX-199).
+                title={instance.worldName ?? worldName}
+              >
+                {worldName}
+              </h3>
+              {heroPill('shrink-0', false)}
+            </div>
+            {joinStatus('')}
           </div>
           {whoHere('')}
         </div>
@@ -269,9 +282,10 @@ export default function HotInstanceCard({
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(0,1fr) minmax(78px, max-content)',
-          gridTemplateRows: 'auto 1fr',
+          // The middle row is the Join message's line: 0px while empty, so the
+          // bottom row's 16px top margin keeps the old 16px row gap.
+          gridTemplateRows: 'auto auto 1fr',
           columnGap: '12px',
-          rowGap: '16px',
           minHeight: '96px'
         }}
       >
@@ -290,10 +304,15 @@ export default function HotInstanceCard({
 
         {heroPill('col-start-2 row-start-1 self-center', image !== null)}
 
-        {whoHere('col-start-1 row-start-2 self-end')}
+        {joinStatus('col-span-full row-start-2')}
+
+        {whoHere('col-start-1 row-start-3 self-end mt-[16px]')}
 
         {/* Platform pill (quiet a11y label) — bottom-right */}
-        <PictureBackedPill backed={image !== null} className="col-start-2 row-start-2 self-end">
+        <PictureBackedPill
+          backed={image !== null}
+          className="col-start-2 row-start-3 self-end mt-[16px]"
+        >
           <PlatformPill platform={instance.platform} className="w-full" />
         </PictureBackedPill>
       </div>
