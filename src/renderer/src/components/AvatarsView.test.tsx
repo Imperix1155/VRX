@@ -171,6 +171,11 @@ describe('AvatarsView', () => {
       })
     })
     expect(await within(sheet).findByText(msg('avatars.details.private'))).toBeTruthy()
+    expect(
+      within(sheet).getByText(
+        msg('avatars.sheet.wearHint', { platform: msg('dashboard.platformCvr') })
+      )
+    ).toBeTruthy()
     fireEvent.click(
       within(sheet).getByRole('button', {
         name: msg('avatars.sheet.wearAria', {
@@ -201,6 +206,9 @@ describe('AvatarsView', () => {
     const sheet = screen.getByRole('dialog')
     expect(within(sheet).getByText(msg('avatars.sheet.wornNow'))).toBeTruthy()
     expect(within(sheet).queryByRole('button', { name: /wear/i })).toBeNull()
+    // Nothing to change on the worn avatar, so no note about changing it.
+    const hint = msg('avatars.sheet.wearHint', { platform: msg('dashboard.platformVrc') })
+    expect(within(sheet).queryByText(hint)).toBeNull()
     fireEvent.keyDown(document, { key: 'Escape' })
     await waitFor(() =>
       expect(document.activeElement?.getAttribute('aria-label')).toBe(cardName(vrcWorn))

@@ -93,9 +93,9 @@ export default function AccountCard({
     <div
       className={`glass glass-information ${config.tintClass} relative overflow-hidden p-[var(--space-6)]`}
     >
+      {/* The name lines up with the status and buttons below it. A future
+          platform logo would go in front of it; do not restore PlatformGlyph. */}
       <div className="relative flex items-center gap-[var(--space-3)]">
-        {/* Reserved for a future real platform logo; do not restore PlatformGlyph. */}
-        <div className="w-[var(--space-6)] shrink-0" aria-hidden="true" />
         <p className="text-sm font-medium text-[var(--text)]">{t(config.labelKey)}</p>
       </div>
 

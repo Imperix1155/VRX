@@ -10,6 +10,7 @@ import CredentialsForm from './auth/CredentialsForm'
 import ImportSignInAction from './auth/ImportSignInAction'
 import TwoFactorForm from './auth/TwoFactorForm'
 import { loginCopy } from './auth/copy'
+import FinePrint from './FinePrint'
 
 /**
  * Two-tab login screen (VRX-217): VRChat | ChilloutVR above ONE shared
@@ -240,9 +241,21 @@ export default function LoginScreen({
             onSubmissionSettled={handleSubmissionSettled}
           />
 
-          <p className="mt-[var(--space-6)] text-center text-xs text-[var(--text-dim)]">
-            {t(platform === 'vrchat' ? 'login.disclaimerVrchat' : 'login.disclaimerChilloutvr')}
-          </p>
+          {/* One short line; the storage details are behind Show more, as in
+              the welcome setup (simple by default, more on demand). */}
+          <div className="mt-[var(--space-6)] flex justify-center">
+            <FinePrint
+              centered
+              summary={t(
+                platform === 'vrchat'
+                  ? 'login.disclaimerShortVrchat'
+                  : 'login.disclaimerShortChilloutvr'
+              )}
+              full={t(
+                platform === 'vrchat' ? 'login.disclaimerVrchat' : 'login.disclaimerChilloutvr'
+              )}
+            />
+          </div>
           {/* Names both platforms in one line on either tab (equal weight). */}
           <p className="mt-[var(--space-2)] text-center text-xs text-[var(--text-dim)]">
             {t('shell.unofficialNotice')}

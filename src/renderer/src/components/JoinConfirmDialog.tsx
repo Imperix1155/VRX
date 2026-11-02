@@ -96,6 +96,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const { pendingConfirm, isJoining, confirmPending, cancelPending, invalidatePending } =
     useJoinInstance()
   const joinMode = useSettingsStore((state) => state.settings.joinMode)
+  const labelScheme = useSettingsStore((state) => state.settings.labelScheme)
   const updateSettings = useSettingsStore((state) => state.updateSettings)
   const [mode, setMode] = useState<JoinMode>('desktop')
   const [moreOpen, setMoreOpen] = useState(false)
@@ -170,7 +171,9 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   }, [isJoining, pending])
   if (pending === null) return null
   const { world, room } = pending
-  const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
+  const access = t(
+    instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme).labelKey
+  )
   // The game that is already open ignores VR/desktop, so it gets no picker.
   const openGame = openGameKey(world.platform, handoff)
   const showModePicker = openGame === null && world.platform === 'chilloutvr' && joinMode === 'ask'
@@ -228,7 +231,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
         <p className="text-sm text-[var(--text-dim)]">
           {room.occupancy.state === 'complete'
             ? t('joinConfirm.peopleCount', { count: room.occupancy.value })
-            : t('explore.unknownCount')}
+            : t('explore.countUnknown')}
         </p>
         <div>
           <button
@@ -590,6 +593,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
       hotInstanceKey(f.platform, f.instance?.instanceId ?? null, f.instance?.worldId ?? null) ===
         parkedKey
   )
+  // Alphabetical, like the hot card and sheet, so the faces come in the same
+  // order everywhere this instance shows them.
+  present.sort((a, b) => a.displayName.localeCompare(b.displayName))
   const shown = present.slice(0, WHO_THERE_MAX_AVATARS)
   const overflow = present.length - shown.length
   const whoHereAria = t('dashboard.friendsHereAria', {
@@ -714,7 +720,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
             className="flex items-center gap-[var(--space-2)]"
           >
             {shown.map((f) => (
-              <span role="listitem" key={`${f.platform}:${f.platformUserId}`}>
+              <span role="listitem" key={`${f.platform}:${f.platformUserId}`} title={f.displayName}>
                 <Avatar friend={f} ariaLabel={f.displayName} />
               </span>
             ))}

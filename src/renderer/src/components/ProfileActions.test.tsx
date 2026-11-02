@@ -126,6 +126,21 @@ describe('ProfileActions', () => {
     expect(screen.getByText(msg('profile.actions.unknownBlock'))).toBeTruthy()
   })
 
+  it('names only blocking on a profile that is not a friend', async () => {
+    state = { isFriend: false, blocked: false }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <ProfileActions platform="vrchat" userId={IDS.vrchat} name="Lumen" notFriend />
+      </QueryClientProvider>
+    )
+    expect(screen.queryByRole('button', { name: msg('profile.actions.show') })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.showBlock') }))
+    await screen.findByRole('button', { name: msg('profile.actions.block') })
+    expect(actionButtons()).toEqual(['block'])
+    expect(screen.getByRole('button', { name: msg('profile.actions.hideBlock') })).toBeTruthy()
+  })
+
   it('confirms in a modal that starts on Cancel and sends nothing when cancelled', async () => {
     renderActions()
     await openOptions()

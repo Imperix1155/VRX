@@ -53,8 +53,8 @@ These decisions are settled. Changing one needs the owner's explicit approval.
    space, and the first section actually shown gets the picture cards.
 8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
    hot instance, most friends first. It shows by default and can be hidden in
-   Settings → Behavior (§8). While it shows, the Dashboard section's "See
-   all" button opens it (§9.1).
+   Settings → Appearance → Sidebar pages (§8). While it shows, the Dashboard
+   section's "See all" button opens it (§9.1).
 9. **Privacy first.** Friends set to Ask Me or Do Not Disturb never reveal
    their world or instance anywhere, including notifications (§5).
 10. **Liquid glass.** Glass is the material, with a blue top-left and orange
@@ -323,13 +323,18 @@ added around it); on a smaller screen the minimum shrinks so the app stays
 usable.
 Don't design a mobile layout from a narrow documentation viewport.
 
+**Scrollbars.** Every scroll area, the main page included, uses one slim
+9 px rounded bar in `--scrollbar-thumb` on a clear track, set once in
+`main.css`; High Contrast draws the thumb in the text color.
+
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
-Explore, Settings. Hot Instances and Explore can be hidden in Settings →
-Behavior, Activity and Inbox in Settings → Appearance, and all four in the
-welcome setup; a hidden page leaves the sidebar and its links, while its
-Dashboard section and alerts keep their own switches. A hidden page that is
-open, or that a hot-instance alert asks for, falls back to the Dashboard.
-Groups is not a planned page and never appears as a placeholder.
+Explore, Search, Groups, Avatars, Settings. Hot Instances, Activity, Inbox,
+Explore, Search and Groups can be hidden in Settings → Appearance → Sidebar
+pages and in the welcome setup; a hidden page leaves the sidebar and its
+links, while its Dashboard section and alerts keep their own switches. A
+hidden page that is open falls back to the Dashboard; a hot-instance alert
+click still opens Hot Instances while that page is hidden, until the user goes
+elsewhere.
 
 **Top bar.** It holds the page's single heading; panels below it, the
 Friends list included, keep their section headings for screen readers only.
@@ -373,15 +378,17 @@ Accounts, and About. Each setting sits on a compact neutral card.
   card), and Instance labels. A picture too small, too tall or too wide to
   fill the landscape window is refused with a plain reason; a usable one that
   will be cropped hard or look soft gets one short warning line in the card.
-  Last, one pages card: Activity page and Inbox page (both on by default).
-  They sit here, not with the other page switches, so Behavior and
-  Notifications fit without scrolling. Hiding either keeps its alerts;
-  Activity off also stops VRX keeping activity and forgets what it kept.
+  Last, one Sidebar pages card with every optional page switch in sidebar
+  order (Hot Instances, Activity, Inbox, Explore, Search, Groups; all on by
+  default), so Behavior and Notifications fit without scrolling. Hiding a
+  page keeps its alerts and Dashboard section; Activity off also stops VRX
+  keeping activity and forgets what it kept.
 - Dashboard: Hide empty sections, then Wearing now, Latest invites, Section
   order, Popular now, Hot Instances, and Hot instance threshold, as separate
   rows in Dashboard order.
-- Behavior: Hot Instances page and Explore page (one card), Friend details
-  open from (whole card or avatar only), Friends background re-sync, and
+- Behavior: Friend details open from (whole card or avatar only), Save notes
+  to my accounts and Use my game favorites (one card), Friends background
+  re-sync, and
   Allow joining friends, which contains Confirm before joining, Join in, and
   When the game is already open (Go there, Send invite, or Off; Send invite
   changes only VRChat, since ChilloutVR has one way). Off keeps the saved
@@ -644,8 +651,8 @@ side at equal height, and the line under its title doubles as the live sign-in
 status, so the step fits the default window without scrolling; one ready
 account is enough to continue. Every other step
 changes the real settings as the user picks and keeps the defaults (all alerts
-off, VRChat instance labels) until changed. Pages lists Hot Instances, Activity, Inbox
-and Explore; Alerts lists the same six alerts as Settings → Notifications, friend alerts
+off, VRChat instance labels) until changed. Pages lists Hot Instances, Activity, Inbox,
+Explore, Search and Groups in one card; Alerts lists the same six alerts as Settings → Notifications, friend alerts
 in one card and inbox alerts in another, so the step fits without scrolling. Look also offers the background
 picture (same picker, checks and wording as Settings; the fade stays in
 Settings) and asks for the instance label style. Skip setup is a visible button on every screen before the
@@ -657,8 +664,8 @@ sign-in storage note is one short line with the full text behind Show more
 (Locked rule 11). Settings → About offers Run setup again.
 
 **Sign-in.** Sign-in text explains OS-backed encryption and the weaker
-local-key fallback (in setup, behind Show more), and never promises keychain
-protection everywhere. The
+local-key fallback (behind Show more, in setup and on the sign-in screen), and
+never promises keychain protection everywhere. The
 sign-in screen (both tabs) and Accounts show the one-line unofficial-app notice
 in plain dim text. Settings → About → Legal, closed by default, holds the full
 text: a VRChat sentence and ChilloutVR's required disclaimer, worded the same
@@ -740,7 +747,9 @@ no line under ALL for a platform the user isn't signed in to.
   "Show full profile" in friend details (collapsed by default). Fields come in
   one order on both platforms: Pronouns, Rank, Bio, Badges, then Show worlds
   and Show groups, which read only when pressed. A missing field says "Not
-  shown"; VRChat trust uses the friend-details rank words.
+  shown"; VRChat trust uses the friend-details rank words. In friend details
+  a VRChat trust rank already shows above the profile, so the profile there
+  skips its Rank row rather than repeat it.
 - **Friend action** (owner, 2026-11-01): a profile of someone who is not a
   friend yet starts with one row, the same on both platforms. If their friend
   request waits in the Inbox it reads "Sent you a friend request." with Accept
@@ -764,8 +773,9 @@ no line under ALL for a platform the user isn't signed in to.
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
   are wider than tall: the group's square icon centered on top over a blurred
   copy of itself (never cropped), then the name, and the VRC/CVR badge with
-  "Owner" or the group code. No picture, or one that fails, shows the name's
-  first letter on the platform color instead of an empty box. A group opens the bottom sheet
+  the group code (or member count), led by "Owner ·" on a group you own. No
+  picture, or one that fails, shows the name's first letter on the platform
+  color instead of an empty box. A group opens the bottom sheet
   with its banner, platform pill and role pill, description, and Details
   (Code, Members, Your role). View only.
 - **Explore** has a segmented Popular now · New · Recently updated ·

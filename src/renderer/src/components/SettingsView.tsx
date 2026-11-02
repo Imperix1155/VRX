@@ -184,6 +184,7 @@ function SidebarPagesCard({
   }>
 }): React.JSX.Element {
   const { t } = useTranslation()
+  const noteId = useId()
   return (
     <div className="setting-card" data-sidebar-pages="">
       {/* Name and note share one line so Appearance still fits the window
@@ -196,16 +197,26 @@ function SidebarPagesCard({
           {t('settings.pages.sidebar.description')}
         </span>
       </p>
-      <div className="mt-[var(--space-1)] grid grid-cols-2 gap-x-[var(--space-6)] gap-y-[var(--space-1)]">
-        {pages.map((page) => (
+      <div className="mt-[var(--space-1)] grid grid-cols-2 gap-x-[var(--space-4)]">
+        {pages.map((page, index) => (
           <div
             key={page.labelKey}
             className="flex min-w-0 items-center justify-between gap-[var(--space-3)]"
           >
+            {/* The note shows on hover and is read with the switch, so it is
+                not mouse-only. */}
             <span className="min-w-0 truncate text-sm text-[var(--text)]" title={t(page.noteKey)}>
               {t(page.labelKey)}
             </span>
-            <Toggle checked={page.checked} ariaLabel={t(page.ariaKey)} onChange={page.onChange} />
+            <span id={`${noteId}-${index}`} className="sr-only">
+              {t(page.noteKey)}
+            </span>
+            <Toggle
+              checked={page.checked}
+              ariaLabel={t(page.ariaKey)}
+              ariaDescribedBy={`${noteId}-${index}`}
+              onChange={page.onChange}
+            />
           </div>
         ))}
       </div>
@@ -695,18 +706,22 @@ function BackgroundPictureCard(): React.JSX.Element {
     <SettingCard
       expanded={picker.dataUrl !== null}
       parent={
-        <div className="setting-row">
-          <div>
-            <p className="text-sm font-medium text-[var(--text)]">
-              {t('settings.backgroundPicture.label')}
-            </p>
-            <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-              {t('settings.backgroundPicture.description')}
-            </p>
-            <BackgroundPictureMessage picker={picker} />
+        // The buttons keep to one line and a warning runs the card's full
+        // width, so a picture's note costs one short line, not two.
+        <>
+          <div className="setting-row">
+            <div>
+              <p className="text-sm font-medium text-[var(--text)]">
+                {t('settings.backgroundPicture.label')}
+              </p>
+              <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                {t('settings.backgroundPicture.description')}
+              </p>
+            </div>
+            <BackgroundPictureControls picker={picker} oneLine />
           </div>
-          <BackgroundPictureControls picker={picker} />
-        </div>
+          <BackgroundPictureMessage picker={picker} />
+        </>
       }
     >
       <div className="setting-row">
@@ -838,13 +853,21 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(value) => updateSettings({ labelScheme: value })}
               />
             </div>
-            {/* The Activity, Inbox, Search and Groups page switches (owner,
-                2026-10-27 and 2026-10-31) sit at the bottom of Appearance in
-                one compact grid, so every Settings page still fits the
-                900x670 window. Hiding a page keeps its alerts; each switch's
-                longer note is its label's tooltip. */}
+            {/* Every optional page switch (owner, 2026-10-20, 2026-10-27 and
+                2026-10-31) sits at the bottom of Appearance in one compact
+                grid, in sidebar order, so they are all in one place and every
+                Settings page still fits the 900x670 window. Hiding a page
+                keeps its alerts; each switch's longer note is its label's
+                tooltip. */}
             <SidebarPagesCard
               pages={[
+                {
+                  labelKey: 'shell.nav.hot',
+                  ariaKey: 'settings.pages.hot.label',
+                  noteKey: 'settings.pages.hot.description',
+                  checked: showHotInstancesPage,
+                  onChange: (checked) => updateSettings({ showHotInstancesPage: checked })
+                },
                 {
                   labelKey: 'shell.nav.activity',
                   ariaKey: 'settings.pages.activity.label',
@@ -858,6 +881,13 @@ export default function SettingsView(): React.JSX.Element {
                   noteKey: 'settings.pages.inbox.description',
                   checked: showInboxPage,
                   onChange: (checked) => updateSettings({ showInboxPage: checked })
+                },
+                {
+                  labelKey: 'shell.nav.explore',
+                  ariaKey: 'settings.pages.explore.label',
+                  noteKey: 'settings.pages.explore.description',
+                  checked: showExplorePage,
+                  onChange: (checked) => updateSettings({ showExplorePage: checked })
                 },
                 {
                   labelKey: 'shell.nav.search',
@@ -950,45 +980,6 @@ export default function SettingsView(): React.JSX.Element {
               {t('settings.behavior.heading')}
             </h2>
 
-            {/* Optional pages (owner, 2026-10-20; moved here from Appearance):
-                hiding a page keeps its Dashboard section and alerts. Dashboard,
-                Friends and Settings always show. One card with the
-                allow-joining divider keeps Behavior inside the 900x670 window. */}
-            <div className="setting-card">
-              <div className="setting-row">
-                <div>
-                  <p className="text-sm font-medium text-[var(--text)]">
-                    {t('settings.pages.hot.label')}
-                  </p>
-                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                    {t('settings.pages.hot.description')}
-                  </p>
-                </div>
-                <Toggle
-                  checked={showHotInstancesPage}
-                  ariaLabel={t('settings.pages.hot.label')}
-                  onChange={(checked) => updateSettings({ showHotInstancesPage: checked })}
-                />
-              </div>
-              <div className="setting-children">
-                <div className="setting-row">
-                  <div>
-                    <p className="text-sm font-medium text-[var(--text)]">
-                      {t('settings.pages.explore.label')}
-                    </p>
-                    <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                      {t('settings.pages.explore.description')}
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={showExplorePage}
-                    ariaLabel={t('settings.pages.explore.label')}
-                    onChange={(checked) => updateSettings({ showExplorePage: checked })}
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Drawer-opener row (VRX-228, moved here from Appearance in
                 VRX-231): whole-card pointer opener (default, owner ruling
                 2026-07-27) vs the VRX-225 avatar-only behavior. The avatar
@@ -1011,8 +1002,10 @@ export default function SettingsView(): React.JSX.Element {
               />
             </div>
 
-            {/* Friend notes on the user's own accounts, as VRCX and CVRX do
-                (owner, 2026-11-01). Off keeps notes on this computer. */}
+            {/* What VRX keeps on the user's own accounts, as VRCX and CVRX do
+                (owner, 2026-11-01): friend notes (off keeps them on this
+                computer) and favorites (off keeps stars in VRX only). One card
+                with a divider keeps Behavior inside the 900x670 window. */}
             <div className="setting-card">
               <SwitchRow
                 label={t('settings.saveNotesToAccounts.label')}
@@ -1021,18 +1014,15 @@ export default function SettingsView(): React.JSX.Element {
                 checked={saveNotesToAccounts}
                 onChange={(checked) => updateSettings({ saveNotesToAccounts: checked })}
               />
-            </div>
-
-            {/* Favorites in the user's own VRChat and ChilloutVR accounts, as in
-                VRCX and CVRX (owner, 2026-11-01). Off keeps stars in VRX only. */}
-            <div className="setting-card">
-              <SwitchRow
-                label={t('settings.useGameFavorites.label')}
-                description={t('settings.useGameFavorites.description')}
-                ariaLabel={t('settings.useGameFavorites.aria')}
-                checked={useGameFavorites}
-                onChange={(checked) => updateSettings({ useGameFavorites: checked })}
-              />
+              <div className="setting-children">
+                <SwitchRow
+                  label={t('settings.useGameFavorites.label')}
+                  description={t('settings.useGameFavorites.description')}
+                  ariaLabel={t('settings.useGameFavorites.aria')}
+                  checked={useGameFavorites}
+                  onChange={(checked) => updateSettings({ useGameFavorites: checked })}
+                />
+              </div>
             </div>
 
             {/* Friends background-reconcile row (VRX-77, moved here from

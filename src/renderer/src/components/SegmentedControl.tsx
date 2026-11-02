@@ -24,6 +24,7 @@ export default function SegmentedControl<T extends string>({
   active,
   labelKeys,
   ariaLabel,
+  ariaDescribedBy,
   onChange,
   textColors,
   disabled = false
@@ -32,6 +33,8 @@ export default function SegmentedControl<T extends string>({
   active: T
   labelKeys: Record<T, string>
   ariaLabel: string
+  /** Id of text that explains the choice (screen readers read it after the name). */
+  ariaDescribedBy?: string
   onChange: (value: T) => void
   textColors?: Partial<Record<T, string>>
   disabled?: boolean
@@ -50,6 +53,7 @@ export default function SegmentedControl<T extends string>({
       className="glass relative flex p-[4px] gap-[2px] shrink-0"
       role="radiogroup"
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
     >
       {/* Sliding bubble — left/width measured from the active button (see above) */}
       <span

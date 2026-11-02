@@ -132,6 +132,7 @@ export default function FriendDrawer({
     setIdentityDialogOwner(null)
 
   const panelRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   // Moving between the combined and per-account views removes the button that
   // was pressed. This names where focus goes next, so it doesn't fall to the page.
@@ -158,6 +159,14 @@ export default function FriendDrawer({
     if (!open) return
     closeButtonRef.current?.focus()
   }, [open])
+
+  // A different friend, or the same one reopened, starts at the top. The panel
+  // stays mounted between selections, so its scroll position would otherwise
+  // carry over and open the next card partway down.
+  const scrollOwner = identityOwner ?? (shown ? `${shown.platform}:${shown.platformUserId}` : null)
+  useLayoutEffect(() => {
+    if (open && scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [open, scrollOwner])
 
   useLayoutEffect(() => {
     const destination = navigationFocusRef.current
@@ -315,7 +324,10 @@ export default function FriendDrawer({
         </button>
 
         {shown && (
-          <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto p-[var(--space-4)]">
+          <div
+            ref={scrollRef}
+            className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto p-[var(--space-4)]"
+          >
             {!combined && selection?.profile && onNavigate && (
               <button
                 type="button"
@@ -678,7 +690,11 @@ function DrawerFullProfile({ accounts }: { accounts: readonly Friend[] }): React
               {ordered.length > 1 ? (
                 <PlatformPill platform={account.platform} className="self-start" />
               ) : null}
-              <ProfileDetails platform={account.platform} userId={account.platformUserId} />
+              <ProfileDetails
+                platform={account.platform}
+                userId={account.platformUserId}
+                showTrust={account.trustRank == null}
+              />
             </div>
           ))
         : null}

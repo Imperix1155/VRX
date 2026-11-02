@@ -57,8 +57,8 @@ you press a "Use my sign-in from" button, described below.
   your headset through XSOverlay, as VRCX and CVRX do.
 - **Your look**: Theme (System, Light, or Dark), Background glow (or none),
   your own background picture, and which platform's words the instance labels
-  use. Hot Instances and Explore can be
-  hidden from the sidebar in Settings → Behavior.
+  use. Settings → Appearance → Sidebar pages hides Hot Instances, Activity,
+  Inbox, Explore, Search or Groups if you don't use them.
 - **Welcome setup**: a new install starts with a short, skippable setup for
   sign-in, pages, the Dashboard, alerts, and the look (including instance
   labels and a background picture). Run it again any time from Settings →

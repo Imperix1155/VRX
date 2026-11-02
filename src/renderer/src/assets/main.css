@@ -248,8 +248,8 @@
 
 /* ── §2 Tokens — dark (default) ───────────────────────────────────────────── */
 :root {
-  /* Native controls (checkboxes, selects, radios) and default scrollbars in the
-     drawer, sheets and dialogs follow the theme instead of staying light. */
+  /* Native controls (checkboxes, selects, radios) follow the theme instead of
+     staying light. Scrollbars have their own rules below. */
   color-scheme: dark;
   --linked-world-corner: 14px;
   --linked-world-name-max: 145px;
@@ -712,6 +712,31 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden; /* §8: shell fixed; only .main scrolls */
 }
+/* Every scroll area (the main page, friend details, sheets, dialogs, the
+   welcome setup) uses one slim rounded scrollbar instead of the system one with
+   arrow buttons, which looked out of place on the glass. Unlayered on purpose,
+   so these beat any utility: a scroll area that ever needs a different bar must
+   change it here, not with a utility (see the glass note below). */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* High Contrast (forced colors) repaints the thumb in the page color, which
+   hid it; the text color keeps it visible. */
+@media (forced-colors: active) {
+  ::-webkit-scrollbar-thumb {
+    background: CanvasText;
+  }
+}
+
 /* Japanese wraps at phrase boundaries, never mid-word (Chromium's auto-phrase);
    break-word still splits a phrase that cannot fit its line. Inherited, so any
    element that sets its own word-break keeps it. Other languages are untouched. */

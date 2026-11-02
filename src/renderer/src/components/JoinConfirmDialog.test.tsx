@@ -984,6 +984,24 @@ describe("who's-there row", () => {
     expect(within(dialog).getByText('+1')).toBeTruthy() // 5 same-instance, NOT +2
   })
 
+  it('shows the faces in name order, each named on hover', () => {
+    const trio = ['Cleo', 'amy', 'Bea'].map((name, i) => ({
+      ...joinableFriend,
+      platformUserId: `usr_${i}`,
+      displayName: name
+    }))
+    mockFriends(trio)
+    render(
+      <>
+        <OpenJoin friend={trio[0]!} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const faces = within(confirmDialog()).getAllByRole('listitem')
+    expect(faces.map((face) => face.getAttribute('title'))).toEqual(['amy', 'Bea', 'Cleo'])
+  })
+
   it("lists the friends' names with the UI language's punctuation", async () => {
     const pair = ['Amy', 'Bea'].map((name, i) => ({
       ...joinableFriend,
@@ -2550,6 +2568,27 @@ describe('join() guard', () => {
 })
 
 describe('Explore confirmation source', () => {
+  it("names a room's access with the same words as every other instance", () => {
+    render(<ExploreTestSurface room={{ ...exploreRoom, access: 'group-public' }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+    expect(within(dialog).getByText(i18n.t('friends.instance.type.group-public'))).toBeTruthy()
+  })
+
+  it('says the count is unknown instead of guessing a number', () => {
+    render(
+      <ExploreTestSurface
+        room={{
+          ...exploreRoom,
+          occupancy: { state: 'unknown', value: null, source: 'vrc-room-n-users' }
+        }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+    expect(within(dialog).getByText(i18n.t('explore.countUnknown'))).toBeTruthy()
+  })
+
   it('keeps an opened Explore confirmation mounted, traps focus, and cancels with Escape', () => {
     render(<ExploreTestSurface />)
     fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))

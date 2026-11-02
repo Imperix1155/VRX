@@ -125,8 +125,15 @@ export default function GroupsView(): React.JSX.Element {
                   key={`${group.platform}:${group.groupId}`}
                   platform={group.platform}
                   title={group.name}
+                  // Every tile names the group the same way (its code, or its
+                  // size); groups the user owns say so in front of it.
                   detail={
-                    group.role === 'owner' ? t(ROLE_KEYS.owner) : (group.code ?? members(group))
+                    [
+                      ...(group.role === 'owner' ? [t(ROLE_KEYS.owner)] : []),
+                      group.code ?? members(group)
+                    ]
+                      .filter((part): part is string => part !== null && part !== '')
+                      .join(' · ') || null
                   }
                   imageUrl={group.imageUrl}
                   shape="icon"

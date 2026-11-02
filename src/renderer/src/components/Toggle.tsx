@@ -8,11 +8,14 @@ export default function Toggle({
   checked,
   onChange,
   ariaLabel,
+  ariaDescribedBy,
   disabled = false
 }: {
   checked: boolean
   onChange: (checked: boolean) => void
   ariaLabel: string
+  /** Id of text that explains the setting. */
+  ariaDescribedBy?: string
   disabled?: boolean
 }): React.JSX.Element {
   return (
@@ -21,6 +24,7 @@ export default function Toggle({
       active={checked ? 'on' : 'off'}
       labelKeys={LABEL_KEYS}
       ariaLabel={ariaLabel}
+      ariaDescribedBy={ariaDescribedBy}
       onChange={(value) => onChange(value === 'on')}
       disabled={disabled}
     />

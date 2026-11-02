@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import InstancePill from './InstancePill'
 import type {
   ExploreCount,
   ExploreJoinDenial,
@@ -14,6 +15,8 @@ import { SheetFacts, type SheetFact } from './SheetFacts'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { joinFailureMessageKey, type JoinFeedback } from '../hooks/useJoinInstance'
 import { formatCount, regionLabelKey } from '../utils/exploreFormat'
+import { instancePillFor } from '../utils/instancePill'
+import { useSettingsStore } from '../stores/settings'
 
 /** Failures where "refresh and try again" is wrong advice; they keep their own copy.
  *  Explore's `stale` means an expired selection, so refreshing is the right advice.
@@ -65,7 +68,7 @@ function Count({ count }: { count: ExploreCount }): React.JSX.Element {
     <>
       {count.state === 'complete'
         ? formatCount(count.value, i18n.language)
-        : t('explore.unknownCount')}
+        : t('explore.countUnknown')}
     </>
   )
 }
@@ -86,8 +89,11 @@ function RoomRow({
 }): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const detailsId = useId()
+  const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const enabled = actionAllowed && room.action.state === 'available'
-  const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
+  // The shared resolver, so a room reads exactly like the same access type
+  // anywhere else in the app.
+  const pill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
   const region = regionLabelKey(room.platform, room.region)
   const details = [region === null ? null : t(region), room.groupName].filter(
     (part): part is string => part !== null
@@ -105,9 +111,8 @@ function RoomRow({
     <li className="flex min-w-0 items-center justify-between gap-[var(--space-3)] rounded-[13px] border border-[var(--border)] bg-[var(--control-fill)] p-[var(--space-3)]">
       <div id={detailsId} className="min-w-0">
         <div className="flex flex-wrap items-center gap-[var(--space-2)]">
-          <span className="rounded-[9px] border border-[var(--border)] px-[var(--space-2)] py-[var(--space-0-5)] text-xs font-semibold text-[var(--text)]">
-            {access}
-          </span>
+          {/* The same tier-colored pill as every other instance surface. */}
+          <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
           <span className="text-xs text-[var(--text-dim)]">
             <Count count={room.occupancy} />
             {room.capacity === null ? '' : ` / ${formatCount(room.capacity, i18n.language)}`}
@@ -128,7 +133,20 @@ function RoomRow({
           onClick={() => {
             if (enabled) onJoin(room)
           }}
-          className="rounded-[10px] bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:text-[var(--text-faint)]"
+          // An open Join wears the same green as the friend card's and the hot
+          // sheet's; a room that can't be joined stays neutral.
+          className="rounded-[10px] border border-transparent bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] enabled:hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:text-[var(--text-faint)] motion-safe:transition-[filter]"
+          style={
+            enabled
+              ? {
+                  borderColor:
+                    'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+                  background:
+                    'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
+                  color: 'var(--op-public-text)'
+                }
+              : undefined
+          }
         >
           {enabled ? t('drawer.join') : disabledLabel}
         </button>

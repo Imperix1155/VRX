@@ -808,7 +808,7 @@ export function profileFor(platform: Platform, userId: string): PersonProfile | 
     bio: 'Builds small worlds and collects sunsets.\nUsually around in the evening.',
     rank:
       platform === 'vrchat'
-        ? { kind: 'vrchat-trust', value: 'trusted' }
+        ? { kind: 'vrchat-trust', value: friend?.trustRank ?? 'trusted' }
         : { kind: 'label', value: 'User' },
     badges:
       platform === 'vrchat'

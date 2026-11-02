@@ -82,8 +82,12 @@ export default function ExploreView({
   }
   return (
     <section aria-label={t('explore.heading')}>
-      <div className="flex flex-wrap items-center justify-end gap-[var(--space-4)]">
-        <div className="flex items-center gap-[var(--space-2)]">
+      <div className="flex flex-wrap items-center justify-between gap-[var(--space-4)]">
+        {/* Each Explore list says what it holds, Popular now included. */}
+        <p className="canvas-text text-sm text-[var(--text-dim)]">
+          {t('explore.lists.popularHint')}
+        </p>
+        <div className="ml-auto flex items-center gap-[var(--space-2)]">
           <span className="canvas-text text-sm text-[var(--text-dim)]">
             {t('explore.worldsShown')}
           </span>

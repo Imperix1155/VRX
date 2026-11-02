@@ -4,7 +4,9 @@
  * Unfriend or block options (ProfileActions). The profile is
  * read once when this mounts; the worlds and groups only after a press. Both
  * platforms show the same fields in the same order, with "Not shown" where a
- * platform has nothing, so neither looks emptier by design.
+ * platform has nothing, so neither looks emptier by design. One exception:
+ * inside friend details, a VRChat trust rank already shows above the profile,
+ * so the profile there skips its Rank row instead of repeating it.
  *
  * Someone who is not a friend yet gets one friend action on top (owner,
  * 2026-11-01): Accept and Decline when their request is waiting in the Inbox,
@@ -48,10 +50,14 @@ const SMALL_HEADING =
 
 export default function ProfileDetails({
   platform,
-  userId
+  userId,
+  showTrust = true
 }: {
   platform: Platform
   userId: string
+  /** False where the VRChat trust rank already shows just above (the friend
+   *  card), so the profile does not repeat it. */
+  showTrust?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const profile = useProfile(platform, userId)
@@ -83,7 +89,7 @@ export default function ProfileDetails({
       </div>
     )
   }
-  return <ProfileBody profile={result.profile} />
+  return <ProfileBody profile={result.profile} showTrust={showTrust} />
 }
 
 function RetryButton({ onRetry }: { onRetry: () => void }): React.JSX.Element {
@@ -99,19 +105,32 @@ function RetryButton({ onRetry }: { onRetry: () => void }): React.JSX.Element {
   )
 }
 
-function ProfileBody({ profile }: { profile: PersonProfile }): React.JSX.Element {
-  const { t } = useTranslation()
+type Translate = ReturnType<typeof useTranslation>['t']
+
+/** Pronouns, then Rank: skipped only when `showTrust` is off and the rank is
+ *  the VRChat trust rank that friend details already show above. */
+function profileFacts(
+  profile: PersonProfile,
+  showTrust: boolean,
+  t: Translate
+): Array<[string, string]> {
   const notShown = t('profile.notShown')
-  const rank =
-    profile.rank === null
-      ? notShown
-      : profile.rank.kind === 'vrchat-trust'
-        ? t(TRUST_RANK_KEY[profile.rank.value])
-        : profile.rank.value
-  const facts: Array<[string, string]> = [
-    ['profile.pronouns', profile.pronouns ?? notShown],
-    ['profile.rank', rank]
-  ]
+  const pronouns: [string, string] = ['profile.pronouns', profile.pronouns ?? notShown]
+  if (profile.rank === null) return [pronouns, ['profile.rank', notShown]]
+  if (profile.rank.kind !== 'vrchat-trust') return [pronouns, ['profile.rank', profile.rank.value]]
+  if (!showTrust) return [pronouns]
+  return [pronouns, ['profile.rank', t(TRUST_RANK_KEY[profile.rank.value])]]
+}
+
+function ProfileBody({
+  profile,
+  showTrust
+}: {
+  profile: PersonProfile
+  showTrust: boolean
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const facts = profileFacts(profile, showTrust, t)
   return (
     <div className="flex flex-col gap-[var(--space-4)]" data-profile-details={profile.platform}>
       {profile.isFriend === false ? (
@@ -155,6 +174,7 @@ function ProfileBody({ profile }: { profile: PersonProfile }): React.JSX.Element
         platform={profile.platform}
         userId={profile.userId}
         name={profile.displayName}
+        notFriend={profile.isFriend === false}
       />
     </div>
   )

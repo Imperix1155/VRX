@@ -393,6 +393,18 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(dialog().getAttribute('aria-label')).toBe('Mika')
   })
 
+  it('opens another friend at the top, not where the last card was scrolled', () => {
+    mockFriends([joinableFriend, cvrFriend])
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+    const scroller = dialog().querySelector<HTMLElement>('.overflow-y-auto')
+    expect(scroller).toBeTruthy()
+    scroller!.scrollTop = 240
+    fireEvent.click(rowOpener('Mika'))
+    expect(dialog().getAttribute('aria-label')).toBe('Mika')
+    expect(scroller!.scrollTop).toBe(0)
+  })
+
   it.each([
     ['join-me', 'Join Me', '--st-joinme', 'Open to joins — hop in freely'],
     ['online', 'Online', '--st-online', 'Around and reachable'],
