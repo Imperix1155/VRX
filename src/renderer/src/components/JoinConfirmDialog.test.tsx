@@ -965,7 +965,7 @@ describe('a game that is already open', () => {
       const join = within(dialog).getByRole('button', { name: 'Join' })
       const dontAsk = within(dialog).getByRole('button', { name: /Don't ask again/ })
 
-      // No choice is on screen yet, so neither can launch in a mode nobody picked.
+      // No choice is on screen yet, so neither can launch while the check is out.
       expect((join as HTMLButtonElement).disabled).toBe(true)
       expect((dontAsk as HTMLButtonElement).disabled).toBe(true)
       fireEvent.click(join)
@@ -1000,6 +1000,23 @@ describe('a game that is already open', () => {
       await Promise.resolve()
     })
     expect(joinInstance).toHaveBeenCalledWith(expect.objectContaining({ mode: 'vr' }))
+  })
+
+  it('VRChat needs no choice even when ChilloutVR asks each time, so Join works while VRX checks', async () => {
+    withSlowHandoff()
+    useSettingsStore.setState((state) => ({ settings: { ...state.settings, joinMode: 'ask' } }))
+    mockFriends([joinableFriend])
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this Public instance?' })
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: 'vrchat', mode: 'desktop' })
+    )
   })
 
   it('the Explore dialog also keeps the picker hidden until the answer', async () => {

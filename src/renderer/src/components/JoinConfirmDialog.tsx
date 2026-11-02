@@ -206,7 +206,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const asksMode = world.platform === 'chilloutvr' && joinMode === 'ask'
   // A picker hidden while VRX checks offers no choice yet (see LaunchLine).
   const showModePicker = openGame === null && !checkingGame && asksMode
-  // Join waits for that choice, so it never launches in a mode nobody picked.
+  // Join waits for the check rather than guess a mode while the answer is out.
   const awaitingChoice = checkingGame && asksMode
   const resolvedMode = showModePicker ? mode : resolveWireMode(world, joinMode)
   async function joinAndNeverAskAgain(): Promise<void> {
@@ -615,7 +615,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   const checkingGame = handoff === 'pending'
   const asksMode = friendForCopy.platform === 'chilloutvr' && joinMode === 'ask'
   const showModePicker = openGame === null && !checkingGame && asksMode
-  // Join waits for that choice, so it never launches in a mode nobody picked.
+  // Join waits for the check rather than guess a mode while the answer is out.
   const awaitingChoice = checkingGame && asksMode
   const resolvedMode: JoinMode = showModePicker ? mode : resolveWireMode(friendForCopy, joinMode)
 
