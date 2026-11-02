@@ -104,6 +104,60 @@ describe('vrcFullPictureUrl', () => {
   })
 })
 
+describe('AvatarCache.peekKeptPicture', () => {
+  it('answers from a kept copy, full picture first, and never makes a request', async () => {
+    const fetchFn = fetchWith({ [FULL(1)]: { body: 'sharp' } })
+    const cache = new AvatarCache({
+      fetchFn,
+      apiAdmission: fastLane(),
+      vrcSessionProvider: lease,
+      makePictureRendition: reencode
+    })
+    await expect(cache.peekKeptPicture(THUMB(1))).resolves.toBeNull()
+    expect(fetchFn).not.toHaveBeenCalled()
+
+    await expect(cache.getPicture(THUMB(1))).resolves.toBe(SHARP)
+    const requests = fetchFn.mock.calls.length
+    await expect(cache.peekKeptPicture(THUMB(1))).resolves.toBe(SHARP)
+    await expect(cache.peekKeptPicture('https://evil.example/x.png')).resolves.toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(requests)
+  })
+
+  it('finds a kept thumbnail when the full picture was never kept', async () => {
+    const fetchFn = fetchWith({ [FULL(2)]: { status: 404 }, [THUMB(2)]: { body: 'thumb' } })
+    const cache = new AvatarCache({
+      fetchFn,
+      apiAdmission: fastLane(),
+      vrcSessionProvider: lease,
+      makePictureRendition: reencode
+    })
+    await expect(cache.getPicture(THUMB(2))).resolves.toBe(THUMB_DATA)
+    const requests = fetchFn.mock.calls.length
+    await expect(cache.peekKeptPicture(THUMB(2))).resolves.toBe(THUMB_DATA)
+    expect(fetchFn).toHaveBeenCalledTimes(requests)
+  })
+
+  it('reads a picture kept on disk by an earlier run, with no request', async () => {
+    const store = new ImageDiskStore({
+      directory: join(root, 'image-cache'),
+      allowedMimeTypes: AVATAR_ALLOWED_MIME_TYPES,
+      maxBodyBytes: AVATAR_MAX_BODY_BYTES
+    })
+    await new AvatarCache({
+      fetchFn: fetchWith({ [FULL(3)]: { body: 'sharp' } }),
+      apiAdmission: fastLane(),
+      vrcSessionProvider: lease,
+      diskStore: store,
+      makePictureRendition: reencode
+    }).getPicture(THUMB(3))
+    await vi.waitFor(() => expect(store.size).toBe(1))
+    const fetchFn = fetchWith({})
+    const relaunched = new AvatarCache({ fetchFn, vrcSessionProvider: lease, diskStore: store })
+    await expect(relaunched.peekKeptPicture(THUMB(3))).resolves.toBe(SHARP)
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+})
+
 describe('AvatarCache.getPicture', () => {
   it('asks VRChat for the full picture instead of the thumbnail: one request, no thumbnail', async () => {
     const fetchFn = fetchWith({ [FULL(1)]: { body: 'sharp' } })

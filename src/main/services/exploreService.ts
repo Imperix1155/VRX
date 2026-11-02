@@ -132,6 +132,9 @@ export interface ExploreServiceOptions {
   joinCoordinator: JoinCoordinator
   isJoinAllowed: () => boolean
   getImage: (url: string) => Promise<string | null>
+  /** A picture already kept in memory or on disk, or null. Never a request,
+   *  so it is answered before the image fetch budget is charged. */
+  peekImage?: (url: string) => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   /** Reach a game that is already open (`GameHandoff.deliver`). Without it,
    *  a Join always launches through `openExternal`. */
@@ -312,6 +315,17 @@ export class ExploreService {
     const cached = state.images.get(url)
     if (cached) return { ok: true, dataUrl: cached }
     let pending = state.imagePending.get(url)
+    if (!pending && this.options.peekImage) {
+      // A picture already kept costs no request, so it never waits for (or
+      // uses up) the fetch budget below (docs/api-policy.md: new fetches only).
+      const kept = await this.options.peekImage(url).catch(() => null)
+      if (kept) {
+        if (!this.current(platform, state) || !this.findWorld(state, worldRef)) return null
+        this.keepImage(state, url, kept)
+        return { ok: true, dataUrl: kept }
+      }
+      pending = state.imagePending.get(url)
+    }
     if (!pending) {
       if ((this.imageOutstanding.get(platform) ?? 0) >= 2)
         return this.imageDeferral(platform, worldRef, 'capacity')
@@ -330,10 +344,15 @@ export class ExploreService {
     }
     const dataUrl = await pending
     if (!dataUrl || !this.current(platform, state) || !this.findWorld(state, worldRef)) return null
+    this.keepImage(state, url, dataUrl)
+    return { ok: true, dataUrl }
+  }
+
+  /** Remembers the last 12 pictures handed out, most recent last. */
+  private keepImage(state: State, url: string, dataUrl: string): void {
     state.images.delete(url)
     state.images.set(url, dataUrl)
     while (state.images.size > 12) state.images.delete(state.images.keys().next().value!)
-    return { ok: true, dataUrl }
   }
 
   async joinRoom(

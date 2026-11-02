@@ -237,7 +237,7 @@ admission queue with no retries.
 | Job deadline                      | 45 seconds                                                                                                                                                                |
 | Freshness                         | Evidence is fresh for 60 seconds                                                                                                                                          |
 | Refresh eligibility               | Automatic candidate refresh at most every 5 minutes; manual candidate or world refresh at most every 60 seconds                                                           |
-| Explore images                    | 6 new image fetches per platform per 60 seconds, 2 outstanding                                                                                                            |
+| Explore images                    | 6 new image fetches per platform per 60 seconds, 2 outstanding. A picture already kept in memory or on disk shows at once and counts toward neither                       |
 | Deferred image retries (renderer) | At most 2 per visible world. A full queue waits 2.0–2.75 s; a full window waits until its oldest start expires, plus up to 750 ms. Every wait is clamped to 250–60,000 ms |
 
 Joining from Explore stays main-owned and requires fresh room evidence.

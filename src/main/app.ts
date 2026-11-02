@@ -700,6 +700,7 @@ app
       joinCoordinator,
       isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
       getImage: (url) => avatarCache.getPicture(url),
+      peekImage: (url) => avatarCache.peekKeptPicture(url),
       openExternal: (url) => shell.openExternal(url),
       deliverJoin: (platform, url, location, stillCurrent) =>
         gameHandoff.deliver(
