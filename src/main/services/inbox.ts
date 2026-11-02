@@ -12,7 +12,9 @@
  * its sender, so a longer memory would hide that person's next request.
  *
  * Alerts read their switch at dispatch, default off, and are rate limited per
- * platform and per sender. Nothing logged here carries a name or world.
+ * platform and per sender. Rows ChilloutVR sends just after its socket connects
+ * show without an alert: they may be the list of what is still open from
+ * before. Nothing logged here carries a name or world.
  */
 import {
   MAX_INBOX_DISMISSED_PER_PLATFORM,
@@ -30,6 +32,10 @@ export const INBOX_ALERT_WINDOW_MS = 60_000
 /** How long an answered request's record ID is held back: long enough for a
  *  socket to repeat its list, short enough that the person can ask again. */
 export const INBOX_ANSWERED_HOLD_MS = 60_000
+/** After ChilloutVR's socket connects, rows that arrive within this long show
+ *  without an alert. Whether it lists still-open records on connect is
+ *  unconfirmed (api-volatility.md); if it does, they are not news. */
+export const INBOX_CONNECT_QUIET_MS = 10_000
 
 export interface InboxServiceOptions {
   /** Wall clock (ms since epoch) for the time shown on each row. */
@@ -55,13 +61,21 @@ interface PlatformInbox {
   /** Answered item IDs and when (monotonic), oldest first; held back briefly. */
   answered: Map<string, number>
   recentAlerts: Array<{ at: number; key: string }>
+  /** Monotonic time until which new rows show without an alert. */
+  quietUntil: number
 }
 
 const itemIdOf = (entry: Pick<InboxEntry, 'kind' | 'sourceId'>): string =>
   `${entry.kind}:${entry.sourceId}`
 
 function emptyInbox(): PlatformInbox {
-  return { items: new Map(), dismissed: new Set(), answered: new Map(), recentAlerts: [] }
+  return {
+    items: new Map(),
+    dismissed: new Set(),
+    answered: new Map(),
+    recentAlerts: [],
+    quietUntil: 0
+  }
 }
 
 export class InboxService {
@@ -76,6 +90,14 @@ export class InboxService {
   consume(event: AdapterEvent): void {
     if (event.type === 'friend-added') {
       this.settleFriendRequest(event.platform, event.friend.platformUserId)
+      return
+    }
+    if (event.type === 'connection') {
+      // VRChat sends notifications only as they happen; only ChilloutVR's
+      // frames may repeat what is still open as the socket connects.
+      if (event.platform === 'chilloutvr' && event.health === 'live') {
+        this.platforms.chilloutvr.quietUntil = this.options.clock() + INBOX_CONNECT_QUIET_MS
+      }
       return
     }
     if (event.type !== 'inbox') return
@@ -216,6 +238,7 @@ export class InboxService {
       }
     }
     if (changed) this.options.onChanged()
+    if (this.options.clock() < inbox.quietUntil) return
     for (const item of fresh) {
       if (inbox.items.has(item.id)) this.alert(inbox, item)
     }

@@ -192,7 +192,9 @@ etiquette rules apply in full; this file adds local detail.
   persists, and Hide is local. Keep its per-platform row cap, bounded
   hidden-ID memory, and alert limits (`isInboxAlertEnabled`: `notifyInvites`,
   `notifyFriendRequests`). An answered request's ID is held back only
-  briefly, since a ChilloutVR request's ID is its sender. An invite may name
+  briefly, since a ChilloutVR request's ID is its sender. Rows ChilloutVR
+  sends just after its socket connects show without an alert, since they may
+  be ones still open from before. An invite may name
   its world because the sender shared it; nothing else in the inbox reads
   presence.
 - `FriendActionsService` owns the only friend writes: Accept or Decline on an

@@ -1058,8 +1058,10 @@ response or write has been captured yet.
   a one-item list, and at most 50 records are read per frame. An invite with no
   world name falls back to `InstanceName` without its ` (#n)` suffix. Bad
   records are skipped. A frame never removes rows, because it is unconfirmed
-  whether a frame lists everything still open. A friend request clears when that
-  person shows up on the roster.
+  whether a frame lists everything still open. For the same reason, rows that
+  arrive in the first 10 s after a connect show without an alert
+  (`INBOX_CONNECT_QUIET_MS`): if the server lists open records on connect, they
+  are not news. A friend request clears when that person shows up on the roster.
 - **Friend action frames (🟡 Source-derived from CVRX, not yet seen live):**
   VRX sends `{ RequestType: 6, Data: { id } }` to accept, `7` to decline and
   `5` to add, where `id` is the other user's GUID in lower case. The socket

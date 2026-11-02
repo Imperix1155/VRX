@@ -751,7 +751,9 @@ platform filter. Nothing is stored, so the list starts empty each launch.
 - The sidebar shows a neutral count badge (text, never color alone) of rows
   newer than the last ones shown, per platform; opening the page clears it.
 - Invite and friend-request alerts are separate switches in Settings →
-  Notifications, both off by default, and limited to a few a minute.
+  Notifications, both off by default, and limited to a few a minute. Rows
+  ChilloutVR sends in the first seconds after connecting show without an
+  alert, since they may be ones still waiting from before.
 
 ### §9.7 Search, profiles, Groups and world lists
 

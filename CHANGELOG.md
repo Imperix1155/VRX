@@ -184,6 +184,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Alerts: on a Mac with the VRX window closed, friends coming online alert you
   again and show in Activity after the connection drops and comes back,
   instead of each friend's first change being missed.
+- Inbox: ChilloutVR invites and requests that come in the first seconds after
+  VRX connects show without an alert, so ones still waiting from before no
+  longer alert you again each time VRX starts.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
