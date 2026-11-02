@@ -237,12 +237,14 @@ export default function IdentitiesDialog({
   const customName = nameDraft ?? profile?.customName ?? automaticName ?? selection.name
   const pickerCandidates =
     flow.kind === 'picker'
-      ? friends.filter(
-          (friend) =>
-            friend.platform !== flow.source.platform &&
-            (!search.trim() ||
-              splitByMatch(friend.displayName, search.trim()).some((part) => part.isMatch))
-        )
+      ? friends
+          .filter(
+            (friend) =>
+              friend.platform !== flow.source.platform &&
+              (!search.trim() ||
+                splitByMatch(friend.displayName, search.trim()).some((part) => part.isMatch))
+          )
+          .sort(byName)
       : []
   const linkedCandidateKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -544,6 +546,17 @@ const PICKER_INITIAL_VIEWPORT = { width: 0, height: 420 }
 
 function candidateKey(platform: Platform, friendId: string): string {
   return `${platform}:${friendId}`
+}
+
+// The friends list's name order (projectLinkedFriends); one name goes by id.
+const nameCollator = new Intl.Collator(undefined, { sensitivity: 'base' })
+const idCollator = new Intl.Collator()
+
+function byName(left: Friend, right: Friend): number {
+  return (
+    nameCollator.compare(left.displayName, right.displayName) ||
+    idCollator.compare(left.platformUserId, right.platformUserId)
+  )
 }
 
 /**

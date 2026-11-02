@@ -81,6 +81,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Avatars: with ALL selected, a platform you aren't signed in to no longer
   adds a "Connect" line, like every other page. Picking that platform in the
   filter still shows it with Go to Accounts.
+- Identities: Link an account lists the other platform's friends in name
+  order, as the friends list does, instead of in the order the platform sent
+  them.
 
 ### Fixed
 

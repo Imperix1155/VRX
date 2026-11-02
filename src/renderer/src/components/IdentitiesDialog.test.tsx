@@ -293,12 +293,37 @@ describe('identity management', () => {
         .map((button) => button.textContent)
     ).toEqual([expect.stringContaining('Friend 1999')])
   })
+  it('lists the other platform’s friends by name, as the friends list does', () => {
+    const named = (displayName: string, platformUserId: string): Friend => ({
+      ...candidate,
+      platformUserId,
+      displayName
+    })
+    render(
+      dialog([
+        source,
+        named('Nyx', 'cvr_1'),
+        named('iris', 'cvr_2'),
+        named('Vale', 'cvr_3'),
+        named('Ember', 'cvr_4'),
+        named('kai', 'cvr_5')
+      ])
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Link an account' }))
+    const list = screen.getByRole('list', { name: 'Friends' })
+    expect(
+      within(list)
+        .getAllByText(/^(Nyx|iris|Vale|Ember|kai)$/)
+        .map((name) => name.textContent)
+    ).toEqual(['Ember', 'iris', 'kai', 'Nyx', 'Vale'])
+  })
   it('selects duplicate names by exact friend identity and creates a blank-note link', async () => {
     const duplicate = { ...candidate, platformUserId: 'different_friend' }
     render(dialog([source, candidate, duplicate]))
     fireEvent.click(screen.getByRole('button', { name: 'Link an account' }))
     const choices = within(screen.getByRole('list', { name: 'Friends' })).getAllByRole('button')
-    fireEvent.click(choices[1]!)
+    // The same name sorts by id, so the duplicate leads; the roster lists it second.
+    fireEvent.click(choices[0]!)
     expect(screen.queryByRole('checkbox')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Link accounts' }))
     await waitFor(() => expect(mutate).toHaveBeenCalledOnce())
