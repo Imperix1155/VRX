@@ -39,8 +39,22 @@ function stubClipboard(writeText: (text: string) => Promise<void>): ReturnType<t
 }
 
 /** A packaged build's stack: the install folder sits under the Windows account. */
-const INSTALLED_FRAME =
-  'file:///C:/Users/Sample%20User/AppData/Local/Programs/vrx/resources/app.asar/out/renderer/assets/index-abc123.js:12:345'
+const INSTALLED_FRAME = [
+  'file://',
+  'C:',
+  'Users',
+  'Sample%20User',
+  'AppData',
+  'Local',
+  'Programs',
+  'vrx',
+  'resources',
+  'app.asar',
+  'out',
+  'renderer',
+  'assets',
+  'index-abc123.js:12:345'
+].join('/')
 
 function InstalledBomb(): React.JSX.Element {
   const error = new Error(`Failed to load ${INSTALLED_FRAME}`)
