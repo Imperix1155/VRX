@@ -15,10 +15,13 @@ export type CommunityNoticeReason = CommunityFailure | 'cooldown' | 'invalid-que
 export type CommunitySource<T> =
   | { kind: 'idle' | 'auth-pending' | 'not-connected' | 'loading' }
   | { kind: 'failed'; reason: CommunityNoticeReason }
-  | { kind: 'ready' | 'stale'; result: T }
+  | { kind: 'ready'; result: T }
+  /** `rateLimited`: the failed later read was the platform asking to slow down. */
+  | { kind: 'stale'; result: T; rateLimited: boolean }
 
-/** A cached answer; `refreshFailed` marks a loaded one whose later read failed. */
-export type Kept<T> = T & { readonly refreshFailed?: true }
+/** A cached answer; `refreshFailed` marks a loaded one whose later read failed,
+ *  `refreshRateLimited` one whose later read the platform answered with a 429. */
+export type Kept<T> = T & { readonly refreshFailed?: true; readonly refreshRateLimited?: true }
 
 type Answer = Kept<{ ok: true } | { ok: false; reason: string }>
 
@@ -33,7 +36,8 @@ export function keepShown<T extends { ok: boolean }>(
   next: T
 ): Kept<T> {
   if (next.ok || previous?.ok !== true) return next
-  return { ...previous, refreshFailed: true }
+  const rateLimited = 'reason' in next && next.reason === 'rate-limited'
+  return { ...previous, refreshFailed: true, refreshRateLimited: rateLimited ? true : undefined }
 }
 
 const NOTICE_REASONS: readonly CommunityNoticeReason[] = [
@@ -65,10 +69,9 @@ export function communitySource<T extends Answer>(
     return query.isError ? { kind: 'failed', reason: 'unavailable' } : { kind: 'idle' }
   }
   if (!result.ok) return { kind: 'failed', reason: noticeReason(result.reason) }
-  return {
-    kind: result.refreshFailed === true ? 'stale' : 'ready',
-    result: result as Extract<T, { ok: true }>
-  }
+  const shown = result as Extract<T, { ok: true }>
+  if (result.refreshFailed !== true) return { kind: 'ready', result: shown }
+  return { kind: 'stale', result: shown, rateLimited: result.refreshRateLimited === true }
 }
 
 /**

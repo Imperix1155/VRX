@@ -580,6 +580,25 @@ describe('GroupsView', () => {
     ).toBeNull()
   })
 
+  it('says the platform asked to slow down when a Refresh of loaded groups gets a 429', async () => {
+    renderWith(<GroupsView />)
+    await screen.findByRole('region', { name: msg('groups.heading') })
+    const slowVrchat = ({ platform }: { platform: Platform }): Promise<MyGroupsResult> =>
+      platform === 'vrchat'
+        ? Promise.resolve({ ok: false, reason: 'rate-limited' })
+        : Promise.resolve({
+            ok: true,
+            platform,
+            groups: [group('chilloutvr', 'Meadow', 'member')],
+            complete: true
+          })
+    bridge.getMyGroups.mockImplementationOnce(slowVrchat).mockImplementationOnce(slowVrchat)
+    fireEvent.click(screen.getByRole('button', { name: msg('groups.refresh') }))
+    const line = await screen.findByText(msg('community.staleRateLimited', { platform: 'VRChat' }))
+    expect(line.className).toContain('text-[var(--text-dim)]')
+    expect(screen.queryByText(msg('community.stale', { platform: 'VRChat' }))).toBeNull()
+  })
+
   it('still shows a red line when the first read fails', async () => {
     bridge.getMyGroups.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
     useFriendsStore.setState({ platformFilter: 'vrchat' })
@@ -652,7 +671,10 @@ describe('ExploreListPanel', () => {
     await act(async () => {
       await lastRecover.current!('vrchat')
     })
-    expect(await screen.findByText(msg('community.stale', { platform: 'VRChat' }))).toBeTruthy()
+    // A 429 also says to wait a minute.
+    expect(
+      await screen.findByText(msg('community.staleRateLimited', { platform: 'VRChat' }))
+    ).toBeTruthy()
     expect(screen.getByTestId('world-results').textContent).toBe(shown)
     expect(screen.queryByRole('alert')).toBeNull()
   })

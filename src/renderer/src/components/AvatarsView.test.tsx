@@ -278,6 +278,22 @@ describe('AvatarsView', () => {
     ).toBeTruthy()
   })
 
+  it('says VRChat asked to slow down when a Refresh of loaded avatars gets a 429', async () => {
+    renderView()
+    await screen.findAllByRole('button', { name: cardName(vrcOther) })
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>(
+        platform === 'vrchat' ? { ok: false, reason: 'rate-limited' } : library(platform)
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: msg('avatars.refresh') }))
+    const line = await screen.findByText(
+      msg('avatars.staleRateLimited', { platform: msg('dashboard.platformVrc') })
+    )
+    expect(line.className).toContain('text-[var(--text-dim)]')
+    expect(screen.getAllByRole('button', { name: cardName(vrcOther) }).length).toBeGreaterThan(0)
+  })
+
   it('keeps the loaded avatars when a Refresh fails, and says so in a dim line', async () => {
     renderView()
     await screen.findAllByRole('button', { name: cardName(vrcOther) })

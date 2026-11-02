@@ -138,7 +138,14 @@ export function useSwitchAvatar(): UseMutationResult<AvatarSwitchResult, Error, 
       queryClient.setQueryData<Kept<AvatarLibraryResult>>(
         avatarLibraryQueryKey(avatar.platform, accountId),
         (previous) =>
-          previous?.ok ? { ...previous, current: avatar, refreshFailed: undefined } : previous
+          previous?.ok
+            ? {
+                ...previous,
+                current: avatar,
+                refreshFailed: undefined,
+                refreshRateLimited: undefined
+              }
+            : previous
       )
     }
   })

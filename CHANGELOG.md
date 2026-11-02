@@ -216,7 +216,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same text searched again later asks again too.
 - Explore, Groups and Avatars: when a Refresh or a later read fails, the
   worlds, groups or avatars that loaded stay on screen with a dim line saying
-  so, instead of being replaced by an error.
+  so, instead of being replaced by an error. When the platform asked VRX to
+  slow down, the line also says to try again in a minute.
 - Explore: picking another world while a world panel is open switches the
   panel in place and shows the new world from its top, instead of sliding the
   panel away and back and moving focus to the world you had open before.

@@ -84,7 +84,7 @@ type SourceState =
   | { kind: 'idle' }
   | { kind: 'failed'; reason: AvatarLibraryFailure }
   | { kind: 'ready'; result: ReadyLibrary }
-  | { kind: 'stale'; result: ReadyLibrary }
+  | { kind: 'stale'; result: ReadyLibrary; rateLimited: boolean }
 
 /** The states that show a line above the avatars. */
 type NoticeState = Exclude<SourceState, { kind: 'ready' } | { kind: 'idle' }>
@@ -102,7 +102,8 @@ function sourceState(auth: UseQueryResult<AuthStatus, Error>, library: LibraryQu
     return library.isError ? { kind: 'failed', reason: 'unavailable' } : { kind: 'idle' }
   }
   if (!result.ok) return { kind: 'failed', reason: result.reason }
-  return { kind: result.refreshFailed === true ? 'stale' : 'ready', result }
+  if (result.refreshFailed !== true) return { kind: 'ready', result }
+  return { kind: 'stale', result, rateLimited: result.refreshRateLimited === true }
 }
 
 export default function AvatarsView(): React.JSX.Element {
@@ -353,7 +354,9 @@ function SourceNotice({
       )
   } else if (state.kind === 'stale') {
     // Dim: the library that loaded last still shows. Refresh tries again.
-    text = t('avatars.stale', { platform: platformName })
+    text = t(state.rateLimited ? 'avatars.staleRateLimited' : 'avatars.stale', {
+      platform: platformName
+    })
   } else {
     text = t('avatars.loadingPlatform', { platform: platformName })
   }

@@ -68,7 +68,9 @@ export function CommunityNotice({
       ) : null
   } else if (state.kind === 'stale') {
     // The page's own Refresh is the way to try again.
-    text = t('community.stale', { platform: name })
+    text = t(state.rateLimited ? 'community.staleRateLimited' : 'community.stale', {
+      platform: name
+    })
   } else {
     text = t('community.loading', { platform: name })
   }

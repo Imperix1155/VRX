@@ -653,8 +653,9 @@ shows the same Connect gate with Go to Accounts as the Dashboard.
 
 A failed Refresh or re-read never clears a list that loaded. New, Recently
 updated, Groups and Avatars keep that platform's cards and add a dim line
-naming it; the error color is for a platform with nothing loaded. Try again on
-a red line shows that platform's loading line until it answers.
+naming it (after a 429 it also says to try again in a minute); the error color
+is for a platform with nothing loaded. Try again on a red line shows that
+platform's loading line until it answers.
 
 When one platform's roster fails, Friends keeps the usable list and shows a
 line under the header naming that platform, with a Retry for that platform
