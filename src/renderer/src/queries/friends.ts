@@ -30,10 +30,33 @@ const rosterProvenanceSchema = z
   .refine((value) => value.overrides.every((entry) => entry.revision >= value.baseRevision))
 
 const RECONCILE_JITTER_FRACTION = 0.1
+/** Shortest wait once a reconcile is due, so an overdue one runs promptly. */
+const RECONCILE_OVERDUE_MS = 1_000
 
-function jitteredReconcileInterval(intervalMs: number): number {
-  const factor = 1 - RECONCILE_JITTER_FRACTION + Math.random() * RECONCILE_JITTER_FRACTION * 2
-  return Math.round(intervalMs * factor)
+/** When each platform's last roster read started, and that run's jitter. */
+const reconcileRuns: Partial<Record<Platform, { startedAt: number; factor: number }>> = {}
+
+/** A roster read is starting: the next background reconcile counts from now,
+ *  ±10% (one draw per run, docs/api-policy.md). */
+function startReconcileRun(platform: Platform): void {
+  reconcileRuns[platform] = {
+    startedAt: Date.now(),
+    factor: 1 - RECONCILE_JITTER_FRACTION + Math.random() * RECONCILE_JITTER_FRACTION * 2
+  }
+}
+
+/**
+ * Time left until the next background reconcile. TanStack restarts an
+ * observer's interval timer on every cache write (each live event) and on
+ * re-renders, so a plain interval would start over each time and never fire
+ * while events keep arriving. Counting down to a deadline fixed when the last
+ * read started keeps the cadence whatever restarts the timer.
+ */
+function reconcileDelay(platform: Platform, intervalMs: number): number {
+  const run = reconcileRuns[platform]
+  if (run === undefined) return intervalMs
+  const due = run.startedAt + Math.round(intervalMs * run.factor)
+  return Math.max(RECONCILE_OVERDUE_MS, due - Date.now())
 }
 
 /** Per-platform query key for the friends list. */
@@ -126,6 +149,7 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     // AFTER the fetch resolves so any live world-metadata enrichment that lands
     // mid-flight survives the REST write.
     queryFn: (context) => {
+      startReconcileRun(platform)
       const load = async (): Promise<FriendRosterResponse> => {
         const fresh = await fetchFriendRoster(platform, () =>
           queryClient.getQueryData(friendsQueryKey(platform))
@@ -145,7 +169,7 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     structuralSharing: platform === 'vrchat' ? shareFriendReplayResult : undefined,
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
     refetchInterval:
-      reconcileIntervalMs === false ? false : () => jitteredReconcileInterval(reconcileIntervalMs),
+      reconcileIntervalMs === false ? false : () => reconcileDelay(platform, reconcileIntervalMs),
     enabled: auth.data?.state === 'authenticated' || auth.data?.state === 'error'
   })
 }
