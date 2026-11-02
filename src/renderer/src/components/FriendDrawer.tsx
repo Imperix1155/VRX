@@ -22,8 +22,8 @@
  *      bridge flow, confirmation and in-flight guard (VRX-166).
  *      Copy link and self-invite remain separate issues; no placeholders
  *      here.
- *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
- *      explicit Retry after failure. An account-private note also goes to the
+ *   5. Notes: person-shared or account-private owner, save-on-blur/navigation
+ *      and when the page closes (a quit), explicit Retry after failure. An account-private note also goes to the
  *      user's own VRChat or ChilloutVR account (AccountNoteStatus). Then
  *      quiet VRChat trust when known, then
  *      "Full profile" (owner, 2026-10-31): bio, pronouns, rank, badges, and
@@ -281,6 +281,14 @@ export default function FriendDrawer({
     committedNote.current = note
   })
   useLayoutEffect(() => () => committedNote.current.onBlur(), [noteOwner])
+  // Quitting (Ctrl+Q, Cmd+Q, the tray's Quit) closes the page with no blur
+  // and no unmount, so the field would never save. The page still gets
+  // beforeunload, and a save sent from it reaches main before the window goes.
+  useEffect(() => {
+    const flush = (): void => committedNote.current.onBlur()
+    window.addEventListener('beforeunload', flush)
+    return () => window.removeEventListener('beforeunload', flush)
+  }, [])
   const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
   const retryNote = (): void => {
     // The Retry button is conditionally removed after success; retain a useful

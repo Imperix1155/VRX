@@ -341,6 +341,27 @@ describe('FriendDrawer (VRX-69)', () => {
     )
   })
 
+  it('quitting while a note is being typed saves it first, though the page closes without a blur', async () => {
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+    const textarea = within(dialog()).getByRole('textbox', { name: 'Notes (yours, private)' })
+    await waitFor(() => expect((textarea as HTMLTextAreaElement).readOnly).toBe(false))
+    textarea.focus()
+    fireEvent.change(textarea, { target: { value: 'met at the pug' } })
+
+    // Ctrl+Q, Cmd+Q and the tray's Quit close the page: beforeunload, no blur.
+    fireEvent(window, new Event('beforeunload'))
+    await waitFor(() =>
+      expect(setFriendNote).toHaveBeenCalledWith(
+        expect.objectContaining({ note: 'met at the pug', friendId: 'usr_alex' })
+      )
+    )
+    // Nothing left to save: a second close sends nothing more.
+    fireEvent(window, new Event('beforeunload'))
+    await act(async () => {})
+    expect(setFriendNote).toHaveBeenCalledTimes(1)
+  })
+
   it('with the card open, joining ANOTHER row closes the card and still joins (VRX-225, Codex sequence)', async () => {
     mockFriends([joinableFriend, { ...cvrFriend, instance: publicInstance }])
     render(<FriendsList />)

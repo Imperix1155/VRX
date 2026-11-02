@@ -148,6 +148,26 @@ describe('linked drawer ownership', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'ChilloutVR' }))
   })
 
+  it('saves a shared note being typed when the page closes for a quit', async () => {
+    render(drawer(person))
+    const editor = screen.getByRole<HTMLTextAreaElement>('textbox')
+    await waitFor(() => expect(editor.value).toBe('Shared saved text'))
+    editor.focus()
+    fireEvent.change(editor, { target: { value: 'Typed before quitting' } })
+    fireEvent(window, new Event('beforeunload'))
+    await waitFor(() =>
+      expect(change).toHaveBeenCalledWith({
+        lease: 'lease',
+        change: {
+          kind: 'update',
+          personId: 'pair',
+          expectedRevision: 1,
+          patch: { sharedNote: 'Typed before quitting' }
+        }
+      })
+    )
+  })
+
   it('flushes the old shared owner when navigation removes the editor without a browser blur', async () => {
     const view = render(drawer(person))
     const editor = screen.getByRole<HTMLTextAreaElement>('textbox')

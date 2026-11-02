@@ -250,6 +250,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Search, Groups, Explore's New and Recently updated, and Avatars: when one
   platform couldn't answer and the other has nothing, the page shows only the
   failure line instead of also saying there is nothing at all.
+- Notes: a note you are typing in friend details is saved when you quit VRX
+  with Ctrl+Q, Cmd+Q or Quit in the tray, instead of being lost.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
