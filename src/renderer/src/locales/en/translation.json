@@ -703,6 +703,7 @@
       "loadFailed": "Couldn't load this note. Retry before editing so VRX can save changes safely.",
       "saveFailed": "Couldn't save this note. Your newest draft remains local and will not survive closing VRX.",
       "retry": "Retry",
+      "overLimit": "This note is over 500 characters. Shorten it to save your changes.",
       "account": {
         "saved": "Also saved to your {{platform}} account",
         "saving": "Saving to your {{platform}} account…",
@@ -713,6 +714,7 @@
         "failed": "Couldn't reach {{platform}}. Saved on this PC.",
         "conflict": "Your {{platform}} account has a different note for this friend:",
         "empty": "(no note)",
+        "theirsTooLong": "VRX can't take this one: it keeps notes up to {{max}} characters.",
         "useTheirs": "Use the {{platform}} note",
         "keepMine": "Keep mine"
       }

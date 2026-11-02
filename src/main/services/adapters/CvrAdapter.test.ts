@@ -671,6 +671,28 @@ describe('CvrAdapter', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
+    it('sends no sign-in while a rate limit is cooling down, and says so', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(10_000)
+        const admission = new ApiAdmissionController()
+        admission.deferUntil(20_000)
+        const fetchMock = vi.fn()
+        vi.stubGlobal('fetch', fetchMock)
+        const adapter = new CvrAdapter(fakeStore(), admission, { log: vi.fn() })
+
+        await expect(adapter.login(creds)).resolves.toEqual({
+          ok: false,
+          needs2fa: false,
+          error: 'rate_limited'
+        })
+        await vi.advanceTimersByTimeAsync(15_000)
+        expect(fetchMock).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('malformed envelope → unexpected_response (never a false success)', async () => {
       vi.stubGlobal(
         'fetch',

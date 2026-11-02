@@ -65,12 +65,18 @@ export default function CredentialsForm({
       document.getElementById(`${idPrefix}-${field}`)?.focus({ preventScroll: true })
     }
   }, [idPrefix])
-  // After a failed attempt, focus goes back to where it last was in the form.
-  // Tracked on focus, since the drop can happen before any effect runs.
+  // After a failed attempt, focus goes back to the field last typed in.
+  // Tracked on focus, since the drop can happen before any effect runs. After
+  // a press of Sign in it goes to the password, or the username while empty.
   const lastFocused = useRef<HTMLElement | null>(null)
   const refocusTarget = useCallback((): HTMLElement | null => {
     const previous = lastFocused.current
-    return previous?.isConnected ? previous : document.getElementById(`${idPrefix}-username`)
+    if (previous instanceof HTMLInputElement && previous.isConnected) return previous
+    const usernameField = document.getElementById(`${idPrefix}-username`)
+    if (usernameField instanceof HTMLInputElement && usernameField.value.trim() === '') {
+      return usernameField
+    }
+    return document.getElementById(`${idPrefix}-password`)
   }, [idPrefix])
   useRefocusAfterAttempt(isSubmitting, refocusTarget)
   return (

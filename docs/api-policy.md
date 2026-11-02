@@ -169,10 +169,11 @@ what each counts.
   Completed data still publishes. An interrupted roster is marked partial, and
   friends it missed stay from the cache.
 - **A sign-in is never sent again on its own.** A password sign-in, a 2FA
-  code, and "Use my sign-in from this PC" each send one request. A 429 ends
-  that try, and the sign-in form says to wait a minute. A sign-in pressed while
-  a cooldown runs sends nothing and says the same. The user decides when to
-  try again.
+  code, and "Use my sign-in from this PC" each send their details or code in
+  one request. A 429 ends that try, and the sign-in form says to wait a
+  minute. A sign-in pressed while a cooldown runs sends nothing and says the
+  same. The user decides when to try again. After VRChat accepts a code, the
+  one read of the account that says who signed in is a session check.
 - **Other requests retry a 429 at most 3 times.** This covers session checks,
   the VRChat pipeline token exchange, the VRChat self-invite, and interactive
   CVR instance lookups.

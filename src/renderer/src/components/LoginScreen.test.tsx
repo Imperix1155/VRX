@@ -217,6 +217,37 @@ describe('LoginScreen (W6)', () => {
     activeElement.mockRestore()
   })
 
+  it('puts focus on the password after a failed sign-in sent from the Sign in button', async () => {
+    let settle: (value: unknown) => void = () => {}
+    const login = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve
+        })
+    )
+    setBridge({ login, verify2fa: vi.fn() })
+    renderLogin()
+    fillCredentials()
+
+    const password = screen.getByLabelText(msg('login.password'))
+    const signIn = screen.getByRole('button', { name: msg('login.signIn') })
+    signIn.focus()
+    fireEvent.click(signIn)
+    await waitFor(() => expect(login).toHaveBeenCalledTimes(1))
+    // Chromium drops focus from the button once it is disabled; jsdom keeps it.
+    const activeElement = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(document.body)
+    const refocus = vi.spyOn(password, 'focus')
+    const select = vi.spyOn(password as HTMLInputElement, 'select')
+    const buttonFocus = vi.spyOn(signIn, 'focus')
+
+    settle({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+    await screen.findByRole('alert')
+    await waitFor(() => expect(refocus).toHaveBeenCalled())
+    expect(select).toHaveBeenCalled()
+    expect(buttonFocus).not.toHaveBeenCalled()
+    activeElement.mockRestore()
+  })
+
   it('surfaces a credential persistence failure without invalidating auth', async () => {
     setBridge({
       login: vi.fn().mockResolvedValue({
@@ -354,6 +385,32 @@ describe('LoginScreen (W6)', () => {
 
     const code = screen.getByLabelText(msg('login.twoFactor.code'))
     fireEvent.change(code, { target: { value: '１２３－４５６' } })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
+
+    await waitFor(() =>
+      expect(verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '123456' })
+    )
+  })
+
+  it.each([
+    ['the long-vowel mark a Japanese IME types for "-"', '１２３ー４５６'],
+    ['a minus sign', '123\u2212456'],
+    ['an en dash', '123\u2013456']
+  ])('sends a code typed with %s as plain digits', async (_, typed) => {
+    const verify2fa = vi.fn().mockResolvedValue({ ok: true })
+    setBridge({
+      login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
+      verify2fa
+    })
+    renderLogin()
+
+    fillCredentials()
+    submit()
+    await screen.findByText(msg('login.twoFactor.promptTotp'))
+
+    fireEvent.change(screen.getByLabelText(msg('login.twoFactor.code')), {
+      target: { value: typed }
+    })
     fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
 
     await waitFor(() =>

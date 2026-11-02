@@ -515,7 +515,7 @@ neighbours in the section order; apart, each gets its own full-width row.
 Its two sections sit side by side when the
 area is at least 520 px wide, one above the other below that; a lone section
 fills the row, with its two platform rows side by side. Each is a heading with a quiet button (Avatars, or See all N
-for the Inbox) over one glass list, and every row is the same height: a
+for the Inbox, "See 1" when there is one) over one glass list, and every row is the same height: a
 picture, the name, and the platform as a word (PlatformPill), so VRChat and
 ChilloutVR read alike. Wearing now has one row per signed-in platform in the
 filter: the 4:3 avatar picture and name, or a one-line loading, not-reported,
@@ -542,8 +542,8 @@ only as far as there are cards to show; bars stay two across. The rule lives
 in `main.css` (`.picture-grid`, `.hot-grid--picture`), mirrored for counts by
 `pictureColumns.ts`.
 The Hot Instances
-section adds a quiet "See all N" button, shown only while the page is, that
-opens the Hot Instances page,
+section adds a quiet "See all N" button ("See 1" for one), shown only while
+the page is, that opens the Hot Instances page,
 which lists every hot instance as a picture card, most friends first, with the
 same header, empty state, and sheet. The access pill on a hot card is a
 discreet Join shortcut; don't turn it into a prominent Join button. The Hot
@@ -629,7 +629,9 @@ shows the same Connect gate with Go to Accounts as the Dashboard.
 
 When one platform's roster fails, Friends keeps the usable list and shows a
 line under the header naming that platform, with a Retry for that platform
-only. A platform that never loaded uses the error color; one showing its last
+only. The Dashboard and Hot Instances show the same line above their content.
+Right after a sign-in or account switch they say Loading until the real roster
+arrives, never 0 friends. A platform that never loaded uses the error color; one showing its last
 loaded list uses `--text-dim`, matching Explore's stale line. When the other
 platform loaded an empty roster, that named line replaces the generic error.
 

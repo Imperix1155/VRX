@@ -506,6 +506,33 @@ describe('useLiveFriendEvents — identity boundary', () => {
     )
   })
 
+  it('keeps the sign-in placeholder a placeholder when a live event lands before the roster', () => {
+    stubBridge()
+    const client = new QueryClient()
+    client.setQueryData(friendsQueryKey('chilloutvr'), [cvrFriend('offline')])
+    mount(client)
+
+    act(() => fireIdentityBoundary!({ platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!(snapshotEvent))
+
+    // The Dashboard says Loading, and a failed first read is "missing", only
+    // while the empty roster keeps its 0 stamp.
+    const state = client.getQueryState(friendsQueryKey('chilloutvr'))
+    expect(state?.data).toEqual([])
+    expect(state?.dataUpdatedAt).toBe(0)
+  })
+
+  it('stamps a live event on a roster that loaded as usual', () => {
+    stubBridge()
+    const client = new QueryClient()
+    client.setQueryData(friendsQueryKey('chilloutvr'), [cvrFriend('offline')])
+    mount(client)
+
+    act(() => fireFriendEvent!(snapshotEvent))
+
+    expect(client.getQueryState(friendsQueryKey('chilloutvr'))?.dataUpdatedAt).toBeGreaterThan(0)
+  })
+
   it('isolates a VRChat boundary from ChilloutVR cache and snapshot buffer', async () => {
     stubBridge()
     const client = new QueryClient()

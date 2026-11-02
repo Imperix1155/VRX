@@ -13,6 +13,12 @@ import type { Platform } from '@shared/types'
 
 const MAX_NOTE_LENGTH = 500
 
+/** Longer than main saves. Only a note taken from an account before VRX kept
+ *  to the cap can be: the field never grows past it. */
+export function isOverNoteLimit(value: string): boolean {
+  return value.trimEnd().length > MAX_NOTE_LENGTH
+}
+
 type NoteData = IpcInvoke['get-friend-note']['res']
 type SaveResult = IpcInvoke['set-friend-note']['res']
 
@@ -553,6 +559,10 @@ export function useFriendNote({
       if (query.data?.revision === undefined || setFriendNote === null) {
         return
       }
+      // Main refuses a note over the cap. A note already over it (taken from
+      // an account before VRX kept to the cap) stays as saved until the user
+      // shortens it, and the drawer says so.
+      if (isOverNoteLimit(draft.value)) return
       const stateKey = key
       const saveState = saveStates.get(stateKey)
       const activeFailedKey = failedDraftKey(key, draft.platformAccountId)

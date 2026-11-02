@@ -65,7 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Notes: VRX no longer takes a note from your account that is longer than
   the 500 characters it keeps, so editing it can never cut the end off and
   send the shorter copy back. Deleting text from an over-long note never cuts
-  its end either.
+  its end either, and the note says to shorten it to 500 characters before a
+  change can be saved. When both copies changed and the account's is too
+  long, the choice offers only Keep mine and says why.
 - Sign-in: errors say what went wrong: wrong details, a wrong or old 2FA
   code, too many tries, no internet connection, or the sign-in service being
   down, instead of one general message.

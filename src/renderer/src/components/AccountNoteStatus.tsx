@@ -31,6 +31,9 @@ export default function AccountNoteStatus({
   const { view } = account
 
   if (view.kind === 'conflict') {
+    // VRX can't take a copy longer than it keeps (main answers
+    // account-too-long), so that choice is not offered.
+    const theirsFits = view.accountNote.length <= FRIEND_NOTE_MAX_LENGTH
     return (
       <div
         role="group"
@@ -52,10 +55,15 @@ export default function AccountNoteStatus({
         >
           {view.accountNote || t('drawer.notes.account.empty')}
         </blockquote>
+        {!theirsFits && (
+          <p>{t('drawer.notes.account.theirsTooLong', { max: FRIEND_NOTE_MAX_LENGTH })}</p>
+        )}
         <div className="flex flex-wrap justify-end gap-[var(--space-1)]">
-          <button type="button" onClick={account.useAccountCopy} className={ACTION}>
-            {t('drawer.notes.account.useTheirs', { platform: name })}
-          </button>
+          {theirsFits && (
+            <button type="button" onClick={account.useAccountCopy} className={ACTION}>
+              {t('drawer.notes.account.useTheirs', { platform: name })}
+            </button>
+          )}
           <button type="button" onClick={account.keepMine} className={ACTION}>
             {t('drawer.notes.account.keepMine')}
           </button>

@@ -139,6 +139,28 @@ describe('AvatarCache.peekKeptPicture', () => {
     expect(fetchFn).toHaveBeenCalledTimes(requests)
   })
 
+  it('stops offering the kept thumbnail once getPicture would try the full picture again', async () => {
+    let now = 1_000_000
+    const fetchFn = fetchWith({ [FULL(2)]: { status: 404 }, [THUMB(2)]: { body: 'thumb' } })
+    const cache = new AvatarCache({
+      fetchFn,
+      now: () => now,
+      // The thumbnail stays kept past the refusal.
+      positiveCacheMs: 4 * PICTURE_REFUSED_MS,
+      apiAdmission: fastLane(),
+      vrcSessionProvider: lease,
+      makePictureRendition: reencode
+    })
+    await expect(cache.getPicture(THUMB(2))).resolves.toBe(THUMB_DATA)
+    await expect(cache.peekKeptPicture(THUMB(2))).resolves.toBe(THUMB_DATA)
+
+    // The refusal is over: the caller should fetch, which asks for the full picture.
+    now += PICTURE_REFUSED_MS + 1
+    const requests = fetchFn.mock.calls.length
+    await expect(cache.peekKeptPicture(THUMB(2))).resolves.toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(requests)
+  })
+
   it('reads a picture kept on disk by an earlier run, with no request', async () => {
     const store = new ImageDiskStore({
       directory: join(root, 'image-cache'),
