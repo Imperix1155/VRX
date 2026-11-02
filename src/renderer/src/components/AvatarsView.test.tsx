@@ -216,6 +216,24 @@ describe('AvatarsView', () => {
     expect(screen.queryByText(vrcLoading)).toBeNull()
   })
 
+  it('says you have no uploads only when no shown platform failed', async () => {
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>(
+        platform === 'vrchat'
+          ? { ok: false, reason: 'unavailable' }
+          : { ok: true, platform, avatars: [], complete: true, current: cvrWorn }
+      )
+    )
+    renderView()
+    await screen.findByRole('button', { name: cardName(cvrWorn) })
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('avatars.error.unavailable', { platform: msg('dashboard.platformVrc') })
+    )
+    // VRChat couldn't answer, so "no uploads" would not be true for it.
+    expect(screen.queryByText(msg('avatars.empty'))).toBeNull()
+    expect(screen.queryByRole('region', { name: msg('avatars.yourUploads') })).toBeNull()
+  })
+
   it('shows no endless Loading line while a sign-in check could not reach a platform', async () => {
     authState.vrchat = 'error'
     bridge.getAvatarLibrary.mockImplementation(({ platform }) =>

@@ -477,6 +477,37 @@ describe('SearchView', () => {
     expect(screen.queryByText(loadingLine('VRChat'))).toBeNull()
   })
 
+  it('says no one was found only when no shown platform failed', async () => {
+    const answer = ({
+      platform,
+      query
+    }: {
+      platform: Platform
+      query: string
+    }): Promise<CommunitySearchResult> =>
+      Promise.resolve(
+        platform === 'vrchat'
+          ? { ok: false, reason: 'unavailable' }
+          : {
+              ok: true,
+              platform,
+              query,
+              people: [],
+              worlds: [world(platform, 1, 'chilloutvr plaza')]
+            }
+      )
+    bridge.searchCommunity.mockImplementationOnce(answer).mockImplementationOnce(answer)
+    renderWith(<SearchView />)
+    search('plaza')
+    await screen.findByTestId('world-results')
+    expect(
+      await screen.findByText(msg('community.error.unavailable', { platform: 'VRChat' }))
+    ).toBeTruthy()
+    // VRChat couldn't answer, so "No people found." would not be true for it.
+    expect(screen.queryByText(msg('search.noPeople'))).toBeNull()
+    expect(screen.queryByRole('region', { name: msg('search.people') })).toBeNull()
+  })
+
   it('searches only the platform the filter picks, and sends nothing for a signed-out one', async () => {
     authState.chilloutvr = 'unauthenticated'
     useFriendsStore.setState({ platformFilter: 'chilloutvr' })
@@ -658,6 +689,24 @@ describe('GroupsView', () => {
     expect(await screen.findByText(msg('groups.empty'))).toBeTruthy()
   })
 
+  it('says you have no groups only when no shown platform failed', async () => {
+    const answer = ({ platform }: { platform: Platform }): Promise<MyGroupsResult> =>
+      Promise.resolve(
+        platform === 'vrchat'
+          ? { ok: false, reason: 'unavailable' }
+          : { ok: true, platform, groups: [], complete: true }
+      )
+    bridge.getMyGroups.mockImplementationOnce(answer).mockImplementationOnce(answer)
+    renderWith(<GroupsView />)
+    expect(
+      await screen.findByText(msg('community.error.unavailable', { platform: 'VRChat' }))
+    ).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText(loadingLine('ChilloutVR'))).toBeNull())
+    // VRChat couldn't answer, so "no groups" would not be true for it.
+    expect(screen.queryByText(msg('groups.empty'))).toBeNull()
+    expect(screen.queryByRole('region', { name: msg('groups.heading') })).toBeNull()
+  })
+
   it('offers Accounts, not Try again, when a platform asks to sign in again', async () => {
     const answer = ({ platform }: { platform: Platform }): Promise<MyGroupsResult> =>
       Promise.resolve(
@@ -757,6 +806,28 @@ describe('ExploreListPanel', () => {
     expect(screen.queryByText(msg('explore.lists.empty'))).toBeNull()
     vrchat.resolve({ ok: true, platform: 'vrchat', list: 'new', worlds: [] })
     expect(await screen.findByText(msg('explore.lists.empty'))).toBeTruthy()
+  })
+
+  it('says there are no worlds only when no shown platform failed', async () => {
+    const answer = ({
+      platform,
+      list
+    }: {
+      platform: Platform
+      list: 'new' | 'updated'
+    }): Promise<WorldListResult> =>
+      Promise.resolve(
+        platform === 'vrchat'
+          ? { ok: false, reason: 'unavailable' }
+          : { ok: true, platform, list, worlds: [] }
+      )
+    bridge.getWorldList.mockImplementationOnce(answer).mockImplementationOnce(answer)
+    renderWith(<ExploreListPanel list="new" />)
+    expect(
+      await screen.findByText(msg('community.error.unavailable', { platform: 'VRChat' }))
+    ).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText(loadingLine('ChilloutVR'))).toBeNull())
+    expect(screen.queryByText(msg('explore.lists.empty'))).toBeNull()
   })
 
   it('adds no line under ALL for a platform the user isn’t signed in to', async () => {

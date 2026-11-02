@@ -247,6 +247,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hot Instances and Explore: the panel opens each instance or world at its
   top, also when you open the same one again, instead of where you last
   scrolled.
+- Search, Groups, Explore's New and Recently updated, and Avatars: when one
+  platform couldn't answer and the other has nothing, the page shows only the
+  failure line instead of also saying there is nothing at all.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

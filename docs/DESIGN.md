@@ -776,8 +776,9 @@ filter, offers Go to Accounts when the filtered platform is not connected, and
 adds no line under ALL for a platform the user isn't signed in to. A page's
 notice asking to sign in to a platform again offers Go to Accounts too, never
 Try again. A list says it is empty ("You aren't in any groups yet.") only once
-every shown platform has answered; until then an empty section stays out,
-heading and count included. The Avatars page's notices and uploads work the
+every shown platform has answered with a list; until then an empty section
+stays out, heading and count included, and next to a platform that failed with
+nothing loaded its red line stands alone, as on Popular now. The Avatars page's notices and uploads work the
 same way. A platform whose sign-in check couldn't reach it reads nothing and
 shows no loading line until the check answers.
 
