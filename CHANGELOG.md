@@ -66,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Explore: Refresh reads "Refreshing…" and waits until the worlds or favorites
   it asked for arrive, like Groups and Avatars, so it is clear the press did
   something.
+- Search: the hint under the search box says it searches people and worlds by
+  name, instead of naming VRChat and ChilloutVR even when the filter shows
+  only one.
+- Search: in Japanese, an empty People section now says no people were found,
+  so it no longer reads as if the whole search found nothing.
 
 ### Fixed
 

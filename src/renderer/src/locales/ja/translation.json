@@ -1217,10 +1217,10 @@
     "placeholder": "人とワールドを検索",
     "aria": "人とワールドを検索",
     "submit": "検索",
-    "hint": "Enterで VRChat と ChilloutVR を名前で検索します。",
+    "hint": "Enterで人とワールドを名前で検索します。",
     "people": "人",
     "worlds": "ワールド",
-    "noPeople": "見つかりませんでした。",
+    "noPeople": "人は見つかりませんでした。",
     "noWorlds": "ワールドは見つかりませんでした。",
     "friend": "フレンド",
     "openPersonAria": "{{name}}（{{platform}}）。プロフィールを開く"

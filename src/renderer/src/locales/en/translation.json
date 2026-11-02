@@ -1225,7 +1225,7 @@
     "placeholder": "Search people and worlds",
     "aria": "Search people and worlds",
     "submit": "Search",
-    "hint": "Press Enter to search VRChat and ChilloutVR by name.",
+    "hint": "Press Enter to search people and worlds by name.",
     "people": "People",
     "worlds": "Worlds",
     "noPeople": "No people found.",

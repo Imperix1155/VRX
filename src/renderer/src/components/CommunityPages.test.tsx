@@ -305,6 +305,41 @@ describe('SearchView', () => {
     expect(bridge.searchCommunity).not.toHaveBeenCalled()
   })
 
+  it('names no platform in its hint, so a filtered page never promises one it skips', () => {
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    renderWith(<SearchView />)
+    const hint = screen.getByRole('searchbox', { name: msg('search.aria') })
+    const described = document.getElementById(hint.getAttribute('aria-describedby')!)!
+    expect(described.textContent).toBe(msg('search.hint'))
+    expect(described.textContent).not.toContain('ChilloutVR')
+    expect(described.textContent).not.toContain('VRChat')
+  })
+
+  it('says in Japanese that no people were found, apart from the worlds found', async () => {
+    const worldsOnly = (platform: Platform): CommunitySearchResult => ({
+      ok: true,
+      platform,
+      query: 'neko',
+      people: [],
+      worlds: [world(platform, 1, `${platform} plaza`)]
+    })
+    bridge.searchCommunity
+      .mockResolvedValueOnce(worldsOnly('vrchat'))
+      .mockResolvedValueOnce(worldsOnly('chilloutvr'))
+    await i18n.changeLanguage('ja')
+    try {
+      renderWith(<SearchView />)
+      const box = screen.getByRole('searchbox', { name: msg('search.aria') })
+      fireEvent.change(box, { target: { value: 'neko' } })
+      fireEvent.submit(box.closest('form')!)
+      const people = await screen.findByRole('region', { name: '人' })
+      expect(within(people).getByText('人は見つかりませんでした。')).toBeTruthy()
+      expect(screen.getByTestId('world-results')).toBeTruthy()
+    } finally {
+      await i18n.changeLanguage('en')
+    }
+  })
+
   it('opens a person in the profile sheet with the same fields on each platform', async () => {
     renderWith(<SearchView />)
     const box = screen.getByRole('searchbox', { name: msg('search.aria') })
