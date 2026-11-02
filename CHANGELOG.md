@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows a developer reason code.
 - Error screen: Copy diagnostics says "Copied" when it worked, and says so
   when it couldn't copy.
+- Updates: the sidebar update button says "try again" only after a download
+  or install failed, not after a background check couldn't connect.
+- Updates: Automatic updates says new versions install when you quit VRX,
+  since closing the window only hides it in the tray.
 
 ### Fixed
 
@@ -146,6 +150,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Window: a window VRX opens again (on macOS after you closed it) appears once
   it is drawn, without an empty flash first.
 - Error screen: copied diagnostics leave out folder names.
+- Updates: Check for updates in Settings → About now says "VRX is up to date"
+  when there is nothing newer, instead of looking like nothing happened.
+- Updates: the portable Windows build no longer lets you switch the update
+  channel or Automatic updates, since it can't update itself.
+- Updates: screen readers now hear when an update check, download or install
+  fails in Settings → About.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

@@ -1037,7 +1037,7 @@
     },
     "settings": {
       "label": "Automatic updates",
-      "description": "Download new versions in the background and apply them when the app closes.",
+      "description": "Download new versions in the background and install them when you quit VRX.",
       "channel": {
         "aria": "Update channel",
         "stable": "Stable",
@@ -1053,6 +1053,7 @@
       "releases": "Open releases page",
       "unsupportedNote": "This portable build cannot update itself automatically.",
       "currentVersion": "VRX v{{version}}",
+      "upToDate": "VRX v{{version}} is up to date.",
       "failure": {
         "checkNetwork": "Couldn't check for updates. Check your connection and try again.",
         "downloadWrite": "Couldn't download the update. Check your connection and available storage, then try again. If it keeps failing, install the latest release manually.",

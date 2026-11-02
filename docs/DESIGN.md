@@ -428,7 +428,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
   in that same card beside the on/off control and the check button, plus the
   installed version, Welcome setup (Run setup again), Found a bug? (Report a
   bug opens GitHub's bug report form in the browser), Open logs folder, and
-  Legal.
+  Legal. When a check pressed there finds nothing newer, the version line
+  says VRX is up to date. The portable build can't update itself, so its
+  channel and on/off control stay inactive under that note.
 
 Saving is reported once, in the shell, failures first. A failed save shows an
 alert at once, keeps the latest edits, offers Retry, and stays until a save
@@ -465,11 +467,12 @@ state, and card style follows the section order only.
 
 **Updater.** The update control is the sidebar footer button. When there is
 nothing to do it is absent; available, downloading, and downloaded each have
-their own action and label. The collapsed icon never shrinks, its hidden label
-has zero width, and hover or focus may reveal the label without clipping the
-icon. While the button shows, the footer text stays clear of it, and a long
-pre-release version moves to its own line. The guide's updater actions do
-nothing.
+their own action and label. Its label adds "try again" only after a download
+or install failed, never after a background check. The collapsed icon never
+shrinks, its hidden label has zero width, and hover or focus may reveal the
+label without clipping the icon. While the button shows, the footer text
+stays clear of it, and a long pre-release version moves to its own line. The
+guide's updater actions do nothing.
 
 ## §9 Component behavior
 
