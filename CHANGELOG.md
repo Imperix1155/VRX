@@ -165,6 +165,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of quietly looking as if your choices were forgotten.
 - Accounts: Sign out now asks once before it signs you out, so a stray click
   beside Edit profile no longer ends your session.
+- Language: on a computer set to a language VRX doesn't offer, such as German
+  or Korean, times and numbers are in English like the rest of VRX, so the
+  Inbox, Dashboard and Activity no longer mix "vor 2 Stunden" in with "Just
+  now".
 
 ## [1.4.0-dev.4] - 2026-11-01
 
