@@ -63,6 +63,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   like an ignored press.
 - Explore: a world panel keeps a plain space for the world's picture until it
   arrives, so the rooms and Join buttons no longer jump down when it does.
+- Explore: Refresh reads "Refreshing…" and waits until the worlds or favorites
+  it asked for arrive, like Groups and Avatars, so it is clear the press did
+  something.
 
 ### Fixed
 

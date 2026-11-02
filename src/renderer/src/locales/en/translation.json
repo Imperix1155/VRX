@@ -888,6 +888,7 @@
     "viewRooms": "View rooms",
     "confirmAria": "Confirm joining {{world}}",
     "refresh": "Refresh",
+    "refreshing": "Refreshing…",
     "joinFailed": "Couldn’t join this room. Try again after refreshing.",
     "visiblePublicRooms": "Visible public rooms",
     "unknownCount": "Unknown",

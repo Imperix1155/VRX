@@ -669,6 +669,47 @@ describe('ExploreRoute world sheet', () => {
   })
 })
 
+describe('ExploreRoute Refresh', () => {
+  it('reads Refreshing… and stays off until a list’s Refresh answers', async () => {
+    let answer: () => void = () => {}
+    refreshWorldListMock.mockImplementationOnce(
+      () => new Promise<undefined>((resolve) => (answer = () => resolve(undefined)))
+    )
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ExploreRoute />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'New' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    const busy = screen.getByRole<HTMLButtonElement>('button', { name: 'Refreshing…' })
+    expect(busy.disabled).toBe(true)
+    fireEvent.click(busy)
+    expect(refreshWorldListMock).toHaveBeenCalledTimes(1)
+    expect(refreshWorldListMock).toHaveBeenCalledWith('vrchat', 'new')
+
+    await act(async () => answer())
+    const idle = screen.getByRole<HTMLButtonElement>('button', { name: 'Refresh' })
+    expect(idle.disabled).toBe(false)
+  })
+
+  it('reads Refreshing… while Popular now is still finding worlds', () => {
+    query.vrc = { ...source, status: 'loading' }
+    const { rerender } = render(<ExploreRoute />)
+    // Cards stay on screen and the status lines stay quiet (DESIGN.md §9.4).
+    expect(screen.getByText('A world')).toBeTruthy()
+    expect(screen.queryByText('Worlds loading…')).toBeNull()
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Refreshing…' }).disabled).toBe(
+      true
+    )
+
+    query.vrc = { ...source, status: 'ready' }
+    rerender(<ExploreRoute />)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Refresh' }).disabled).toBe(false)
+  })
+})
+
 for (const [label, Route] of [
   ['Explore', ExploreRoute],
   ['Dashboard', ExploreDashboardPreviewRoute]

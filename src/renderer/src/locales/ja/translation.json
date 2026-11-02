@@ -881,6 +881,7 @@
     "viewRooms": "ルームを見る",
     "confirmAria": "{{world}} への参加を確認",
     "refresh": "更新",
+    "refreshing": "更新中…",
     "joinFailed": "このルームに参加できませんでした。更新してからもう一度お試しください。",
     "visiblePublicRooms": "表示可能なパブリックルーム",
     "unknownCount": "不明",

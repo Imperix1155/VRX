@@ -818,7 +818,9 @@ no line under ALL for a platform the user isn't signed in to.
   VRX, newest first, then the account's own favorite worlds. Its Refresh reads
   the account's favorites again (hidden while game favorites are off). The
   world sheet's star follows the world name and opens the same favorite panel
-  as a friend's, below the title.
+  as a friend's, below the title. Like Groups and Avatars, Refresh reads
+  "Refreshing…" and stays off until its reads answer; on Popular now, until
+  no shown platform is still finding worlds.
 - **Set as home world** sits beside the platform pill on every world sheet,
   the same small house-and-label button on both platforms. A press asks once in
   an inline panel (Make home, Cancel), because it replaces the user's current
