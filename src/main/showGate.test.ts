@@ -38,6 +38,22 @@ describe('createShowGate', () => {
     expect(onShow).toHaveBeenCalledTimes(1)
   })
 
+  it('says whether it has shown the window, so a focus request can leave a new one to it', () => {
+    vi.useFakeTimers()
+    const gate = createShowGate({ timeoutMs: 3_000, onShow: vi.fn(), onTimeout: vi.fn() })
+
+    expect(gate.isShown()).toBe(false)
+    gate.hydrated()
+    gate.ready()
+    expect(gate.isShown()).toBe(true)
+
+    const late = createShowGate({ timeoutMs: 3_000, onShow: vi.fn(), onTimeout: vi.fn() })
+    late.ready()
+    expect(late.isShown()).toBe(false)
+    vi.advanceTimersByTime(3_000)
+    expect(late.isShown()).toBe(true)
+  })
+
   it('never shows twice after duplicate signals or a later timeout', () => {
     vi.useFakeTimers()
     const onShow = vi.fn()

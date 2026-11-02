@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a moment and then jumps to the "is open" note. When ChilloutVR asks
   each time, Join waits for that moment, so it never starts the game in a
   mode you didn't pick.
+- Window: the box shown when the VRX window stops working says so in plain
+  words, in English and Japanese, and says Reload brings it back. It no longer
+  shows a developer reason code.
 
 ### Fixed
 
@@ -133,6 +136,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   offering that friend's new place or saying the instance can't be joined.
 - Hot Instances: a hot card and its panel show what the last Join said even
   when it went through a different friend in the same instance.
+- Window: after you dismiss the box that says the VRX window stopped working,
+  opening VRX again from the tray, its shortcut or an alert brings the window
+  back instead of leaving it empty.
+- Window: the "not responding" box closes by itself once VRX answers again, so
+  pressing Enter on it can no longer reload a window that works.
+- Window: a window VRX opens again (on macOS after you closed it) appears once
+  it is drawn, without an empty flash first.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

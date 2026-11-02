@@ -1,4 +1,4 @@
-import { createRendererRecovery } from './services/rendererRecovery'
+import { createRendererRecovery, type RendererRecovery } from './services/rendererRecovery'
 import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
 import { ExploreService } from './services/exploreService'
 import { AvatarLibraryService } from './services/avatarLibraryService'
@@ -131,6 +131,7 @@ const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
   }
 })
 const rendererHydrationGates = new WeakMap<WebContents, ShowGate>()
+const rendererRecoveries = new WeakMap<WebContents, RendererRecovery>()
 
 const onRendererHydrated = (event: IpcMainEvent): void => {
   if (!isTrustedIpcSender(event.senderFrame)) return
@@ -238,6 +239,7 @@ function createWindow(): BrowserWindow {
     onError: (error) => log.warn('renderer recovery dialog rejected', { message: String(error) }),
     isQuitting: () => quitting
   })
+  rendererRecoveries.set(mainWindow.webContents, recovery)
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     exploreWindowService?.setActive([])
     if (details.reason !== 'clean-exit' && details.reason !== 'killed') {
@@ -249,6 +251,7 @@ function createWindow(): BrowserWindow {
     log.warn('window-unresponsive')
     recovery.unresponsive()
   })
+  mainWindow.on('responsive', () => recovery.responsive())
 
   keepMinimumSizeOnScreen(mainWindow)
 
@@ -293,6 +296,11 @@ function getOrCreateMainWindow(): BrowserWindow {
 
 function focusMainWindow(): BrowserWindow {
   const window = getOrCreateMainWindow()
+  // A crash box answered with Dismiss leaves the window empty; asking for VRX
+  // again (tray, second launch, alert click) brings it back.
+  rendererRecoveries.get(window.webContents)?.revive()
+  // A window that is new, or still starting, shows itself once it has painted.
+  if (rendererHydrationGates.get(window.webContents)?.isShown() === false) return window
   if (window.isMinimized()) window.restore()
   window.show()
   window.focus()

@@ -2,6 +2,8 @@ export interface ShowGate {
   ready(): void
   hydrated(): void
   dispose(): void
+  /** True once the gate has shown the window (or was disposed with it). */
+  isShown(): boolean
 }
 
 interface ShowGateOptions {
@@ -48,6 +50,7 @@ export function createShowGate({ timeoutMs, onShow, onTimeout }: ShowGateOptions
     dispose: () => {
       shown = true
       if (timeout !== undefined) clearTimeout(timeout)
-    }
+    },
+    isShown: () => shown
   }
 }

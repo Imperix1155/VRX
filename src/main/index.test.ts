@@ -113,6 +113,42 @@ describe('main single-instance lock (VRX-230)', () => {
   })
 })
 
+describe('main window recovery wiring', () => {
+  const focusBody = (): string => {
+    const executableSource = stripComments(source)
+    const start = executableSource.indexOf('function focusMainWindow(): BrowserWindow {')
+    expect(start).toBeGreaterThan(-1)
+    const openingBrace = executableSource.indexOf('{', start)
+    return executableSource.slice(
+      openingBrace + 1,
+      findMatchingBrace(executableSource, openingBrace)
+    )
+  }
+
+  it('reloads a window a dismissed crash box left empty whenever VRX is asked for', () => {
+    // Tray Show, a second launch and an alert click all go through focusMainWindow.
+    expect(stripComments(source)).toMatch(
+      /rendererRecoveries\.set\(mainWindow\.webContents, recovery\)/
+    )
+    expect(focusBody()).toMatch(/rendererRecoveries\.get\(window\.webContents\)\?\.revive\(\)/)
+  })
+
+  it('leaves a window its show gate has not revealed to the gate', () => {
+    const body = focusBody()
+    const gateCheck = body.search(
+      /if \(rendererHydrationGates\.get\(window\.webContents\)\?\.isShown\(\) === false\) return window/
+    )
+    expect(gateCheck).toBeGreaterThan(-1)
+    expect(gateCheck).toBeLessThan(body.indexOf('window.show()'))
+  })
+
+  it('closes a hang box once the window answers again', () => {
+    expect(stripComments(source)).toMatch(
+      /mainWindow\.on\('responsive', \(\) => recovery\.responsive\(\)\)/
+    )
+  })
+})
+
 describe('main join policy wiring', () => {
   it('reads the live allowJoinInstances setting at the main-process authority boundary', () => {
     const executableSource = stripComments(source)
