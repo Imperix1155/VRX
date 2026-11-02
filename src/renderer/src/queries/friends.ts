@@ -170,7 +170,11 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
     refetchInterval:
       reconcileIntervalMs === false ? false : () => reconcileDelay(platform, reconcileIntervalMs),
-    enabled: auth.data?.state === 'authenticated' || auth.data?.state === 'error'
+    enabled: auth.data?.state === 'authenticated' || auth.data?.state === 'error',
+    // A local IPC read: main decides reachability and fails fast. Pausing it
+    // while the OS reports offline showed an old roster as current with no
+    // failed-refresh line, or Loading with no end.
+    networkMode: 'always'
   })
 }
 

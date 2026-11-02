@@ -96,6 +96,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps checking once a minute while it sits in the tray, so live updates and
   friend alerts start as soon as the platform answers, without opening the
   window.
+- Friends: when the computer reports no internet connection, the list says
+  it couldn't refresh, with Retry, instead of showing an old list as if it
+  were current or saying Loading with no end.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
