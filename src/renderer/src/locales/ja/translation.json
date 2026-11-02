@@ -468,7 +468,8 @@
       "error": "設定を保存できませんでした。変更は現在の画面に適用されていますが、再起動すると失われる可能性があります。",
       "unsaved": "設定に未保存の変更があります。",
       "retry": "設定の保存を再試行",
-      "saving": "保存中…"
+      "saving": "保存中…",
+      "loadFallback": "保存した設定を読み込めなかったため、いまは初期設定で表示しています。保存した設定はそのまま残っています。"
     },
     "bugReport": {
       "label": "不具合を見つけたら",
@@ -1156,7 +1157,9 @@
       "alertsOff": "すべてオフ",
       "alertsSome": "{{total}}件中{{count}}件オン",
       "lookValue": "{{theme}}・グロー{{glow}}",
-      "lookValuePicture": "{{theme}}・グロー{{glow}}・背景画像あり"
+      "lookValuePicture": "{{theme}}・グロー{{glow}}・背景画像あり",
+      "lookValueNoGlow": "{{theme}}・グローなし",
+      "lookValuePictureNoGlow": "{{theme}}・グローなし・背景画像あり"
     }
   },
   "inbox": {

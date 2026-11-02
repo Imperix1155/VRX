@@ -28,7 +28,8 @@ afterEach(() => {
     settings: DEFAULT_SETTINGS,
     dirty: false,
     saveError: false,
-    saving: false
+    saving: false,
+    loadFallback: false
   })
 })
 it('retains an unsaved warning and retries the latest settings without navigation', () => {
@@ -40,6 +41,25 @@ it('retains an unsaved warning and retries the latest settings without navigatio
   expect(useSettingsStore.getState().saveAttempt).toBe(previous + 1)
   expect(screen.getByText(i18n.t('settings.persistence.error'))).toBeTruthy()
 })
+it('says the saved settings could not be read while defaults stand in for them', () => {
+  vrchatAuthError = false
+  useSettingsStore.setState({ loadFallback: true })
+  render(<RecoveryNotices />)
+  const notice = screen.getByRole('alert')
+  expect(notice.textContent).toContain(i18n.t('settings.persistence.loadFallback'))
+  // Nothing to retry here: the next change re-reads the file in main.
+  expect(screen.queryByRole('button')).toBeNull()
+
+  // A failed save still comes first, with its Retry.
+  act(() => useSettingsStore.setState({ dirty: true, saveError: true }))
+  expect(screen.getByRole('alert').textContent).toContain(i18n.t('settings.persistence.error'))
+  expect(screen.queryByText(i18n.t('settings.persistence.loadFallback'))).toBeNull()
+
+  // Once a save reaches the real file, the notice goes.
+  act(() => useSettingsStore.setState({ dirty: false, saveError: false, loadFallback: false }))
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
 it('exposes a platform-specific auth failure and retry alongside usable shell content', () => {
   render(<RecoveryNotices />)
   expect(

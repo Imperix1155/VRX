@@ -471,7 +471,8 @@
       "error": "Settings could not be saved. Your changes are still applied here, but may be lost on restart.",
       "unsaved": "Settings have unsaved changes.",
       "retry": "Retry saving settings",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "loadFallback": "VRX couldn't read your saved settings, so it's showing the defaults for now. Your saved settings are kept."
     },
     "bugReport": {
       "label": "Found a bug?",
@@ -1164,7 +1165,9 @@
       "alertsOff": "All off",
       "alertsSome": "{{count}} of {{total}} on",
       "lookValue": "{{theme}}, {{glow}} glow",
-      "lookValuePicture": "{{theme}}, {{glow}} glow, your own picture"
+      "lookValuePicture": "{{theme}}, {{glow}} glow, your own picture",
+      "lookValueNoGlow": "{{theme}}, no glow",
+      "lookValuePictureNoGlow": "{{theme}}, no glow, your own picture"
     }
   },
   "inbox": {

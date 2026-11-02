@@ -432,10 +432,12 @@ Accounts, and About. Each setting sits on a compact neutral card.
   says VRX is up to date. The portable build can't update itself, so its
   channel and on/off control stay inactive under that note.
 
-Saving is reported once, in the shell, failures first. A failed save shows an
-alert at once, keeps the latest edits, offers Retry, and stays until a save
-succeeds. Shell notices are compact one-row strips with the action beside the
-text; the failure leads with a warning glyph as its non-color cue. A normal save is silent; a notice appears only if the latest change
+Saving is reported once, in the shell (or the welcome setup, which replaces
+it), failures first. A failed save shows an alert at once, keeps the latest
+edits, offers Retry, and stays until a save succeeds. Settings VRX couldn't
+read show the defaults under an alert that says so, until a save reaches the
+saved file. Shell notices are compact one-row strips with the action beside
+the text; a failure leads with a warning glyph as its non-color cue. A normal save is silent; a notice appears only if the latest change
 is still unsaved about two seconds later, and the timer restarts on every
 change. If the first sign-in check fails, VRX shows a platform-specific
 recovery message with Retry, never a signed-out form. A saved VRChat session

@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or install failed, not after a background check couldn't connect.
 - Updates: Automatic updates says new versions install when you quit VRX,
   since closing the window only hides it in the tray.
+- Welcome setup: the summary reads "no glow" when the background glow is off,
+  instead of "Off glow".
 
 ### Fixed
 
@@ -156,6 +158,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   channel or Automatic updates, since it can't update itself.
 - Updates: screen readers now hear when an update check, download or install
   fails in Settings → About.
+- Welcome setup: when a choice can't be saved, the setup says so and offers
+  Retry, like the rest of the app, instead of finishing as if it was saved.
+- Settings: when VRX can't read your saved settings at start, a notice says it
+  is showing the defaults for now and that your saved settings are kept,
+  instead of quietly looking as if your choices were forgotten.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

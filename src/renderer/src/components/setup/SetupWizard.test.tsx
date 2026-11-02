@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -348,5 +348,39 @@ describe('SetupWizard', () => {
         })
       )
     ).toBeTruthy()
+  })
+
+  it('reads "no glow" in the summary when the glow is off', async () => {
+    renderWizard(signedIn)
+    await goToLook()
+    const glow = screen.getByRole('radiogroup', { name: msg('settings.backgroundGlow.aria') })
+    fireEvent.click(within(glow).getByRole('radio', { name: msg('settings.backgroundGlow.off') }))
+    expect(settings().backgroundGlow).toBe('off')
+
+    fireEvent.click(button('setup.continue'))
+    const summary = screen.getByRole('heading', { name: msg('setup.done.title') }).parentElement
+      ?.parentElement as HTMLElement
+    expect(
+      within(summary).getByText(
+        msg('setup.done.lookValueNoGlow', { theme: msg('setup.look.system') })
+      )
+    ).toBeTruthy()
+    expect(summary.textContent).not.toContain(
+      msg('setup.done.lookValue', {
+        theme: msg('setup.look.system'),
+        glow: msg('settings.backgroundGlow.off')
+      })
+    )
+  })
+
+  it('shows a failed settings save with Retry, as the app does', () => {
+    renderWizard(signedOut)
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    act(() => useSettingsStore.setState({ dirty: true, saveError: true }))
+    expect(screen.getByRole('alert').textContent).toContain(msg('settings.persistence.error'))
+    const attempts = useSettingsStore.getState().saveAttempt
+    fireEvent.click(button('settings.persistence.retry'))
+    expect(useSettingsStore.getState().saveAttempt).toBe(attempts + 1)
   })
 })
