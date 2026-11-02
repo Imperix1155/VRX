@@ -314,21 +314,38 @@ export class ExploreService {
     if (!url) return null
     const cached = state.images.get(url)
     if (cached) return { ok: true, dataUrl: cached }
-    // A picture already kept costs no request, so it never waits for (or
-    // uses up) the fetch budget below (docs/api-policy.md: new fetches only).
-    const peek = state.imagePending.has(url) ? undefined : this.options.peekImage?.(url)
-    if (peek) {
-      const kept = await peek.catch(() => null)
-      if (kept) return this.handOutImage(platform, state, worldRef, url, kept)
-      // The account or the list may have changed during the lookup: a picture
-      // for a card no longer shown never starts a download.
-      if (!this.active.has(platform) || !this.current(platform, state)) return null
-      if (!this.findWorld(state, worldRef)) return null
+    if (!state.imagePending.has(url)) {
+      const kept = await this.keptImage(platform, state, worldRef, url)
+      if (kept !== undefined) return kept
     }
     const pending = state.imagePending.get(url) ?? this.startImageFetch(platform, state, url)
     if (typeof pending === 'string') return this.imageDeferral(platform, worldRef, pending)
     const dataUrl = await pending
     return dataUrl ? this.handOutImage(platform, state, worldRef, url, dataUrl) : null
+  }
+
+  /**
+   * A picture already kept costs no request, so it never waits for (or uses
+   * up) the fetch budget (docs/api-policy.md: new fetches only). Undefined
+   * means "download it". The lookup waits on the disk, so a card that the
+   * account or list dropped meanwhile gets null and starts no download.
+   */
+  private async keptImage(
+    platform: Platform,
+    state: State,
+    worldRef: string,
+    url: string
+  ): Promise<ExploreImageResult | undefined> {
+    const peek = this.options.peekImage?.(url)
+    if (!peek) return undefined
+    const kept = await peek.catch(() => null)
+    if (kept) return this.handOutImage(platform, state, worldRef, url, kept)
+    return this.stillShown(platform, state, worldRef) ? undefined : null
+  }
+
+  private stillShown(platform: Platform, state: State, worldRef: string): boolean {
+    if (!this.active.has(platform) || !this.current(platform, state)) return false
+    return this.findWorld(state, worldRef) !== null
   }
 
   /** Starts one picture download inside the budget, or says why it must wait. */
