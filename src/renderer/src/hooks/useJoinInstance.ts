@@ -140,9 +140,8 @@ interface JoinSnapshot {
   failureReason: JoinFeedback | null
 }
 
-interface JoinStore {
-  subscribe: (listener: () => void) => () => void
-  getSnapshot: () => JoinSnapshot
+/** What the shared store lets every surface do; `useJoinInstance` hands these out as is. */
+interface JoinActions {
   join: (friend: Friend, options?: JoinOptions) => Promise<void>
   joinExplore: (world: ExploreWorld, room: ExploreRoom) => Promise<void>
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
@@ -150,6 +149,21 @@ interface JoinStore {
   cancelPending: () => void
   invalidatePending: (platform?: Platform) => void
   invalidateFriendPending: () => void
+}
+
+interface JoinStore extends JoinActions {
+  subscribe: (listener: () => void) => () => void
+  getSnapshot: () => JoinSnapshot
+}
+
+/**
+ * One roster read after main turned a Join down because the friend moved:
+ * main is ahead of the renderer cache, and without it the next Join (or the
+ * dialog's wait for the new place) could outlive a 'manual' reconcile cadence.
+ * A read already running is reused, never restarted.
+ */
+function readRosterAfterMove(platform: Platform): void {
+  void queryClient.refetchQueries({ queryKey: friendsQueryKey(platform) }, { cancelRefetch: false })
 }
 
 /** Read the latest friends array and the query's dataUpdatedAt watermark for CAS. */
@@ -289,17 +303,13 @@ function createJoinStore(): JoinStore {
         expectedTarget: { worldId: target.worldId, instanceId: target.instanceId }
       })
       if (generation !== sessionGeneration) return
-      if (result.ok) showJoinResult(friendKey, result)
-      else showFailureBlip(friendKey, result.reason)
-      if (!result.ok && result.reason === 'target-changed') {
-        // Main is ahead of the renderer cache, and every retry would send the
-        // same old target: read the roster once, as Confirm does, so "try Join
-        // again" can work under a 'manual' reconcile cadence. A read already
-        // running is reused, never restarted.
-        void queryClient.refetchQueries(
-          { queryKey: friendsQueryKey(friend.platform) },
-          { cancelRefetch: false }
-        )
+      if (result.ok) {
+        showJoinResult(friendKey, result)
+      } else {
+        showFailureBlip(friendKey, result.reason)
+        // Every retry would send the same old target, so read the roster once,
+        // as Confirm does.
+        if (result.reason === 'target-changed') readRosterAfterMove(friend.platform)
       }
     } catch {
       // Bridge exceptions are user-equivalent to a denial: blip, never an
@@ -511,13 +521,7 @@ function createJoinStore(): JoinStore {
           },
           joining: false
         })
-        // Main is ahead of the renderer cache; ask for one read so the wait
-        // cannot outlive a 'manual' reconcile cadence. A read already running
-        // is reused, never restarted.
-        void queryClient.refetchQueries(
-          { queryKey: friendsQueryKey(pc.platform) },
-          { cancelRefetch: false }
-        )
+        readRosterAfterMove(pc.platform)
         return 'review-required'
       }
       // Ordinary terminal failure: clear the dialog and show the attributed blip.
@@ -639,19 +643,12 @@ const sharedJoinStore = createJoinStore()
  * instance: the live friend is `friendForPending`'s pick, so another friend
  * still there stands in before DRIFT or UNAVAILABLE shows.
  */
-export function useJoinInstance(): {
+export function useJoinInstance(): JoinActions & {
   isJoining: boolean
   pendingConfirm: PendingConfirm | null
   joinFailedFor: (friend: Friend) => boolean
   joinFailureFor: (friend: Pick<Friend, 'platform' | 'platformUserId'>) => JoinFeedback | null
   joinExploreFailureFor: (world: ExploreWorld, room: ExploreRoom) => JoinFeedback | null
-  join: (friend: Friend, options?: JoinOptions) => Promise<void>
-  joinExplore: (world: ExploreWorld, room: ExploreRoom) => Promise<void>
-  confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
-  acknowledgePendingTarget: (presentedKey?: string) => boolean
-  cancelPending: () => void
-  invalidatePending: (platform?: Platform) => void
-  invalidateFriendPending: () => void
 } {
   const { joining, pendingConfirm, failedFriendId, failureReason } = useSyncExternalStore(
     sharedJoinStore.subscribe,
