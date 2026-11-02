@@ -612,6 +612,8 @@ shows the move or "no longer available" only once nobody is left.
 
 Explore and Hot Instance sheets are contained and non-modal and share one
 layout: platform stripe, grab bar, then the picture starting below Close.
+The Explore sheet holds the picture's place with the cards' neutral fill until
+it arrives, or when it fails, so nothing below it moves.
 Close stays reachable outside the scrolling area. In the light theme a sheet
 banner keeps the photo at full brightness and lays a soft card-colored scrim
 under the title instead of darkening it. The banner's pills and Join sit on

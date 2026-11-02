@@ -519,6 +519,36 @@ describe('ExploreView', () => {
     expect(document.querySelector('img')).toBeNull()
   })
 
+  it('holds the picture’s place before it arrives and after it fails', () => {
+    const selected = world('chilloutvr', 'cvr', 'CVR World')
+    const props: React.ComponentProps<typeof ExploreWorldSheet> = {
+      snapshot: {
+        ...source('chilloutvr', [selected]),
+        world: selected,
+        rooms: [],
+        roomsComplete: true
+      },
+      opener: null,
+      focusFallback: null,
+      onClose: vi.fn(),
+      onJoin: vi.fn()
+    }
+    const { rerender } = render(<ExploreWorldSheet {...props} />)
+    const slot = screen.getByTestId('explore-sheet-picture')
+    expect(slot.className).toContain('h-[120px]')
+    expect(slot.className).toContain('bg-[var(--surface-hover)]')
+    expect(slot.querySelector('img')).toBeNull()
+
+    rerender(<ExploreWorldSheet {...props} image="synthetic://late-picture" />)
+    expect(screen.getByTestId('explore-sheet-picture')).toBe(slot)
+    expect(slot.querySelector('img')?.getAttribute('src')).toBe('synthetic://late-picture')
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(slot.className).toContain('h-[220px]')
+    fireEvent.error(slot.querySelector('img')!)
+    expect(slot.querySelector('img')).toBeNull()
+    expect(screen.getByTestId('explore-sheet-picture').className).toContain('h-[220px]')
+  })
+
   it('the grab bar expands the world sheet into world details on both platforms', () => {
     for (const platform of ['vrchat', 'chilloutvr'] as const) {
       const selected = world(platform, `${platform}-w`, 'Some World')

@@ -326,16 +326,23 @@ export default function ExploreWorldSheet({
             key={`${world.platform}:${world.worldId}`}
             className="min-h-0 flex-1 overflow-y-auto p-[var(--space-4)]"
           >
-            {image && failedImage !== image ? (
-              <img
-                src={image}
-                alt=""
-                className={`w-full rounded-[13px] object-cover motion-safe:transition-[height] motion-safe:duration-[220ms] ${
-                  expansion.expanded ? 'h-[220px]' : 'h-[120px]'
-                }`}
-                onError={() => setFailedImage(image)}
-              />
-            ) : null}
+            {/* The cards' neutral fill holds the picture's place, so a picture
+                that arrives late never pushes the rooms and Join down. */}
+            <div
+              data-testid="explore-sheet-picture"
+              className={`w-full overflow-hidden rounded-[13px] bg-[var(--surface-hover)] motion-safe:transition-[height] motion-safe:duration-[220ms] ${
+                expansion.expanded ? 'h-[220px]' : 'h-[120px]'
+              }`}
+            >
+              {image && failedImage !== image ? (
+                <img
+                  src={image}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={() => setFailedImage(image)}
+                />
+              ) : null}
+            </div>
             <div className="mt-[var(--space-3)]">
               {/* The star follows the name (favorites, owner 2026-11-01); its
                   panel lines up under the whole title row. */}
