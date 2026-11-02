@@ -3,7 +3,8 @@
  * Friend details → Show full profile: the drawer already shows a VRChat
  * friend's trust rank above the profile, so it asks the profile to leave its
  * Rank row out; a ChilloutVR friend's rank shows only in the profile, so it
- * stays.
+ * stays. Everyone here is on the friends list, so the profile offers no
+ * friend action, and it hears when the card closes.
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,12 +31,22 @@ vi.mock('../queries/auth', () => ({
 vi.mock('./ProfileDetails', () => ({
   default: ({
     platform,
-    showTrust
+    showTrust,
+    showFriendAction,
+    panelOpen
   }: {
     platform: Platform
     userId: string
     showTrust?: boolean
-  }) => <p data-testid={`profile-${platform}`}>{`showTrust=${String(showTrust)}`}</p>
+    showFriendAction?: boolean
+    panelOpen?: boolean
+  }) => (
+    <p data-testid={`profile-${platform}`}>
+      <span data-testid="show-trust">{`showTrust=${String(showTrust)}`}</span>
+      <span data-testid="show-friend-action">{`showFriendAction=${String(showFriendAction)}`}</span>
+      <span data-testid="panel-open">{`panelOpen=${String(panelOpen)}`}</span>
+    </p>
+  )
 }))
 
 const instance: InstanceInfo = {
@@ -109,8 +120,10 @@ afterEach(() => {
   useFriendsMock.mockReset()
 })
 
+let rerender: (ui: React.ReactNode) => void
+
 function openFullProfile(name: string): HTMLElement {
-  render(<FriendsList />)
+  ;({ rerender } = render(<FriendsList />))
   fireEvent.click(
     screen.getByRole('button', {
       name: (accessible) => accessible === name || accessible.startsWith(`${name} `)
@@ -125,11 +138,37 @@ describe('friend details full profile', () => {
   it('does not repeat the VRChat trust rank shown above the profile', () => {
     const drawer = openFullProfile('Alex')
     expect(drawer.textContent).toContain(i18n.t('drawer.trustRank.known'))
-    expect(within(drawer).getByTestId('profile-vrchat').textContent).toBe('showTrust=false')
+    expect(within(drawer).getByTestId('show-trust').textContent).toBe('showTrust=false')
   })
 
   it('keeps the rank in a ChilloutVR profile, where nothing above shows it', () => {
     const drawer = openFullProfile('Mika')
-    expect(within(drawer).getByTestId('profile-chilloutvr').textContent).toBe('showTrust=true')
+    expect(within(drawer).getByTestId('show-trust').textContent).toBe('showTrust=true')
+  })
+
+  it.each(['Alex', 'Mika'])(
+    'offers no friend action in %s’s profile: everyone here is a friend',
+    (name) => {
+      const drawer = openFullProfile(name)
+      expect(within(drawer).getByTestId('show-friend-action').textContent).toBe(
+        'showFriendAction=false'
+      )
+    }
+  )
+
+  it('tells the profile when the card closes because the friend left the list', () => {
+    const drawer = openFullProfile('Alex')
+    expect(within(drawer).getByTestId('panel-open').textContent).toBe('panelOpen=true')
+    useFriendsMock.mockImplementation((platform: Platform) => ({
+      data: [cvrFriend].filter((friend) => friend.platform === platform),
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn()
+    }))
+    rerender(<FriendsList />)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // The card stays mounted while it slides away, holding the closed state.
+    expect(within(drawer).getByTestId('panel-open').textContent).toBe('panelOpen=false')
   })
 })

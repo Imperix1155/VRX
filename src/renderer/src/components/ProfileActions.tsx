@@ -69,7 +69,8 @@ export default function ProfileActions({
   platform,
   userId,
   name,
-  notFriend = false
+  notFriend = false,
+  panelOpen = true
 }: {
   platform: Platform
   userId: string
@@ -77,10 +78,15 @@ export default function ProfileActions({
   /** Someone who is not a friend: there is nothing to unfriend, so the toggle
    *  names blocking only. */
   notFriend?: boolean
+  /** False while the drawer or sheet holding the profile is closed. */
+  panelOpen?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState<SocialAction | null>(null)
+  // The dialog sits outside the panel, so it would outlive it. Friend details
+  // close on their own when the friend leaves the list; the question goes too.
+  if (confirming !== null && !panelOpen) setConfirming(null)
   const [done, setDone] = useState<SocialAction | null>(null)
   const panelId = useId()
   const toggleRef = useRef<HTMLButtonElement>(null)

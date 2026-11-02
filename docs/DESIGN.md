@@ -804,7 +804,9 @@ shows no loading line until the check answers.
   button; after the press it reads "Sending…", then a check mark and "Friend
   request sent." in place of the button. A refusal says why in the error color
   and keeps the button. Friends and the signed-in user's own profile show no
-  friend action.
+  friend action, and friend details never do: everyone there is on the
+  friends list, even just after an Unfriend there, until the platform drops
+  them and the details close.
 - **Unfriend or block** (owner, 2026-11-01) closes every full profile, below
   a thin rule: one quiet button that reads nothing until pressed. Open, it
   says which platform account changes, then shows only what applies, in one
@@ -817,6 +819,8 @@ shows no loading line until the check answers.
   the drawer or sheet behind stays open. A failure stays in the dialog; a
   success closes it and leaves a "✓ Unblocked on VRChat."-style line above
   the buttons, which switch at once (Block becomes Unblock; Unfriend goes).
+  When friend details close on their own (the friend left the list), an open
+  dialog closes with them and sends nothing.
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
   are wider than tall: the group's square icon centered on top over a blurred
   copy of itself (never cropped), then the name, and the VRC/CVR badge with

@@ -8,6 +8,7 @@
  */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
@@ -640,6 +641,47 @@ describe('FriendDrawer (VRX-69)', () => {
     mockFriends([joinableFriend]) // data returns — the drawer must NOT reopen
     rerender(<FriendsList />)
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('an open Unfriend question closes with the card when the friend leaves the list', async () => {
+    Object.assign(window.vrx!, {
+      getProfile: vi.fn().mockResolvedValue({
+        ok: true,
+        profile: {
+          platform: 'vrchat',
+          userId: 'usr_alex',
+          displayName: 'Alex',
+          imageUrl: null,
+          isFriend: true,
+          pronouns: null,
+          bio: null,
+          rank: null,
+          badges: []
+        }
+      }),
+      getRelationship: vi.fn().mockResolvedValue({
+        ok: true,
+        relationship: { platform: 'vrchat', userId: 'usr_alex', isFriend: true, blocked: false }
+      })
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const list = (): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <FriendsList />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(list())
+    openDrawerFor('Alex')
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Show full profile' }))
+    fireEvent.click(await within(dialog()).findByRole('button', { name: 'Unfriend or block' }))
+    fireEvent.click(await within(dialog()).findByRole('button', { name: 'Unfriend' }))
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+
+    mockFriends([]) // they unfriended you, or a refetch dropped them, meanwhile
+    rerender(list())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search friends' }))
   })
 
   it('offline with a retained Ask Me status shows Offline — never "Hidden"', () => {

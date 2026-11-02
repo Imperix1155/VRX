@@ -162,6 +162,27 @@ describe('ProfileActions', () => {
     expect(bridge.socialAction).not.toHaveBeenCalled()
   })
 
+  it('closes an open question, sending nothing, when the drawer or sheet around it closes', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const actions = (panelOpen: boolean): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <ProfileActions platform="vrchat" userId={IDS.vrchat} name="Lumen" panelOpen={panelOpen} />
+      </QueryClientProvider>
+    )
+    const view = render(actions(true))
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.unfriend') }))
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+
+    // Friend details close on their own when the friend leaves the list.
+    view.rerender(actions(false))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    // Opening the same friend again does not bring the old question back.
+    view.rerender(actions(true))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(bridge.socialAction).not.toHaveBeenCalled()
+  })
+
   it('keeps Escape and outside presses from reaching the drawer or sheet behind it', async () => {
     const documentKeys = vi.fn()
     const documentPointers = vi.fn()

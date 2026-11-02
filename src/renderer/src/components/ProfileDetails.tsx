@@ -10,7 +10,9 @@
  *
  * Someone who is not a friend yet gets one friend action on top (owner,
  * 2026-11-01): Accept and Decline when their request is waiting in the Inbox,
- * otherwise Add friend. Main sends it only to someone a search listed.
+ * otherwise Add friend. Main sends it only to someone a search listed. Friend
+ * details leave it out: everyone there is on the friends list, even just
+ * after an Unfriend, and main answers Add friend for them "already friends".
  */
 import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -51,13 +53,19 @@ const SMALL_HEADING =
 export default function ProfileDetails({
   platform,
   userId,
-  showTrust = true
+  showTrust = true,
+  showFriendAction = true,
+  panelOpen = true
 }: {
   platform: Platform
   userId: string
   /** False where the VRChat trust rank already shows just above (the friend
    *  card), so the profile does not repeat it. */
   showTrust?: boolean
+  /** False in friend details, where the person is on the friends list. */
+  showFriendAction?: boolean
+  /** False while the drawer or sheet holding the profile is closed. */
+  panelOpen?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const profile = useProfile(platform, userId)
@@ -89,7 +97,14 @@ export default function ProfileDetails({
       </div>
     )
   }
-  return <ProfileBody profile={result.profile} showTrust={showTrust} />
+  return (
+    <ProfileBody
+      profile={result.profile}
+      showTrust={showTrust}
+      showFriendAction={showFriendAction}
+      panelOpen={panelOpen}
+    />
+  )
 }
 
 function RetryButton({ onRetry }: { onRetry: () => void }): React.JSX.Element {
@@ -124,16 +139,20 @@ function profileFacts(
 
 function ProfileBody({
   profile,
-  showTrust
+  showTrust,
+  showFriendAction,
+  panelOpen
 }: {
   profile: PersonProfile
   showTrust: boolean
+  showFriendAction: boolean
+  panelOpen: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const facts = profileFacts(profile, showTrust, t)
   return (
     <div className="flex flex-col gap-[var(--space-4)]" data-profile-details={profile.platform}>
-      {profile.isFriend === false ? (
+      {showFriendAction && profile.isFriend === false ? (
         <FriendAction
           platform={profile.platform}
           userId={profile.userId}
@@ -175,6 +194,7 @@ function ProfileBody({
         userId={profile.userId}
         name={profile.displayName}
         notFriend={profile.isFriend === false}
+        panelOpen={panelOpen}
       />
     </div>
   )

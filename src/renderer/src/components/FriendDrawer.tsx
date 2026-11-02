@@ -619,6 +619,7 @@ export default function FriendDrawer({
                 // A different person starts collapsed again.
                 key={shownAccounts.map((a) => `${a.platform}:${a.platformUserId}`).join('|')}
                 accounts={shownAccounts}
+                drawerOpen={open}
               />
             )}
           </div>
@@ -682,8 +683,15 @@ export default function FriendDrawer({
   )
 }
 
-/** Collapsed by default: nothing is read until the user opens it. */
-function DrawerFullProfile({ accounts }: { accounts: readonly Friend[] }): React.JSX.Element {
+/** Collapsed by default: nothing is read until the user opens it. Everyone
+ *  here is on the friends list, so the profile offers no friend action. */
+function DrawerFullProfile({
+  accounts,
+  drawerOpen
+}: {
+  accounts: readonly Friend[]
+  drawerOpen: boolean
+}): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const ordered = inPlatformOrder(accounts)
@@ -711,6 +719,8 @@ function DrawerFullProfile({ accounts }: { accounts: readonly Friend[] }): React
                 platform={account.platform}
                 userId={account.platformUserId}
                 showTrust={account.trustRank == null}
+                showFriendAction={false}
+                panelOpen={drawerOpen}
               />
             </div>
           ))

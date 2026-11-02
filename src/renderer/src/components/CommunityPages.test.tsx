@@ -1083,4 +1083,42 @@ describe('ProfileDetails', () => {
     await screen.findByText('Hello there')
     expect(screen.queryByText(msg('friendActions.add'))).toBeNull()
   })
+
+  it('offers no Add friend in friend details, even right after an Unfriend there', async () => {
+    // Everyone in friend details is on the friends list until the platform
+    // drops them (the details close then), and main answers Add friend for
+    // anyone on it with "You're already friends."
+    const withActions = Object.assign(bridge, {
+      getRelationship: vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          relationship: { platform: 'vrchat', userId: VRC_ID, isFriend: true, blocked: false }
+        })
+      ),
+      socialAction: vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          relationship: { platform: 'vrchat', userId: VRC_ID, isFriend: false, blocked: false }
+        })
+      )
+    })
+    try {
+      renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} showFriendAction={false} />)
+      fireEvent.click(await screen.findByRole('button', { name: msg('profile.actions.show') }))
+      fireEvent.click(await screen.findByRole('button', { name: msg('profile.actions.unfriend') }))
+      fireEvent.click(
+        within(screen.getByRole('alertdialog')).getByRole('button', {
+          name: msg('profile.actions.unfriend')
+        })
+      )
+      await screen.findByText(msg('profile.actions.done.unfriend', { platform: 'VRChat' }))
+      // The profile now reads "not a friend": its toggle names blocking only.
+      expect(screen.getByRole('button', { name: msg('profile.actions.hideBlock') })).toBeTruthy()
+      expect(screen.queryByText(msg('friendActions.add'))).toBeNull()
+      expect(bridge.sendFriendRequest).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(withActions, 'getRelationship')
+      Reflect.deleteProperty(withActions, 'socialAction')
+    }
+  })
 })
