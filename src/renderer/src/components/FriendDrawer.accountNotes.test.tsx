@@ -314,7 +314,7 @@ describe('FriendDrawer account notes', () => {
     expect(scoped.queryByRole('button', { name: label })).toBeNull()
     expect(document.activeElement).toBe(line)
     await waitFor(() => expect(syncFriendNote).toHaveBeenCalledTimes(2))
-    expect(syncFriendNote.mock.calls[1][0]).toMatchObject({ mode })
+    expect(syncFriendNote.mock.calls[1]?.[0]).toMatchObject({ mode })
     await waitFor(() => expect(scoped.getByText('Also saved to your VRChat account')).toBeTruthy())
     expect(scoped.getByDisplayValue(kept)).toBeTruthy()
     expect(document.activeElement).toBe(line)
