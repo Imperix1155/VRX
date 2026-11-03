@@ -52,7 +52,7 @@ export function useAuthStatus(platform: Platform): UseQueryResult<AuthStatus, Er
     refetchInterval: (query) =>
       query.state.data?.state === 'error' ? AUTH_ERROR_RECHECK_MS : false,
     // While the window is hidden in the tray, only a check that got no answer
-    // at all repeats (nothing reached the platform): only a successful check
+    // at all repeats (offline, or no reply in time): only a successful check
     // starts a restored session's live connection, which friend alerts need. A
     // platform that answered and refused is not asked again until it shows.
     refetchIntervalInBackground: unreachable,

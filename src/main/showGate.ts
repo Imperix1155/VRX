@@ -20,8 +20,9 @@ interface ShowGateOptions {
 
 /**
  * Holds a window hidden until both first-paint prerequisites have arrived.
- * The timeout starts only once Electron says the window is paintable, so slow
- * window creation does not consume the renderer's recovery budget.
+ * The timeout starts once Electron says the window is paintable, so slow
+ * window creation does not consume the renderer's recovery budget, or once
+ * someone asks for the window, whichever comes first.
  */
 export function createShowGate({ timeoutMs, onShow, onTimeout }: ShowGateOptions): ShowGate {
   let ready = false

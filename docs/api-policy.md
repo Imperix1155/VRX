@@ -212,10 +212,12 @@ Both pipelines share [`ReconnectingPipeline`](../src/main/services/adapters/Reco
 
 Full REST rosters run on first load, on manual refresh, after a socket
 reconnects, once after a Join that main turned down because the friend's
-place had changed (`target-changed`) while the friend list still shows the
-old place (so the next Join sends the current place; when the friend's live
-update has already landed, nothing is read), and on the background reconcile
-timer. The timer defaults to 1
+place had changed (`target-changed`), and on the background reconcile timer.
+After a direct Join, that read runs only while the friend list still shows
+the old place (so the next Join sends the current place; when the friend's
+live update has already landed, nothing is read). After Confirm in the Join
+dialog, it runs unless the list already shows the friend at a new place the
+dialog can offer for review. The timer defaults to 1
 hour, the cadence VRCX uses for its full friend list. It can be set to 5, 10
 or 30 minutes or manual, and varies ±10% per run. Settings files from before
 schema v14 that held the old 5-minute default move to 1 hour. It is a safety
@@ -238,7 +240,7 @@ opened: the renderer keeps a settled status until a sign-in, sign-out or
 is checked again once a minute (`AUTH_ERROR_RECHECK_MS`) while the window
 shows, until a check succeeds. While the window is hidden in the tray, only a
 check that got no answer at all (`unreachable`: offline, a name that didn't
-resolve, a timeout) repeats, since nothing reached the platform; a platform
+resolve, or no reply within 15 seconds) repeats, once a minute; a platform
 that answered and refused (429, 403, 5xx, an unreadable reply) is not asked
 again until the window shows. Only a successful check starts a restored
 session's live connection. Each check goes through the admission queue and
