@@ -208,9 +208,7 @@ describe('DashboardView states (W5)', () => {
     stubQueries({ data: undefined, isPending: true }, { data: undefined, isPending: true })
     seedExplorePreview()
     const { rerender } = render(<DashboardView />)
-    fireEvent.click(
-      screen.getByRole('button', { name: /open visible rooms for Preview world on VRChat/i })
-    )
+    fireEvent.click(screen.getByRole('button', { name: /^Preview world on VRChat\. View rooms$/i }))
     const sheetName = /Visible public rooms for Preview world/
     await waitFor(() => expect(screen.getByRole('dialog', { name: sheetName })).toBeTruthy())
 
@@ -1182,7 +1180,7 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
 
     const hotCard = screen.getByRole('button', { name: /SunDown hot instance details/ })
     const exploreCard = screen.getByRole('button', {
-      name: /open visible rooms for Preview world on VRChat/i
+      name: /^Preview world on VRChat\. View rooms$/i
     })
 
     hotCard.focus()

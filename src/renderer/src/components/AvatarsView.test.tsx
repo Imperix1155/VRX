@@ -390,14 +390,16 @@ describe('AvatarsView', () => {
         msg('avatars.sheet.wearHint', { platform: msg('dashboard.platformCvr') })
       )
     ).toBeTruthy()
-    fireEvent.click(
-      within(sheet).getByRole('button', {
-        name: msg('avatars.sheet.wearAria', {
-          name: cvrOther.name,
-          platform: msg('dashboard.platformCvr')
-        })
+    const wear = within(sheet).getByRole('button', {
+      name: msg('avatars.sheet.wearAria', {
+        name: cvrOther.name,
+        platform: msg('dashboard.platformCvr')
       })
-    )
+    })
+    // The name starts with the words the button shows, so saying them presses it.
+    expect(wear.getAttribute('aria-label')?.startsWith(msg('avatars.sheet.wear'))).toBe(true)
+    expect(wear.textContent).toContain(msg('avatars.sheet.wear'))
+    fireEvent.click(wear)
     expect(
       await within(sheet).findByText(
         msg('avatars.sheet.switched', { platform: msg('dashboard.platformCvr') })

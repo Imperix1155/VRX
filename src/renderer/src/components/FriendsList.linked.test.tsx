@@ -220,17 +220,25 @@ describe('linked roster integration', () => {
     )
     const view = render(tree)
     const list = screen.getByRole('list', { name: 'Friends' })
+    // Its name starts with the words it shows, then says what it does and for whom.
+    expect(
+      within(list).getByRole('button', {
+        name: '2 locations: Choose a destination to join Combined'
+      })
+    ).toBeTruthy()
     // Each half's access tier is also spelled out, not color-only.
-    expect(within(list).getByRole('button', { name: '2 locations' }).getAttribute('title')).toMatch(
-      /^VRChat: .+ · ChilloutVR: .+$/
-    )
+    expect(
+      within(list)
+        .getByRole('button', { name: /^2 locations: / })
+        .getAttribute('title')
+    ).toMatch(/^VRChat: .+ · ChilloutVR: .+$/)
     // The visible subline names each location's access beside its platform tag.
     const access = [...list.querySelectorAll('[data-linked-world-access]')].map(
       (node) => node.textContent
     )
     expect(access).toHaveLength(2)
     expect(access.every((word) => word !== null && word.length > 0)).toBe(true)
-    fireEvent.click(within(list).getByRole('button', { name: '2 locations' }))
+    fireEvent.click(within(list).getByRole('button', { name: /^2 locations: / }))
     fireEvent.click(screen.getByRole('button', { name: /Join on ChilloutVR/ }))
     expect(joinInstance).toHaveBeenCalledOnce()
     mocks.accounts.chilloutvr = 'replacement-owner'
@@ -304,7 +312,7 @@ describe('linked roster integration', () => {
     window.vrx = { joinInstance } as unknown as Window['vrx']
     const view = render(<FriendsList />)
     const list = screen.getByRole('list', { name: 'Friends' })
-    fireEvent.click(within(list).getByRole('button', { name: '2 locations' }))
+    fireEvent.click(within(list).getByRole('button', { name: /^2 locations: / }))
     fireEvent.click(screen.getByRole('button', { name: /Join on ChilloutVR/ }))
     expect(joinInstance).toHaveBeenCalledOnce()
     roster([inWorldVrc])
@@ -348,7 +356,7 @@ describe('linked roster integration', () => {
       render(<FriendsList />)
       const list = screen.getByRole('list', { name: 'Friends' })
       fireEvent.click(
-        within(list).getByRole('button', { name: both ? '2 locations' : /Join Combined/ })
+        within(list).getByRole('button', { name: both ? /^2 locations: / : /Join Combined/ })
       )
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /Join on ChilloutVR/ }))
@@ -426,7 +434,7 @@ describe('linked roster integration', () => {
     const list = screen.getByRole('list', { name: 'Friends' })
     expect(within(list).getByText('First world')).toBeTruthy()
     expect(within(list).getByText('Second world')).toBeTruthy()
-    fireEvent.click(within(list).getByRole('button', { name: '2 locations' }))
+    fireEvent.click(within(list).getByRole('button', { name: /^2 locations: / }))
     expect(screen.getAllByRole('button', { name: /Join on/ })).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     fireEvent.click(within(list).getByRole('button', { name: /^Combined/ }))
@@ -443,7 +451,7 @@ describe('linked roster integration', () => {
     roster([{ ...inWorldVrc, presence: { state: 'active' } }, inWorldCvr])
     view.rerender(<FriendsList />)
     expect(document.querySelectorAll('[data-virtual-kind="friend"]')).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: '2 locations' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^2 locations: / })).toBeNull()
     expect(within(row as HTMLElement).queryByText('First world')).toBeNull()
     fireEvent.pointerLeave(row)
     expect(document.querySelectorAll('[data-virtual-kind="friend"]')).toHaveLength(2)
@@ -475,7 +483,7 @@ describe('linked roster integration', () => {
     act(() => screen.getByRole('button', { name: /^Combined/ }).focus())
     roster([])
     view.rerender(<FriendsList />)
-    expect(screen.queryByRole('button', { name: '2 locations' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^2 locations: / })).toBeNull()
     act(() => {
       vi.advanceTimersByTime(5000)
     })

@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Screen readers: each Activity row says its platform, so one friend's
   VRChat and ChilloutVR rows no longer sound the same, and Japanese reads it
   with Japanese punctuation.
+- Screen readers and voice control: world cards, Wear this avatar and Set as
+  home world now start their spoken names with the words they show ("Pug
+  Lounge on VRChat. View rooms"), and a linked friend's "2 locations" pill
+  says it chooses where to join them, instead of only "2 locations".
 
 ## [1.4.0-dev.6] - 2026-11-03
 

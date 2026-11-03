@@ -127,7 +127,7 @@ describe('ExploreView', () => {
   it('opens cards through the injected callback and never uses their source thumbnail URL', () => {
     const selected = world('vrchat', 'vrc', 'World')
     const props = setup({ worlds: [selected] })
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms/i }))
+    fireEvent.click(screen.getByRole('button', { name: /view rooms$/i }))
     expect(props.onOpenWorld).toHaveBeenCalledWith(selected, expect.any(HTMLButtonElement))
     expect(screen.queryByRole('img')).toBeNull()
   })
@@ -142,7 +142,7 @@ describe('ExploreView', () => {
       platformSnapshots: [{ ...source('vrchat', [partial]), isStale: true }]
     })
     // The card's name stays the world; the People line is its description.
-    const card = screen.getByRole('button', { name: /open visible rooms/i })
+    const card = screen.getByRole('button', { name: /view rooms$/i })
     const people = document.getElementById(card.getAttribute('aria-describedby')!)
     expect(people?.textContent).toBe('People: Unknown')
     expect(screen.queryByText('VRChat results may be out of date.')).toBeNull()
@@ -295,7 +295,7 @@ describe('ExploreView', () => {
     }
     const props = setup({ worlds: [selected], sheet: snapshot })
     fireEvent.pointerDown(screen.getByRole('dialog'))
-    fireEvent.pointerDown(screen.getByRole('button', { name: /open visible rooms/i }))
+    fireEvent.pointerDown(screen.getByRole('button', { name: /view rooms$/i }))
     expect(props.onCloseSheet).not.toHaveBeenCalled()
     fireEvent.pointerDown(document.body)
     expect(props.onCloseSheet).toHaveBeenCalledTimes(1)
@@ -794,7 +794,7 @@ describe('ExploreDashboardPreview', () => {
   it('caps a shared selection at two cards', () => {
     const worlds = [world('vrchat', '1'), world('chilloutvr', '2'), world('vrchat', '3')]
     render(<ExploreDashboardPreview worlds={worlds} platformSnapshots={[]} onOpenWorld={vi.fn()} />)
-    expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /view rooms$/i })).toHaveLength(2)
   })
 
   it('keeps refresh copy quiet for cards and retains it for empty loading/error/unavailable previews', () => {
@@ -850,6 +850,6 @@ describe('ExploreDashboardPreview', () => {
       <ExploreDashboardPreview worlds={dashboard} platformSnapshots={[]} onOpenWorld={vi.fn()} />
     )
     expect(dashboard).toEqual(explore.slice(0, 2))
-    expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /view rooms$/i })).toHaveLength(2)
   })
 })
