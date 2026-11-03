@@ -253,7 +253,9 @@ export default function InboxView(): React.JSX.Element {
             const sending = answering.get(`${item.platform}:${item.id}`)
             return (
               <li
-                key={`${item.platform}:${item.id}`}
+                // Keyed by sender and kind, which main keeps one row for, so
+                // a newer invite that replaces a row keeps its focus.
+                key={`${item.platform}:${item.kind}:${item.senderId}`}
                 className={`platform-row platform-row--${item.platform} flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)]`}
               >
                 <InboxAvatar name={name} friend={friendsById[item.platform].get(item.senderId)} />

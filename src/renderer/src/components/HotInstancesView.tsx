@@ -9,7 +9,9 @@
  * The Settings → Dashboard "Hot Instances" switch only hides the Dashboard
  * section; this page is always available.
  */
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useFocusFollowsList } from '../hooks/useFocusFollowsList'
 import { useFriendSummary } from '../hooks/useFriendSummary'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
 import { useSettingsStore } from '../stores/settings'
@@ -37,6 +39,15 @@ export default function HotInstancesView(): React.JSX.Element {
   const hotInstances = getHotInstances(friends, threshold, Infinity)
   const { selectedInstance, openSheet, closeSheet, fallbackFocusRef } =
     useHotInstanceSheet(hotInstances)
+  // A card that leaves by itself (its friends moved on) hands keyboard focus
+  // to the card in its place, not the page.
+  const gridRef = useRef<HTMLDivElement>(null)
+  const followFocus = useFocusFollowsList(
+    hotInstances.map((instance) => instance.groupKey),
+    gridRef,
+    '[data-hot-open]',
+    fallbackFocusRef
+  )
 
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
@@ -92,7 +103,12 @@ export default function HotInstancesView(): React.JSX.Element {
           <HotInstancesEmpty threshold={threshold} />
         ) : (
           <div className="hotwrap">
-            <div className="hot-grid hot-grid--picture">
+            <div
+              ref={gridRef}
+              className="hot-grid hot-grid--picture"
+              onFocus={followFocus.onFocus}
+              onBlur={followFocus.onBlur}
+            >
               {hotInstances.map((inst) => (
                 <HotInstanceCard
                   key={inst.groupKey}

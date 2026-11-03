@@ -178,6 +178,26 @@ describe('InboxView', () => {
     )
   })
 
+  it('keeps keyboard focus when a newer invite from the same person replaces a row', async () => {
+    const client = renderInbox()
+    const hide = await screen.findByRole('button', {
+      name: msg('inbox.hideInviteAria', { name: 'Alice' })
+    })
+    hide.focus()
+    // Main keeps one row per sender and kind: Alice's newer invite takes the
+    // older one's place under a new id.
+    snapshot = {
+      items: [
+        item({ id: 'invite:not_3', worldName: 'Moon Base', receivedAt: NOW - 60_000 }),
+        ...snapshot.items.slice(1)
+      ]
+    }
+    await client.invalidateQueries({ queryKey: inboxKey })
+    await screen.findByText(/Moon Base/)
+    expect(document.activeElement).toBe(hide)
+    expect(hide.isConnected).toBe(true)
+  })
+
   it('Hide all clears only the platforms on screen', async () => {
     useFriendsStore.setState({ platformFilter: 'chilloutvr' })
     renderInbox()

@@ -234,6 +234,7 @@ export default function HotInstanceCard({
   const cardProps = {
     ref: cardRef,
     'data-hot-sheet-opener': true,
+    'data-list-key': instance.groupKey,
     'data-hot-card-layout': layout,
     onClick: openSheet
   } as const

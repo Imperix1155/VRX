@@ -62,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of other words such as "Join launch mode", in English and
   Japanese; each switch's note is read with it; and moving a Dashboard
   section says "Wearing now: 2 of 4" instead of "Wearing now is now 2 of 4".
+- Keyboard and screen readers: when the hot instance card that has focus
+  goes away because its friends moved on, focus moves to the card in its
+  place instead of falling to the page; and when a newer invite from the same
+  person replaces an Inbox row, focus stays on that row.
 
 ## [1.4.0-dev.6] - 2026-11-03
 
