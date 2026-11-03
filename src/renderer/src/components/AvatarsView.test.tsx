@@ -292,9 +292,12 @@ describe('AvatarsView', () => {
     expect(screen.queryByText(msg('avatars.error.unavailable', { platform: vrc }))).toBeNull()
     expect(screen.queryByRole('button', { name: msg('avatars.retry') })).toBeNull()
     // Keyboard focus stays on that line, not the top of the window.
-    const line = loading.closest('[role="status"]')
+    const line = loading.closest('[data-source-notice]')
     expect(line).not.toBeNull()
     expect(document.activeElement).toBe(line)
+    // The focused line has no role to change under it; its words are the live part.
+    expect(line?.getAttribute('role')).toBeNull()
+    expect(loading.getAttribute('role')).toBe('status')
 
     await act(async () => answer({ ok: false, reason: 'unavailable' }))
     expect(

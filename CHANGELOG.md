@@ -291,6 +291,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Screen readers and voice control: the Join pills on friend rows and hot
   cards, and Add friend, now say the words they show ("Public: Join Amy in
   SunDown"), first in English, so saying what you see presses them.
+- High Contrast (Windows): keyboard focus shows a ring again on every control,
+  and what is chosen shows in the system highlight color: the current page in
+  the sidebar, the picked side of VRC / ALL / CVR and the other switches,
+  toggles that are on, and the welcome setup's choices and progress. The
+  status dot on pictures keeps its colors.
+- Full profiles: Retry keeps keyboard focus on the profile's line and shows
+  Loading until the platform answers. A profile, or its worlds or groups, that
+  couldn't load is red, like the pages; an answer such as "This profile is no
+  longer available." stays dim.
+- Explore: when keyboard focus falls back to the page, after a panel closes
+  for example, the page no longer draws a focus ring around everything.
+- Screen readers: the platform's loading or failure line on Search, Explore,
+  Groups and Avatars is read once when it changes, while keyboard focus rests
+  on it.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

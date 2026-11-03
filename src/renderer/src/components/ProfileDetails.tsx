@@ -48,6 +48,13 @@ const PROFILE_ERROR_KEYS: Record<ProfileFailure, string> = {
   'not-found': 'profile.error.not-found'
 }
 
+/** Failures that leave the profile unloaded (red); the rest are answers (dim). */
+const NEVER_LOADED: ReadonlySet<ProfileFailure> = new Set([
+  'unavailable',
+  'rate-limited',
+  'not-authenticated'
+])
+
 const SMALL_HEADING =
   'mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]'
 
@@ -71,34 +78,38 @@ export default function ProfileDetails({
   const { t } = useTranslation()
   const profile = useProfile(platform, userId)
   const result = profile.data
+  const lineRef = useRef<HTMLDivElement>(null)
 
-  if (result === undefined) {
-    const failed = profile.isError
+  if (result === undefined || !result.ok) {
+    // Retry shows the loading words until the platform answers again.
+    const loading = profile.isFetching || (result === undefined && !profile.isError)
+    // A read that failed outright reads like the platform's "unavailable".
+    const reason: ProfileFailure = result === undefined ? 'unavailable' : result.reason
+    let action: React.JSX.Element | null = null
+    if (loading) {
+      // Nothing to press until the platform answers.
+    } else if (reason === 'not-authenticated') {
+      // Signing in happens in Settings → Accounts, as on the pages.
+      action = <GoToAccountsButton label={t('community.openAccounts')} />
+    } else if (reason === 'unavailable' || reason === 'rate-limited') {
+      action = (
+        <RetryButton
+          onRetry={() => {
+            void profile.refetch()
+            focusLine(lineRef)
+          }}
+        />
+      )
+    }
     return (
-      <div className="flex flex-wrap items-center gap-[var(--space-2)]">
-        <p
-          role={failed ? 'alert' : 'status'}
-          className={`text-[13px] ${failed ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'}`}
-        >
-          {failed ? t('profile.error.unavailable') : t('profile.loading')}
-        </p>
-        {failed ? <RetryButton onRetry={() => void profile.refetch()} /> : null}
-      </div>
-    )
-  }
-  if (!result.ok) {
-    return (
-      <div className="flex flex-wrap items-center gap-[var(--space-2)]">
-        <p role="alert" className="text-[13px] text-[var(--text-dim)]">
-          {t(PROFILE_ERROR_KEYS[result.reason])}
-        </p>
-        {result.reason === 'unavailable' || result.reason === 'rate-limited' ? (
-          <RetryButton onRetry={() => void profile.refetch()} />
-        ) : result.reason === 'not-authenticated' ? (
-          // Signing in happens in Settings → Accounts, as on the pages.
-          <GoToAccountsButton label={t('community.openAccounts')} />
-        ) : null}
-      </div>
+      <StateLine
+        lineRef={lineRef}
+        loading={loading}
+        text={loading ? t('profile.loading') : t(PROFILE_ERROR_KEYS[reason])}
+        missing={!loading && NEVER_LOADED.has(reason)}
+      >
+        {action}
+      </StateLine>
     )
   }
   return (
@@ -109,6 +120,47 @@ export default function ProfileDetails({
       panelOpen={panelOpen}
     />
   )
+}
+
+/**
+ * One loading or failure line. Retry moves keyboard focus to the line, so it
+ * isn't lost when Retry leaves; the line stays the same element, with no role
+ * of its own, while its words switch between loading and the answer. Something
+ * that never loaded is red, as on the pages (DESIGN.md, Locked rule 5).
+ */
+function StateLine({
+  lineRef,
+  loading,
+  text,
+  missing,
+  children
+}: {
+  lineRef: React.RefObject<HTMLDivElement | null>
+  loading: boolean
+  text: string
+  missing: boolean
+  children?: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div
+      ref={lineRef}
+      data-profile-line=""
+      tabIndex={-1}
+      className="flex flex-wrap items-center gap-[var(--space-2)] outline-none"
+    >
+      <p
+        role={loading ? 'status' : 'alert'}
+        className={`text-[13px] ${missing ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'}`}
+      >
+        {text}
+      </p>
+      {children}
+    </div>
+  )
+}
+
+function focusLine(lineRef: React.RefObject<HTMLDivElement | null>): void {
+  lineRef.current?.focus({ preventScroll: true })
 }
 
 function RetryButton({ onRetry }: { onRetry: () => void }): React.JSX.Element {
@@ -437,7 +489,7 @@ function ProfileWorldsList({
   if (result === undefined || !result.ok) {
     return (
       <ListState
-        loading={result === undefined && !worlds.isError}
+        loading={worlds.isFetching || (result === undefined && !worlds.isError)}
         onRetry={() => void worlds.refetch()}
       />
     )
@@ -478,7 +530,7 @@ function ProfileGroupsList({
   if (result === undefined || !result.ok) {
     return (
       <ListState
-        loading={result === undefined && !groups.isError}
+        loading={groups.isFetching || (result === undefined && !groups.isError)}
         onRetry={() => void groups.refetch()}
       />
     )
@@ -531,19 +583,22 @@ function ListState({
   onRetry: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  if (loading) {
-    return (
-      <p role="status" className="text-[13px] text-[var(--text-dim)]">
-        {t('profile.listLoading')}
-      </p>
-    )
-  }
+  const lineRef = useRef<HTMLDivElement>(null)
   return (
-    <div className="flex flex-wrap items-center gap-[var(--space-2)]">
-      <p role="alert" className="text-[13px] text-[var(--text-dim)]">
-        {t('profile.listError')}
-      </p>
-      <RetryButton onRetry={onRetry} />
-    </div>
+    <StateLine
+      lineRef={lineRef}
+      loading={loading}
+      text={t(loading ? 'profile.listLoading' : 'profile.listError')}
+      missing={!loading}
+    >
+      {loading ? null : (
+        <RetryButton
+          onRetry={() => {
+            onRetry()
+            focusLine(lineRef)
+          }}
+        />
+      )}
+    </StateLine>
   )
 }

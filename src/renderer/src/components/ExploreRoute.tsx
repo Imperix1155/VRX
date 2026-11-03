@@ -278,7 +278,9 @@ export default function ExploreRoute(): React.JSX.Element {
     </>
   )
   return (
-    <div ref={setFocusFallback} tabIndex={-1}>
+    // Focus lands here only when a closed sheet's opener is gone; like the main
+    // region, it draws no ring around the whole page.
+    <div ref={setFocusFallback} tabIndex={-1} className="outline-none">
       {shell}
     </div>
   )
