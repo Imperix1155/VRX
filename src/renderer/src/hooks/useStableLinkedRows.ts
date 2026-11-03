@@ -54,7 +54,9 @@ function deferRow(rows: LinkedRow[], deferred: DeferredRow): LinkedRow[] {
   const retained: LinkedRow = {
     ...deferred.row,
     accounts: friends,
-    name: currentName(rows, deferred, friends)
+    name: currentName(rows, deferred, friends),
+    // The name the current search matched, never a previous search's.
+    matchedName: rows.find((row) => row.key === deferred.heldKey)?.matchedName
   }
   const heldStillExists = rows.some((row) => row.key === deferred.heldKey)
   const withoutPerson = rows.filter((row) =>
@@ -159,6 +161,8 @@ export function useStableLinkedRows(rows: LinkedRow[], heldKey: string | null): 
         return (
           row.key === next.key &&
           row.name === next.name &&
+          // A new search can change only which name matched.
+          row.matchedName === next.matchedName &&
           row.section === next.section &&
           row.platformMark === next.platformMark &&
           row.personKey === next.personKey &&
