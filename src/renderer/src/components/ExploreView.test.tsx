@@ -377,6 +377,31 @@ describe('ExploreView', () => {
     expect(props.onJoinRoom).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['a room from saved results', true, 'vrc'],
+    ['a room of another world', false, 'another-world']
+  ])(
+    'keeps %s, which can’t be joined anyway, disabled while a Join runs',
+    (_, isStale, worldId) => {
+      const selected = world('vrchat', 'vrc', 'VRC World')
+      setup({
+        worlds: [selected],
+        sheet: {
+          ...source('vrchat', [selected]),
+          isStale,
+          world: selected,
+          rooms: [room('vrchat', { state: 'available', selectionRef: 'synthetic' }, worldId)],
+          roomsComplete: true
+        },
+        isJoining: true
+      })
+      // Only a room that is open once the Join ends keeps focus (aria-disabled).
+      const button = screen.getByRole('button', { name: 'Joining…' })
+      expect(button.hasAttribute('disabled')).toBe(true)
+      expect(button.hasAttribute('aria-disabled')).toBe(false)
+    }
+  )
+
   it('claims saved results only while saved rooms are on screen', () => {
     const selected = world('vrchat', 'vrc', 'VRC World')
     const staleRooms = [

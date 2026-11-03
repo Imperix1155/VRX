@@ -83,6 +83,7 @@ function RoomRow({
 }: {
   room: ExploreRoom
   onJoin: (room: ExploreRoom) => void
+  /** Whether this room's Join could run once no other Join is running. */
   actionAllowed: boolean
   /** Saved results: an otherwise joinable room asks for a refresh first. */
   stale: boolean
@@ -91,10 +92,12 @@ function RoomRow({
   const { t, i18n } = useTranslation()
   const detailsId = useId()
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
-  const enabled = actionAllowed && room.action.state === 'available'
+  const open = actionAllowed && room.action.state === 'available'
+  const enabled = open && !joining
   // While a Join runs, a room that is otherwise open keeps keyboard focus
-  // (aria-disabled): a disabled button would drop it to the page.
-  const waiting = joining && room.action.state === 'available'
+  // (aria-disabled): a disabled button would drop it to the page. A room that
+  // can't be joined anyway stays disabled, as it is when nothing runs.
+  const waiting = open && joining
   // The shared resolver, so a room reads exactly like the same access type
   // anywhere else in the app.
   const pill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
@@ -441,7 +444,6 @@ export default function ExploreWorldSheet({
                     actionAllowed={
                       shown.status === 'ready' &&
                       !isStale &&
-                      !joining &&
                       room.platform === world.platform &&
                       room.worldId === world.worldId
                     }
