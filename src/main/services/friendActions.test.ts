@@ -11,10 +11,13 @@ import {
   type FriendActionsAdapter,
   type FriendRequestRecord
 } from './adapters/FriendActionsAdapter'
+import { SOCIAL_ACTION_COOLDOWN_MS } from '@shared/socialActions'
+import type { SocialActionAdapter } from './adapters/SocialActionAdapter'
 import { AuthError, NetworkError, RateLimitError } from './adapters/errors'
 import type { RequestLease } from './adapters/RequestLease'
 import { FriendActionsService, MAX_SENT_FRIEND_REQUESTS } from './friendActions'
 import { InboxService } from './inbox'
+import { SocialActionService } from './socialActionService'
 
 const VRC_USER = 'usr_5a3c1e2d-0000-4000-8000-000000000001'
 const CVR_USER = 'B81D5892-5119-4F44-B473-7BF4FFDA0458'
@@ -289,6 +292,97 @@ describe('FriendActionsService friend requests', () => {
       reason: 'already-friends'
     })
     expect(vrc.sendFriendRequest).not.toHaveBeenCalled()
+  })
+
+  it('follows an Unfriend VRX sent, and refuses someone who is a friend again', async () => {
+    // Wired as main wires them (app.ts): an unfriend that went through takes
+    // the person off main's roster and forgets the request sent to them.
+    const vrc = new FakeAdapter('vrchat')
+    const roster = new Set([VRC_USER])
+    let now = 0
+    const lease = (): RequestLease => ({
+      generation: 1,
+      signal: new AbortController().signal,
+      isCurrent: () => true
+    })
+    const service = new FriendActionsService({
+      adapters: new Map<Platform, FriendActionsAdapter>([['vrchat', vrc]]),
+      inbox: { friendRequest: () => null, answered: vi.fn() },
+      wasListed: () => true,
+      isFriend: (_platform, userId) => roster.has(userId),
+      sleep: () => Promise.resolve()
+    })
+    const social = new SocialActionService({
+      adapters: new Map<Platform, SocialActionAdapter>([
+        [
+          'vrchat',
+          {
+            platform: 'vrchat',
+            captureSocialLease: lease,
+            getBlocked: vi.fn(() => Promise.resolve(false)),
+            unfriend: vi.fn(() => Promise.resolve()),
+            block: vi.fn(() => Promise.resolve()),
+            unblock: vi.fn(() => Promise.resolve())
+          }
+        ]
+      ]),
+      isFriend: (_platform, userId) => roster.has(userId),
+      isKnownPerson: () => true,
+      unfriended: (platform, userId) => {
+        roster.delete(userId)
+        service.forgetRequest(platform, userId)
+      },
+      clock: () => now
+    })
+
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({
+      ok: false,
+      reason: 'already-friends'
+    })
+    await expect(social.act('vrchat', VRC_USER, 'unfriend')).resolves.toMatchObject({ ok: true })
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({ ok: true })
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
+
+    // They accept: a friend again, so Add friend sends nothing.
+    roster.add(VRC_USER)
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({
+      ok: false,
+      reason: 'already-friends'
+    })
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
+
+    // Unfriended again later in the same session: a new request goes out.
+    now += SOCIAL_ACTION_COOLDOWN_MS
+    await expect(social.act('vrchat', VRC_USER, 'unfriend')).resolves.toMatchObject({ ok: true })
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({ ok: true })
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(2)
+  })
+
+  it('forgets a request it sent only for that person and platform', async () => {
+    const { cvr, vrc, service, listed } = setup()
+    const otherCvrUser = '22222222-2222-4222-8222-222222222222'
+    listed.add(`chilloutvr|${CVR_USER.toLowerCase()}`)
+    listed.add(`chilloutvr|${otherCvrUser}`)
+    listed.add(`vrchat|${VRC_USER}`)
+    await service.send('chilloutvr', CVR_USER)
+    await service.send('chilloutvr', otherCvrUser)
+    await service.send('vrchat', VRC_USER)
+    expect(cvr.sendFriendRequest).toHaveBeenCalledTimes(2)
+
+    // ChilloutVR IDs compare without case.
+    service.forgetRequest('chilloutvr', CVR_USER.toUpperCase())
+    service.forgetRequest('chilloutvr', VRC_USER)
+    await service.send('chilloutvr', CVR_USER)
+    await service.send('chilloutvr', otherCvrUser)
+    await service.send('vrchat', VRC_USER)
+    // Only the forgotten person is asked again.
+    expect(cvr.sendFriendRequest).toHaveBeenCalledTimes(3)
+    expect(cvr.sendFriendRequest.mock.calls.map(([id]) => id)).toEqual([
+      CVR_USER.toLowerCase(),
+      otherCvrUser,
+      CVR_USER.toLowerCase()
+    ])
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
   })
 
   it('sends once per person per session; a second press says sent again without a request', async () => {

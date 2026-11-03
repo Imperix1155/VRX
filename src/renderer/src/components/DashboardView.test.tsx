@@ -570,7 +570,7 @@ describe('HotInstanceCard Join (VRX-237)', () => {
     // The hero instance pill IS the Join button, aria-named for the
     // deterministic join target (members sort alphabetically → Amy).
     const joinPill = screen.getByRole('button', {
-      name: msg('friends.joinAria', { name: 'Amy', world: 'Fish Pyramid' })
+      name: msg('friends.joinPillAria', { access: 'Public', name: 'Amy', world: 'Fish Pyramid' })
     })
 
     fireEvent.click(joinPill)
@@ -636,7 +636,7 @@ describe('HotInstanceCard Join (VRX-237)', () => {
     expect(screen.getByText('Private Basement')).toBeTruthy()
     expect(
       screen.queryByRole('button', {
-        name: msg('friends.joinAria', { name: 'Amy', world: 'Private Basement' })
+        name: /Join Amy in Private Basement/
       })
     ).toBeNull()
   })
@@ -729,7 +729,11 @@ describe('HotInstanceCard Join (VRX-237)', () => {
         // This bridge has no join, so the press fails at once and says so.
         fireEvent.click(
           within(card).getByRole('button', {
-            name: msg('friends.joinAria', { name: 'Amy', world: 'Fish Pyramid' })
+            name: msg('friends.joinPillAria', {
+              access: 'Public',
+              name: 'Amy',
+              world: 'Fish Pyramid'
+            })
           })
         )
         const status = within(card).getByRole('status')
@@ -777,7 +781,7 @@ describe('HotInstanceSheet (VRX-250)', () => {
 
     // The hero Join pill still joins (does not reopen the sheet).
     const joinPill = screen.getByRole('button', {
-      name: msg('friends.joinAria', { name: 'Amy', world: 'SunDown' })
+      name: msg('friends.joinPillAria', { access: 'Public', name: 'Amy', world: 'SunDown' })
     })
     fireEvent.click(joinPill)
     expect(screen.getByTestId('pending').textContent).toBe('Amy')
@@ -1094,7 +1098,7 @@ describe('HotInstanceSheet (VRX-250)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Private Basement hot instance details/ }))
     expect(
       screen.queryByRole('button', {
-        name: msg('friends.joinAria', { name: 'Amy', world: 'Private Basement' })
+        name: /Join Amy in Private Basement/
       })
     ).toBeNull()
   })
@@ -1258,7 +1262,7 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
         description: [msg('dashboard.platformVrc'), access, friendsHere].join(msg('listSeparator'))
       })
       const joinPill = within(card).getByRole('button', {
-        name: msg('friends.joinAria', { name: 'Amy', world: 'SunDown' })
+        name: msg('friends.joinPillAria', { access: 'Public', name: 'Amy', world: 'SunDown' })
       })
       // A native button, so Enter and Space click it; no control sits inside
       // another, because the card itself is not a button.
@@ -1290,7 +1294,7 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
     )
 
     const joinPill = screen.getByRole('button', {
-      name: msg('friends.joinAria', { name: 'Amy', world: 'SunDown' })
+      name: msg('friends.joinPillAria', { access: 'Public', name: 'Amy', world: 'SunDown' })
     })
     joinPill.focus()
 

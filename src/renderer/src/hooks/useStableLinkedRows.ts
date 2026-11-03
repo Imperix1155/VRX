@@ -49,12 +49,28 @@ function currentName(rows: LinkedRow[], deferred: DeferredRow, friends: Friend[]
   return combined?.name ?? deferred.row.name
 }
 
+/** The name the current search matched, never a previous search's: the held
+ *  row's own, or, when the person's rows split or merged, the one their rows
+ *  show now. */
+function currentMatch(rows: LinkedRow[], deferred: DeferredRow, name: string): string | undefined {
+  const held = rows.find((row) => row.key === deferred.heldKey)
+  if (held !== undefined) return held.matchedName
+  const person = rows.filter((row) => row.personKey === deferred.personKey)
+  const sameName = person.find((row) => row.name === name)
+  if (sameName !== undefined) return sameName.matchedName
+  const matched = person.flatMap((row) => (row.matchedName === undefined ? [] : [row.matchedName]))
+  // Another row matched by this row's own name, so this one needs none.
+  return matched.includes(name) ? undefined : matched[0]
+}
+
 function deferRow(rows: LinkedRow[], deferred: DeferredRow): LinkedRow[] {
   const friends = currentFriends(rows, deferred)
+  const name = currentName(rows, deferred, friends)
   const retained: LinkedRow = {
     ...deferred.row,
     accounts: friends,
-    name: currentName(rows, deferred, friends)
+    name,
+    matchedName: currentMatch(rows, deferred, name)
   }
   const heldStillExists = rows.some((row) => row.key === deferred.heldKey)
   const withoutPerson = rows.filter((row) =>
@@ -159,6 +175,8 @@ export function useStableLinkedRows(rows: LinkedRow[], heldKey: string | null): 
         return (
           row.key === next.key &&
           row.name === next.name &&
+          // A new search can change only which name matched.
+          row.matchedName === next.matchedName &&
           row.section === next.section &&
           row.platformMark === next.platformMark &&
           row.personKey === next.personKey &&

@@ -136,3 +136,45 @@ describe('unofficial-app notice', () => {
     expect(en.settings.legal.chilloutvr).toBe(CVR_DISCLAIMER)
   })
 })
+
+describe('Japanese terms', () => {
+  function texts(obj: Record<string, unknown>): string[] {
+    return Object.values(obj).flatMap((value) =>
+      value !== null && typeof value === 'object'
+        ? texts(value as Record<string, unknown>)
+        : [String(value)]
+    )
+  }
+  const all = texts(ja)
+
+  it('calls Identities アカウントの関連付け everywhere, as its button and title do', () => {
+    expect(ja.linking.identities).toBe('アカウントの関連付け')
+    expect(all.filter((text) => text.includes('アカウント管理'))).toEqual([])
+  })
+
+  it('calls a friend request フレンドリクエスト everywhere, as the Inbox does', () => {
+    expect(all.filter((text) => text.includes('フレンド申請'))).toEqual([])
+    // The button's words stay part of its full name for screen readers.
+    expect(ja.friendActions.addAria).toContain(ja.friendActions.add)
+  })
+})
+
+// A control's spoken name holds the words it shows (WCAG 2.5.3), so speech
+// users can say what they see.
+describe('names that hold their visible words', () => {
+  it.each([
+    ['en', en],
+    ['ja', ja]
+  ] as const)('%s: the Join pills start with their access words', (_lang, bundle) => {
+    expect(bundle.friends.joinPillAria.startsWith('{{access}}')).toBe(true)
+  })
+
+  it.each([
+    ['en', en],
+    ['ja', ja]
+  ] as const)('%s: Add friend says its button words', (_lang, bundle) => {
+    expect(bundle.friendActions.addAria.toLowerCase()).toContain(
+      bundle.friendActions.add.toLowerCase()
+    )
+  })
+})

@@ -43,6 +43,18 @@ it('owns Escape and does not let dialog interactions close the drawer beneath it
   expect(close).toHaveBeenCalledOnce()
   document.removeEventListener('keydown', outer)
 })
+it('closes with the same ✕ button as friend details and the sheets', () => {
+  render(
+    <LinkedDialog title="Identities" onClose={vi.fn()}>
+      Body
+    </LinkedDialog>
+  )
+  const close = screen.getByRole('button', { name: 'Close' })
+  expect(close.querySelector('[aria-hidden="true"]')?.textContent).toBe('✕')
+  expect(close.textContent).toBe('✕')
+  expect(close.className).toContain('h-[28px] w-[28px]')
+  expect(close.className).toContain('focus:ring-1 focus:ring-[var(--text-dim)]')
+})
 it('does not dismiss an operation in flight', () => {
   const close = vi.fn()
   render(

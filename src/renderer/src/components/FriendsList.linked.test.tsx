@@ -391,6 +391,27 @@ describe('linked roster integration', () => {
       account: { platform: 'chilloutvr' }
     })
   })
+  it('shows beside the name the account name a search found, when the shown name has no match', () => {
+    roster([{ ...vrc, statusDescription: 'Building worlds' }, cvr])
+    useFriendsStore.setState({ search: 'cvr' })
+    const view = render(<FriendsList />)
+    const list = screen.getByRole('list', { name: 'Friends' })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    const found = list.querySelector<HTMLElement>('[id$="-match"]')
+    expect(found?.textContent).toBe('CVR alias')
+    expect(found?.querySelector('span')?.textContent).toBe('CVR')
+    expect(found?.querySelector('span')?.className).toContain('color-mix')
+    // It takes the custom status's place while the search lasts.
+    expect(within(list).queryByText('Building worlds')).toBeNull()
+    // Screen readers hear it right after the name.
+    expect(within(list).getByRole('button', { name: /^Combined CVR alias / })).toBeTruthy()
+
+    view.unmount()
+    useFriendsStore.setState({ search: '' })
+    render(<FriendsList />)
+    expect(document.querySelector('[id$="-match"]')).toBeNull()
+    expect(screen.getByText('Building worlds')).toBeTruthy()
+  })
   it('uses only the selected platform name and avatar in a platform filter', () => {
     useFriendsStore.setState({ platformFilter: 'chilloutvr' })
     render(<FriendsList />)

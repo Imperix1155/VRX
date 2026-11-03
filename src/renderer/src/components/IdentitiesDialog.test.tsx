@@ -22,14 +22,14 @@ const navigate = vi.fn()
 const close = vi.fn()
 function dialog(
   friends: Friend[] = [source, candidate],
-  accounts = { vrchat: 'v', chilloutvr: 'c' }
+  accounts = { vrchat: 'v', chilloutvr: 'c' },
+  view: 'account' | 'combined' = 'account'
 ): React.JSX.Element {
+  const ref = { platform: 'vrchat' as const, friendId: source.platformUserId }
   const selection = resolveLinkedProfile(
-    {
-      kind: 'account',
-      personId: snapshot.profiles[0]?.id ?? null,
-      account: { platform: 'vrchat', friendId: source.platformUserId }
-    },
+    view === 'combined'
+      ? { kind: 'person', personId: snapshot.profiles[0]!.id, anchor: ref }
+      : { kind: 'account', personId: snapshot.profiles[0]?.id ?? null, account: ref },
     { friends, profiles: snapshot.profiles, accountIds: accounts }
   )!
   return (
@@ -183,6 +183,50 @@ describe('identity management', () => {
     }
   )
 
+  it('offers View only for an account friend details are not showing already', () => {
+    snapshot.profiles = [
+      {
+        id: 'pair',
+        members: [
+          { platform: 'vrchat', platformAccountId: 'v', friendId: source.platformUserId },
+          { platform: 'chilloutvr', platformAccountId: 'c', friendId: candidate.platformUserId }
+        ],
+        customName: null,
+        defaultName: 'Origin',
+        preferredPlatform: 'vrchat',
+        pictureMode: 'preferred',
+        sharedNote: '',
+        revision: 1
+      }
+    ]
+    client.setQueryData(linkedProfilesKey, snapshot)
+    // The combined view can switch to either account.
+    render(dialog(undefined, undefined, 'combined'))
+    expect(screen.getByRole('button', { name: 'View VRChat profile' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'View ChilloutVR profile' })).toBeTruthy()
+    cleanup()
+
+    // The VRChat account's own view: its View could only close the dialog.
+    render(dialog())
+    expect(screen.queryByRole('button', { name: 'View VRChat profile' })).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Replace account' })).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'View ChilloutVR profile' }))
+    expect(navigate).toHaveBeenCalledWith({
+      kind: 'account',
+      personId: 'pair',
+      account: { platform: 'chilloutvr', friendId: candidate.platformUserId }
+    })
+    expect(close).toHaveBeenCalledOnce()
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it('shows no View for the only account of someone not linked yet', () => {
+    render(dialog())
+    expect(screen.getByText('Origin')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'View VRChat profile' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Link an account' })).toBeTruthy()
+  })
+
   it('says why Link an account is off when the other platform is not signed in', () => {
     render(dialog([source], { vrchat: 'v', chilloutvr: '' }))
     const link = screen.getByRole<HTMLButtonElement>('button', { name: 'Link an account' })
@@ -293,12 +337,37 @@ describe('identity management', () => {
         .map((button) => button.textContent)
     ).toEqual([expect.stringContaining('Friend 1999')])
   })
+  it('lists the other platform’s friends by name, as the friends list does', () => {
+    const named = (displayName: string, platformUserId: string): Friend => ({
+      ...candidate,
+      platformUserId,
+      displayName
+    })
+    render(
+      dialog([
+        source,
+        named('Nyx', 'cvr_1'),
+        named('iris', 'cvr_2'),
+        named('Vale', 'cvr_3'),
+        named('Ember', 'cvr_4'),
+        named('kai', 'cvr_5')
+      ])
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Link an account' }))
+    const list = screen.getByRole('list', { name: 'Friends' })
+    expect(
+      within(list)
+        .getAllByText(/^(Nyx|iris|Vale|Ember|kai)$/)
+        .map((name) => name.textContent)
+    ).toEqual(['Ember', 'iris', 'kai', 'Nyx', 'Vale'])
+  })
   it('selects duplicate names by exact friend identity and creates a blank-note link', async () => {
     const duplicate = { ...candidate, platformUserId: 'different_friend' }
     render(dialog([source, candidate, duplicate]))
     fireEvent.click(screen.getByRole('button', { name: 'Link an account' }))
     const choices = within(screen.getByRole('list', { name: 'Friends' })).getAllByRole('button')
-    fireEvent.click(choices[1]!)
+    // The same name sorts by id, so the duplicate leads; the roster lists it second.
+    fireEvent.click(choices[0]!)
     expect(screen.queryByRole('checkbox')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Link accounts' }))
     await waitFor(() => expect(mutate).toHaveBeenCalledOnce())

@@ -8,6 +8,7 @@
  */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
@@ -249,7 +250,7 @@ describe('FriendDrawer (VRX-69)', () => {
   it('the opener is a native button distinct from Join, with a composed accessible name', () => {
     render(<FriendsList />)
     const opener = rowOpener('Alex')
-    const joinButton = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const joinButton = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
 
     // Two DISTINCT focusable controls — the Join pill is never nested inside
     // an interactive role (VRX-69 review restructure).
@@ -341,6 +342,27 @@ describe('FriendDrawer (VRX-69)', () => {
     )
   })
 
+  it('quitting while a note is being typed saves it first, though the page closes without a blur', async () => {
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+    const textarea = within(dialog()).getByRole('textbox', { name: 'Notes (yours, private)' })
+    await waitFor(() => expect((textarea as HTMLTextAreaElement).readOnly).toBe(false))
+    textarea.focus()
+    fireEvent.change(textarea, { target: { value: 'met at the pug' } })
+
+    // Ctrl+Q, Cmd+Q and the tray's Quit close the page: beforeunload, no blur.
+    fireEvent(window, new Event('beforeunload'))
+    await waitFor(() =>
+      expect(setFriendNote).toHaveBeenCalledWith(
+        expect.objectContaining({ note: 'met at the pug', friendId: 'usr_alex' })
+      )
+    )
+    // Nothing left to save: a second close sends nothing more.
+    fireEvent(window, new Event('beforeunload'))
+    await act(async () => {})
+    expect(setFriendNote).toHaveBeenCalledTimes(1)
+  })
+
   it('with the card open, joining ANOTHER row closes the card and still joins (VRX-225, Codex sequence)', async () => {
     mockFriends([joinableFriend, { ...cvrFriend, instance: publicInstance }])
     render(<FriendsList />)
@@ -348,7 +370,7 @@ describe('FriendDrawer (VRX-69)', () => {
 
     // Real pointer order on the other row's Join pill: pointerdown (not an
     // opener, not the panel → closes the card) THEN click (joins).
-    const joinMika = screen.getByRole('button', { name: 'Join Mika in The Great Pug' })
+    const joinMika = screen.getByRole('button', { name: 'Public: Join Mika in The Great Pug' })
     fireEvent.pointerDown(joinMika)
     expect(screen.queryByRole('dialog')).toBeNull()
     await act(async () => {
@@ -621,6 +643,47 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('an open Unfriend question closes with the card when the friend leaves the list', async () => {
+    Object.assign(window.vrx!, {
+      getProfile: vi.fn().mockResolvedValue({
+        ok: true,
+        profile: {
+          platform: 'vrchat',
+          userId: 'usr_alex',
+          displayName: 'Alex',
+          imageUrl: null,
+          isFriend: true,
+          pronouns: null,
+          bio: null,
+          rank: null,
+          badges: []
+        }
+      }),
+      getRelationship: vi.fn().mockResolvedValue({
+        ok: true,
+        relationship: { platform: 'vrchat', userId: 'usr_alex', isFriend: true, blocked: false }
+      })
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const list = (): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <FriendsList />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(list())
+    openDrawerFor('Alex')
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Show full profile' }))
+    fireEvent.click(await within(dialog()).findByRole('button', { name: 'Unfriend or block' }))
+    fireEvent.click(await within(dialog()).findByRole('button', { name: 'Unfriend' }))
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+
+    mockFriends([]) // they unfriended you, or a refetch dropped them, meanwhile
+    rerender(list())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search friends' }))
+  })
+
   it('offline with a retained Ask Me status shows Offline — never "Hidden"', () => {
     // isWorldHidden requires in-game presence (Codex re-review): an offline
     // friend with a cached ask-me/dnd status has no world to hide.
@@ -644,7 +707,7 @@ describe('FriendDrawer (VRX-69)', () => {
   it('clicking the join pill inside the row does NOT open the drawer', async () => {
     render(<FriendsList />)
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -1134,7 +1197,7 @@ describe('VRX-228 whole-card drawer opener (default) + avatar-only setting', () 
     fireEvent.click(rowLi('Alex'))
     expect(dialog().getAttribute('aria-label')).toBe('Alex')
 
-    const joinMika = screen.getByRole('button', { name: 'Join Mika in The Great Pug' })
+    const joinMika = screen.getByRole('button', { name: 'Public: Join Mika in The Great Pug' })
     // The pill is NEVER part of the opener surface — even inside a card-mode
     // row: the card closes on the pointerdown (the VRX-225 sequence)…
     fireEvent.pointerDown(joinMika)

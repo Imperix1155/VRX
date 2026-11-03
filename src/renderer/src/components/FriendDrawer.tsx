@@ -22,8 +22,8 @@
  *      bridge flow, confirmation and in-flight guard (VRX-166).
  *      Copy link and self-invite remain separate issues; no placeholders
  *      here.
- *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
- *      explicit Retry after failure. An account-private note also goes to the
+ *   5. Notes: person-shared or account-private owner, save-on-blur/navigation
+ *      and when the page closes (a quit), explicit Retry after failure. An account-private note also goes to the
  *      user's own VRChat or ChilloutVR account (AccountNoteStatus). Then
  *      quiet VRChat trust when known, then
  *      "Full profile" (owner, 2026-10-31): bio, pronouns, rank, badges, and
@@ -48,7 +48,7 @@
  * the opening row on close (owner of that contract is FriendsList's
  * `closeDrawer`).
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, Platform, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
@@ -281,6 +281,14 @@ export default function FriendDrawer({
     committedNote.current = note
   })
   useLayoutEffect(() => () => committedNote.current.onBlur(), [noteOwner])
+  // Quitting (Ctrl+Q, Cmd+Q, the tray's Quit) closes the page with no blur
+  // and no unmount, so the field would never save. The page still gets
+  // beforeunload, and a save sent from it reaches main before the window goes.
+  useEffect(() => {
+    const flush = (): void => committedNote.current.onBlur()
+    window.addEventListener('beforeunload', flush)
+    return () => window.removeEventListener('beforeunload', flush)
+  }, [])
   const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
   const retryNote = (): void => {
     // The Retry button is conditionally removed after success; retain a useful
@@ -380,14 +388,22 @@ export default function FriendDrawer({
                           account.platform === member.platform &&
                           account.platformUserId === member.friendId
                       )
+                      const platformName = t(
+                        member.platform === 'vrchat'
+                          ? 'friends.platform.vrchat'
+                          : 'friends.platform.chilloutvr'
+                      )
+                      // It looks like the platform badge, so its name says where it goes.
+                      const view = t('linking.manage.view', { platform: platformName })
                       return (
                         <button
                           key={member.platform}
                           type="button"
                           data-drawer-account={member.platform}
                           disabled={!available}
-                          title={!available ? t('linking.unavailable') : undefined}
-                          className="rounded-pill border px-[var(--space-2)] text-[11px] disabled:opacity-50"
+                          aria-label={view}
+                          title={available ? view : t('linking.unavailable')}
+                          className="rounded-pill border px-[var(--space-2)] text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:opacity-50"
                           style={{
                             color:
                               member.platform === 'vrchat'
@@ -411,11 +427,7 @@ export default function FriendDrawer({
                             })
                           }}
                         >
-                          {t(
-                            member.platform === 'vrchat'
-                              ? 'friends.platform.vrchat'
-                              : 'friends.platform.chilloutvr'
-                          )}
+                          {platformName}
                         </button>
                       )
                     })}
@@ -608,9 +620,12 @@ export default function FriendDrawer({
             )}
             {shown && (
               <DrawerFullProfile
-                // A different person starts collapsed again.
-                key={shownAccounts.map((a) => `${a.platform}:${a.platformUserId}`).join('|')}
+                // Keyed by the person, like the star: a linked person's stays
+                // open while one of their accounts leaves (an Unfriend, say),
+                // and a different person starts collapsed again.
+                key={scrollOwner ?? ''}
                 accounts={shownAccounts}
+                drawerOpen={open}
               />
             )}
           </div>
@@ -643,6 +658,7 @@ export default function FriendDrawer({
             <div className="ml-auto flex items-center gap-[var(--space-2)]">
               <FriendFavoriteStar
                 accounts={shownAccounts}
+                owner={scrollOwner ?? undefined}
                 name={profileName || t('linking.unknownName')}
                 drawerOpen={open}
                 onLeave={onNoteBlur}
@@ -674,14 +690,48 @@ export default function FriendDrawer({
   )
 }
 
-/** Collapsed by default: nothing is read until the user opens it. */
-function DrawerFullProfile({ accounts }: { accounts: readonly Friend[] }): React.JSX.Element {
+/** Collapsed by default: nothing is read until the user opens it. Everyone
+ *  here is on the friends list, so the profile offers no friend action. When
+ *  one of a linked person's accounts leaves while keyboard focus is in its
+ *  section (or in that section's Unfriend question), focus moves to the
+ *  toggle instead of falling to the page. */
+function DrawerFullProfile({
+  accounts,
+  drawerOpen
+}: {
+  accounts: readonly Friend[]
+  drawerOpen: boolean
+}): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  // The section holding focus, followed through the React tree, so the
+  // question a section portals to the page body still counts as inside it.
+  const focusedSection = useRef<string | null>(null)
+  const focusLeft = useRef(false)
+  // The cleanup runs while the leaving section is still on the page.
+  const watchSection = useCallback((node: HTMLDivElement | null) => {
+    if (node === null) return
+    const section = node.dataset.profileSection
+    return () => {
+      if (focusedSection.current === section || node.contains(document.activeElement)) {
+        focusLeft.current = true
+      }
+    }
+  }, [])
+  useLayoutEffect(() => {
+    if (!focusLeft.current) return
+    focusLeft.current = false
+    const active = document.activeElement
+    if (active === null || active === document.body) {
+      toggleRef.current?.focus({ preventScroll: true })
+    }
+  })
   const ordered = inPlatformOrder(accounts)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
       <button
+        ref={toggleRef}
         type="button"
         aria-expanded={open}
         data-drawer-full-profile=""
@@ -691,21 +741,34 @@ function DrawerFullProfile({ accounts }: { accounts: readonly Friend[] }): React
         {t(open ? 'drawer.fullProfile.hide' : 'drawer.fullProfile.show')}
       </button>
       {open
-        ? ordered.map((account) => (
-            <div
-              key={`${account.platform}:${account.platformUserId}`}
-              className="flex flex-col gap-[var(--space-2)]"
-            >
-              {ordered.length > 1 ? (
-                <PlatformPill platform={account.platform} className="self-start" />
-              ) : null}
-              <ProfileDetails
-                platform={account.platform}
-                userId={account.platformUserId}
-                showTrust={account.trustRank == null}
-              />
-            </div>
-          ))
+        ? ordered.map((account) => {
+            const section = `${account.platform}:${account.platformUserId}`
+            return (
+              <div
+                key={section}
+                ref={watchSection}
+                data-profile-section={section}
+                onFocus={() => {
+                  focusedSection.current = section
+                }}
+                onBlur={() => {
+                  focusedSection.current = null
+                }}
+                className="flex flex-col gap-[var(--space-2)]"
+              >
+                {ordered.length > 1 ? (
+                  <PlatformPill platform={account.platform} className="self-start" />
+                ) : null}
+                <ProfileDetails
+                  platform={account.platform}
+                  userId={account.platformUserId}
+                  showTrust={account.trustRank == null}
+                  showFriendAction={false}
+                  panelOpen={drawerOpen}
+                />
+              </div>
+            )
+          })
         : null}
     </div>
   )

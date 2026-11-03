@@ -160,6 +160,24 @@ describe('main join policy wiring', () => {
   })
 })
 
+describe('main friend-action wiring', () => {
+  it('takes an unfriend VRX sent off main’s roster, so Add friend follows it', () => {
+    const executableSource = stripComments(source)
+    const social = executableSource.slice(executableSource.indexOf('new SocialActionService({'))
+    const socialOptions = social.slice(0, social.indexOf('\n    })'))
+    expect(socialOptions).toMatch(
+      /unfriended: \(platform, userId\) => \{\s*locationAuthority\.consume\(\{ type: 'friend-removed', platform, platformUserId: userId \}\)\s*friendActionsBoundary\.current\?\.forgetRequest\(platform, userId\)\s*\}/
+    )
+    const friendActions = executableSource.slice(
+      executableSource.indexOf('new FriendActionsService({')
+    )
+    const friendOptions = friendActions.slice(0, friendActions.indexOf('\n    })'))
+    expect(friendOptions).toContain(
+      'isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId)'
+    )
+  })
+})
+
 describe('main account-registry adoption', () => {
   it('passes the authenticated status identity and captured session epoch', () => {
     expect(source).toContain('const resolution = accountSession.resolve(status.platform)')

@@ -239,6 +239,29 @@ describe('projectLinkedFriends', () => {
     expect(byOtherAlias.rows[0]?.accounts).toEqual([vrc])
   })
 
+  it('names the other name that found a row whose shown name does not match', () => {
+    const data = input('in-game', 'in-game', { search: 'cvr' })
+    const named = (rows: LinkedRow[]): [string, string | undefined][] =>
+      rows.map((row) => [row.name, row.matchedName])
+    // The combined row shows the VRChat name; the ChilloutVR one matched.
+    expect(named(projectLinkedFriends(data).rows)).toEqual([['VRC Alias', 'CVR Alias']])
+    // A matching shown name needs nothing more, and neither does no search.
+    expect(named(projectLinkedFriends({ ...data, search: 'vrc' }).rows)).toEqual([
+      ['VRC Alias', undefined]
+    ])
+    expect(named(projectLinkedFriends({ ...data, search: '' }).rows)).toEqual([
+      ['VRC Alias', undefined]
+    ])
+    // One platform's row, found by the person's VRX name.
+    const custom = projectLinkedFriends({
+      ...data,
+      filter: 'vrchat',
+      profiles: [profile('vrchat', 'VRX Alias')],
+      search: 'vrx'
+    })
+    expect(named(custom.rows)).toEqual([['VRC Alias', 'VRX Alias']])
+  })
+
   it('uses account targets only for the mixed in-game and online pair', () => {
     const result = projectLinkedFriends(input('in-game', 'active'))
     expect(result.rows.map((row) => row.name)).toEqual(['VRC Alias', 'CVR Alias'])

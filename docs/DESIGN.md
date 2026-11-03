@@ -506,7 +506,11 @@ The avatar opens friend details. By default the whole card opens them too,
 except the Join control and text selection; the "Avatar only" choice in
 Settings → Behavior → Friend details open from keeps the row body inert.
 The instance pill's Join stays a separate control with the normal
-confirmation and denial behavior.
+confirmation and denial behavior. Its spoken name starts with the access words
+it shows ("Public: Join Amy in SunDown"), as the hot cards' pills do, so speech
+users can say what they see. Add friend's spoken name holds its visible words
+too: first in English ("Add friend: Amy on VRChat"), last in Japanese, as its
+word order puts the verb.
 
 Dashboard statistic cards are one set (owner, 2026-11-01): each card has the
 same layout, a VT323 number in `--text` and its label in `--text-dim`, with no
@@ -773,11 +777,12 @@ platform filter. Nothing is stored, so the list starts empty each launch.
 Community views (owner, 2026-10-31). They only read, except the profile's
 friend action and Unfriend or block (owner, 2026-11-01). Every one follows the platform
 filter, offers Go to Accounts when the filtered platform is not connected, and
-adds no line under ALL for a platform the user isn't signed in to. A page's
-notice asking to sign in to a platform again offers Go to Accounts too, never
-Try again. A list says it is empty ("You aren't in any groups yet.") only once
-every shown platform has answered; until then an empty section stays out,
-heading and count included. The Avatars page's notices and uploads work the
+adds no line under ALL for a platform the user isn't signed in to. A notice
+asking to sign in to a platform again, on a page or in a full profile, offers
+Go to Accounts too, never Try again. A list says it is empty ("You aren't in any groups yet.") only once
+every shown platform has answered with a list; until then an empty section
+stays out, heading and count included, and next to a platform that failed with
+nothing loaded its red line stands alone, as on Popular now. The Avatars page's notices and uploads work the
 same way. A platform whose sign-in check couldn't reach it reads nothing and
 shows no loading line until the check answers.
 
@@ -803,7 +808,9 @@ shows no loading line until the check answers.
   button; after the press it reads "Sending…", then a check mark and "Friend
   request sent." in place of the button. A refusal says why in the error color
   and keeps the button. Friends and the signed-in user's own profile show no
-  friend action.
+  friend action, and friend details never do: everyone there is on the
+  friends list, even just after an Unfriend there, until the platform drops
+  them and the details close.
 - **Unfriend or block** (owner, 2026-11-01) closes every full profile, below
   a thin rule: one quiet button that reads nothing until pressed. Open, it
   says which platform account changes, then shows only what applies, in one
@@ -816,6 +823,8 @@ shows no loading line until the check answers.
   the drawer or sheet behind stays open. A failure stays in the dialog; a
   success closes it and leaves a "✓ Unblocked on VRChat."-style line above
   the buttons, which switch at once (Block becomes Unblock; Unfriend goes).
+  When friend details close on their own (the friend left the list), an open
+  dialog closes with them and sends nothing.
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
   are wider than tall: the group's square icon centered on top over a blurred
   copy of itself (never cropped), then the name, and the VRC/CVR badge with
@@ -859,7 +868,10 @@ breaking ties. A merged picture changes artwork only, never the status source.
 Two locations use a hard, centered 45-degree split, VRChat upper-right and
 ChilloutVR lower-left. In the row, two joinable locations share one
 "2 locations" pill whose halves carry each access tier by color, so the world
-line names each tier in words after its platform tag.
+line names each tier in words after its platform tag. Search finds a person
+by any of their names; when the row's own name has no match, the name that
+matched takes the custom status's place beside it, dim, with the match
+marked.
 
 Combined Join always opens the destination chooser, even with one eligible
 choice, and never picks for the user. Single-platform views use the normal

@@ -819,6 +819,12 @@ app
       ]),
       isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
       isKnownPerson: (platform, userId) => community.knowsPerson(platform, userId),
+      // The platform's own message confirms an unfriend a moment later. Main's
+      // roster follows VRX's own at once, and a request to them may go again.
+      unfriended: (platform, userId) => {
+        locationAuthority.consume({ type: 'friend-removed', platform, platformUserId: userId })
+        friendActionsBoundary.current?.forgetRequest(platform, userId)
+      },
       log: (message, meta) => log.warn(message, meta)
     })
     socialBoundary.current = social

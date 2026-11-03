@@ -164,6 +164,88 @@ describe('useStableLinkedRows', () => {
     expect(hook.result.current).toBe(updated)
   })
 
+  it('shows the name a new search matched on a held row at once', () => {
+    const initial = [accountRow()]
+    const searched = [accountRow({ matchedName: 'VRC old alt' })]
+    const hook = renderHook(({ rows, heldKey }) => useStableLinkedRows(rows, heldKey), {
+      initialProps: { rows: initial, heldKey: initial[0]?.key ?? null }
+    })
+
+    hook.rerender({ rows: searched, heldKey: initial[0]?.key ?? null })
+    expect(hook.result.current).toBe(searched)
+    expect(hook.result.current[0]?.matchedName).toBe('VRC old alt')
+  })
+
+  it('gives a held row that moved the current search’s matched name, not the last one', () => {
+    const initial = [accountRow({ matchedName: 'Old match' })]
+    const moved = [
+      accountRow(
+        { accounts: [vrcNew], name: vrcNew.displayName, section: 'in-game', matchedName: 'New' },
+        vrcNew
+      )
+    ]
+    const hook = renderHook(({ rows, heldKey }) => useStableLinkedRows(rows, heldKey), {
+      initialProps: { rows: initial, heldKey: initial[0]?.key ?? null }
+    })
+
+    hook.rerender({ rows: moved, heldKey: initial[0]?.key ?? null })
+    // Still held in its old section, with the matched name the search now gives.
+    expect(hook.result.current[0]).toMatchObject({ section: 'online', matchedName: 'New' })
+  })
+
+  it('keeps the current search’s matched name on a held row whose person splits', () => {
+    const cvrRow = (overrides: Partial<LinkedRow>): LinkedRow => ({
+      ...accountRow({ key: 'person:one:chilloutvr:cvr-friend', name: cvr.displayName }, cvr),
+      target: {
+        kind: 'account',
+        account: { platform: 'chilloutvr', friendId: 'cvr-friend' },
+        personId: 'one'
+      },
+      platformMark: 'chilloutvr',
+      ...overrides
+    })
+    const initial = [combinedRow({ matchedName: 'Alias' })]
+    // The same search; one account went in game, so the person shows as two rows.
+    const split = [
+      cvrRow({ section: 'in-game', matchedName: 'Alias' }),
+      accountRow({ matchedName: 'Alias' })
+    ]
+    const hook = renderHook(({ rows, heldKey }) => useStableLinkedRows(rows, heldKey), {
+      initialProps: { rows: initial, heldKey: 'person:one' }
+    })
+
+    hook.rerender({ rows: split, heldKey: 'person:one' })
+    expect(hook.result.current).toHaveLength(1)
+    expect(hook.result.current[0]).toMatchObject({ key: 'person:one', matchedName: 'Alias' })
+
+    // A new search the held row's own name matches: no other name to show.
+    hook.rerender({
+      rows: [
+        cvrRow({ section: 'in-game', matchedName: 'Combined old' }),
+        accountRow({ matchedName: 'Combined old' })
+      ],
+      heldKey: 'person:one'
+    })
+    expect(hook.result.current[0]?.matchedName).toBeUndefined()
+  })
+
+  it('keeps the current search’s matched name on a held account row whose person merges', () => {
+    const initial = [accountRow({ matchedName: 'Alias' })]
+    const merged = [
+      combinedRow({ accounts: [vrcNew, cvr], section: 'in-game', matchedName: 'Alias' })
+    ]
+    const hook = renderHook(({ rows, heldKey }) => useStableLinkedRows(rows, heldKey), {
+      initialProps: { rows: initial, heldKey: initial[0]?.key ?? null }
+    })
+
+    hook.rerender({ rows: merged, heldKey: initial[0]?.key ?? null })
+    expect(hook.result.current[0]).toMatchObject({
+      key: 'person:one:vrchat:vrc-friend',
+      name: 'VRC new',
+      matchedName: 'Alias'
+    })
+  })
+
   it('passes through unchanged mixed rows with live payloads without hiding the sibling', () => {
     const cvrRow: LinkedRow = {
       ...accountRow({ key: 'person:one:chilloutvr:cvr-friend', name: cvr.displayName }, cvr),

@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Identities: Link an account lists the other platform's friends in name
+  order, as the friends list does, instead of in the order the platform sent
+  them.
+- Identities: opened from one account's own view, the dialog no longer offers
+  View for that same account, which only closed the dialog.
+- Friend details: for a linked person, the VRChat and ChilloutVR buttons under
+  the name say "View VRChat profile" or "View ChilloutVR profile" to screen
+  readers and in their tooltip, and show the drawer's focus ring.
+- Japanese: Identities is 「アカウントの関連付け」 everywhere, including its
+  Back button, and a friend request is always 「フレンドリクエスト」 as in the
+  Inbox, so Add friend in a full profile reads 「フレンドリクエストを送る」.
+- Identities: its dialogs close with the same ✕ button and keyboard focus
+  ring as friend details, and so do a linked person's Choose a destination,
+  Your VRChat or ChilloutVR profile in Accounts, and Picked friends.
+- Friend details: in a linked person's Choose a destination, each Join on
+  button looks like the drawer's own Join, and Cancel is a button like the
+  other buttons in Identities, both with the keyboard focus ring.
+- Friends search: a linked person found by another of their names, such as
+  their ChilloutVR account's name, shows that name beside the row's name with
+  the match marked, so the row no longer looks like a false match.
+
+### Fixed
+
+- Search, Groups, Explore's New and Recently updated, and Avatars: when one
+  platform couldn't answer and the other has nothing, the page shows only the
+  failure line instead of also saying there is nothing at all.
+- Notes: a note you are typing in friend details is saved when you quit VRX
+  with Ctrl+Q, Cmd+Q or Quit in the tray, instead of being lost.
+- Friend details: after you unfriend someone there, their full profile no
+  longer offers Add friend while friend details still show them.
+- Full profiles: Add friend right after Unfriend in the same profile sends
+  the request, also to someone you sent one earlier, instead of answering
+  "You're already friends." until your friends list caught up.
+- Dashboard: Latest invites keeps the time each invite came in whole in a
+  narrow window; the invite's words shorten first, instead of cutting off the
+  time.
+- Friend details: an open Unfriend or Block question closes with friend
+  details when that friend leaves your list, instead of staying on screen with
+  keyboard focus lost after Cancel.
+- Friend details: the star panel of the next friend you open no longer shows a
+  "Couldn't save" left from another friend's star, and it doesn't wait for
+  another friend's star to finish saving.
+- Friend details: when one of a linked friend's accounts leaves your list
+  (you unfriended it there, say), their full profile and star panel stay
+  open, and keyboard focus stays in friend details instead of falling to the
+  page.
+- Full profiles: when a platform asks you to sign in again, the profile
+  offers Go to Accounts, like the pages. So does the block check behind
+  Unfriend or block, instead of a Try again that couldn't help.
+- Screen readers and voice control: the Join pills on friend rows and hot
+  cards, and Add friend, now say the words they show ("Public: Join Amy in
+  SunDown"), so saying what you see presses them. They say those words first;
+  in Japanese, Add friend says them last.
+
 ## [1.4.0-dev.5] - 2026-11-03
 
 ### Changed

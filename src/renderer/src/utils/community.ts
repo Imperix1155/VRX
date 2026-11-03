@@ -97,12 +97,17 @@ export function shownPlatforms(filter: Platform | 'all'): Platform[] {
 }
 
 /**
- * No shown platform is still loading or waiting for its sign-in check. Only
- * then is an empty list a real answer ("You aren't in any groups yet."), not
- * just the first platform's while the other is still on its way.
+ * Every shown platform has answered with a list, or isn't signed in: none is
+ * still loading, waiting for its sign-in check, or failed with nothing loaded.
+ * Only then is an empty list a real answer ("You aren't in any groups yet."),
+ * not just one platform's while the other is still on its way or couldn't
+ * answer; a failed platform's red line then stands alone, as on Popular now.
  */
 export function sourcesSettled(sources: ReadonlyArray<{ state: { kind: string } }>): boolean {
-  return sources.every(({ state }) => state.kind !== 'loading' && state.kind !== 'auth-pending')
+  return sources.every(
+    ({ state }) =>
+      state.kind !== 'loading' && state.kind !== 'auth-pending' && state.kind !== 'failed'
+  )
 }
 
 /** The platform's display name, through the shared Dashboard keys. */

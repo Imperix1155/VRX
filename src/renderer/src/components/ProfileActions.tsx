@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import type { SocialAction, SocialActionResult } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
 import { useRelationship, useSocialAction } from '../queries/community'
+import GoToAccountsButton from './GoToAccountsButton'
 import PlatformPill from './PlatformPill'
 
 type ActionFailure = Extract<SocialActionResult, { ok: false }>['reason'] | 'unknown'
@@ -69,7 +70,8 @@ export default function ProfileActions({
   platform,
   userId,
   name,
-  notFriend = false
+  notFriend = false,
+  panelOpen = true
 }: {
   platform: Platform
   userId: string
@@ -77,10 +79,15 @@ export default function ProfileActions({
   /** Someone who is not a friend: there is nothing to unfriend, so the toggle
    *  names blocking only. */
   notFriend?: boolean
+  /** False while the drawer or sheet holding the profile is closed. */
+  panelOpen?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState<SocialAction | null>(null)
+  // The dialog sits outside the panel, so it would outlive it. Friend details
+  // close on their own when the friend leaves the list; the question goes too.
+  if (confirming !== null && !panelOpen) setConfirming(null)
   const [done, setDone] = useState<SocialAction | null>(null)
   const panelId = useId()
   const toggleRef = useRef<HTMLButtonElement>(null)
@@ -104,13 +111,18 @@ export default function ProfileActions({
               ? t(ERROR_KEYS[result.reason], { platform: platformName })
               : t('profile.actions.checkError')}
           </p>
-          <button
-            type="button"
-            onClick={() => void relationship.refetch()}
-            className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
-          >
-            {t('community.retry')}
-          </button>
+          {result?.ok === false && result.reason === 'not-authenticated' ? (
+            // Signing in again happens in Accounts; another check would fail the same way.
+            <GoToAccountsButton label={t('community.openAccounts')} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => void relationship.refetch()}
+              className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+            >
+              {t('community.retry')}
+            </button>
+          )}
         </div>
       )
     } else {
