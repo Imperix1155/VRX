@@ -1170,6 +1170,49 @@ describe('ProfileDetails', () => {
     }
   )
 
+  it('has focus on the sent line the moment the line shows', async () => {
+    bridge.getProfile.mockResolvedValueOnce({
+      ok: true,
+      profile: { ...profile('vrchat'), isFriend: false }
+    })
+    let finish: (result: { ok: true }) => void = () => undefined
+    bridge.sendFriendRequest.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }) as never
+    )
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    const add = await screen.findByRole<HTMLButtonElement>('button', {
+      name: msg('friendActions.addAria', { name: 'Lumen', platform: 'VRChat' })
+    })
+    add.focus()
+    fireEvent.click(add)
+    await waitFor(() => expect(add.getAttribute('aria-disabled')).toBe('true'))
+    // Outside act, React commits and runs passive effects in separate tasks,
+    // as in the app, so focus moved by a passive effect would still be on the
+    // page when this observer first sees the line.
+    const sent = msg('friendActions.sent')
+    let focusWhenShown: Element | null | undefined
+    const observer = new MutationObserver(() => {
+      const line = document.querySelector('[role="status"]')
+      if (focusWhenShown === undefined && line?.textContent?.includes(sent))
+        focusWhenShown = document.activeElement
+    })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    const previous = actEnvironment.IS_REACT_ACT_ENVIRONMENT
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false
+    try {
+      finish({ ok: true })
+      await waitFor(() => expect(focusWhenShown).toBeDefined())
+    } finally {
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = previous
+      observer.disconnect()
+    }
+    expect(focusWhenShown).toBe(screen.getByRole('status'))
+  })
+
   it('says why a friend request did not go out and lets the user press again', async () => {
     bridge.getProfile.mockResolvedValueOnce({
       ok: true,
