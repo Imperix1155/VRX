@@ -495,6 +495,23 @@ describe('renderer design token contract', () => {
     }
   })
 
+  it('backs the Where access pill with the card color in both themes, like other pills over a picture', () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const rule = /(?:^|\n)\.linked-world-pill\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
+    expect(rule).toMatch(
+      /background:\s*color-mix\(in srgb, var\(--glass-information\) 78%, transparent\)\s*;/
+    )
+    const light = /\[data-theme='light'\] \.linked-world-pill\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
+    expect(light).not.toMatch(/background/)
+  })
+
+  it('gives dark picture badges an opaque card-color backing, so art never shows through their word', () => {
+    const root = css.match(/:root\s*{[\s\S]*?\n}/)?.[0] ?? ''
+    for (const platform of ['vrc', 'cvr']) {
+      expect(root).toContain(`--plat-${platform}-picture-badge-bg: var(--glass-information);`)
+    }
+  })
+
   it('backs the platform tag over a picture with the opaque card color, so art never shows through its word', () => {
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const rule = /\.linked-world-tags \.linked-world-platform\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
