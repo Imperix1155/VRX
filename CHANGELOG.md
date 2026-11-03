@@ -69,9 +69,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   setup's choices and progress. The presence ring and status dot on pictures
   keep their colors.
 - Full profiles: Retry keeps keyboard focus on the profile's line and shows
-  Loading until the platform answers. A profile, or its worlds or groups, that
-  couldn't load is red, like the pages; an answer such as "This profile is no
-  longer available." stays dim.
+  Loading until the platform answers, then moves focus to the profile, worlds
+  or groups that loaded. A profile, or its worlds or groups, that couldn't
+  load is red, like the pages; an answer such as "This profile is no longer
+  available." stays dim.
 - Explore: when keyboard focus falls back to the page, after a panel closes
   for example, the page no longer draws a focus ring around everything.
 - Screen readers: the platform's loading or failure line on Search, Explore,

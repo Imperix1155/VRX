@@ -14,7 +14,7 @@
  * details leave it out: everyone there is on the friends list, and a friend
  * unfriended there stays shown only until the platform's own message.
  */
-import { useId, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CommunityGroup, PersonProfile, ProfileBadge, ProfileResult } from '@shared/community'
 import type { FriendActionResult, FriendRequestAnswer } from '@shared/friendActions'
@@ -79,6 +79,8 @@ export default function ProfileDetails({
   const profile = useProfile(platform, userId)
   const result = profile.data
   const lineRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const lineLeftFocused = useFocusLanding(bodyRef)
 
   if (result === undefined || !result.ok) {
     // Retry shows the loading words until the platform answers again.
@@ -104,6 +106,7 @@ export default function ProfileDetails({
     return (
       <StateLine
         lineRef={lineRef}
+        leftFocused={lineLeftFocused}
         loading={loading}
         text={loading ? t('profile.loading') : t(PROFILE_ERROR_KEYS[reason])}
         missing={!loading && NEVER_LOADED.has(reason)}
@@ -114,6 +117,7 @@ export default function ProfileDetails({
   }
   return (
     <ProfileBody
+      bodyRef={bodyRef}
       profile={result.profile}
       showTrust={showTrust}
       showFriendAction={showFriendAction}
@@ -125,22 +129,33 @@ export default function ProfileDetails({
 /**
  * One loading or failure line. Retry moves keyboard focus to the line, so it
  * isn't lost when Retry leaves; the line stays the same element, with no role
- * of its own, while its words switch between loading and the answer. Something
- * that never loaded is red, as on the pages (DESIGN.md, Locked rule 5).
+ * of its own, while its words switch between loading and the answer. When the
+ * answer replaces it, `leftFocused` tells its owner to move focus on (see
+ * useFocusLanding). Something that never loaded is red, as on the pages
+ * (DESIGN.md, Locked rule 5).
  */
 function StateLine({
   lineRef,
+  leftFocused,
   loading,
   text,
   missing,
   children
 }: {
   lineRef: React.RefObject<HTMLDivElement | null>
+  leftFocused: React.RefObject<boolean>
   loading: boolean
   text: string
   missing: boolean
   children?: React.ReactNode
 }): React.JSX.Element {
+  // The cleanup runs while the line is still on the page.
+  useLayoutEffect(() => {
+    const line = lineRef.current
+    return () => {
+      if (line?.contains(document.activeElement)) leftFocused.current = true
+    }
+  }, [lineRef, leftFocused])
   return (
     <div
       ref={lineRef}
@@ -161,6 +176,23 @@ function StateLine({
 
 function focusLine(lineRef: React.RefObject<HTMLDivElement | null>): void {
   lineRef.current?.focus({ preventScroll: true })
+}
+
+/**
+ * Where keyboard focus goes when a line that held it gives way to what loaded:
+ * `landing`, instead of the page. Returns the flag StateLine sets.
+ */
+function useFocusLanding(landing: React.RefObject<HTMLElement | null>): React.RefObject<boolean> {
+  const leftFocused = useRef(false)
+  useLayoutEffect(() => {
+    if (!leftFocused.current) return
+    leftFocused.current = false
+    const active = document.activeElement
+    if (active === null || active === document.body) {
+      landing.current?.focus({ preventScroll: true })
+    }
+  })
+  return leftFocused
 }
 
 function RetryButton({ onRetry }: { onRetry: () => void }): React.JSX.Element {
@@ -194,11 +226,13 @@ function profileFacts(
 }
 
 function ProfileBody({
+  bodyRef,
   profile,
   showTrust,
   showFriendAction,
   panelOpen
 }: {
+  bodyRef: React.RefObject<HTMLDivElement | null>
   profile: PersonProfile
   showTrust: boolean
   showFriendAction: boolean
@@ -207,7 +241,12 @@ function ProfileBody({
   const { t } = useTranslation()
   const facts = profileFacts(profile, showTrust, t)
   return (
-    <div className="flex flex-col gap-[var(--space-4)]" data-profile-details={profile.platform}>
+    <div
+      ref={bodyRef}
+      tabIndex={-1}
+      className="flex flex-col gap-[var(--space-4)] outline-none"
+      data-profile-details={profile.platform}
+    >
       {showFriendAction && profile.isFriend === false ? (
         <FriendAction
           platform={profile.platform}
@@ -421,6 +460,8 @@ function ProfileLists({
   const [groupsOpen, setGroupsOpen] = useState(false)
   const worldsId = useId()
   const groupsId = useId()
+  const worldsRef = useRef<HTMLDivElement>(null)
+  const groupsRef = useRef<HTMLDivElement>(null)
   const button = (
     open: boolean,
     toggle: () => void,
@@ -456,19 +497,31 @@ function ProfileLists({
           'profile.hideGroups'
         )}
       </div>
-      <div id={worldsId} hidden={!worldsOpen}>
+      <div
+        ref={worldsRef}
+        id={worldsId}
+        hidden={!worldsOpen}
+        tabIndex={-1}
+        className="outline-none"
+      >
         {worldsOpen ? (
           <>
             <h3 className={SMALL_HEADING}>{t('profile.worlds')}</h3>
-            <ProfileWorldsList platform={platform} userId={userId} />
+            <ProfileWorldsList platform={platform} userId={userId} landing={worldsRef} />
           </>
         ) : null}
       </div>
-      <div id={groupsId} hidden={!groupsOpen}>
+      <div
+        ref={groupsRef}
+        id={groupsId}
+        hidden={!groupsOpen}
+        tabIndex={-1}
+        className="outline-none"
+      >
         {groupsOpen ? (
           <>
             <h3 className={SMALL_HEADING}>{t('profile.groups')}</h3>
-            <ProfileGroupsList platform={platform} userId={userId} />
+            <ProfileGroupsList platform={platform} userId={userId} landing={groupsRef} />
           </>
         ) : null}
       </div>
@@ -478,17 +531,21 @@ function ProfileLists({
 
 function ProfileWorldsList({
   platform,
-  userId
+  userId,
+  landing
 }: {
   platform: Platform
   userId: string
+  landing: React.RefObject<HTMLDivElement | null>
 }): React.JSX.Element {
   const { t } = useTranslation()
   const worlds = useProfileWorlds(platform, userId, true)
   const result = worlds.data
+  const lineLeftFocused = useFocusLanding(landing)
   if (result === undefined || !result.ok) {
     return (
       <ListState
+        leftFocused={lineLeftFocused}
         loading={worlds.isFetching || (result === undefined && !worlds.isError)}
         onRetry={() => void worlds.refetch()}
       />
@@ -519,17 +576,21 @@ function ProfileWorldsList({
 
 function ProfileGroupsList({
   platform,
-  userId
+  userId,
+  landing
 }: {
   platform: Platform
   userId: string
+  landing: React.RefObject<HTMLDivElement | null>
 }): React.JSX.Element {
   const { t } = useTranslation()
   const groups = useProfileGroups(platform, userId, true)
   const result = groups.data
+  const lineLeftFocused = useFocusLanding(landing)
   if (result === undefined || !result.ok) {
     return (
       <ListState
+        leftFocused={lineLeftFocused}
         loading={groups.isFetching || (result === undefined && !groups.isError)}
         onRetry={() => void groups.refetch()}
       />
@@ -576,9 +637,11 @@ function GroupLine({ group }: { group: CommunityGroup }): React.JSX.Element {
 }
 
 function ListState({
+  leftFocused,
   loading,
   onRetry
 }: {
+  leftFocused: React.RefObject<boolean>
   loading: boolean
   onRetry: () => void
 }): React.JSX.Element {
@@ -587,6 +650,7 @@ function ListState({
   return (
     <StateLine
       lineRef={lineRef}
+      leftFocused={leftFocused}
       loading={loading}
       text={t(loading ? 'profile.listLoading' : 'profile.listError')}
       missing={!loading}

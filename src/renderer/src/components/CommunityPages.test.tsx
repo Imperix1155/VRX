@@ -1063,6 +1063,63 @@ describe('ProfileDetails', () => {
     expect(bridge.getProfileWorlds).toHaveBeenCalledTimes(2)
   })
 
+  it('moves keyboard focus to the profile when Retry brings it', async () => {
+    bridge.getProfile.mockResolvedValueOnce({ ok: false, reason: 'unavailable' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    await screen.findByText(msg('profile.error.unavailable'))
+    const next = deferred<unknown>()
+    bridge.getProfile.mockImplementationOnce(() => next.promise as never)
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    expect(await screen.findByText(msg('profile.loading'))).toBeTruthy()
+
+    await act(async () => next.resolve({ ok: true, profile: profile('vrchat') }))
+    await screen.findByText('Hello there')
+    expect(document.activeElement).toBe(document.querySelector('[data-profile-details]'))
+  })
+
+  it('leaves focus the user moved elsewhere when Retry brings the profile', async () => {
+    bridge.getProfile.mockResolvedValueOnce({ ok: false, reason: 'unavailable' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    await screen.findByText(msg('profile.error.unavailable'))
+    const next = deferred<unknown>()
+    bridge.getProfile.mockImplementationOnce(() => next.promise as never)
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    const elsewhere = document.createElement('button')
+    document.body.appendChild(elsewhere)
+    try {
+      elsewhere.focus()
+      await act(async () => next.resolve({ ok: true, profile: profile('vrchat') }))
+      await screen.findByText('Hello there')
+      expect(document.activeElement).toBe(elsewhere)
+    } finally {
+      elsewhere.remove()
+    }
+  })
+
+  it('moves keyboard focus to a list when its Retry brings it', async () => {
+    bridge.getProfileWorlds.mockResolvedValueOnce({ ok: false, reason: 'unavailable' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    const show = await screen.findByRole('button', { name: msg('profile.showWorlds') })
+    fireEvent.click(show)
+    await screen.findByText(msg('profile.listError'))
+    const next = deferred<unknown>()
+    bridge.getProfileWorlds.mockImplementationOnce(() => next.promise as never)
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    expect(await screen.findByText(msg('profile.listLoading'))).toBeTruthy()
+
+    await act(async () => next.resolve({ ok: true, worlds: [], complete: true }))
+    expect(await screen.findByText(msg('profile.noWorlds'))).toBeTruthy()
+    const box = document.getElementById(show.getAttribute('aria-controls') ?? '')
+    expect(box).not.toBeNull()
+    expect(document.activeElement).toBe(box)
+  })
+
   it('offers no friend action to a friend', async () => {
     renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
     await screen.findByText('Hello there')
