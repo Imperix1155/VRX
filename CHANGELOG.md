@@ -16,19 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   home world now start their spoken names with the words they show ("Pug
   Lounge on VRChat. View rooms"), and a linked friend's "2 locations" pill
   says it chooses where to join them, instead of only "2 locations".
-- Friend counts of a thousand or more are grouped, as player counts are:
-  "Offline (1,200)" and "1,234 friends", also on the Dashboard and in
-  Japanese.
+- Friend and avatar counts of a thousand or more are grouped, as player
+  counts are: "Offline (1,200)", "1,234 friends" and "1,234 avatars", also on
+  the Dashboard and in Japanese.
 - Edit profile: when VRChat or ChilloutVR asks VRX to slow down while your
-  profile loads, it says so, instead of "Saving too often".
+  profile loads or saves, it says so, instead of "Saving too often".
 - Japanese: the alert setting calls Hot Instances ホットインスタンス, as
   everywhere else, instead of 人気インスタンス, which read like Popular now;
   Explore's empty line says 公開ワールド like the line above it; and a world's
   regions are listed with 、.
 - Instance labels are called instance labels everywhere, in Settings and the
   welcome setup, instead of also "pills" and "tags".
-- Hot Instances: the help no longer says the Dashboard shows two, since a
-  wide window shows more.
+- Hot Instances: the help says the Dashboard shows the busiest few,
+  instead of always two, since it shows more when Hot Instances has the
+  picture cards.
 - Screen readers: each account card, in Settings and the welcome setup, is
   named by its platform, and so is its sign-in form, so the two cards'
   Password, Connect and Sign out no longer sound the same.
@@ -36,12 +37,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows again after signing back in, even as another account.
 - Friend details: when a linked friend is in two worlds, each half of the
   Where picture says VRC or CVR beside its access, instead of only its
-  color, and a world name cut to fit shows in full in its tooltip.
-- Edit profile: a stray press outside the dialog, or Escape, no longer
-  throws away what you typed; ✕ and Cancel still close it.
+  color, on a backing that keeps the word readable on bright pictures.
+- Friend details: a world name cut to fit the Where picture shows in full in
+  its tooltip.
+- Edit profile: a stray press outside the dialog, or Escape, however many
+  times, no longer throws away what you typed, and after the press outside
+  you keep typing where you were; ✕ and Cancel still close it. If you are
+  signed out while it is open, it no longer opens by itself at your next
+  sign-in.
 - Dialogs (Edit profile, Identities, Picked friends, Choose a destination):
-  when Escape is pressed several times in a row and the window closes the
-  dialog itself, VRX closes it too, so its button opens it again.
+  Escape pressed several times in a row can no longer close one while it is
+  saving, and if the window ever closes one itself, VRX closes it too, so its
+  button opens it again.
 - Welcome setup: the summary lists every Dashboard section that's on, in
   its Dashboard order, instead of only Popular now and Hot Instances, so it
   no longer says "Friend counts only" while Wearing now and Latest invites
