@@ -153,7 +153,7 @@
     "theme": {
       "label": "テーマ",
       "description": "このデバイスでのVRXの表示方法を選択します。",
-      "aria": "テーマ選択",
+      "aria": "テーマ",
       "dark": "ダーク",
       "light": "ライト",
       "system": "システム"
@@ -161,7 +161,7 @@
     "backgroundGlow": {
       "label": "背景のグロー",
       "description": "背景のオーロラの強さを選択します。",
-      "aria": "背景グロー選択",
+      "aria": "背景のグロー",
       "off": "オフ",
       "muted": "控えめ",
       "standard": "標準",
@@ -176,7 +176,7 @@
       "fade": {
         "label": "画像の薄さ",
         "description": "文字が読みやすいように画像を薄くします。",
-        "aria": "画像の薄さ選択",
+        "aria": "画像の薄さ",
         "low": "弱め",
         "medium": "標準",
         "high": "強め"
@@ -200,7 +200,7 @@
     "reconcileInterval": {
       "label": "フレンド一覧の再同期",
       "note": "全体を再同期する間隔です。",
-      "aria": "フレンドのバックグラウンド再同期間隔",
+      "aria": "フレンド一覧の再同期",
       "5m": "5分",
       "10m": "10分",
       "30m": "30分",
@@ -210,7 +210,7 @@
     "labelScheme": {
       "label": "インスタンスラベル",
       "description": "インスタンスラベルに使う言葉。",
-      "aria": "インスタンスラベルのスキーム選択",
+      "aria": "インスタンスラベル",
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
       "platformNative": "プラットフォーム別"
@@ -218,19 +218,19 @@
     "drawerOpener": {
       "label": "フレンド詳細の開き方",
       "description": "フレンド詳細を開くときにクリックする場所です。",
-      "aria": "フレンド詳細を開く操作の選択",
+      "aria": "フレンド詳細の開き方",
       "card": "カード全体",
       "avatar": "アバターのみ"
     },
     "saveNotesToAccounts": {
       "label": "メモをアカウントにも保存",
       "description": "メモをゲームのアカウントにも保存。オフでこの PC のみ。",
-      "aria": "フレンドのメモを VRChat と ChilloutVR のアカウントにも保存"
+      "aria": "メモをアカウントにも保存（VRChat と ChilloutVR）"
     },
     "useGameFavorites": {
       "label": "ゲームのお気に入りを使う",
       "description": "星でゲームのお気に入りグループも使います。オフで VRX のみ。",
-      "aria": "VRChat と ChilloutVR のアカウントのお気に入りを使う"
+      "aria": "ゲームのお気に入りを使う（VRChat と ChilloutVR）"
     },
     "behavior": {
       "heading": "動作"
@@ -248,14 +248,14 @@
     "confirmJoin": {
       "label": "参加前に確認",
       "description": "フレンドのインスタンスへの参加を開始する前に確認します。",
-      "aria": "参加前の確認",
+      "aria": "参加前に確認",
       "on": "オン",
       "off": "オフ"
     },
     "joinMode": {
       "label": "参加モード",
       "description": "ChilloutVRの起動モード。VRChatは独自の設定。",
-      "aria": "参加の起動モード",
+      "aria": "参加モード",
       "ask": "毎回確認",
       "vr": "VR",
       "desktop": "デスクトップ"
@@ -278,7 +278,7 @@
         "description": "全員、または選んだフレンドだけ。ホットインスタンスの通知は変わりません。",
         "everyone": "全員",
         "picked": "選んだフレンド",
-        "aria": "通知を送るフレンド"
+        "aria": "通知する相手"
       },
       "picked": {
         "label": "選んだフレンド",
@@ -312,7 +312,7 @@
       "hotInstance": {
         "label": "ホットインスタンス",
         "description": "同じインスタンスに十分な数のフレンドが集まったときに通知します。",
-        "aria": "インスタンスがホットになったときに通知"
+        "aria": "ホットインスタンスができたときに通知"
       },
       "invites": {
         "label": "招待が届いたとき",
@@ -328,7 +328,7 @@
     "vrAlerts": {
       "label": "VR での通知",
       "description": "上の通知を XSOverlay でヘッドセットにも表示します。",
-      "aria": "XSOverlay で VR に通知を表示",
+      "aria": "VR での通知（XSOverlay）",
       "duration": {
         "label": "表示時間",
         "description": "1件ごとの表示時間です。",

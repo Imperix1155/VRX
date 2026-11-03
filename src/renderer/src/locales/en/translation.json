@@ -156,7 +156,7 @@
     "theme": {
       "label": "Theme",
       "description": "Choose how VRX looks on this device.",
-      "aria": "Theme selector",
+      "aria": "Theme",
       "dark": "Dark",
       "light": "Light",
       "system": "System"
@@ -164,7 +164,7 @@
     "backgroundGlow": {
       "label": "Background glow",
       "description": "How strong the background aurora appears.",
-      "aria": "Background glow selector",
+      "aria": "Background glow",
       "off": "Off",
       "muted": "Muted",
       "standard": "Standard",
@@ -179,7 +179,7 @@
       "fade": {
         "label": "Picture fade",
         "description": "Fades the picture so text stays easy to read.",
-        "aria": "Picture fade selector",
+        "aria": "Picture fade",
         "low": "Low",
         "medium": "Medium",
         "high": "High"
@@ -203,7 +203,7 @@
     "reconcileInterval": {
       "label": "Friends background re-sync",
       "note": "How often all friends re-sync.",
-      "aria": "Friends background re-sync cadence",
+      "aria": "Friends background re-sync",
       "5m": "5m",
       "10m": "10m",
       "30m": "30m",
@@ -213,7 +213,7 @@
     "labelScheme": {
       "label": "Instance labels",
       "description": "Which words the instance labels use.",
-      "aria": "Instance label scheme selector",
+      "aria": "Instance labels",
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
       "platformNative": "Per platform"
@@ -221,19 +221,19 @@
     "drawerOpener": {
       "label": "Friend details open from",
       "description": "What you click to open a friend's details.",
-      "aria": "Friend details opener selector",
+      "aria": "Friend details open from",
       "card": "Whole card",
       "avatar": "Avatar only"
     },
     "saveNotesToAccounts": {
       "label": "Save notes to my accounts",
       "description": "Notes also go to your game accounts. Off keeps them on this PC.",
-      "aria": "Save friend notes to my VRChat and ChilloutVR accounts"
+      "aria": "Save notes to my accounts on VRChat and ChilloutVR"
     },
     "useGameFavorites": {
       "label": "Use my game favorites",
       "description": "The star also uses your game accounts' favorites. Off keeps stars in VRX.",
-      "aria": "Use the favorites in my VRChat and ChilloutVR accounts"
+      "aria": "Use my game favorites from VRChat and ChilloutVR"
     },
     "behavior": {
       "heading": "Behavior"
@@ -258,7 +258,7 @@
     "joinMode": {
       "label": "Join in",
       "description": "How ChilloutVR starts. VRChat uses its own launch settings.",
-      "aria": "Join launch mode",
+      "aria": "Join in",
       "ask": "Always ask",
       "vr": "VR",
       "desktop": "Desktop"
@@ -266,7 +266,7 @@
     "openGameJoin": {
       "label": "When the game is already open",
       "description": "Join goes into the game you have open. Send invite is VRChat only.",
-      "aria": "How Join works when the game is already open",
+      "aria": "When the game is already open",
       "go": "Go there",
       "invite": "Send invite",
       "off": "Off"
@@ -281,7 +281,7 @@
         "description": "Everyone, or only friends you pick. Hot instance alerts don't change.",
         "everyone": "Everyone",
         "picked": "Picked friends",
-        "aria": "Which friends can send you alerts"
+        "aria": "Who alerts you"
       },
       "picked": {
         "label": "Picked friends",
@@ -315,17 +315,17 @@
       "hotInstance": {
         "label": "Hot instance",
         "description": "Alert when enough friends gather in the same instance.",
-        "aria": "Notify when an instance becomes hot"
+        "aria": "Hot instance: notify when one forms"
       },
       "invites": {
         "label": "Invite received",
         "description": "Alert when someone invites you or asks for an invite.",
-        "aria": "Notify when you get an invite"
+        "aria": "Invite received: notify me"
       },
       "friendRequests": {
         "label": "Friend request received",
         "description": "Alert when someone sends you a friend request.",
-        "aria": "Notify when you get a friend request"
+        "aria": "Friend request received: notify me"
       }
     },
     "vrAlerts": {
@@ -338,7 +338,7 @@
         "short": "Short",
         "medium": "Medium",
         "long": "Long",
-        "aria": "How long VR alerts stay in view"
+        "aria": "Time on screen for VR alerts"
       },
       "test": {
         "send": "Send a test",
@@ -447,7 +447,7 @@
         "description": "Their order on the Dashboard. The first of Popular now and Hot Instances shows pictures. Hiding one keeps its page.",
         "moveUp": "Move {{name}} up",
         "moveDown": "Move {{name}} down",
-        "moved": "{{name}} is now {{position}} of {{count}}"
+        "moved": "{{name}}: {{position}} of {{count}}"
       },
       "order": {
         "aria": "Dashboard section order",

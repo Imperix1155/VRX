@@ -57,6 +57,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Picked friends: after a Remove, keyboard focus goes to the next Remove
   (the other platform's when this one's list is empty), instead of jumping to
   the dialog's ✕, so pressing Enter again no longer closes the dialog.
+- Screen readers and voice control: Settings controls are named with the
+  words they show ("Join in", "Who alerts you", "Use my game favorites…")
+  instead of other words such as "Join launch mode", in English and
+  Japanese; each switch's note is read with it; and moving a Dashboard
+  section says "Wearing now: 2 of 4" instead of "Wearing now is now 2 of 4".
 
 ## [1.4.0-dev.6] - 2026-11-03
 

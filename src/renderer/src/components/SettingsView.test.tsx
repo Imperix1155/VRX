@@ -216,6 +216,19 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(useSettingsStore.getState().settings.backgroundGlow).toBe('off')
   })
 
+  it('reads each switch row’s note with its switch', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+    const group = screen.getByRole('radiogroup', {
+      name: msg('settings.saveNotesToAccounts.aria')
+    })
+    const noteId = group.getAttribute('aria-describedby')
+    expect(noteId).toBeTruthy()
+    expect(document.getElementById(noteId ?? '')?.textContent).toBe(
+      msg('settings.saveNotesToAccounts.description')
+    )
+  })
+
   it('renders the friends background re-sync row with its note and five cadence options', () => {
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()

@@ -159,13 +159,22 @@ function SwitchRow({
   checked: boolean
   onChange: (checked: boolean) => void
 }): React.JSX.Element {
+  const descriptionId = useId()
   return (
     <div className="setting-row">
       <div>
         <p className="text-sm font-medium text-[var(--text)]">{label}</p>
-        <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">{description}</p>
+        <p id={descriptionId} className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+          {description}
+        </p>
       </div>
-      <Toggle checked={checked} ariaLabel={ariaLabel} onChange={onChange} />
+      {/* The note is read with the switch, not only seen beside it. */}
+      <Toggle
+        checked={checked}
+        ariaLabel={ariaLabel}
+        ariaDescribedBy={descriptionId}
+        onChange={onChange}
+      />
     </div>
   )
 }

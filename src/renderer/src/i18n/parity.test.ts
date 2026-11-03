@@ -237,3 +237,30 @@ describe('names that hold their visible words', () => {
     }
   })
 })
+
+describe('Settings controls named with the words they show', () => {
+  const settingsView = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../components/SettingsView.tsx'),
+    'utf8'
+  )
+  const named = [
+    ...new Set([...settingsView.matchAll(/t\('([a-zA-Z.]+)\.aria'\)/g)].map((match) => match[1]))
+  ].filter((key): key is string => key !== undefined)
+  const entry = (bundle: unknown, key: string): { label?: unknown; aria?: unknown } =>
+    key
+      .split('.')
+      .reduce<unknown>((node, part) => (node as Record<string, unknown>)?.[part], bundle) ?? {}
+
+  it.each([
+    ['en', en],
+    ['ja', ja]
+  ] as const)('%s: each spoken name holds its visible label', (_lang, bundle) => {
+    const misses = named.flatMap((key) => {
+      const { label, aria } = entry(bundle, key)
+      if (typeof label !== 'string' || typeof aria !== 'string') return []
+      return aria.toLowerCase().includes(label.toLowerCase()) ? [] : [`${key}: ${aria}`]
+    })
+    expect(named.length).toBeGreaterThan(15)
+    expect(misses).toEqual([])
+  })
+})
