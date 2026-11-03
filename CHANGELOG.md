@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.6] - 2026-11-03
+
 ### Changed
 
 - Identities: Link an account lists the other platform's friends in name
