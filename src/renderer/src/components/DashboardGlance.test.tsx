@@ -268,6 +268,19 @@ describe('DashboardGlance: Latest invites', () => {
     expect(within(region).queryByRole('button')).toBeNull()
   })
 
+  it('keeps when it came outside the words that give way in a narrow window', async () => {
+    inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]
+    renderGlance()
+    const region = await screen.findByRole('region', { name: msg('dashboard.glance.invites') })
+    await within(region).findByText('Aria')
+    const time = region.querySelector('time')
+    expect(time).not.toBeNull()
+    // Only the invite's words truncate; the time never sits inside them.
+    expect(time!.closest('.truncate')).toBeNull()
+    expect(time!.className).toContain('shrink-0')
+    expect(region.querySelector('[title*="Moonlit Observatory"]')?.className).toContain('truncate')
+  })
+
   it('keeps rows but drops the Inbox links while the Inbox page is hidden', async () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, showInboxPage: false } })
     inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]

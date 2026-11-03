@@ -352,10 +352,20 @@ function LatestInvites({
                     </span>
                     <PlatformPill platform={item.platform} className="shrink-0" />
                   </span>
-                  <span className="truncate text-xs text-[var(--text-dim)]" title={action}>
-                    {action}
-                    <span aria-hidden="true"> · </span>
-                    <time dateTime={new Date(item.receivedAt).toISOString()}>{age}</time>
+                  {/* The words give way first, so a narrow window still shows when. */}
+                  <span className="flex min-w-0 text-xs text-[var(--text-dim)]">
+                    <span className="truncate" title={action}>
+                      {action}
+                    </span>
+                    <span aria-hidden="true" className="shrink-0 whitespace-pre">
+                      {' · '}
+                    </span>
+                    <time
+                      className="shrink-0 whitespace-nowrap"
+                      dateTime={new Date(item.receivedAt).toISOString()}
+                    >
+                      {age}
+                    </time>
                   </span>
                 </span>
               </>

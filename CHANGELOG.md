@@ -278,6 +278,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full profiles: Add friend right after Unfriend in the same profile sends
   the request, instead of answering "You're already friends." until your
   friends list catches up.
+- Dashboard: Latest invites keeps when each invite came in sight in a narrow
+  window; the invite's words shorten first, instead of cutting off the time.
 - Friend details: an open Unfriend or Block question closes with friend
   details when that friend leaves your list, instead of staying on screen with
   keyboard focus lost after Cancel.
