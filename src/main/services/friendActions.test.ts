@@ -360,17 +360,28 @@ describe('FriendActionsService friend requests', () => {
 
   it('forgets a request it sent only for that person and platform', async () => {
     const { cvr, vrc, service, listed } = setup()
+    const otherCvrUser = '22222222-2222-4222-8222-222222222222'
     listed.add(`chilloutvr|${CVR_USER.toLowerCase()}`)
+    listed.add(`chilloutvr|${otherCvrUser}`)
     listed.add(`vrchat|${VRC_USER}`)
     await service.send('chilloutvr', CVR_USER)
+    await service.send('chilloutvr', otherCvrUser)
     await service.send('vrchat', VRC_USER)
+    expect(cvr.sendFriendRequest).toHaveBeenCalledTimes(2)
 
     // ChilloutVR IDs compare without case.
     service.forgetRequest('chilloutvr', CVR_USER.toUpperCase())
     service.forgetRequest('chilloutvr', VRC_USER)
     await service.send('chilloutvr', CVR_USER)
+    await service.send('chilloutvr', otherCvrUser)
     await service.send('vrchat', VRC_USER)
-    expect(cvr.sendFriendRequest).toHaveBeenCalledTimes(2)
+    // Only the forgotten person is asked again.
+    expect(cvr.sendFriendRequest).toHaveBeenCalledTimes(3)
+    expect(cvr.sendFriendRequest.mock.calls.map(([id]) => id)).toEqual([
+      CVR_USER.toLowerCase(),
+      otherCvrUser,
+      CVR_USER.toLowerCase()
+    ])
     expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
   })
 
