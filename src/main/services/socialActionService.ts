@@ -133,6 +133,21 @@ export class SocialActionService {
     }
   }
 
+  /**
+   * Whether VRX counts this person as a friend now: an unfriend VRX just sent
+   * on the signed-in account counts at once, before the roster catches up.
+   * Add friend asks this, so it can follow an Unfriend in the same profile.
+   */
+  isFriend(platform: Platform, userId: string): boolean {
+    // ChilloutVR GUIDs compare case-insensitively; VRChat IDs are kept as sent.
+    const id = platform === 'chilloutvr' ? userId.toLowerCase() : userId
+    const state = this.states.get(platform)
+    if (state !== undefined && state.lease.isCurrent() && !state.lease.signal.aborted) {
+      return this.isFriendNow(platform, state, id)
+    }
+    return this.options.isFriend(platform, id)
+  }
+
   /** Forget a platform at a sign-out, account change, or dead session. */
   clearPlatform(platform: Platform): void {
     this.states.delete(platform)

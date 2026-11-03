@@ -275,6 +275,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with Ctrl+Q, Cmd+Q or Quit in the tray, instead of being lost.
 - Friend details: after you unfriend someone there, their full profile no
   longer offers Add friend, which could only answer "You're already friends."
+- Full profiles: Add friend right after Unfriend in the same profile sends
+  the request, instead of answering "You're already friends." until your
+  friends list catches up.
 - Friend details: an open Unfriend or Block question closes with friend
   details when that friend leaves your list, instead of staying on screen with
   keyboard focus lost after Cancel.

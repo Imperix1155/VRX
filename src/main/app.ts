@@ -830,7 +830,8 @@ app
       ]),
       inbox,
       wasListed: (platform, userId) => community.knowsPerson(platform, userId),
-      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      // An unfriend VRX just sent counts before the roster catches up.
+      isFriend: (platform, userId) => social.isFriend(platform, userId),
       log: (message, meta) => log.warn(message, meta)
     })
     friendActionsBoundary.current = friendActions

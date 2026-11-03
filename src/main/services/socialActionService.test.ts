@@ -263,6 +263,32 @@ describe('SocialActionService', () => {
     expect(vrc.block).not.toHaveBeenCalled()
   })
 
+  it('counts an unfriend it sent before the roster does, for this account only', async () => {
+    const { service, vrc, cvr, friends, advance } = setup()
+    expect(service.isFriend('vrchat', FRIEND)).toBe(true)
+    expect(service.isFriend('vrchat', SEARCHED)).toBe(false)
+
+    await service.act('vrchat', FRIEND, 'unfriend')
+    // The roster still lists the friend; the unfriend VRX sent counts first.
+    expect(friends.has(FRIEND)).toBe(true)
+    expect(service.isFriend('vrchat', FRIEND)).toBe(false)
+    await service.act('chilloutvr', CVR_FRIEND, 'unfriend')
+    expect(service.isFriend('chilloutvr', CVR_FRIEND)).toBe(false)
+    expect(cvr.unfriend).toHaveBeenCalledTimes(1)
+
+    // Once the memory ages out, the roster answers again.
+    advance(RELATIONSHIP_CACHE_MS)
+    expect(service.isFriend('vrchat', FRIEND)).toBe(true)
+
+    // Another account's unfriend never counts for the one signed in now.
+    advance(SOCIAL_ACTION_COOLDOWN_MS)
+    await service.act('vrchat', FRIEND, 'unfriend')
+    vrc.generation += 1
+    expect(service.isFriend('vrchat', FRIEND)).toBe(true)
+    // Asking sends nothing.
+    expect(vrc.getBlocked).not.toHaveBeenCalled()
+  })
+
   it('does not report a write for an account that changed while it was sent', async () => {
     const { service, vrc } = setup()
     vrc.hold()

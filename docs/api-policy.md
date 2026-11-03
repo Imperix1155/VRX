@@ -489,9 +489,10 @@ goes out:
   accept with its usual friend-added push; ChilloutVR with its roster-changed
   push and one roster read, as for any new friend.
 - **Add friend** goes only to someone a search listed in the current session
-  who is not already a friend and is not the signed-in user. A second press
-  for the same person in the same session reports "sent" again without a
-  request.
+  who is not already a friend and is not the signed-in user. Someone VRX just
+  unfriended counts as not a friend at once, before the roster catches up. A
+  second press for the same person in the same session reports "sent" again
+  without a request.
 - **Pacing:** one action at a time per platform, at least 2 seconds after the
   last attempt (`FRIEND_ACTION_SPACING_MS`), failed ones included. Up to 5
   presses wait their turn (`FRIEND_ACTION_MAX_WAITING`); more are refused as
