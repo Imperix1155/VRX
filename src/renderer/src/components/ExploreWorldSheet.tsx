@@ -92,6 +92,9 @@ function RoomRow({
   const detailsId = useId()
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const enabled = actionAllowed && room.action.state === 'available'
+  // While a Join runs, a room that is otherwise open keeps keyboard focus
+  // (aria-disabled): a disabled button would drop it to the page.
+  const waiting = joining && room.action.state === 'available'
   // The shared resolver, so a room reads exactly like the same access type
   // anywhere else in the app.
   const pill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
@@ -128,7 +131,8 @@ function RoomRow({
       <div className="shrink-0">
         <button
           type="button"
-          disabled={!enabled}
+          disabled={!enabled && !waiting}
+          aria-disabled={waiting || undefined}
           title={disabledLabel ?? undefined}
           aria-describedby={detailsId}
           onClick={() => {
@@ -136,7 +140,7 @@ function RoomRow({
           }}
           // An open Join wears the same green as the friend card's and the hot
           // sheet's; a room that can't be joined stays neutral.
-          className="rounded-[10px] border border-transparent bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] enabled:hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:text-[var(--text-faint)] motion-safe:transition-[filter]"
+          className={`rounded-[10px] border border-transparent bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] ${enabled ? 'hover:brightness-110' : ''} focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:text-[var(--text-faint)] aria-disabled:cursor-default aria-disabled:text-[var(--text-faint)] motion-safe:transition-[filter]`}
           style={
             enabled
               ? {

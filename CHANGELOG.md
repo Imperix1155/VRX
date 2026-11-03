@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Keyboard: the favorites menu's choices, Join on a room in Explore, and
+  Retry on the account, settings and linked-profiles notices keep keyboard
+  focus while they work, instead of dropping it to the page, so Escape still
+  folds the favorites menu and a Retry that fails again leaves focus on
+  Retry. A failed retry of the linked profiles no longer flickers the notice
+  away and back.
+
 ## [1.4.0-dev.7] - 2026-11-03
 
 ### Fixed

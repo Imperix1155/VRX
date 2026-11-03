@@ -10,11 +10,12 @@ import RecoveryNotices, { SETTINGS_PENDING_NOTICE_DELAY_MS } from './RecoveryNot
 const refetch = vi.fn()
 let vrchatAuthError = true
 let vrchatState = 'authenticated'
+let vrchatFetching = false
 vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: string) => ({
     data: { state: platform === 'vrchat' ? vrchatState : 'authenticated' },
     isError: platform === 'vrchat' && vrchatAuthError,
-    isFetching: false,
+    isFetching: platform === 'vrchat' && vrchatFetching,
     refetch
   })
 }))
@@ -23,6 +24,8 @@ afterEach(() => {
   vi.useRealTimers()
   vrchatAuthError = true
   vrchatState = 'authenticated'
+  vrchatFetching = false
+  refetch.mockClear()
   useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
   useSettingsStore.setState({
     settings: DEFAULT_SETTINGS,
@@ -67,6 +70,27 @@ it('exposes a platform-specific auth failure and retry alongside usable shell co
   ).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: i18n.t('settings.accounts.retry') }))
   expect(refetch).toHaveBeenCalledOnce()
+})
+
+it('keeps keyboard focus on each Retry while it works, and ignores presses meanwhile', () => {
+  vrchatFetching = true
+  useSettingsStore.setState({ dirty: true, saveError: true, saving: true })
+  render(<RecoveryNotices />)
+  const previous = useSettingsStore.getState().saveAttempt
+  for (const name of [
+    i18n.t('settings.accounts.retrying'),
+    i18n.t('settings.persistence.saving')
+  ]) {
+    const button = screen.getByRole('button', { name })
+    button.focus()
+    // A disabled button would drop focus to the page.
+    expect(button.hasAttribute('disabled')).toBe(false)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(button)
+    expect(document.activeElement).toBe(button)
+  }
+  expect(refetch).not.toHaveBeenCalled()
+  expect(useSettingsStore.getState().saveAttempt).toBe(previous)
 })
 
 it('names a VRChat session waiting for a code and opens Accounts', () => {

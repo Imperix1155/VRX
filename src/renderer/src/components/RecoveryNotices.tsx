@@ -8,9 +8,10 @@ import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
 
 // A compact one-row strip: text and its action share the row, so a notice
 // costs Settings (no scrolling at the default size, DESIGN.md §8) as little
-// height as possible.
+// height as possible. A busy Retry is aria-disabled, not disabled, so keyboard
+// focus stays on it and is still there if the retry fails.
 const buttonClass =
-  'shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--control-fill-hover)] disabled:opacity-50'
+  'shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--control-fill-hover)] disabled:opacity-50 aria-disabled:cursor-default aria-disabled:opacity-50'
 const noticeClass =
   'glass glass-information mb-[var(--space-2)] flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-2)] text-xs leading-snug text-[var(--text-dim)]'
 
@@ -28,9 +29,9 @@ function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | n
       <button
         type="button"
         className={buttonClass}
-        disabled={isFetching}
+        aria-disabled={isFetching || undefined}
         onClick={() => {
-          void refetch()
+          if (!isFetching) void refetch()
         }}
       >
         {t(isFetching ? 'settings.accounts.retrying' : 'settings.accounts.retry')}
@@ -131,7 +132,14 @@ export function SettingsPersistenceNotice(): React.JSX.Element | null {
         )}
       </span>
       {failed && (
-        <button type="button" className={buttonClass} disabled={saving} onClick={retrySave}>
+        <button
+          type="button"
+          className={buttonClass}
+          aria-disabled={saving || undefined}
+          onClick={() => {
+            if (!saving) retrySave()
+          }}
+        >
           {t(saving ? 'settings.persistence.saving' : 'settings.persistence.retry')}
         </button>
       )}
