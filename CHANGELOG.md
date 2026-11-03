@@ -23,8 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   profile loads or saves, it says so, instead of "Saving too often".
 - Japanese: the alert setting calls Hot Instances ホットインスタンス, as
   everywhere else, instead of 人気インスタンス, which read like Popular now;
-  Explore's empty line says 公開ワールド like the line above it; and a world's
-  regions are listed with 、.
+  Explore's empty line says 公開ワールド like the line above it; a world's
+  regions are listed with 、; and the privacy note uses full-width brackets
+  like the rest of the Japanese text.
 - Instance labels are called instance labels everywhere, in Settings and the
   welcome setup, instead of also "pills" and "tags".
 - Hot Instances: the help says the Dashboard shows the busiest few,
