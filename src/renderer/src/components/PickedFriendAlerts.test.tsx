@@ -219,6 +219,43 @@ describe('Settings → Notifications: who alerts you', () => {
   })
 })
 
+describe('Picked friends: a Remove that fails', () => {
+  it('puts keyboard focus back on that friend, not on the next one', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, friendAlertScope: 'picked' },
+      dirty: false
+    })
+    useUiStore.setState({ settingsCategory: 'notifications' })
+    withClient(<SettingsView />)
+    await screen.findByText(
+      msg('settings.notifications.picked.description', { vrchat: 2, chilloutvr: 1 })
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: msg('settings.notifications.picked.showAria') })
+    )
+    const list = screen.getByRole('dialog', { name: msg('settings.notifications.picked.title') })
+    const vrc = list.querySelector<HTMLElement>('[data-picked-platform="vrchat"]')!
+    // Main keeps the pick, and its answer to the reread takes a moment.
+    setAlertPick.mockResolvedValueOnce({ ok: false, reason: 'stale' })
+    const read = vi.mocked(window.vrx!.getAlertPicks)
+    const kept = read.getMockImplementation()!
+    read.mockImplementation(async (request) => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      return kept(request)
+    })
+    const removeAlex = msg('settings.notifications.picked.removeOne', { name: 'Alex' })
+    const alex = within(vrc).getByRole('button', { name: removeAlex })
+    alex.focus()
+    fireEvent.click(alex)
+    await waitFor(() =>
+      expect(document.activeElement).toBe(within(vrc).getByRole('button', { name: removeAlex }))
+    )
+    // Still there once everything has settled.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(document.activeElement).toBe(within(vrc).getByRole('button', { name: removeAlex }))
+  })
+})
+
 describe('Picked friends list before the roster loads', () => {
   it('shows a count and no Remove instead of calling every pick missing', async () => {
     useSettingsStore.setState({

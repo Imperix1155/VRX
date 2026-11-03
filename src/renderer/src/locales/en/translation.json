@@ -450,7 +450,6 @@
         "moved": "{{name}}: {{position}} of {{count}}"
       },
       "order": {
-        "aria": "Dashboard section order",
         "popularFirst": "Popular now first",
         "hotFirst": "Hot Instances first"
       },

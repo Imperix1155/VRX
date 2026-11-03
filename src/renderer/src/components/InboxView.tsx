@@ -9,7 +9,7 @@
  * beside its color, and show a known friend's current name and picture. The
  * TopBar owns the heading.
  */
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { FriendRequestAnswer } from '@shared/friendActions'
 import type { InboxItem, InboxKind } from '@shared/inbox'
@@ -134,12 +134,15 @@ export default function InboxView(): React.JSX.Element {
   }, [items, markInboxSeen])
 
   // After a row leaves, keep keyboard focus in the list: the row that took its
-  // place, the one above, or the help button when the list emptied.
-  useEffect(() => {
+  // place, the one above, or the help button when the list emptied. Focus the
+  // user moved elsewhere while the row was on its way out stays put.
+  useLayoutEffect(() => {
     const pending = focusAfterHide.current
     if (pending === null || ordered.some((row) => pending.ids.has(`${row.platform}:${row.id}`)))
       return
     focusAfterHide.current = null
+    const active = document.activeElement
+    if (active !== null && active !== document.body) return
     const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>('[data-inbox-hide]')
     const target = buttons?.[Math.min(pending.index, buttons.length - 1)]
     ;(target ?? helpButtonRef.current)?.focus()

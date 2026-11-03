@@ -248,6 +248,19 @@ describe('names that hold their visible words', () => {
   })
 })
 
+// A note that sends the user to a setting names it as Settings shows it.
+describe('notes that name a setting', () => {
+  it.each([
+    ['en', en],
+    ['ja', ja]
+  ] as const)(
+    '%s: the friend alert note names Who alerts you as Settings does',
+    (_lang, bundle) => {
+      expect(bundle.drawer.alerts.everyone).toContain(bundle.settings.notifications.scope.label)
+    }
+  )
+})
+
 describe('Settings controls named with the words they show', () => {
   const settingsView = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), '../components/SettingsView.tsx'),

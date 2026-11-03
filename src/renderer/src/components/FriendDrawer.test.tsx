@@ -522,6 +522,43 @@ describe('FriendDrawer (VRX-69)', () => {
     })
   })
 
+  it('keeps keyboard focus on Join while it runs, and a second press does nothing', async () => {
+    let finish: (value: { ok: true }) => void = () => undefined
+    joinInstance.mockReturnValue(
+      new Promise<{ ok: true }>((resolve) => {
+        finish = resolve
+      })
+    )
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const joinButton = within(dialog()).getByRole('button', { name: 'Join' })
+    joinButton.focus()
+    await act(async () => {
+      fireEvent.click(joinButton)
+      await Promise.resolve()
+    })
+    try {
+      // A disabled button would drop focus to the page.
+      expect(joinButton.getAttribute('aria-disabled')).toBe('true')
+      expect(joinButton.hasAttribute('disabled')).toBe(false)
+      expect(document.activeElement).toBe(joinButton)
+      await act(async () => {
+        fireEvent.click(joinButton)
+        await Promise.resolve()
+      })
+      expect(joinInstance).toHaveBeenCalledOnce()
+    } finally {
+      // The Join state is shared by every test; end this one's Join either way.
+      await act(async () => {
+        finish({ ok: true })
+        await Promise.resolve()
+      })
+    }
+    await waitFor(() => expect(joinButton.getAttribute('aria-disabled')).toBe('false'))
+    expect(document.activeElement).toBe(joinButton)
+  })
+
   it('web-active friend gets no Join button and no WHERE world line', () => {
     mockFriends([
       { ...joinableFriend, presence: { state: 'active' }, instance: null, trustRank: null }

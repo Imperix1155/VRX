@@ -336,7 +336,8 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
               values={DASHBOARD_SECTION_ORDERS}
               active={order}
               labelKeys={ORDER_LABEL_KEYS}
-              ariaLabel={t('settings.dashboard.order.aria')}
+              // Named with the question it shows, so voice control can say it.
+              ariaLabel={t('setup.dashboard.order.label')}
               // The full section list owns the order; swap the two in it too.
               onChange={(value) =>
                 update({

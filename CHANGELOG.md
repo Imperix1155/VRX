@@ -24,8 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Japanese: the alert setting calls Hot Instances ホットインスタンス, as
   everywhere else, instead of 人気インスタンス, which read like Popular now;
   Explore's empty line says 公開ワールド like the line above it; a world's
-  regions are listed with 、; and the privacy note uses full-width brackets
-  like the rest of the Japanese text.
+  regions are listed with 、; the privacy note uses full-width brackets
+  like the rest of the Japanese text; and Who alerts you is called 通知の対象
+  instead of 通知する相手, which read like the people VRX sends alerts to.
 - Instance labels are called instance labels everywhere, in Settings and the
   welcome setup, instead of also "pills" and "tags".
 - Hot Instances: the help says the Dashboard shows the busiest few,
@@ -58,18 +59,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   name, and shows in full in its tooltip, instead of being cut after one
   line with no way to read the rest.
 - Keyboard and screen readers: Wear, Activity's Clear, Add friend, Accept
-  and Decline (in profiles and the Inbox) and the Inbox's Hide keep keyboard
-  focus while they work, instead of dropping it to the page, and a failed
-  answer leaves it on the button. When Wear or Add friend gives way to "You're
-  wearing this" or the sent line, focus moves there.
+  and Decline (in profiles and the Inbox), the Inbox's Hide and Join in
+  friend details keep keyboard focus while they work, instead of dropping it
+  to the page, and a failed answer leaves it on the button. When Wear or Add
+  friend gives way to "You're wearing this" or the sent line, focus moves
+  there; after Hide, focus you moved elsewhere while the row was leaving
+  stays there.
 - Picked friends: after a Remove, keyboard focus goes to the next Remove
   (the other platform's when this one's list is empty), instead of jumping to
-  the dialog's ✕, so pressing Enter again no longer closes the dialog.
+  the dialog's ✕, so pressing Enter again no longer closes the dialog. A
+  Remove that doesn't go through leaves focus on that friend.
 - Screen readers and voice control: Settings controls are named with the
   words they show ("Join in", "Who alerts you", "Use my game favorites…")
   instead of other words such as "Join launch mode", in English and
-  Japanese; each switch's note is read with it; and moving a Dashboard
-  section says "Wearing now: 2 of 4" instead of "Wearing now is now 2 of 4".
+  Japanese, and so is the welcome setup's "Which comes first?"; each
+  switch's note is read with it; and moving a Dashboard section says
+  "Wearing now: 2 of 4" instead of "Wearing now is now 2 of 4".
 - Keyboard and screen readers: when the hot instance card that has focus
   goes away because its friends moved on, focus moves to the card in its
   place instead of falling to the page; and when a newer invite from the same

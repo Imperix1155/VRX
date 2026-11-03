@@ -188,15 +188,16 @@ describe('SetupWizard', () => {
     expect(settings().showGroupsPage).toBe(false)
 
     fireEvent.click(button('setup.continue'))
+    // The order is named with the question it shows.
     expect(
-      screen.getByRole('radiogroup', { name: msg('settings.dashboard.order.aria') })
+      screen.getByRole('radiogroup', { name: msg('setup.dashboard.order.label') })
     ).toBeTruthy()
     const hot = screen.getByRole('radiogroup', { name: msg('setup.dashboard.hotAria') })
     fireEvent.click(within(hot).getByRole('radio', { name: msg('settings.boolean.off') }))
     expect(settings().hotInstancesEnabled).toBe(false)
     // The order only matters while both sections show.
     expect(
-      screen.queryByRole('radiogroup', { name: msg('settings.dashboard.order.aria') })
+      screen.queryByRole('radiogroup', { name: msg('setup.dashboard.order.label') })
     ).toBeNull()
 
     fireEvent.click(button('setup.continue'))

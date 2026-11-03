@@ -178,6 +178,24 @@ describe('InboxView', () => {
     )
   })
 
+  it('leaves focus where the user moved it while a row was on its way out', async () => {
+    const client = renderInbox()
+    const hide = await screen.findByRole('button', {
+      name: msg('inbox.hideInviteAria', { name: 'Alice' })
+    })
+    hide.focus()
+    fireEvent.click(hide)
+    await waitFor(() => expect(bridge.dismissInboxItem).toHaveBeenCalledTimes(1))
+    const elsewhere = document.createElement('button')
+    document.body.append(elsewhere)
+    elsewhere.focus()
+    snapshot = { items: snapshot.items.slice(1) }
+    await client.invalidateQueries({ queryKey: inboxKey })
+    await waitFor(() => expect(screen.queryByText('Alice')).toBeNull())
+    expect(document.activeElement).toBe(elsewhere)
+    elsewhere.remove()
+  })
+
   it('keeps keyboard focus when a newer invite from the same person replaces a row', async () => {
     const client = renderInbox()
     const hide = await screen.findByRole('button', {
