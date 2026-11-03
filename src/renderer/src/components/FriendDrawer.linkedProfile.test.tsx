@@ -4,15 +4,17 @@
  * accounts leaves the friends list (an Unfriend from that account's section,
  * say): the profile stays open for the person, and keyboard focus that was in
  * the leaving section, or in its Unfriend question, lands on the toggle
- * instead of falling to the page.
+ * instead of falling to the page. The star panel stays open the same way.
  */
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LinkedProfile } from '@shared/linkedProfiles'
 import type { Platform } from '@shared/types'
 import { fullFriend } from '../test-utils/friendFixture'
 import { linkedProfilesKey } from '../queries/linkedProfiles'
+import { authStatusQueryKey } from '../queries/authKey'
+import { queryClient } from '../queries/queryClient'
 import { resetPersonNoteCoordinatorForTests } from '../hooks/usePersonNote'
 import { resolveLinkedProfile, type ProfileTarget } from '../utils/projectLinkedFriends'
 import '../i18n'
@@ -113,13 +115,30 @@ beforeEach(() => {
         ok: true,
         relationship: { platform, userId, isFriend: true, blocked: false }
       })
-    )
+    ),
+    getFavoriteFriends: vi.fn(({ platform }: { platform: Platform }) =>
+      Promise.resolve({
+        friendIds: [],
+        revision: { platformAccountId: platform === 'vrchat' ? 'v' : 'c', epoch: 1 }
+      })
+    ),
+    getGameFavorites: vi.fn().mockResolvedValue({ state: 'not-authenticated' })
   } as unknown as Window['vrx']
+  // The star reads who is signed in from the app's own query cache.
+  for (const platform of ['vrchat', 'chilloutvr'] as const) {
+    queryClient.setQueryData(authStatusQueryKey(platform), {
+      platform,
+      state: 'authenticated',
+      accountId: platform === 'vrchat' ? 'v' : 'c',
+      displayName: 'Me'
+    })
+  }
 })
 
 afterEach(() => {
   cleanup()
   client.clear()
+  queryClient.clear()
 })
 
 /** A press as a browser makes it: the button takes focus, then the click. */
@@ -171,5 +190,22 @@ describe('a linked person’s full profile while one account leaves', () => {
     view.rerender(drawer([cvr]))
     expect(document.activeElement).toBe(kept)
     expect(kept.isConnected).toBe(true)
+  })
+
+  it('keeps the star panel open, with focus, while one account leaves', async () => {
+    const view = render(drawer())
+    const star = screen.getByRole('button', { name: /^Favorites for Together/ })
+    press(star)
+    await waitFor(() => expect(star.getAttribute('aria-expanded')).toBe('true'))
+    const local = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Star in VRX (this PC only)'
+    })
+    await waitFor(() => expect(local.disabled).toBe(false))
+    local.focus()
+    expect(document.activeElement).toBe(local)
+
+    view.rerender(drawer([cvr]))
+    expect(screen.getByRole('button', { name: 'Star in VRX (this PC only)' })).toBe(local)
+    expect(document.activeElement).toBe(local)
   })
 })
