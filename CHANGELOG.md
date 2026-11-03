@@ -19,9 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   signed out, Retry no longer swaps the window for the start-up screen until
   the check answers; the account notice, with keyboard focus on its Retry,
   stays.
-- Dark theme: the access word beside a linked friend's world picture and the
-  VRC and CVR badges on picture cards keep 4.5:1 contrast on bright
-  pictures, on an opaque card-colored backing.
+- Contrast: the access word beside a linked friend's world picture sits on
+  an opaque card-colored backing in both themes, and so do the VRC and CVR
+  badges on picture cards in the dark theme, so they keep 4.5:1 contrast on
+  any picture.
 - Dialogs: a tap outside one on a touch screen closes it without also
   pressing whatever was under your finger, and keyboard focus goes back to
   the button that opened it.

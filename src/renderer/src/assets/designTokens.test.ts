@@ -495,14 +495,17 @@ describe('renderer design token contract', () => {
     }
   })
 
-  it('backs the dark Where access pill with the opaque card color, and the light one as other pills over a picture', () => {
+  it('backs the Where access pill with the opaque card color in both themes, so art never shows through its word', () => {
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const rule = /(?:^|\n)\.linked-world-pill\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
     expect(rule).toMatch(/background:\s*var\(--glass-information\)\s*;/)
-    const light = /\[data-theme='light'\] \.linked-world-pill\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
-    expect(light).toMatch(
-      /background:\s*color-mix\(in srgb, var\(--glass-information\) 78%, transparent\)\s*;/
-    )
+    // No theme or state swaps it for a see-through backing.
+    const rules = [...code.matchAll(/([^{}]*\.linked-world-pill[^{}]*){([^{}]*)}/g)]
+    expect(rules.map(([, selector]) => selector!.trim())).toContain('.linked-world-pill')
+    for (const [, selector, body] of rules) {
+      if (selector!.trim() !== '.linked-world-pill')
+        expect(body, selector).not.toMatch(/background/)
+    }
   })
 
   it('gives dark picture badges an opaque card-color backing, so art never shows through their word', () => {
