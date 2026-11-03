@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Screen readers: each Activity row says its platform, so one friend's
+  VRChat and ChilloutVR rows no longer sound the same, and Japanese reads it
+  with Japanese punctuation.
+- Screen readers and voice control: world cards, Wear this avatar and Set as
+  home world now start their spoken names with the words they show ("Pug
+  Lounge on VRChat. View rooms"), and a linked friend's "2 locations" pill
+  says it chooses where to join them, instead of only "2 locations".
+- Friend and avatar counts of a thousand or more are grouped, as player
+  counts are: "Offline (1,200)", "1,234 friends" and "1,234 avatars", also on
+  the Dashboard and in Japanese.
+- Edit profile: when VRChat or ChilloutVR asks VRX to slow down while your
+  profile loads or saves, it says so, instead of "Saving too often".
+- Japanese: the alert setting calls Hot Instances ホットインスタンス, as
+  everywhere else, instead of 人気インスタンス, which read like Popular now;
+  Explore's empty line says 公開ワールド like the line above it; a world's
+  regions are listed with 、; the privacy note uses full-width brackets
+  like the rest of the Japanese text; and Who alerts you is called 通知の対象
+  instead of 通知する相手, which read like the people VRX sends alerts to.
+- Instance labels are called instance labels everywhere, in Settings and the
+  welcome setup, instead of also "pills" and "tags".
+- Hot Instances: the help says the Dashboard shows the busiest few,
+  instead of always two, since it shows more when Hot Instances has the
+  picture cards on a wide window.
+- Screen readers: each account card, in Settings and the welcome setup, is
+  named by its platform, and so is its sign-in form, so the two cards'
+  Password, Connect and Sign out no longer sound the same.
+- Accounts: "Profile saved" goes away when you sign out, so it no longer
+  shows again after signing back in, even as another account.
+- Friend details: when a linked friend is in two worlds, each half of the
+  Where picture says VRC or CVR beside its access, instead of only its
+  color, on a backing that keeps the word readable on bright pictures.
+- Friend details: a world name cut to fit the Where picture shows in full in
+  its tooltip.
+- Edit profile: a stray press outside the dialog, or Escape, however many
+  times, no longer throws away what you typed, and after the press outside
+  you keep typing where you were; ✕ and Cancel still close it. If you are
+  signed out while it is open, it no longer opens by itself at your next
+  sign-in.
+- Dialogs (Edit profile, Identities, Picked friends, Choose a destination):
+  Escape pressed several times in a row can no longer close one while it is
+  saving, and if the window ever closes one itself, VRX closes it too, so its
+  button opens it again.
+- Welcome setup: the summary lists every Dashboard section that's on, in
+  its Dashboard order, instead of only Popular now and Hot Instances, so it
+  no longer says "Friend counts only" while Wearing now and Latest invites
+  are on.
+- Friend details: a long custom status takes up to two lines, like the
+  name, and shows in full in its tooltip, instead of being cut after one
+  line with no way to read the rest.
+- Keyboard and screen readers: Wear, Activity's Clear, Add friend, Accept
+  and Decline (in profiles and the Inbox), the Inbox's Hide and Join in
+  friend details keep keyboard focus while they work, instead of dropping it
+  to the page, and a failed answer leaves it on the button. When Wear or Add
+  friend gives way to "You're wearing this" or the sent line, focus moves
+  there; after Hide, focus you moved elsewhere while the row was leaving
+  stays there.
+- Picked friends: after a Remove, keyboard focus goes to the next Remove
+  (the other platform's when this one's list is empty), instead of jumping to
+  the dialog's ✕, so pressing Enter again no longer closes the dialog. A
+  Remove that doesn't go through leaves focus on that friend.
+- Screen readers and voice control: Settings controls are named with the
+  words they show ("Join in", "Who alerts you", "Use my game favorites…")
+  instead of other words such as "Join launch mode", in English and
+  Japanese, and so is the welcome setup's "Which comes first?"; each
+  switch's note is read with it; and moving a Dashboard section says
+  "Wearing now: 2 of 4" instead of "Wearing now is now 2 of 4".
+- Keyboard and screen readers: when the hot instance card that has focus
+  goes away because its friends moved on, on the Dashboard or the Hot
+  Instances page, focus moves to the card in its place instead of falling to
+  the page; and when a newer invite from the same person replaces an Inbox
+  row, focus stays on that row.
+- Dialogs: pressing a dialog's own scrollbar no longer closes it; after a
+  press outside closes one, keyboard focus goes back to the button that
+  opened it instead of the page; and only the main mouse button closes one.
+- Explore: a world's rooms close on Escape or a press outside from the
+  moment they show, instead of a moment later.
+- Keyboard: holding Enter presses a button, or sends a form, once. Before, a
+  held Enter pressed it again each time it was free, so one held key could
+  send the same join, favorite or sign-in many times.
+
 ## [1.4.0-dev.6] - 2026-11-03
 
 ### Changed

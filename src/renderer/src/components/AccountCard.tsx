@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Platform } from '@shared/types'
@@ -118,13 +118,16 @@ export default function AccountCard({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) })
   })
 
-  // The question belongs to the sign-in state it was asked in: any change
-  // closes it, so it never comes back on its own after signing in again.
-  const signOutContext = `${isError}:${authStatus?.state}:${flow.pending2fa === null}`
+  // The question, Edit profile and the "Profile saved" line belong to the
+  // sign-in they came from: any change closes them, so none comes back on its
+  // own after signing in again, as the same account or another.
+  const signOutContext = `${isError}:${authStatus?.state}:${authStatus?.accountId}:${flow.pending2fa === null}`
   const [questionContext, setQuestionContext] = useState(signOutContext)
   if (questionContext !== signOutContext) {
     setQuestionContext(signOutContext)
     setConfirmingSignOut(false)
+    setEditingProfile(false)
+    setProfileSaved(false)
   }
 
   async function handleDisconnect(): Promise<void> {
@@ -185,15 +188,23 @@ export default function AccountCard({
   // (re-entering credentials would create a duplicate session). Quiet banner +
   // Retry + Sign out instead; identical path for both platforms.
   const isUnreachable = isError || authStatus?.state === 'error'
+  // Both cards hold the same controls (Password, Connect, Sign out…), so each
+  // is a group named by its platform and its forms say which sign-in they are.
+  const nameId = useId()
+  const formAriaLabel = t('login.formAria', { platform: t(config.labelKey) })
 
   return (
     <div
+      role="group"
+      aria-labelledby={nameId}
       className={`glass glass-information ${config.tintClass} relative overflow-hidden p-[var(--space-6)]`}
     >
       {/* The name lines up with the status and buttons below it. A future
           platform logo would go in front of it; do not restore PlatformGlyph. */}
       <div className="relative flex items-center gap-[var(--space-3)]">
-        <p className="text-sm font-medium text-[var(--text)]">{t(config.labelKey)}</p>
+        <p id={nameId} className="text-sm font-medium text-[var(--text)]">
+          {t(config.labelKey)}
+        </p>
       </div>
 
       {isPending ? (
@@ -308,6 +319,7 @@ export default function AccountCard({
         <CredentialsForm
           idPrefix={platform}
           autocompleteSection={platform}
+          ariaLabel={formAriaLabel}
           copy={accountCopy(platform)}
           username={flow.username}
           password={flow.password}
@@ -333,6 +345,7 @@ export default function AccountCard({
         <>
           <TwoFactorForm
             idPrefix={platform}
+            ariaLabel={formAriaLabel}
             copy={accountCopy(platform)}
             method={flow.pending2fa}
             code={flow.twoFactorCode}

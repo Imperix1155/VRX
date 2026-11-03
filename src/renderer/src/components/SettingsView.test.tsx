@@ -216,6 +216,42 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(useSettingsStore.getState().settings.backgroundGlow).toBe('off')
   })
 
+  it('reads each switch row’s note with its switch', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+    const group = screen.getByRole('radiogroup', {
+      name: msg('settings.saveNotesToAccounts.aria')
+    })
+    const noteId = group.getAttribute('aria-describedby')
+    expect(noteId).toBeTruthy()
+    expect(document.getElementById(noteId ?? '')?.textContent).toBe(
+      msg('settings.saveNotesToAccounts.description')
+    )
+  })
+
+  it.each([
+    ['dashboard', 'settings.dashboard.hideEmpty.label', 'settings.dashboard.hideEmpty.description'],
+    [
+      'dashboard',
+      'settings.dashboard.playersOnline.label',
+      'settings.dashboard.playersOnline.description'
+    ],
+    ['behavior', 'settings.allowJoinInstances.aria', 'settings.allowJoinInstances.description'],
+    ['behavior', 'settings.confirmJoin.aria', 'settings.confirmJoin.description'],
+    ['notifications', 'settings.vrAlerts.aria', 'settings.vrAlerts.description'],
+    ['about', 'updater.settings.label', 'updater.settings.description']
+  ] as const)('reads the %s switch “%s” with its note', (category, name, note) => {
+    useSettingsStore.setState((state) => ({
+      settings: { ...state.settings, allowJoinInstances: true }
+    }))
+    useUiStore.setState({ settingsCategory: category })
+    renderSettings()
+    const group = screen.getByRole('radiogroup', { name: msg(name) })
+    const noteId = group.getAttribute('aria-describedby')
+    expect(noteId).toBeTruthy()
+    expect(document.getElementById(noteId ?? '')?.textContent).toBe(msg(note))
+  })
+
   it('renders the friends background re-sync row with its note and five cadence options', () => {
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()

@@ -165,6 +165,18 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(scoped.getByText('Trust: Known User')).toBeTruthy()
   })
 
+  it('keeps a long custom status readable: two lines, then the whole status in its title', () => {
+    const status = '今日はまったりワールド巡り中です。気軽にジョインしてね！よろ'
+    mockFriends([{ ...joinableFriend, statusDescription: status }])
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const line = within(screen.getByRole('dialog', { name: 'Alex' })).getByText(status)
+    expect(line.getAttribute('title')).toBe(status)
+    expect(line.classList.contains('line-clamp-2')).toBe(true)
+    expect(line.classList.contains('truncate')).toBe(false)
+  })
+
   it('hides an offline friend’s old custom status', () => {
     mockFriends([
       { ...joinableFriend, presence: { state: 'offline' }, status: null, instance: null }
@@ -508,6 +520,43 @@ describe('FriendDrawer (VRX-69)', () => {
         instanceId: joinableFriend.instance!.instanceId
       }
     })
+  })
+
+  it('keeps keyboard focus on Join while it runs, and a second press does nothing', async () => {
+    let finish: (value: { ok: true }) => void = () => undefined
+    joinInstance.mockReturnValue(
+      new Promise<{ ok: true }>((resolve) => {
+        finish = resolve
+      })
+    )
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const joinButton = within(dialog()).getByRole('button', { name: 'Join' })
+    joinButton.focus()
+    await act(async () => {
+      fireEvent.click(joinButton)
+      await Promise.resolve()
+    })
+    try {
+      // A disabled button would drop focus to the page.
+      expect(joinButton.getAttribute('aria-disabled')).toBe('true')
+      expect(joinButton.hasAttribute('disabled')).toBe(false)
+      expect(document.activeElement).toBe(joinButton)
+      await act(async () => {
+        fireEvent.click(joinButton)
+        await Promise.resolve()
+      })
+      expect(joinInstance).toHaveBeenCalledOnce()
+    } finally {
+      // The Join state is shared by every test; end this one's Join either way.
+      await act(async () => {
+        finish({ ok: true })
+        await Promise.resolve()
+      })
+    }
+    await waitFor(() => expect(joinButton.getAttribute('aria-disabled')).toBe('false'))
+    expect(document.activeElement).toBe(joinButton)
   })
 
   it('web-active friend gets no Join button and no WHERE world line', () => {

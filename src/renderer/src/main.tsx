@@ -10,8 +10,10 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { queryClient } from './queries/queryClient'
 import { buildPersistOptions, onPersistRestore, persistQueryCacheOnPageHide } from './queries/cache'
 import { installDocumentDropGuard } from './installDocumentDropGuard'
+import { installHeldEnterGuard } from './installHeldEnterGuard'
 
 installDocumentDropGuard(document)
+installHeldEnterGuard(document)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

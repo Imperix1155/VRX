@@ -144,6 +144,43 @@ describe('ActivityView', () => {
     expect(rows[3]).toContain(msg('activity.online'))
   })
 
+  it("names each row's platform when it is read out, in the language's own punctuation", async () => {
+    const aliceCvr = fullFriend('Alice', 'chilloutvr')
+    useFriendsMock.mockImplementation((platform: string) => ({
+      data: platform === 'vrchat' ? [alice] : [kai, aliceCvr],
+      isPending: false
+    }))
+    const both: ActivityEntry[] = (['chilloutvr', 'vrchat'] as const).map((platform, index) => ({
+      id: 10 + index,
+      kind: 'online',
+      platform,
+      platformUserId: platform === 'vrchat' ? alice.platformUserId : aliceCvr.platformUserId,
+      displayName: 'Alice',
+      worldName: null,
+      at: now - 1_000 * (index + 1)
+    }))
+    renderView(both)
+    const [cvrRow, vrcRow] = screen.getAllByRole('button', { name: /^Alice, / })
+    // One person's two rows no longer sound the same: each says its platform.
+    expect(cvrRow!.getAttribute('aria-label')).toContain(msg('dashboard.platformCvr'))
+    expect(vrcRow!.getAttribute('aria-label')).toContain(msg('dashboard.platformVrc'))
+    expect(cvrRow!.getAttribute('aria-label')).not.toBe(vrcRow!.getAttribute('aria-label'))
+    cleanup()
+
+    await i18n.changeLanguage('ja')
+    try {
+      renderView(both)
+      const label = screen
+        .getAllByRole('button', { name: /^Alice、/ })[0]!
+        .getAttribute('aria-label')
+      // Japanese joins the parts with its own marks, not ", " and ". ".
+      expect(label).not.toMatch(/, |\. /)
+      expect(label).toContain('ChilloutVR')
+    } finally {
+      await i18n.changeLanguage('en')
+    }
+  })
+
   it('tints each entry with its own platform, the same recipe on both', () => {
     renderView()
     const items = screen.getAllByRole('listitem')
@@ -198,8 +235,10 @@ describe('ActivityView', () => {
     // The hint wraps into even lines, never leaving one word alone.
     expect(screen.getByText(msg('activity.emptyHint')).className).toContain('text-balance')
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') }).disabled
-    ).toBe(true)
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') })
+        .getAttribute('aria-disabled')
+    ).toBe('true')
     cleanup()
 
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, activityFilter: 'world' } })
@@ -207,18 +246,30 @@ describe('ActivityView', () => {
     expect(screen.getByText(msg('activity.filteredEmpty'))).toBeTruthy()
     // Nothing on screen, so there is nothing for Clear to take away.
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') }).disabled
-    ).toBe(true)
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') })
+        .getAttribute('aria-disabled')
+    ).toBe('true')
   })
 
   it('clears through main and empties the list at once', async () => {
     renderView()
-    fireEvent.click(screen.getByRole('button', { name: msg('activity.clearAria') }))
+    const clear = screen.getByRole<HTMLButtonElement>('button', {
+      name: msg('activity.clearAria')
+    })
+    clear.focus()
+    fireEvent.click(clear)
     expect(clearActivity).toHaveBeenCalledExactlyOnceWith({
       platforms: ['vrchat', 'chilloutvr'],
       filter: 'all'
     })
     await waitFor(() => expect(screen.getByText(msg('activity.emptyHeading'))).toBeTruthy())
+    // Keyboard focus stays on Clear: `disabled` would drop it to the page.
+    expect(document.activeElement).toBe(clear)
+    expect(clear.disabled).toBe(false)
+    expect(clear.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(clear)
+    expect(clearActivity).toHaveBeenCalledTimes(1)
   })
 
   it('clears only what is on screen: the filtered platform and the shown kind', async () => {
@@ -243,8 +294,10 @@ describe('ActivityView', () => {
     renderView(entries.filter((entry) => entry.platform === 'chilloutvr'))
     expect(screen.getByText(msg('activity.emptyHeading'))).toBeTruthy()
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') }).disabled
-    ).toBe(true)
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') })
+        .getAttribute('aria-disabled')
+    ).toBe('true')
   })
 
   it('asks to connect a single filtered platform that is signed out', () => {

@@ -127,7 +127,7 @@ describe('ExploreView', () => {
   it('opens cards through the injected callback and never uses their source thumbnail URL', () => {
     const selected = world('vrchat', 'vrc', 'World')
     const props = setup({ worlds: [selected] })
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms/i }))
+    fireEvent.click(screen.getByRole('button', { name: /view rooms$/i }))
     expect(props.onOpenWorld).toHaveBeenCalledWith(selected, expect.any(HTMLButtonElement))
     expect(screen.queryByRole('img')).toBeNull()
   })
@@ -142,7 +142,7 @@ describe('ExploreView', () => {
       platformSnapshots: [{ ...source('vrchat', [partial]), isStale: true }]
     })
     // The card's name stays the world; the People line is its description.
-    const card = screen.getByRole('button', { name: /open visible rooms/i })
+    const card = screen.getByRole('button', { name: /view rooms$/i })
     const people = document.getElementById(card.getAttribute('aria-describedby')!)
     expect(people?.textContent).toBe('People: Unknown')
     expect(screen.queryByText('VRChat results may be out of date.')).toBeNull()
@@ -295,7 +295,7 @@ describe('ExploreView', () => {
     }
     const props = setup({ worlds: [selected], sheet: snapshot })
     fireEvent.pointerDown(screen.getByRole('dialog'))
-    fireEvent.pointerDown(screen.getByRole('button', { name: /open visible rooms/i }))
+    fireEvent.pointerDown(screen.getByRole('button', { name: /view rooms$/i }))
     expect(props.onCloseSheet).not.toHaveBeenCalled()
     fireEvent.pointerDown(document.body)
     expect(props.onCloseSheet).toHaveBeenCalledTimes(1)
@@ -587,6 +587,46 @@ describe('ExploreView', () => {
     }
   })
 
+  it('lists several room regions with each language’s separator', async () => {
+    const { default: i18n } = await import('../i18n')
+    const selected = world('vrchat', 'vrc-w', 'Some World')
+    const full = room('vrchat', { state: 'disabled', reason: 'full' }, selected.worldId)
+    const snapshot: ExploreWorldSnapshot = {
+      ...source('vrchat', [selected]),
+      world: selected,
+      rooms: [
+        { ...full, roomId: 'a', region: 'jp' },
+        { ...full, roomId: 'b', region: 'eu' }
+      ],
+      roomsComplete: true
+    }
+    try {
+      for (const [lang, regions] of [
+        ['en', 'Japan, Europe'],
+        ['ja', '日本、ヨーロッパ']
+      ] as const) {
+        await i18n.changeLanguage(lang)
+        render(
+          <ExploreWorldSheet
+            snapshot={snapshot}
+            opener={null}
+            focusFallback={null}
+            onClose={vi.fn()}
+            onJoin={vi.fn()}
+          />
+        )
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('sheet.showMore') }))
+        const more = screen.getByRole('region', { name: i18n.t('explore.more.heading') })
+        expect(
+          within(more).getByText(i18n.t('explore.more.regions')).nextElementSibling?.textContent
+        ).toBe(regions)
+        cleanup()
+      }
+    } finally {
+      await i18n.changeLanguage('en')
+    }
+  })
+
   it('returns focus to the opener after its parent dismisses the nonmodal sheet', () => {
     const opener = document.createElement('button')
     document.body.append(opener)
@@ -794,7 +834,7 @@ describe('ExploreDashboardPreview', () => {
   it('caps a shared selection at two cards', () => {
     const worlds = [world('vrchat', '1'), world('chilloutvr', '2'), world('vrchat', '3')]
     render(<ExploreDashboardPreview worlds={worlds} platformSnapshots={[]} onOpenWorld={vi.fn()} />)
-    expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /view rooms$/i })).toHaveLength(2)
   })
 
   it('keeps refresh copy quiet for cards and retains it for empty loading/error/unavailable previews', () => {
@@ -850,6 +890,6 @@ describe('ExploreDashboardPreview', () => {
       <ExploreDashboardPreview worlds={dashboard} platformSnapshots={[]} onOpenWorld={vi.fn()} />
     )
     expect(dashboard).toEqual(explore.slice(0, 2))
-    expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /view rooms$/i })).toHaveLength(2)
   })
 })

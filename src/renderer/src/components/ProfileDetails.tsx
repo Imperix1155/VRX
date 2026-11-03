@@ -320,6 +320,19 @@ function FriendAction({
   const inbox = useInbox()
   const answerFriendRequest = useAnswerFriendRequest()
   const [state, setState] = useState<FriendActionState>({ kind: 'idle' })
+  // When the buttons give way to the result, focus that was on them moves to
+  // the result line instead of falling to the page, in the same commit, as
+  // useFocusLanding does.
+  const rowRef = useRef<HTMLDivElement>(null)
+  const statusRef = useRef<HTMLParagraphElement>(null)
+  const returnFocus = useRef(false)
+  useLayoutEffect(() => {
+    if (state.kind !== 'done' || !returnFocus.current) return
+    returnFocus.current = false
+    const active = document.activeElement
+    if (active === null || active === document.body || rowRef.current?.contains(active))
+      statusRef.current?.focus({ preventScroll: true })
+  }, [state.kind])
   const sameId = (a: string, b: string): boolean =>
     platform === 'chilloutvr' ? a.toLowerCase() === b.toLowerCase() : a === b
   if (self !== null && sameId(self, userId)) return null
@@ -332,6 +345,8 @@ function FriendAction({
     action: FriendRequestAnswer | 'add',
     send: () => Promise<FriendActionResult>
   ): Promise<void> => {
+    if (state.kind === 'sending') return
+    returnFocus.current = rowRef.current?.contains(document.activeElement) ?? false
     setState({ kind: 'sending', action })
     const result = await send()
     setState(result.ok ? { kind: 'done', action } : { kind: 'failed', result })
@@ -353,6 +368,7 @@ function FriendAction({
           })
         : null
 
+  // Not `disabled` while sending: a disabled button drops keyboard focus.
   let buttons: React.JSX.Element | null = null
   if (state.kind !== 'done' && request) {
     buttons = (
@@ -362,7 +378,7 @@ function FriendAction({
           onClick={() =>
             void run('accept', () => answerFriendRequest(platform, request.id, 'accept'))
           }
-          disabled={sending !== null}
+          aria-disabled={sending !== null}
           aria-label={t('friendActions.acceptAria', { name })}
           className={FRIEND_ACTION_BUTTON}
         >
@@ -373,9 +389,9 @@ function FriendAction({
           onClick={() =>
             void run('decline', () => answerFriendRequest(platform, request.id, 'decline'))
           }
-          disabled={sending !== null}
+          aria-disabled={sending !== null}
           aria-label={t('friendActions.declineAria', { name })}
-          className="shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-colors cursor-pointer"
+          className="shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-50 motion-safe:transition-colors cursor-pointer"
         >
           {sending === 'decline' ? t('friendActions.declining') : t('friendActions.decline')}
         </button>
@@ -386,7 +402,7 @@ function FriendAction({
       <button
         type="button"
         onClick={() => void run('add', () => sendFriendRequest(platform, userId))}
-        disabled={sending !== null}
+        aria-disabled={sending !== null}
         aria-label={t('friendActions.addAria', { name, platform: platformName(t, platform) })}
         className={FRIEND_ACTION_BUTTON}
       >
@@ -397,14 +413,19 @@ function FriendAction({
 
   return (
     // The row keeps a button's height once the button gives way to words.
-    <div className="flex min-h-[28px] flex-wrap items-center gap-x-[var(--space-2)] gap-y-[var(--space-1)]">
+    <div
+      ref={rowRef}
+      className="flex min-h-[28px] flex-wrap items-center gap-x-[var(--space-2)] gap-y-[var(--space-1)]"
+    >
       {request && state.kind !== 'done' ? (
         <p className="text-[13px] text-[var(--text)]">{t('friendActions.incoming')}</p>
       ) : null}
       {buttons}
       <p
+        ref={statusRef}
         role="status"
-        className={`min-w-0 text-[13px] empty:hidden ${
+        tabIndex={-1}
+        className={`min-w-0 text-[13px] outline-none empty:hidden ${
           state.kind === 'failed' ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'
         }`}
       >

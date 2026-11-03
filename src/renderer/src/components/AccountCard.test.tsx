@@ -106,6 +106,19 @@ describe.each([
     expect(await screen.findByLabelText(msg('settings.accounts.password'))).toBeTruthy()
   })
 
+  it('names the card and its sign-in form by platform, so the two cards never sound alike', async () => {
+    renderCard(
+      platform,
+      bridgeFor({ platform, state: 'unauthenticated', accountId: null, displayName: null })
+    )
+    const platformName = msg(`settings.accounts.${platform}.label`)
+    const card = await screen.findByRole('group', { name: platformName })
+    const form = await within(card).findByRole('form', {
+      name: msg('login.formAria', { platform: platformName })
+    })
+    expect(within(form).getByLabelText(msg('settings.accounts.password'))).toBeTruthy()
+  })
+
   it('shows a pending status without inviting a duplicate login while initial auth is unresolved', () => {
     const bridge = bridgeFor({
       platform,
@@ -488,6 +501,23 @@ describe.each(['vrchat', 'chilloutvr'] as const)(
 )
 
 describe('AccountCard — VRChat two-factor flow', () => {
+  it('names the code form by platform too', async () => {
+    renderCard(
+      'vrchat',
+      bridgeFor({
+        platform: 'vrchat',
+        state: 'needs-2fa',
+        accountId: null,
+        displayName: null,
+        twoFactorMethod: 'totp'
+      })
+    )
+    const form = await screen.findByRole('form', {
+      name: msg('login.formAria', { platform: msg('settings.accounts.vrchat.label') })
+    })
+    expect(within(form).getByLabelText(msg('settings.accounts.twoFactor.code'))).toBeTruthy()
+  })
+
   it('lets a saved session that needs a fresh code be signed out', async () => {
     const bridge = bridgeFor({
       platform: 'vrchat',

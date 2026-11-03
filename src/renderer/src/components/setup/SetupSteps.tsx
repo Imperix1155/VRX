@@ -9,6 +9,7 @@ import {
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
 import { useSettingsStore } from '../../stores/settings'
+import { SECTION_SETTINGS } from '../../utils/dashboardSections'
 import { focusRadioSibling, segArrowTarget } from '../../utils/segmented'
 import AccountCard from '../AccountCard'
 import SegmentedControl from '../SegmentedControl'
@@ -335,7 +336,8 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
               values={DASHBOARD_SECTION_ORDERS}
               active={order}
               labelKeys={ORDER_LABEL_KEYS}
-              ariaLabel={t('settings.dashboard.order.aria')}
+              // Named with the question it shows, so voice control can say it.
+              ariaLabel={t('setup.dashboard.order.label')}
               // The full section list owns the order; swap the two in it too.
               onChange={(value) =>
                 update({
@@ -551,18 +553,13 @@ export const DoneStep = forwardRef<
     .map(([key]) => t(key))
     .join(t('listSeparator'))
 
-  const sections = [
-    s.dashboardPopularNow && t('settings.dashboard.popular.label'),
-    s.hotInstancesEnabled && t('settings.dashboard.hot.label')
-  ].filter((name): name is string => typeof name === 'string')
-  if (sections.length === 2 && s.dashboardSectionOrder === 'hot-first') sections.reverse()
-  const [first, second] = sections
+  // Every section that's on, in its Dashboard order, named as Settings →
+  // Dashboard names it.
+  const sections = s.dashboardSections
+    .filter((section) => s[SECTION_SETTINGS[section].setting])
+    .map((section) => t(SECTION_SETTINGS[section].labelKey))
   const dashboard =
-    first === undefined
-      ? t('setup.done.dashboardNone')
-      : second === undefined
-        ? first
-        : t('setup.done.dashboardBoth', { first, second })
+    sections.length === 0 ? t('setup.done.dashboardNone') : sections.join(t('listSeparator'))
 
   const alertsOn = SETUP_ALERTS.filter((alert) => s[alert.key]).length
   const alerts =

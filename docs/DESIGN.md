@@ -174,10 +174,20 @@ Use the existing overlay components instead of building a new scrim or focus
 pattern. A non-modal sheet never claims `aria-modal` or traps focus. A true
 modal keeps keyboard focus inside, even when its actions are disabled.
 
+Outside a modal dialog, a button that is busy, or has nothing left to do,
+stays focusable with `aria-disabled` rather than `disabled`, which drops
+keyboard focus to the page. A dialog that disables its controls while saving
+puts focus back on the control last used, or ✕, when the save settles. When a
+button gives way to a result, or its item leaves a list, focus moves to the
+result or the item in its place; focus the user moved elsewhere stays put.
+A held Enter presses a button, or sends a form, once, so a button that stays
+focusable while it works doesn't run again each time it finishes.
+
 Sources: [`main.css`](../src/renderer/src/assets/main.css),
 [`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),
 [`ExploreWorldSheet.tsx`](../src/renderer/src/components/ExploreWorldSheet.tsx),
-[`JoinConfirmDialog.tsx`](../src/renderer/src/components/JoinConfirmDialog.tsx).
+[`JoinConfirmDialog.tsx`](../src/renderer/src/components/JoinConfirmDialog.tsx),
+[`installHeldEnterGuard.ts`](../src/renderer/src/installHeldEnterGuard.ts).
 
 ## §4 Canvas and glow
 
@@ -434,8 +444,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
   four statuses (the friends-list dot beside each word) and the status text.
   ChilloutVR has no status, so nothing stands in for it. Each label carries
   its character count; Save stays off until something changes, and a failure
-  keeps the text with a reason beside the buttons. The welcome setup's account
-  cards keep to signing in, with no Edit profile.
+  keeps the text with a reason beside the buttons. A stray press outside the
+  dialog, or Escape, never throws typed text away; ✕ and Cancel close it. The
+  welcome setup's account cards keep to signing in, with no Edit profile.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
   in that same card beside the on/off control and the check button, plus the
   installed version, Welcome setup (Run setup again), Found a bug? (Report a
@@ -607,8 +618,8 @@ panel holds Alert me about this friend while alerts are limited to picked
 friends (otherwise one line says every friend can alert you), the three
 friend alert kinds with a check or dash beside each, and Alert settings, which
 opens Settings → Notifications. Escape or a press outside folds the panel
-before the drawer itself closes. A long name wraps to two lines before it is cut, and its tooltip
-shows it in full. Where cards keep privacy rules, show neutral art when a picture is
+before the drawer itself closes. A long name, and a long custom status, wrap to two lines
+before they are cut, and their tooltips show them in full. Where cards keep privacy rules, show neutral art when a picture is
 missing, use instance labels, and never show raw IDs or policy pills; a split
 card names each platform. If notes load without a valid account revision,
 they stay read-only with Retry. A failed save keeps the draft and a warning;

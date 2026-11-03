@@ -377,8 +377,15 @@ export default function FriendDrawer({
                 >
                   {profileName || t('linking.unknownName')}
                 </h2>
+                {/* Like the name: two lines, then clamped, with the whole
+                    status in the title. */}
                 {customStatus && (
-                  <p className="truncate text-[12.5px] text-[var(--text-dim)]">{customStatus}</p>
+                  <p
+                    className="line-clamp-2 break-words text-[12.5px] text-[var(--text-dim)]"
+                    title={customStatus}
+                  >
+                    {customStatus}
+                  </p>
                 )}
                 {combined && onNavigate ? (
                   <div className="mt-[var(--space-1)] flex gap-[var(--space-2)]">
@@ -497,11 +504,15 @@ export default function FriendDrawer({
                   <button
                     type="button"
                     onClick={() => {
+                      if (isJoining) return
                       if (combined) setChooserOwner(identityOwner)
                       else if (shown) void join(shown)
                     }}
-                    disabled={isJoining}
-                    className="w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
+                    // Not `disabled` while a Join runs: a disabled button
+                    // drops keyboard focus to the page, as the Join pills
+                    // already avoid.
+                    aria-disabled={isJoining}
+                    className="w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:brightness-100 aria-disabled:active:brightness-100 motion-safe:transition-[filter]"
                     style={{
                       borderColor:
                         'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',

@@ -19,6 +19,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFriendSummary } from '../hooks/useFriendSummary'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
+import { useHotGridFocus } from '../hooks/useFocusFollowsList'
 import { dashboardSectionOrderOf, type Platform } from '@shared/types'
 import {
   dashboardBlocks,
@@ -36,6 +37,7 @@ import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
 import DashboardGlance from './DashboardGlance'
+import NotConnectedCard from './NotConnectedCard'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
@@ -51,11 +53,11 @@ interface StatCardProps {
  * neither presence color would be honest, and the label says what it is.
  */
 function StatCard({ value, labelKey }: StatCardProps): React.JSX.Element {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <div className="glass glass-information min-w-0 p-[16px_18px]">
       <div className="font-[family-name:var(--font-mono)] text-[38px] leading-none tabular-nums text-[var(--text)]">
-        {value}
+        {new Intl.NumberFormat(i18n.language).format(value)}
       </div>
       <div className="mt-[var(--space-1)] text-[12.5px] text-[var(--text-dim)]">{t(labelKey)}</div>
     </div>
@@ -165,24 +167,23 @@ function DashboardContent(): React.JSX.Element {
   const dismissExplore = useCallback(() => setExploreDismissSignal((signal) => signal + 1), [])
   const { selectedInstance, openSheet, closeSheet, clearSelection, fallbackFocusRef } =
     useHotInstanceSheet(hotInstances, dismissExplore)
+  // As on the Hot Instances page: a card that leaves by itself hands keyboard
+  // focus to the card in its place, not the page.
+  const {
+    attach: attachHotGrid,
+    onFocus: onHotGridFocus,
+    onBlur: onHotGridBlur
+  } = useHotGridFocus(shownHot, fallbackFocusRef)
 
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
   }
   if (isNotConnected) {
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
-        <p className="text-sm font-semibold text-[var(--text-dim)]">
-          {notConnectedKey === null ? null : t(notConnectedKey)}
-        </p>
-        <button
-          type="button"
-          onClick={openAccounts}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-        >
-          {t('dashboard.notConnected.openAccounts')}
-        </button>
-      </div>
+      <NotConnectedCard
+        message={notConnectedKey === null ? null : t(notConnectedKey)}
+        onOpenAccounts={openAccounts}
+      />
     )
   }
   // Every branch below keeps Popular now in the same slot, a keyed child of
@@ -269,7 +270,12 @@ function DashboardContent(): React.JSX.Element {
         // that fill the row → 1 column on a narrow pane, a lone card full-width.
         // Rules live in main.css (inline styles can't do @container/:only-child). (VRX-199)
         <div className="hotwrap">
-          <div className={hotPictures ? 'hot-grid hot-grid--picture' : 'hot-grid'}>
+          <div
+            ref={attachHotGrid}
+            className={hotPictures ? 'hot-grid hot-grid--picture' : 'hot-grid'}
+            onFocus={onHotGridFocus}
+            onBlur={onHotGridBlur}
+          >
             {shownHot.map((inst) => (
               <HotInstanceCard
                 key={inst.groupKey}

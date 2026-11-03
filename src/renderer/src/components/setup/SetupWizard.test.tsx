@@ -188,15 +188,16 @@ describe('SetupWizard', () => {
     expect(settings().showGroupsPage).toBe(false)
 
     fireEvent.click(button('setup.continue'))
+    // The order is named with the question it shows.
     expect(
-      screen.getByRole('radiogroup', { name: msg('settings.dashboard.order.aria') })
+      screen.getByRole('radiogroup', { name: msg('setup.dashboard.order.label') })
     ).toBeTruthy()
     const hot = screen.getByRole('radiogroup', { name: msg('setup.dashboard.hotAria') })
     fireEvent.click(within(hot).getByRole('radio', { name: msg('settings.boolean.off') }))
     expect(settings().hotInstancesEnabled).toBe(false)
     // The order only matters while both sections show.
     expect(
-      screen.queryByRole('radiogroup', { name: msg('settings.dashboard.order.aria') })
+      screen.queryByRole('radiogroup', { name: msg('setup.dashboard.order.label') })
     ).toBeNull()
 
     fireEvent.click(button('setup.continue'))
@@ -234,8 +235,16 @@ describe('SetupWizard', () => {
     fireEvent.click(button('setup.continue'))
     const summary = screen.getByRole('heading', { name: msg('setup.done.title') }).parentElement
       ?.parentElement as HTMLElement
-    // Hot Instances is off, so the Dashboard shows Popular now alone.
-    expect(within(summary).getByText(msg('settings.dashboard.popular.label'))).toBeTruthy()
+    // Hot Instances is off, so the Dashboard shows the other three, in order.
+    expect(
+      within(summary).getByText(
+        [
+          msg('settings.dashboard.wearingNow.label'),
+          msg('settings.dashboard.invites.label'),
+          msg('settings.dashboard.popular.label')
+        ].join(', ')
+      )
+    ).toBeTruthy()
     expect(
       within(summary).getByText(
         [
@@ -354,6 +363,40 @@ describe('SetupWizard', () => {
         })
       )
     ).toBeTruthy()
+  })
+
+  it('sums up every Dashboard section that is on, in its Dashboard order', async () => {
+    // Moved and switched in Settings before: Latest invites last, Wearing now off.
+    useSettingsStore.getState().updateSettings({
+      dashboardSections: ['hot', 'wearing-now', 'popular', 'invites'],
+      dashboardSectionOrder: 'hot-first',
+      dashboardWearingNow: false
+    })
+    renderWizard(signedIn)
+    await goToLook()
+    fireEvent.click(button('setup.continue'))
+    const row = screen.getByText(msg('setup.done.dashboard')).parentElement as HTMLElement
+    expect(within(row).getByRole('definition').textContent).toBe(
+      [
+        msg('settings.dashboard.hot.label'),
+        msg('settings.dashboard.popular.label'),
+        msg('settings.dashboard.invites.label')
+      ].join(', ')
+    )
+
+    // Only with all four off does it show the friend counts alone.
+    act(() =>
+      useSettingsStore.getState().updateSettings({
+        hotInstancesEnabled: false,
+        dashboardPopularNow: false,
+        dashboardInvites: false
+      })
+    )
+    expect(within(row).getByRole('definition').textContent).toBe(msg('setup.done.dashboardNone'))
+    act(() => useSettingsStore.getState().updateSettings({ dashboardInvites: true }))
+    expect(within(row).getByRole('definition').textContent).toBe(
+      msg('settings.dashboard.invites.label')
+    )
   })
 
   it('reads "no glow" in the summary when the glow is off', async () => {

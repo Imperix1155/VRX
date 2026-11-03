@@ -526,6 +526,11 @@ const FriendRow = memo(function FriendRow({
             }}
             aria-disabled={isJoining || undefined}
             tabIndex={isFullyVisible ? undefined : -1}
+            // Starts with the pill's own words, like the one-location pill.
+            aria-label={t('linking.locationsJoinAria', {
+              locations: t('linking.locations', { count: 2 }),
+              name: projection.name
+            })}
             // The diagonal halves carry each location's access tier in color;
             // the world subline names each one beside its platform tag, and
             // the tooltip spells both out.

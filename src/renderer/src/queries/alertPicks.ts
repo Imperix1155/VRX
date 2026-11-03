@@ -115,8 +115,10 @@ export function useSetAlertPicks(): (
         picked,
         revision
       })
-      // Reread on any failure so the panel shows what main actually kept.
-      if (failure !== null) void queryClient.invalidateQueries({ queryKey: key })
+      // Reread on any failure so the panel shows what main actually kept, and
+      // answer only once it does, so a refused Remove's row is back by then.
+      // The picks live in VRX; nothing here reaches a platform.
+      if (failure !== null) await queryClient.invalidateQueries({ queryKey: key })
       return failure
     },
     [queryClient]

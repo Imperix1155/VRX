@@ -208,9 +208,7 @@ describe('DashboardView states (W5)', () => {
     stubQueries({ data: undefined, isPending: true }, { data: undefined, isPending: true })
     seedExplorePreview()
     const { rerender } = render(<DashboardView />)
-    fireEvent.click(
-      screen.getByRole('button', { name: /open visible rooms for Preview world on VRChat/i })
-    )
+    fireEvent.click(screen.getByRole('button', { name: /^Preview world on VRChat\. View rooms$/i }))
     const sheetName = /Visible public rooms for Preview world/
     await waitFor(() => expect(screen.getByRole('dialog', { name: sheetName })).toBeTruthy())
 
@@ -351,6 +349,15 @@ describe('DashboardView states (W5)', () => {
     expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(2)
     // Bare numbers are not live regions; a presence change must not announce them.
     for (const value of screen.getAllByText('1')) expect(value.closest('[aria-live]')).toBeNull()
+  })
+
+  it('groups a statistic of a thousand or more, as the friends list does', () => {
+    const online = Array.from({ length: 1234 }, (_, index) =>
+      makeFriend({ platformUserId: `v${index}`, presence: { state: 'active' } })
+    )
+    stubQueries({ data: online, isPending: false }, { data: [], isPending: false })
+    render(<DashboardView />)
+    expect(screen.getByText('1,234')).toBeTruthy()
   })
 
   it('labels the hot-instances section with its heading (landmark, W5)', () => {
@@ -515,6 +522,53 @@ describe('DashboardView states (W5)', () => {
       // The quick-access stepper reflects the live value.
       const spin = screen.getByRole('spinbutton', { name: msg('dashboard.hotThresholdAria') })
       expect(spin.getAttribute('aria-valuenow')).toBe('1')
+    } finally {
+      useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
+    }
+  })
+})
+
+describe('Dashboard hot cards and keyboard focus', () => {
+  const inWorld = (id: string, name: string, n: number): Friend =>
+    makeFriend({
+      platformUserId: id,
+      displayName: name,
+      instance: {
+        worldId: `wrld_${n}`,
+        instanceId: `wrld_${n}:1~public`,
+        worldName: `World ${n}`,
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        groupId: null,
+        groupImageUrl: null,
+        region: 'us',
+        userCount: 6
+      }
+    })
+
+  it('hands focus to the card in its place when the focused card leaves by itself', () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1, dashboardHideEmpty: false }
+    })
+    try {
+      const ann = inWorld('a1', 'Ann', 1)
+      const bob = inWorld('b1', 'Bob', 2)
+      stubQueries({ data: [ann, bob], isPending: false }, { data: [], isPending: false })
+      const view = render(<DashboardView />)
+      const opens = [...document.querySelectorAll<HTMLElement>('[data-hot-open]')]
+      expect(opens).toHaveLength(2)
+      opens[0]!.focus()
+      const leaving = opens[0]!.textContent ?? ''
+      const staying = leaving.includes('World 1') ? bob : ann
+      // Its friends moved on: only the other card is left.
+      stubQueries({ data: [staying], isPending: false }, { data: [], isPending: false })
+      act(() => view.rerender(<DashboardView />))
+      const left = [...document.querySelectorAll<HTMLElement>('[data-hot-open]')]
+      expect(left).toHaveLength(1)
+      expect(document.activeElement).toBe(left[0])
     } finally {
       useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
     }
@@ -1182,7 +1236,7 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
 
     const hotCard = screen.getByRole('button', { name: /SunDown hot instance details/ })
     const exploreCard = screen.getByRole('button', {
-      name: /open visible rooms for Preview world on VRChat/i
+      name: /^Preview world on VRChat\. View rooms$/i
     })
 
     hotCard.focus()

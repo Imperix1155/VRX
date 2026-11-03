@@ -179,7 +179,7 @@ afterEach(() => {
 describe('ExploreRoute world sheet', () => {
   it('keeps the sheet open when open starts loading, then uses only a cache snapshot on Explore change', async () => {
     render(<ExploreRoute />)
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
 
     expect(
       await screen.findByRole('dialog', { name: 'Visible public rooms for A world on VRChat' })
@@ -208,7 +208,7 @@ describe('ExploreRoute world sheet', () => {
     query.vrc = { ...source, worlds: [world] }
     worldReads.mockResolvedValue(ready)
     render(<ExploreRoute />)
-    const card = screen.getByRole('button', { name: /open visible rooms for a world/i })
+    const card = screen.getByRole('button', { name: /^a world on .*view rooms$/i })
     fireEvent.click(card)
     expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
     const scroller = (): Element => screen.getByRole('dialog').querySelector('.overflow-y-auto')!
@@ -218,6 +218,40 @@ describe('ExploreRoute world sheet', () => {
     fireEvent.click(card)
     expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
     expect(scroller().scrollTop).toBe(0)
+  })
+
+  it('closes on Escape pressed the moment the sheet shows', async () => {
+    query.vrc = { ...source, worlds: [world] }
+    let finish: (snapshot: ExploreWorldSnapshot) => void = () => undefined
+    worldReads.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    render(<ExploreRoute />)
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
+    // Outside act, React commits and runs passive effects in separate tasks,
+    // as in the app. Escape pressed as soon as the rooms show, before any
+    // later task, must still close the sheet.
+    let pressed = false
+    const observer = new MutationObserver(() => {
+      if (pressed || screen.queryByRole('dialog') === null) return
+      pressed = true
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true })
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    const previous = actEnvironment.IS_REACT_ACT_ENVIRONMENT
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false
+    try {
+      finish(ready)
+      await waitFor(() => expect(pressed).toBe(true))
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    } finally {
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = previous
+      observer.disconnect()
+    }
   })
 
   it('switches an open sheet to another world in place, at the top, without moving focus', async () => {
@@ -230,7 +264,7 @@ describe('ExploreRoute world sheet', () => {
     query.vrc = { ...source, worlds: [world, other] }
     worldReads.mockResolvedValueOnce(ready)
     render(<ExploreRoute />)
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     const scroller = (): Element => screen.getByRole('dialog').querySelector('.overflow-y-auto')!
@@ -240,7 +274,7 @@ describe('ExploreRoute world sheet', () => {
     worldReads.mockImplementationOnce(
       () => new Promise<ExploreWorldSnapshot>((resolve) => (answer = resolve))
     )
-    const card = screen.getByRole('button', { name: /open visible rooms for b world/i })
+    const card = screen.getByRole('button', { name: /^b world on .*view rooms$/i })
     card.focus()
     fireEvent.click(card)
     // While B loads, the sheet already names it and stays open and expanded.
@@ -274,9 +308,9 @@ describe('ExploreRoute world sheet', () => {
     query.vrc = { ...source, worlds: [world, other] }
     worldReads.mockResolvedValueOnce(ready).mockRejectedValueOnce(new Error('bridge closed'))
     render(<ExploreRoute />)
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for b world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^b world on .*view rooms$/i }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(worldReads).toHaveBeenCalledTimes(2)
   })
@@ -284,7 +318,7 @@ describe('ExploreRoute world sheet', () => {
   it('uses the explicit sheet refresh instead of a hidden retry', async () => {
     worldReads.mockResolvedValue({ ...ready, isStale: true })
     render(<ExploreRoute />)
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     expect(await screen.findByText('Showing saved results.')).toBeTruthy()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' })[1]!)
@@ -304,7 +338,7 @@ describe('ExploreRoute world sheet', () => {
     worldReads.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...ready, world: renewedWorld })
     render(<ExploreRoute />)
 
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
 
     expect(
       await screen.findByRole('dialog', {
@@ -328,7 +362,7 @@ describe('ExploreRoute world sheet', () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ ...ready, world: renewedWorld })
     render(<ExploreRoute />)
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
 
     await act(async () => {
@@ -354,7 +388,7 @@ describe('ExploreRoute world sheet', () => {
     worldReads.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('bridge closed'))
     render(<ExploreRoute />)
 
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     await waitFor(() =>
       expect(window.vrx!.cancelExploreWorld).toHaveBeenCalledWith({
         platform: 'vrchat',
@@ -381,7 +415,7 @@ describe('ExploreRoute world sheet', () => {
       .mockResolvedValueOnce({ ...ready, world: renewedWorld })
     render(<ExploreRoute />)
 
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     expect(await screen.findByText('Loading visible public rooms…')).toBeTruthy()
 
     await act(async () => {
@@ -416,7 +450,7 @@ describe('ExploreRoute world sheet', () => {
     worldReads.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...ready, world: renewedWorld })
     render(<ExploreRoute />)
 
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     const dialog = await screen.findByRole('dialog', {
       name: 'Visible public rooms for A world on VRChat'
     })
@@ -446,7 +480,7 @@ describe('ExploreRoute world sheet', () => {
       )
     )
     render(<ExploreRoute />)
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     await waitFor(() => expect(query.readExploreSnapshot).toHaveBeenCalledOnce())
     await act(async () => {
       changed?.({ platform: 'vrchat' })
@@ -476,7 +510,7 @@ describe('ExploreRoute world sheet', () => {
     worldReads.mockResolvedValue(null)
     render(<ExploreRoute />)
 
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     await waitFor(() => expect(query.readExploreSnapshot).toHaveBeenCalledWith('vrchat'))
     await act(async () => {
       changed?.({ platform: 'vrchat' })
@@ -500,7 +534,7 @@ describe('ExploreRoute world sheet', () => {
         })
     )
     render(<ExploreRoute />)
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     await waitFor(() => expect(worldReads).toHaveBeenCalledOnce())
     act(() => useFriendsStore.setState({ platformFilter: 'chilloutvr' }))
     await act(async () => {
@@ -593,7 +627,7 @@ describe('ExploreRoute world sheet', () => {
     // choice, not missing data, so it adds no line.
     query.cvr = { ...source, platform: 'chilloutvr', worlds: [], status: 'unavailable' }
     render(<ExploreRoute />)
-    expect(screen.getByRole('button', { name: /open visible rooms for a world/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^a world on .*view rooms$/i })).toBeTruthy()
     expect(screen.queryByText('ChilloutVR discovery is unavailable.')).toBeNull()
     expect(query.requestExplore).not.toHaveBeenCalled()
   })
@@ -608,7 +642,7 @@ describe('ExploreRoute world sheet', () => {
         </>
       )
       const { rerender } = render(view(0))
-      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
       await screen.findByRole('dialog', { name: /Visible public rooms/ })
 
       query.vrc = { ...source, worlds: [] }
@@ -621,7 +655,7 @@ describe('ExploreRoute world sheet', () => {
 
       query.vrc = source
       rerender(view(1))
-      const opener = screen.getByRole('button', { name: /open visible rooms for a world/i })
+      const opener = screen.getByRole('button', { name: /^a world on .*view rooms$/i })
       opener.focus()
       // The resolved roster publishes asynchronously. Flush its effects before
       // Escape: dialog markup can appear before the document listener is attached.
@@ -640,7 +674,7 @@ describe('ExploreRoute world sheet', () => {
   it('gives the Dashboard preview the same changed-snapshot and explicit refresh behavior', async () => {
     worldReads.mockResolvedValue({ ...ready, isStale: true })
     render(<ExploreDashboardPreviewRoute />)
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
     expect(await screen.findByText('Showing saved results.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     await waitFor(() =>
@@ -849,7 +883,7 @@ for (const [label, Route] of [
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ ...ready, world: renewedTwice, isStale: true })
       render(<Route />)
-      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
       await screen.findByText('Showing saved results.')
 
       fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
@@ -881,7 +915,7 @@ for (const [label, Route] of [
         .mockResolvedValueOnce({ ...loading, world: renewedWorld })
         .mockResolvedValueOnce({ ...ready, world: renewedWorld })
       render(<Route />)
-      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
       await screen.findByText('Showing saved results.')
 
       const refresh = screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!
@@ -922,7 +956,7 @@ for (const [label, Route] of [
         .mockResolvedValueOnce({ ...loading, world: renewedWorld })
         .mockResolvedValueOnce({ ...ready, world: renewedWorld })
       render(<Route />)
-      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
       await screen.findByText('Showing saved results.')
       fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
       await waitFor(() => expect(worldReads).toHaveBeenCalledTimes(2))
@@ -958,7 +992,7 @@ for (const [label, Route] of [
       )
       worldReads.mockResolvedValueOnce({ ...ready, isStale: true }).mockResolvedValueOnce(null)
       render(<Route />)
-      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
       await screen.findByText('Showing saved results.')
       fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
       await waitFor(() => expect(query.readExploreSnapshot).toHaveBeenCalledOnce())
@@ -980,7 +1014,7 @@ for (const [label, Route] of [
           })
       )
       render(<Route />)
-      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
       worldReads.mockResolvedValueOnce({ ...ready, updatedAt: Date.now() })
       await act(async () => {
         changed?.({ platform: 'vrchat' })
@@ -998,7 +1032,7 @@ for (const [label, Route] of [
         it(`discards a delayed ${reason} response after ${end}`, async () => {
           worldReads.mockResolvedValueOnce({ ...ready, isStale: true })
           render(<Route />)
-          fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+          fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
           await screen.findByRole('dialog', { name: /Visible public rooms/ })
           let finish!: (value: ExploreWorldSnapshot) => void
           worldReads.mockImplementationOnce(
@@ -1033,7 +1067,7 @@ for (const [label, Route] of [
       worldReads.mockResolvedValue({ ...ready, updatedAt: Date.now() })
       render(<Route />)
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+        fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
       })
       const joinButton = screen.getByRole<HTMLButtonElement>('button', { name: 'Join' })
       expect(joinButton.disabled).toBe(false)

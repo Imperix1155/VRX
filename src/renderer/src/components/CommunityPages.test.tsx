@@ -1135,23 +1135,83 @@ describe('ProfileDetails', () => {
         ok: true,
         profile: { ...profile(platform), isFriend: false }
       })
+      let finish: (result: { ok: true }) => void = () => undefined
+      bridge.sendFriendRequest.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          }) as never
+      )
       const userId = platform === 'vrchat' ? VRC_ID : CVR_ID
       const name = platform === 'vrchat' ? 'Lumen' : 'Ember'
       renderWith(<ProfileDetails platform={platform} userId={userId} />)
-      const add = await screen.findByRole('button', {
+      const add = await screen.findByRole<HTMLButtonElement>('button', {
         name: msg('friendActions.addAria', {
           name,
           platform: platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
         })
       })
+      add.focus()
       fireEvent.click(add)
+      // Keyboard focus stays on Add friend while it sends (`disabled` would
+      // drop it to the page), and a second press sends nothing.
+      await waitFor(() => expect(add.getAttribute('aria-disabled')).toBe('true'))
+      expect(add.disabled).toBe(false)
+      expect(document.activeElement).toBe(add)
+      fireEvent.click(add)
+      act(() => finish({ ok: true }))
       await waitFor(() =>
         expect(screen.getByRole('status').textContent).toContain(msg('friendActions.sent'))
       )
+      // The button gave way to the result line, and focus went with it.
+      expect(document.activeElement).toBe(screen.getByRole('status'))
       expect(bridge.sendFriendRequest).toHaveBeenCalledExactlyOnceWith({ platform, userId })
       expect(screen.queryByRole('button', { name: /friend request/i })).toBeNull()
     }
   )
+
+  it('has focus on the sent line the moment the line shows', async () => {
+    bridge.getProfile.mockResolvedValueOnce({
+      ok: true,
+      profile: { ...profile('vrchat'), isFriend: false }
+    })
+    let finish: (result: { ok: true }) => void = () => undefined
+    bridge.sendFriendRequest.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }) as never
+    )
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    const add = await screen.findByRole<HTMLButtonElement>('button', {
+      name: msg('friendActions.addAria', { name: 'Lumen', platform: 'VRChat' })
+    })
+    add.focus()
+    fireEvent.click(add)
+    await waitFor(() => expect(add.getAttribute('aria-disabled')).toBe('true'))
+    // Outside act, React commits and runs passive effects in separate tasks,
+    // as in the app, so focus moved by a passive effect would still be on the
+    // page when this observer first sees the line.
+    const sent = msg('friendActions.sent')
+    let focusWhenShown: Element | null | undefined
+    const observer = new MutationObserver(() => {
+      const line = document.querySelector('[role="status"]')
+      if (focusWhenShown === undefined && line?.textContent?.includes(sent))
+        focusWhenShown = document.activeElement
+    })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    const previous = actEnvironment.IS_REACT_ACT_ENVIRONMENT
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false
+    try {
+      finish({ ok: true })
+      await waitFor(() => expect(focusWhenShown).toBeDefined())
+    } finally {
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = previous
+      observer.disconnect()
+    }
+    expect(focusWhenShown).toBe(screen.getByRole('status'))
+  })
 
   it('says why a friend request did not go out and lets the user press again', async () => {
     bridge.getProfile.mockResolvedValueOnce({
@@ -1171,10 +1231,12 @@ describe('ProfileDetails', () => {
       )
     )
     expect(
-      screen.getByRole<HTMLButtonElement>('button', {
-        name: msg('friendActions.addAria', { name: 'Lumen', platform: 'VRChat' })
-      }).disabled
-    ).toBe(false)
+      screen
+        .getByRole<HTMLButtonElement>('button', {
+          name: msg('friendActions.addAria', { name: 'Lumen', platform: 'VRChat' })
+        })
+        .getAttribute('aria-disabled')
+    ).toBe('false')
   })
 
   it('answers a waiting request instead of sending a new one', async () => {

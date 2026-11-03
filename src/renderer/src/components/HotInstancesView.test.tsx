@@ -100,6 +100,29 @@ describe('HotInstancesView', () => {
     expect(screen.queryByRole('button', { name: /hot instance details/ })).toBeNull()
   })
 
+  it('hands keyboard focus to the next card when the focused one leaves by itself', () => {
+    stub([...crowd('Lake', 3), ...crowd('Pier', 2)])
+    const view = render(<HotInstancesView />)
+    screen.getByRole('button', { name: /Pier hot instance details/ }).focus()
+    // Pier's friends move on: it drops below the threshold and leaves.
+    stub([...crowd('Lake', 3), ...crowd('Pier', 1)])
+    view.rerender(<HotInstancesView />)
+    expect(screen.queryByRole('button', { name: /Pier hot instance details/ })).toBeNull()
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: /Lake hot instance details/ })
+    )
+
+    // Focus the user moved elsewhere stays put.
+    const elsewhere = document.createElement('button')
+    document.body.append(elsewhere)
+    screen.getByRole('button', { name: /Lake hot instance details/ }).focus()
+    elsewhere.focus()
+    stub([...crowd('Lake', 1)])
+    view.rerender(<HotInstancesView />)
+    expect(document.activeElement).toBe(elsewhere)
+    elsewhere.remove()
+  })
+
   it('opens the shared sheet from a card', () => {
     stub(crowd('Lake', 3))
     render(<HotInstancesView />)
