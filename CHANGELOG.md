@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dialogs: a tap outside one on a touch screen closes it without also
   pressing whatever was under your finger, and keyboard focus goes back to
   the button that opened it.
+- Join confirmation: a press outside it closes only the confirmation, so
+  the friend details or the Explore or Hot Instances sheet behind it stay
+  open, and a tap outside it no longer presses what was under your finger.
 
 ## [1.4.0-dev.7] - 2026-11-03
 

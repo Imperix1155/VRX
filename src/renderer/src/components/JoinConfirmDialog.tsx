@@ -122,6 +122,10 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const { t } = useTranslation()
   const { pendingConfirm, isJoining, confirmPending, cancelPending, invalidatePending } =
     useJoinInstance()
+  const { onPointerDown: onScrimPointerDown, onClick: onScrimClick } = useScrimDismiss(
+    !isJoining,
+    cancelPending
+  )
   const joinMode = useSettingsStore((state) => state.settings.joinMode)
   const labelScheme = useSettingsStore((state) => state.settings.labelScheme)
   const updateSettings = useSettingsStore((state) => state.updateSettings)
@@ -223,9 +227,8 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
       <div
         data-testid="join-confirm-scrim"
         aria-hidden="true"
-        onPointerDown={() => {
-          if (!isJoining) cancelPending()
-        }}
+        onPointerDown={onScrimPointerDown}
+        onClick={onScrimClick}
         className="absolute inset-0 bg-[var(--scrim-soft)]"
       />
       <div
@@ -352,6 +355,36 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   )
 }
 
+/** The scrim's dismiss. A mouse press closes on the press, as the drawer
+ *  does; a touch or pen tap closes on its click, which the scrim still gets,
+ *  so the tap doesn't land on whatever is behind once the dialog is gone. */
+function useScrimDismiss(
+  enabled: boolean,
+  dismiss: () => void
+): {
+  onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
+  onClick: () => void
+} {
+  const tapped = useRef(false)
+  return {
+    onPointerDown: (event) => {
+      // The press belongs to this dialog. The sheets and the drawer behind
+      // close on a press outside them once no join waits, which is already
+      // true by the time this press would reach them.
+      event.stopPropagation()
+      tapped.current = false
+      if (!enabled) return
+      if (event.pointerType === 'touch' || event.pointerType === 'pen') tapped.current = true
+      else dismiss()
+    },
+    onClick: () => {
+      if (!tapped.current) return
+      tapped.current = false
+      if (enabled) dismiss()
+    }
+  }
+}
+
 /** Focusable descendants of the panel, excluding disabled, aria-disabled, and
  *  hidden controls so the trap never land on an inert element. */
 function getFocusables(panel: HTMLElement): HTMLElement[] {
@@ -380,6 +413,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
     invalidateFriendPending
   } = joinState
   const pendingConfirm = rawPendingConfirm as FriendPendingConfirm | null
+  const { onPointerDown: onScrimPointerDown, onClick: onScrimClick } = useScrimDismiss(
+    !isJoining,
+    cancelPending
+  )
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -669,9 +706,8 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
       <div
         data-testid="join-confirm-scrim"
         aria-hidden="true"
-        onPointerDown={() => {
-          if (!isJoining) cancelPending()
-        }}
+        onPointerDown={onScrimPointerDown}
+        onClick={onScrimClick}
         className="absolute inset-0 bg-[var(--scrim-soft)]"
       />
       <div

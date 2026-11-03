@@ -417,6 +417,50 @@ describe('join path interception (confirmJoin on)', () => {
     expect(joinInstance).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
   })
+
+  it('keeps a press on the scrim from the page behind, so the drawer or sheet there stays open', () => {
+    // The drawer and the sheets close on a press outside them once no join
+    // waits. In the app the press closes this dialog before it reaches them.
+    const pressBehind = vi.fn()
+    document.addEventListener('pointerdown', pressBehind)
+    try {
+      render(
+        <>
+          <OpenJoin friend={joinableFriend} />
+          <JoinConfirmDialog />
+        </>
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      fireEvent.pointerDown(screen.getByTestId('join-confirm-scrim'), { pointerType: 'mouse' })
+
+      expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+      expect(pressBehind).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('pointerdown', pressBehind)
+    }
+  })
+
+  it.each(['touch', 'pen'])(
+    'closes on a %s tap’s click, not its press, so the tap stays on the scrim',
+    (pointerType) => {
+      render(
+        <>
+          <OpenJoin friend={joinableFriend} />
+          <JoinConfirmDialog />
+        </>
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      const scrim = screen.getByTestId('join-confirm-scrim')
+      fireEvent.pointerDown(scrim, { pointerType })
+      // Still there for the tap's click, which would otherwise land behind it.
+      expect(confirmDialog()).toBeTruthy()
+      fireEvent.pointerUp(scrim, { pointerType })
+      fireEvent.click(scrim)
+
+      expect(joinInstance).not.toHaveBeenCalled()
+      expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+    }
+  )
 })
 
 describe('confirmJoin off (one-click behavior preserved)', () => {
