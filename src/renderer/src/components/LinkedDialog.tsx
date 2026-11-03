@@ -96,6 +96,10 @@ export default function LinkedDialog({
     target?.focus({ preventScroll: true })
   }, [busy])
   const holdsBack = busy || !dismissible
+  // The pointer of a middle press that began outside: its release is
+  // cancelled wherever it ends, or Linux pastes the selection into the field
+  // that kept focus.
+  const middlePress = useRef<number | null>(null)
   return (
     <dialog
       ref={dialog}
@@ -111,6 +115,7 @@ export default function LinkedDialog({
       }}
       onPointerDown={(event) => {
         event.stopPropagation()
+        middlePress.current = null
         if (event.target !== event.currentTarget) return
         // The dialog's own scrollbar, and the corners beside its rounded
         // panel, are part of it, not the page behind.
@@ -126,12 +131,17 @@ export default function LinkedDialog({
         // so typing goes on there, and one that closes leaves focus on the
         // button the dialog hands it back to. Only the main button closes.
         event.preventDefault()
+        if (event.button === 1) middlePress.current = event.pointerId
         if (!holdsBack && event.button === 0) onClose()
       }}
       onPointerUp={(event) => {
-        // A middle press outside would paste the selection (Linux) into the
-        // field that kept focus.
-        if (event.target === event.currentTarget && event.button === 1) event.preventDefault()
+        if (event.button !== 1) return
+        // A middle release outside, or the release of a middle press that
+        // began outside and ends over the panel, would paste the selection
+        // (Linux) into the field that kept focus.
+        if (event.target === event.currentTarget || event.pointerId === middlePress.current)
+          event.preventDefault()
+        middlePress.current = null
       }}
       onCancel={(event) => {
         event.preventDefault()

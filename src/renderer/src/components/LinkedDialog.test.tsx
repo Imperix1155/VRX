@@ -171,6 +171,15 @@ it('closes only on a main-button press outside its own box, and a middle press p
   // its release is cancelled so Linux doesn't paste the selection there.
   expect(fireEvent.pointerDown(panel, { button: 1, clientX: 20, clientY: 20 })).toBe(false)
   expect(fireEvent.pointerUp(panel, { button: 1, clientX: 20, clientY: 20 })).toBe(false)
+  // So is the release of one that began outside and ends over the panel.
+  const words = screen.getByText('Rows')
+  expect(fireEvent.pointerDown(panel, { button: 1, pointerId: 1, clientX: 20, clientY: 20 })).toBe(
+    false
+  )
+  expect(fireEvent.pointerUp(words, { button: 1, pointerId: 1 })).toBe(false)
+  // A middle press inside, such as on a field to paste into it, stays the user's.
+  expect(fireEvent.pointerDown(words, { button: 1, pointerId: 1 })).toBe(true)
+  expect(fireEvent.pointerUp(words, { button: 1, pointerId: 1 })).toBe(true)
   expect(onClose).not.toHaveBeenCalled()
   expect(fireEvent.pointerDown(panel, { button: 0, clientX: 20, clientY: 20 })).toBe(false)
   expect(onClose).toHaveBeenCalledTimes(1)
