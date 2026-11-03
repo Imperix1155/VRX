@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Unfriend, Block and Unblock: when switching accounts closes the
+  confirmation while it sends, its answer no longer closes a confirmation
+  opened since, or shows a done message for the old account.
+
 ## [1.4.0-dev.8] - 2026-11-03
 
 ### Fixed

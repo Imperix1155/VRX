@@ -319,6 +319,59 @@ describe('ProfileActions', () => {
     expect(bridge.socialAction).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves a newer question open when an answer lands after an account change closed the old one', async () => {
+    let answer: (result: SocialActionResult) => void = () => undefined
+    bridge.socialAction.mockImplementationOnce(
+      () => new Promise<SocialActionResult>((resolve) => (answer = resolve))
+    )
+    const boundaries: ((event: { platform: Platform }) => void)[] = []
+    Object.defineProperty(window, 'vrx', {
+      value: {
+        ...bridge,
+        onIdentityBoundary: (listener: (event: { platform: Platform }) => void) => {
+          boundaries.push(listener)
+          return () => undefined
+        }
+      },
+      configurable: true,
+      writable: true
+    })
+    renderActions()
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.unfriend') }))
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: msg('profile.actions.unfriend')
+      })
+    )
+    await screen.findByRole('button', { name: msg('profile.actions.confirm.sending') })
+
+    // The account changes while it sends, which closes the question.
+    act(() => {
+      for (const listener of boundaries) listener({ platform: 'vrchat' })
+    })
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.block') }))
+    const dialog = screen.getByRole('alertdialog', {
+      name: msg('profile.actions.confirm.title.block', { name: 'Lumen' })
+    })
+    await act(async () => {
+      answer({
+        ok: true,
+        relationship: { platform: 'vrchat', userId: IDS.vrchat, isFriend: false, blocked: false }
+      })
+    })
+    // The answer has landed: the buttons behind the dialog follow it.
+    await waitFor(() => expect(actionButtons()).toEqual(['block']))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+    expect(
+      screen.queryByText(msg('profile.actions.done.unfriend', { platform: 'VRChat' }))
+    ).toBeNull()
+  })
+
   it('keeps Tab in the dialog when focus is on the dialog itself, as after a press on its text', async () => {
     renderActions()
     await openOptions()

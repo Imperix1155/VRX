@@ -239,6 +239,9 @@ function SocialConfirmDialog({
   const [pending, setPending] = useState(false)
   const [failure, setFailure] = useState<ActionFailure | null>(null)
   const pendingRef = useRef(false)
+  // False once the dialog has closed. Only an account change or the drawer or
+  // sheet around it closing can close it while it sends.
+  const openRef = useRef(true)
   const panelRef = useRef<HTMLDivElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
@@ -266,6 +269,13 @@ function SocialConfirmDialog({
     }
   }, [fallbackFocus])
 
+  useEffect(() => {
+    openRef.current = true
+    return () => {
+      openRef.current = false
+    }
+  }, [])
+
   // An account change closes the dialog: the review was for the old account.
   useEffect(() => {
     const boundary = window.vrx?.onIdentityBoundary?.((event) => {
@@ -287,6 +297,9 @@ function SocialConfirmDialog({
     setFailure(null)
     try {
       const result = await send(platform, userId, action)
+      // The dialog closed while it sent: this answer is for a question that's
+      // gone, and must not close a confirmation opened since.
+      if (!openRef.current) return
       if (result.ok) {
         // Still sending until this answer's render closes the dialog, so a
         // press in between can't send the change a second time.
