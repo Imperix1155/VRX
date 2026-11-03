@@ -6,11 +6,15 @@ export default function LinkedDialog({
   title,
   children,
   busy = false,
+  dismissible = true,
   onClose
 }: {
   title: string
   children: ReactNode
   busy?: boolean
+  /** False keeps a stray press outside and Escape from closing it, as while
+   *  typed changes would be lost; ✕ and the dialog's own Cancel still close it. */
+  dismissible?: boolean
   onClose: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -34,10 +38,19 @@ export default function LinkedDialog({
       closeRequest.current()
     })
     const panel = dialog.current
+    // After a few Escapes in a row the browser closes a modal itself, even
+    // one that holds Escape back; follow it, so the app never keeps a hidden
+    // dialog open. A late close event from an earlier close finds the dialog
+    // open again and changes nothing.
+    const followClose = (): void => {
+      if (panel?.open === false) closeRequest.current()
+    }
+    panel?.addEventListener('close', followClose)
     panel?.showModal()
     closeButton.current?.focus()
     return () => {
       unsubscribe?.()
+      panel?.removeEventListener('close', followClose)
       panel?.close()
       const search = document.querySelector<HTMLInputElement>('#friends-search')
       if (boundary) {
@@ -95,11 +108,11 @@ export default function LinkedDialog({
       }}
       onPointerDown={(event) => {
         event.stopPropagation()
-        if (!busy && event.target === event.currentTarget) onClose()
+        if (!busy && dismissible && event.target === event.currentTarget) onClose()
       }}
       onCancel={(event) => {
         event.preventDefault()
-        if (!busy) onClose()
+        if (!busy && dismissible) onClose()
       }}
     >
       <div className="glass glass-frosted glass-information p-[calc(var(--space-4)+var(--space-1))]">

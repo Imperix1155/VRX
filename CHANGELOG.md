@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friend details: when a linked friend is in two worlds, each half of the
   Where picture says VRC or CVR beside its access, instead of only its
   color, and a world name cut to fit shows in full in its tooltip.
+- Edit profile: a stray press outside the dialog, or Escape, no longer
+  throws away what you typed; ✕ and Cancel still close it.
+- Dialogs (Edit profile, Identities, Picked friends, Choose a destination):
+  when Escape is pressed several times in a row and the window closes the
+  dialog itself, VRX closes it too, so its button opens it again.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

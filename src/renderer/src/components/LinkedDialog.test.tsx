@@ -105,3 +105,24 @@ it('puts focus back on the control that started a save once it settles', () => {
   activeElement.mockRestore()
   expect(refocus).toHaveBeenCalled()
 })
+it('follows the browser when it closes the dialog itself, and only then', () => {
+  const onClose = vi.fn()
+  const view = render(
+    <LinkedDialog title="Edit profile" dismissible={false} onClose={onClose}>
+      <textarea aria-label="Bio" />
+    </LinkedDialog>
+  )
+  const dialog = screen.getByRole('dialog')
+  // A late close event from an earlier close finds the dialog open: nothing.
+  fireEvent(dialog, new Event('close'))
+  expect(onClose).not.toHaveBeenCalled()
+  // After a few Escapes in a row the browser closes it anyway.
+  dialog.removeAttribute('open')
+  fireEvent(dialog, new Event('close'))
+  expect(onClose).toHaveBeenCalledTimes(1)
+  // The app's own close on unmount isn't a second request.
+  dialog.setAttribute('open', '')
+  view.unmount()
+  fireEvent(dialog, new Event('close'))
+  expect(onClose).toHaveBeenCalledTimes(1)
+})

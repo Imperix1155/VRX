@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   OWN_BIO_MAX_LENGTH,
@@ -152,12 +152,15 @@ function ProfileForm({
   profile,
   saving,
   onSaving,
+  onDirtyChange,
   onCancel,
   onSaved
 }: {
   profile: OwnProfile
   saving: boolean
   onSaving: (saving: boolean) => void
+  /** Whether the fields differ from what loaded, so a stray press can't drop them. */
+  onDirtyChange: (dirty: boolean) => void
   onCancel: () => void
   onSaved: () => void
 }): React.JSX.Element {
@@ -179,7 +182,11 @@ function ProfileForm({
     draft.bio.length > OWN_BIO_MAX_LENGTH ||
     draft.pronouns.length > OWN_PRONOUNS_MAX_LENGTH ||
     draft.statusText.length > OWN_STATUS_TEXT_MAX_LENGTH
-  const canSave = !saving && !tooLong && (failedOnce || hasChanges(draft, profile))
+  const dirty = hasChanges(draft, profile)
+  const canSave = !saving && !tooLong && (failedOnce || dirty)
+  useEffect(() => {
+    onDirtyChange(dirty)
+  }, [dirty, onDirtyChange])
 
   const update = (patch: Partial<Draft>): void => {
     setFailure(null)
@@ -335,6 +342,9 @@ export default function OwnProfileDialog({
   const { t } = useTranslation()
   const query = useOwnProfile(platform)
   const [saving, setSaving] = useState(false)
+  // Typed changes are only dropped on purpose: ✕ or Cancel, never a stray
+  // press outside the dialog or Escape.
+  const [dirty, setDirty] = useState(false)
   const label = t(ACCOUNT_CARD_CONFIG[platform].labelKey)
   const result = query.data
 
@@ -342,6 +352,7 @@ export default function OwnProfileDialog({
     <LinkedDialog
       title={t('settings.accounts.profile.title', { platform: label })}
       busy={saving}
+      dismissible={!(result?.ok === true && dirty)}
       onClose={onClose}
     >
       {result?.ok ? (
@@ -349,6 +360,7 @@ export default function OwnProfileDialog({
           profile={result.profile}
           saving={saving}
           onSaving={setSaving}
+          onDirtyChange={setDirty}
           onCancel={onClose}
           onSaved={onSaved}
         />

@@ -113,6 +113,29 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
     ).toBeTruthy()
   })
 
+  it('keeps typed changes through a press outside or Escape; Cancel still closes', async () => {
+    const { saveOwnProfile } = setup(platform)
+    let dialog = await openEditor()
+    // Nothing typed yet: a press outside closes, as before.
+    fireEvent.pointerDown(dialog)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    dialog = await openEditor()
+    const bio = within(dialog).getByLabelText(msg('settings.accounts.profile.bio'))
+    fireEvent.change(bio, { target: { value: 'A long bio I spent a while writing' } })
+    fireEvent.pointerDown(dialog)
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    expect(screen.getByRole('dialog')).toBe(dialog)
+    expect((bio as HTMLTextAreaElement).value).toBe('A long bio I spent a while writing')
+    expect(saveOwnProfile).not.toHaveBeenCalled()
+
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: msg('settings.accounts.profile.cancel') })
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(saveOwnProfile).not.toHaveBeenCalled()
+  })
+
   it('forgets the saved line when you sign out, so the next sign-in never shows it', async () => {
     const { client } = setup(platform)
     const dialog = await openEditor()
