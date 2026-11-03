@@ -142,12 +142,16 @@
 .linked-world-pill {
   display: inline-flex;
   border-radius: 10px;
-  /* The card-color backing other pills over a picture use (PictureBackedPill),
-     so the access word keeps 4.5:1 on bright pictures in both themes. */
-  background: color-mix(in srgb, var(--glass-information) 78%, transparent);
+  /* The opaque card color, as the VRC and CVR tags beside it have: the
+     picture never shows through, so every access word keeps 4.5:1 (6.4:1 or
+     more) on bright art. */
+  background: var(--glass-information);
   backdrop-filter: blur(10px);
 }
+/* Light pictures stay bright, so the light pill takes the card-color backing
+   other pills over a picture use (PictureBackedPill) and its word keeps 4.5:1. */
 [data-theme='light'] .linked-world-pill {
+  background: color-mix(in srgb, var(--glass-information) 78%, transparent);
   /* The backing already carries the word; a pale glow would only blur it. */
   text-shadow: none;
 }

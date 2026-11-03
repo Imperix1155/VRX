@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   profiles notice away and back.
 - Dark theme: the access word beside a linked friend's world picture and the
   VRC and CVR badges on picture cards keep 4.5:1 contrast on bright
-  pictures, on the card-colored backing other labels over a picture use.
+  pictures, on an opaque card-colored backing.
 - Dialogs: a tap outside one on a touch screen closes it without also
   pressing whatever was under your finger, and keyboard focus goes back to
   the button that opened it.

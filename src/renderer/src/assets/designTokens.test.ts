@@ -495,14 +495,14 @@ describe('renderer design token contract', () => {
     }
   })
 
-  it('backs the Where access pill with the card color in both themes, like other pills over a picture', () => {
+  it('backs the dark Where access pill with the opaque card color, and the light one as other pills over a picture', () => {
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const rule = /(?:^|\n)\.linked-world-pill\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
-    expect(rule).toMatch(
+    expect(rule).toMatch(/background:\s*var\(--glass-information\)\s*;/)
+    const light = /\[data-theme='light'\] \.linked-world-pill\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
+    expect(light).toMatch(
       /background:\s*color-mix\(in srgb, var\(--glass-information\) 78%, transparent\)\s*;/
     )
-    const light = /\[data-theme='light'\] \.linked-world-pill\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
-    expect(light).not.toMatch(/background/)
   })
 
   it('gives dark picture badges an opaque card-color backing, so art never shows through their word', () => {
