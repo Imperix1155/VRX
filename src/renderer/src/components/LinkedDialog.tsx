@@ -38,10 +38,11 @@ export default function LinkedDialog({
       closeRequest.current()
     })
     const panel = dialog.current
-    // After a few Escapes in a row the browser closes a modal itself, even
-    // one that holds Escape back; follow it, so the app never keeps a hidden
-    // dialog open. A late close event from an earlier close finds the dialog
-    // open again and changes nothing.
+    // While a dialog holds Escape back, `closedby="none"` keeps the browser
+    // from closing it after a few Escapes in a row. Should the browser close
+    // it anyway, follow, so the app never keeps a hidden dialog open. A late
+    // close event from an earlier close finds the dialog open again and
+    // changes nothing.
     const followClose = (): void => {
       if (panel?.open === false) closeRequest.current()
     }
@@ -94,6 +95,7 @@ export default function LinkedDialog({
         : closeButton.current
     target?.focus({ preventScroll: true })
   }, [busy])
+  const holdsBack = busy || !dismissible
   return (
     <dialog
       ref={dialog}
@@ -101,6 +103,7 @@ export default function LinkedDialog({
       aria-labelledby={headingId}
       aria-modal="true"
       aria-busy={busy}
+      closedby={holdsBack ? 'none' : 'closerequest'}
       className="fixed m-auto max-h-[calc(100vh-var(--space-6)*2)] w-[min(440px,calc(100vw-var(--space-8)))] overflow-y-auto border-0 bg-transparent p-0 text-[var(--text)] [&::backdrop]:bg-[var(--scrim-soft)]"
       onKeyDown={(event) => event.stopPropagation()}
       onFocus={(event) => {
@@ -108,11 +111,14 @@ export default function LinkedDialog({
       }}
       onPointerDown={(event) => {
         event.stopPropagation()
-        if (!busy && dismissible && event.target === event.currentTarget) onClose()
+        if (event.target !== event.currentTarget) return
+        // A press held back leaves focus where it was, so typing goes on there.
+        if (holdsBack) event.preventDefault()
+        else onClose()
       }}
       onCancel={(event) => {
         event.preventDefault()
-        if (!busy && dismissible) onClose()
+        if (!holdsBack) onClose()
       }}
     >
       <div className="glass glass-frosted glass-information p-[calc(var(--space-4)+var(--space-1))]">

@@ -126,3 +126,29 @@ it('follows the browser when it closes the dialog itself, and only then', () => 
   fireEvent(dialog, new Event('close'))
   expect(onClose).toHaveBeenCalledTimes(1)
 })
+it('keeps the browser from closing a dialog that holds Escape back, and a held-back press keeps focus', () => {
+  const onClose = vi.fn()
+  const dialog = (state: { busy?: boolean; dismissible?: boolean }): React.JSX.Element => (
+    <LinkedDialog title="Edit profile" {...state} onClose={onClose}>
+      <textarea aria-label="Bio" />
+    </LinkedDialog>
+  )
+  const view = render(dialog({}))
+  const panel = screen.getByRole('dialog')
+  expect(panel.getAttribute('closedby')).toBe('closerequest')
+  // Holding back typed text: the browser may not close it after a few
+  // Escapes, and a press outside is cancelled, so focus stays in the field.
+  view.rerender(dialog({ dismissible: false }))
+  expect(panel.getAttribute('closedby')).toBe('none')
+  expect(fireEvent.pointerDown(panel)).toBe(false)
+  expect(fireEvent.pointerDown(screen.getByRole('textbox'))).toBe(true)
+  // The same while busy, so nothing closes it in the middle of a change.
+  view.rerender(dialog({ busy: true }))
+  expect(panel.getAttribute('closedby')).toBe('none')
+  expect(fireEvent.pointerDown(panel)).toBe(false)
+  expect(onClose).not.toHaveBeenCalled()
+  view.rerender(dialog({}))
+  expect(panel.getAttribute('closedby')).toBe('closerequest')
+  expect(fireEvent.pointerDown(panel)).toBe(true)
+  expect(onClose).toHaveBeenCalledTimes(1)
+})
