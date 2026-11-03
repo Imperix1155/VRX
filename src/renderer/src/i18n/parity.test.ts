@@ -198,8 +198,18 @@ describe('counts', () => {
     expect(t('shell.friendCount', { count: 1234 })).toContain(top)
     expect(t('shell.counts.friendsOnline', { count: 1234 })).toContain(top)
     expect(t('linking.people', { count: 1234 })).toContain(top)
-    // The plural still follows the number itself.
-    expect(i18n.getFixedT('en')('friends.section.offline', { count: 1 })).toBe('Offline (1)')
+    expect(t('avatars.uploadCount', { count: 1234 })).toContain(top)
+  })
+
+  it('en: the grouped number still picks the singular or plural', async () => {
+    const { default: i18n } = await import('./index')
+    const t = i18n.getFixedT('en')
+    expect(t('shell.friendCount', { count: 1 })).toBe('<b>1</b> friend')
+    expect(t('shell.friendCount', { count: 1234 })).toBe('<b>1,234</b> friends')
+    expect(t('shell.counts.friendsOnline', { count: 1 })).toBe('1 friend online')
+    expect(t('shell.counts.friendsOnline', { count: 1234 })).toBe('1,234 friends online')
+    expect(t('linking.people', { count: 1 })).toBe('1 person')
+    expect(t('avatars.uploadCount', { count: 1234 })).toBe('1,234 avatars')
   })
 })
 

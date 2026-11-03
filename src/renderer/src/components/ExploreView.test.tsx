@@ -587,6 +587,46 @@ describe('ExploreView', () => {
     }
   })
 
+  it('lists several room regions with each language’s separator', async () => {
+    const { default: i18n } = await import('../i18n')
+    const selected = world('vrchat', 'vrc-w', 'Some World')
+    const full = room('vrchat', { state: 'disabled', reason: 'full' }, selected.worldId)
+    const snapshot: ExploreWorldSnapshot = {
+      ...source('vrchat', [selected]),
+      world: selected,
+      rooms: [
+        { ...full, roomId: 'a', region: 'jp' },
+        { ...full, roomId: 'b', region: 'eu' }
+      ],
+      roomsComplete: true
+    }
+    try {
+      for (const [lang, regions] of [
+        ['en', 'Japan, Europe'],
+        ['ja', '日本、ヨーロッパ']
+      ] as const) {
+        await i18n.changeLanguage(lang)
+        render(
+          <ExploreWorldSheet
+            snapshot={snapshot}
+            opener={null}
+            focusFallback={null}
+            onClose={vi.fn()}
+            onJoin={vi.fn()}
+          />
+        )
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('sheet.showMore') }))
+        const more = screen.getByRole('region', { name: i18n.t('explore.more.heading') })
+        expect(
+          within(more).getByText(i18n.t('explore.more.regions')).nextElementSibling?.textContent
+        ).toBe(regions)
+        cleanup()
+      }
+    } finally {
+      await i18n.changeLanguage('en')
+    }
+  })
+
   it('returns focus to the opener after its parent dismisses the nonmodal sheet', () => {
     const opener = document.createElement('button')
     document.body.append(opener)

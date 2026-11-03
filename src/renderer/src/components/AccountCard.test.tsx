@@ -501,6 +501,23 @@ describe.each(['vrchat', 'chilloutvr'] as const)(
 )
 
 describe('AccountCard — VRChat two-factor flow', () => {
+  it('names the code form by platform too', async () => {
+    renderCard(
+      'vrchat',
+      bridgeFor({
+        platform: 'vrchat',
+        state: 'needs-2fa',
+        accountId: null,
+        displayName: null,
+        twoFactorMethod: 'totp'
+      })
+    )
+    const form = await screen.findByRole('form', {
+      name: msg('login.formAria', { platform: msg('settings.accounts.vrchat.label') })
+    })
+    expect(within(form).getByLabelText(msg('settings.accounts.twoFactor.code'))).toBeTruthy()
+  })
+
   it('lets a saved session that needs a fresh code be signed out', async () => {
     const bridge = bridgeFor({
       platform: 'vrchat',

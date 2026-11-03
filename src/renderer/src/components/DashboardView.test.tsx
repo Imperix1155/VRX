@@ -351,6 +351,15 @@ describe('DashboardView states (W5)', () => {
     for (const value of screen.getAllByText('1')) expect(value.closest('[aria-live]')).toBeNull()
   })
 
+  it('groups a statistic of a thousand or more, as the friends list does', () => {
+    const online = Array.from({ length: 1234 }, (_, index) =>
+      makeFriend({ platformUserId: `v${index}`, presence: { state: 'active' } })
+    )
+    stubQueries({ data: online, isPending: false }, { data: [], isPending: false })
+    render(<DashboardView />)
+    expect(screen.getByText('1,234')).toBeTruthy()
+  })
+
   it('labels the hot-instances section with its heading (landmark, W5)', () => {
     stubQueries({ data: [makeFriend()], isPending: false }, { data: [], isPending: false })
     // Nothing is hot here, so the section shows only while empty sections show.
