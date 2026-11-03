@@ -554,6 +554,38 @@ describe('GroupsView', () => {
     expect(bridge.getMyGroups).toHaveBeenCalledWith({ platform: 'chilloutvr', refresh: true })
   })
 
+  it('keeps keyboard focus on Refresh while it runs and ignores more presses', async () => {
+    renderWith(<GroupsView />)
+    await screen.findByRole('region', { name: msg('groups.heading') })
+    const loaded = bridge.getMyGroups.getMockImplementation()!
+    const waiting: Array<() => void> = []
+    bridge.getMyGroups.mockImplementation(
+      (request) =>
+        new Promise<MyGroupsResult>((resolve) =>
+          waiting.push(() => void loaded(request).then(resolve))
+        )
+    )
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: msg('groups.refresh') })
+    button.focus()
+    fireEvent.click(button)
+    const busy = await screen.findByRole<HTMLButtonElement>('button', {
+      name: msg('groups.refreshing')
+    })
+    // Off while it runs, yet still focusable, so keyboard focus stays on it.
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
+    expect(busy.disabled).toBe(false)
+    expect(document.activeElement).toBe(busy)
+    fireEvent.click(busy)
+    fireEvent.click(busy)
+    expect(bridge.getMyGroups).toHaveBeenCalledTimes(4)
+
+    await act(async () => waiting.forEach((answer) => answer()))
+    const idle = await screen.findByRole('button', { name: msg('groups.refresh') })
+    expect(idle.getAttribute('aria-disabled')).toBeNull()
+    expect(bridge.getMyGroups).toHaveBeenCalledTimes(4)
+    bridge.getMyGroups.mockImplementation(loaded)
+  })
+
   it('keeps the loaded groups when a Refresh fails, and says so in a dim line', async () => {
     renderWith(<GroupsView />)
     const region = await screen.findByRole('region', { name: msg('groups.heading') })
@@ -689,13 +721,19 @@ describe('ExploreListPanel', () => {
     bridge.getWorldList.mockImplementationOnce(
       () => new Promise<WorldListResult>((resolve) => (answer = resolve))
     )
-    fireEvent.click(screen.getByRole('button', { name: msg('community.retry') }))
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
     expect(await screen.findByText(msg('community.loading', { platform: 'VRChat' }))).toBeTruthy()
     expect(screen.queryByText(failed)).toBeNull()
     expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
+    // Keyboard focus stays on the platform's line, not the top of the window.
+    const line = document.querySelector('[data-community-notice="vrchat"]')
+    expect(document.activeElement).toBe(line)
     // A second refusal shows again, so it never looks like an ignored press.
     act(() => answer({ ok: false, reason: 'rate-limited' }))
     expect(await screen.findByText(failed)).toBeTruthy()
+    expect(document.activeElement).toBe(line)
     expect(bridge.getWorldList).toHaveBeenCalledTimes(2)
   })
 

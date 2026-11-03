@@ -40,6 +40,7 @@ export function CommunityNotice({
   onRetry?: () => void
 }): React.JSX.Element | null {
   const { t } = useTranslation()
+  const noticeRef = useRef<HTMLDivElement>(null)
   if (state.kind === 'ready' || state.kind === 'idle' || state.kind === 'auth-pending') return null
   const name = platformName(t, platform)
 
@@ -60,7 +61,12 @@ export function CommunityNotice({
       ) : onRetry && state.reason !== 'invalid-query' ? (
         <button
           type="button"
-          onClick={onRetry}
+          onClick={() => {
+            onRetry()
+            // The line turns into the loading line and this button leaves it;
+            // focus stays on the line, beside a Try again that comes back.
+            noticeRef.current?.focus({ preventScroll: true })
+          }}
           className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
         >
           {t('community.retry')}
@@ -77,9 +83,11 @@ export function CommunityNotice({
 
   return (
     <div
+      ref={noticeRef}
       role={state.kind === 'failed' ? 'alert' : 'status'}
       data-community-notice={platform}
-      className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)]"
+      tabIndex={-1}
+      className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)] outline-none"
     >
       {/* The notice text names the platform, so the dot is never the only cue. */}
       <span

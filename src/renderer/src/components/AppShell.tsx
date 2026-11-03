@@ -152,8 +152,11 @@ export default function AppShell(): React.JSX.Element {
         ref={mainRef}
         aria-label={t(VIEW_TITLE_KEYS[activeTab])}
         // tabIndex -1: programmatically focusable so the join dialog's
-        // focus-restore has a stable container fallback (VRX-210).
+        // focus-restore has a stable container fallback (VRX-210). It is a
+        // place to land, not a control, so the browser draws no ring around
+        // the whole page.
         tabIndex={-1}
+        className="outline-none"
         style={{
           overflowY: 'auto',
           // Keep the social filter fixed when a view gains or loses its scrollbar.

@@ -266,16 +266,23 @@ describe('AvatarsView', () => {
     bridge.getAvatarLibrary.mockImplementation(
       () => new Promise<AvatarLibraryResult>((resolve) => (answer = resolve))
     )
-    fireEvent.click(screen.getByRole('button', { name: msg('avatars.retry') }))
+    const retry = screen.getByRole('button', { name: msg('avatars.retry') })
+    retry.focus()
+    fireEvent.click(retry)
     // The press shows: the platform's loading line, no red line, no second Try again.
-    expect(await screen.findByText(msg('avatars.loadingPlatform', { platform: vrc }))).toBeTruthy()
+    const loading = await screen.findByText(msg('avatars.loadingPlatform', { platform: vrc }))
     expect(screen.queryByText(msg('avatars.error.unavailable', { platform: vrc }))).toBeNull()
     expect(screen.queryByRole('button', { name: msg('avatars.retry') })).toBeNull()
+    // Keyboard focus stays on that line, not the top of the window.
+    const line = loading.closest('[role="status"]')
+    expect(line).not.toBeNull()
+    expect(document.activeElement).toBe(line)
 
     await act(async () => answer({ ok: false, reason: 'unavailable' }))
     expect(
       await screen.findByText(msg('avatars.error.unavailable', { platform: vrc }))
     ).toBeTruthy()
+    expect(document.activeElement).toBe(line)
   })
 
   it('says VRChat asked to slow down when a Refresh of loaded avatars gets a 429', async () => {
@@ -292,6 +299,38 @@ describe('AvatarsView', () => {
     )
     expect(line.className).toContain('text-[var(--text-dim)]')
     expect(screen.getAllByRole('button', { name: cardName(vrcOther) }).length).toBeGreaterThan(0)
+  })
+
+  it('keeps keyboard focus on Refresh while it runs and ignores more presses', async () => {
+    renderView()
+    await screen.findAllByRole('button', { name: cardName(vrcOther) })
+    const waiting: Array<() => void> = []
+    bridge.getAvatarLibrary.mockImplementation(
+      ({ platform }) =>
+        new Promise<AvatarLibraryResult>((resolve) =>
+          waiting.push(() => resolve(library(platform)))
+        )
+    )
+    const before = bridge.getAvatarLibrary.mock.calls.length
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: msg('avatars.refresh') })
+    button.focus()
+    fireEvent.click(button)
+    const busy = await screen.findByRole<HTMLButtonElement>('button', {
+      name: msg('avatars.refreshing')
+    })
+    // Off while it runs, yet still focusable, so keyboard focus stays on it.
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
+    expect(busy.disabled).toBe(false)
+    expect(document.activeElement).toBe(busy)
+    const asked = bridge.getAvatarLibrary.mock.calls.length
+    expect(asked).toBeGreaterThan(before)
+    fireEvent.click(busy)
+    fireEvent.click(busy)
+    expect(bridge.getAvatarLibrary.mock.calls.length).toBe(asked)
+
+    await act(async () => waiting.forEach((answer) => answer()))
+    const idle = await screen.findByRole('button', { name: msg('avatars.refresh') })
+    expect(idle.getAttribute('aria-disabled')).toBeNull()
   })
 
   it('keeps the loaded avatars when a Refresh fails, and says so in a dim line', async () => {
