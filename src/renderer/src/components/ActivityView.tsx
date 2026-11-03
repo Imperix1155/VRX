@@ -114,7 +114,12 @@ function ActivityRow({
         <span className="block truncate text-sm font-medium text-[var(--text)]" title={name}>
           {name}
         </span>
-        <span className="block truncate text-xs text-[var(--text-dim)]" title={description}>
+        {/* The full world name on hover, a "(#…)" tag included, like the hot
+            cards (owner rule VRX-199). */}
+        <span
+          className="block truncate text-xs text-[var(--text-dim)]"
+          title={entry.worldName ?? undefined}
+        >
           {description}
         </span>
       </span>
