@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Japanese: a group's details call its member count メンバー数, so it no
+  longer reads the same as the メンバー role shown below it.
+
 ## [1.4.0-dev.9] - 2026-11-03
 
 ### Fixed

@@ -144,6 +144,12 @@ describe('ActivityView', () => {
     expect(rows[3]).toContain(msg('activity.online'))
   })
 
+  it('keeps the full world name on hover, a "(#…)" tag included (owner rule VRX-199)', () => {
+    renderView()
+    const line = screen.getByText(msg('activity.onlineIn', { world: 'Sunset Bay' }))
+    expect(line.getAttribute('title')).toBe('Sunset Bay (#42)')
+  })
+
   it("names each row's platform when it is read out, in the language's own punctuation", async () => {
     const aliceCvr = fullFriend('Alice', 'chilloutvr')
     useFriendsMock.mockImplementation((platform: string) => ({
