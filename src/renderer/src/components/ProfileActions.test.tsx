@@ -340,8 +340,8 @@ describe('ProfileActions', () => {
     )
     await screen.findByRole('button', { name: msg('profile.actions.confirm.sending') })
 
-    // Friend details close while it sends, as when the friends list refetches,
-    // and the same friend opens again with another question.
+    // Friend details close while it sends, as when a refetch briefly leaves the
+    // friend out, and the same friend opens again with another question.
     view.rerender(actions(false))
     expect(screen.queryByRole('alertdialog')).toBeNull()
     view.rerender(actions(true))
@@ -361,6 +361,7 @@ describe('ProfileActions', () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
 
     expect(screen.getByRole('alertdialog')).toBe(dialog)
+    expect(screen.queryByText(msg('profile.actions.done.block', { platform: 'VRChat' }))).toBeNull()
     expect(bridge.socialAction).toHaveBeenCalledTimes(1)
   })
 
