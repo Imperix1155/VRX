@@ -296,7 +296,10 @@ describe('favorite friends', () => {
     )
     await openMenu('Alex')
     const star = choice('Star in VRX (this PC only)')
+    // A choice takes focus once the favorites it needs have loaded.
+    await waitFor(() => expect(star.disabled).toBe(false))
     star.focus()
+    expect(document.activeElement).toBe(star)
     // Their ChilloutVR account joins the view once its roster arrives.
     view.rerender(
       <FriendFavoriteStar
