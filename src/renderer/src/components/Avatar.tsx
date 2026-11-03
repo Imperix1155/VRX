@@ -55,8 +55,8 @@ export function Avatar({
   const ringWidth = isDrawer ? 2.5 : isSmall ? 1.5 : 2.5
   const initialClass = isDrawer ? 'text-xl' : isSmall ? 'text-[10px]' : 'text-sm'
   const badgeSize = isSmall ? 'h-[9px] w-[9px]' : 'h-[16px] w-[16px]'
-  // The presence ring sits on its own layer so High Contrast can keep its
-  // color (main.css) without keeping the picture's or the letter's colors.
+  // The presence ring sits on its own layer, so High Contrast keeps the ring's
+  // hue (see main.css) and still adjusts the picture and the letter.
   const presenceRing = (
     <span
       aria-hidden="true"
