@@ -36,6 +36,7 @@ import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
 import DashboardGlance from './DashboardGlance'
+import NotConnectedCard from './NotConnectedCard'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
@@ -171,18 +172,10 @@ function DashboardContent(): React.JSX.Element {
   }
   if (isNotConnected) {
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
-        <p className="text-sm font-semibold text-[var(--text-dim)]">
-          {notConnectedKey === null ? null : t(notConnectedKey)}
-        </p>
-        <button
-          type="button"
-          onClick={openAccounts}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-        >
-          {t('dashboard.notConnected.openAccounts')}
-        </button>
-      </div>
+      <NotConnectedCard
+        message={notConnectedKey === null ? null : t(notConnectedKey)}
+        onOpenAccounts={openAccounts}
+      />
     )
   }
   // Every branch below keeps Popular now in the same slot, a keyed child of

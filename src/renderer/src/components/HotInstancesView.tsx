@@ -20,6 +20,7 @@ import FriendsSourceNotice from './FriendsSourceNotice'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstanceSheet from './HotInstanceSheet'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
+import NotConnectedCard from './NotConnectedCard'
 
 export default function HotInstancesView(): React.JSX.Element {
   const { t } = useTranslation()
@@ -54,18 +55,10 @@ export default function HotInstancesView(): React.JSX.Element {
   }
   if (isNotConnected) {
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
-        <p className="text-sm font-semibold text-[var(--text-dim)]">
-          {notConnectedKey === null ? null : t(notConnectedKey)}
-        </p>
-        <button
-          type="button"
-          onClick={openAccounts}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-        >
-          {t('dashboard.notConnected.openAccounts')}
-        </button>
-      </div>
+      <NotConnectedCard
+        message={notConnectedKey === null ? null : t(notConnectedKey)}
+        onOpenAccounts={openAccounts}
+      />
     )
   }
   // Same gate as the Dashboard: a sign-in's empty placeholder is not a roster.

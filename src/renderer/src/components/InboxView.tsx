@@ -27,6 +27,7 @@ import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { inboxActionText, relativeInboxTime, scopeInboxItems } from '../utils/inbox'
 import PlatformPill from './PlatformPill'
 import { initialOf } from '../utils/initialOf'
+import NotConnectedCard from './NotConnectedCard'
 
 /** Ages refresh once a minute while the page is open; no data is read. */
 const AGE_TICK_MS = 60_000
@@ -210,18 +211,10 @@ export default function InboxView(): React.JSX.Element {
   }
   if (isNotConnected) {
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
-        <p className="text-sm font-semibold text-[var(--text-dim)]">
-          {selectedPlatform === null ? null : t(NOT_CONNECTED_KEY.inbox[selectedPlatform])}
-        </p>
-        <button
-          type="button"
-          onClick={openAccounts}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-        >
-          {t('dashboard.notConnected.openAccounts')}
-        </button>
-      </div>
+      <NotConnectedCard
+        message={selectedPlatform === null ? null : t(NOT_CONNECTED_KEY.inbox[selectedPlatform])}
+        onOpenAccounts={openAccounts}
+      />
     )
   }
   if (inbox.isError && inbox.data === undefined) {
