@@ -239,8 +239,8 @@ function SocialConfirmDialog({
   const [pending, setPending] = useState(false)
   const [failure, setFailure] = useState<ActionFailure | null>(null)
   const pendingRef = useRef(false)
-  // False once the dialog has closed. Only an account change or the drawer or
-  // sheet around it closing can close it while it sends.
+  // False once the dialog has closed. Only an account change or the friend
+  // details around it closing can close it while it sends.
   const openRef = useRef(true)
   const panelRef = useRef<HTMLDivElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)

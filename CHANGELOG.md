@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Unfriend, Block and Unblock: when switching accounts closes the
-  confirmation while it sends, its answer no longer closes a confirmation
-  opened since, or shows a done message for the old account.
+- Unfriend, Block and Unblock: an answer that arrives after its
+  confirmation closed, as when friend details close while the change is
+  sent, no longer closes a confirmation opened since.
 
 ## [1.4.0-dev.8] - 2026-11-03
 
