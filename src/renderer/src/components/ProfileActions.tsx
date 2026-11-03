@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import type { SocialAction, SocialActionResult } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
 import { useRelationship, useSocialAction } from '../queries/community'
+import GoToAccountsButton from './GoToAccountsButton'
 import PlatformPill from './PlatformPill'
 
 type ActionFailure = Extract<SocialActionResult, { ok: false }>['reason'] | 'unknown'
@@ -110,13 +111,18 @@ export default function ProfileActions({
               ? t(ERROR_KEYS[result.reason], { platform: platformName })
               : t('profile.actions.checkError')}
           </p>
-          <button
-            type="button"
-            onClick={() => void relationship.refetch()}
-            className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
-          >
-            {t('community.retry')}
-          </button>
+          {result?.ok === false && result.reason === 'not-authenticated' ? (
+            // Signing in again happens in Accounts; another check would fail the same way.
+            <GoToAccountsButton label={t('community.openAccounts')} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => void relationship.refetch()}
+              className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+            >
+              {t('community.retry')}
+            </button>
+          )}
         </div>
       )
     } else {

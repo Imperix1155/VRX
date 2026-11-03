@@ -286,7 +286,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Couldn't save" left from another friend's star, and it doesn't wait for
   another friend's star to finish saving.
 - Full profiles: when a platform asks you to sign in again, the profile
-  offers Go to Accounts, like the pages.
+  offers Go to Accounts, like the pages. So does the block check behind
+  Unfriend or block, instead of a Try again that couldn't help.
 - Screen readers and voice control: the Join pills on friend rows and hot
   cards, and Add friend, now say the words they show ("Public: Join Amy in
   SunDown"), first in English, so saying what you see presses them.

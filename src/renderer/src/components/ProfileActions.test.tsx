@@ -256,6 +256,20 @@ describe('ProfileActions', () => {
     await screen.findByRole('button', { name: msg('profile.actions.block') })
     expect(bridge.getRelationship).toHaveBeenCalledTimes(2)
   })
+  it('offers Accounts, not Retry, when the check asks to sign in again', async () => {
+    bridge.getRelationship.mockResolvedValueOnce({ ok: false, reason: 'not-authenticated' })
+    renderActions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.show') }))
+    expect(
+      await screen.findByText(
+        msg('profile.actions.error.not-authenticated', { platform: 'VRChat' })
+      )
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
+    expect(screen.getByRole('button', { name: msg('community.openAccounts') })).toBeTruthy()
+    expect(bridge.getRelationship).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the new state when an older check answers after the change', async () => {
     const client = renderActions('chilloutvr')
     await openOptions()
