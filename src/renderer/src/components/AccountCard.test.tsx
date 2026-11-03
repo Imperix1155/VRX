@@ -106,6 +106,19 @@ describe.each([
     expect(await screen.findByLabelText(msg('settings.accounts.password'))).toBeTruthy()
   })
 
+  it('names the card and its sign-in form by platform, so the two cards never sound alike', async () => {
+    renderCard(
+      platform,
+      bridgeFor({ platform, state: 'unauthenticated', accountId: null, displayName: null })
+    )
+    const platformName = msg(`settings.accounts.${platform}.label`)
+    const card = await screen.findByRole('group', { name: platformName })
+    const form = await within(card).findByRole('form', {
+      name: msg('login.formAria', { platform: platformName })
+    })
+    expect(within(form).getByLabelText(msg('settings.accounts.password'))).toBeTruthy()
+  })
+
   it('shows a pending status without inviting a duplicate login while initial auth is unresolved', () => {
     const bridge = bridgeFor({
       platform,

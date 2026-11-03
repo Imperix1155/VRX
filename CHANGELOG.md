@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   welcome setup, instead of also "pills" and "tags".
 - Hot Instances: the help no longer says the Dashboard shows two, since a
   wide window shows more.
+- Screen readers: each account card, in Settings and the welcome setup, is
+  named by its platform, and so is its sign-in form, so the two cards'
+  Password, Connect and Sign out no longer sound the same.
+- Accounts: "Profile saved" goes away when you sign out, so it no longer
+  shows again after signing back in, even as another account.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

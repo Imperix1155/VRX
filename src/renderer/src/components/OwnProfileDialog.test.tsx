@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OwnProfile } from '@shared/ownProfile'
 import type { Platform } from '@shared/types'
 import i18n from '../i18n'
+import { authStatusQueryKey } from '../queries/auth'
 import AccountCard from './AccountCard'
 
 const msg = (key: string, options?: Record<string, string | number>): string => i18n.t(key, options)
@@ -18,6 +19,7 @@ function stored(platform: Platform): OwnProfile {
 function setup(platform: Platform): {
   getOwnProfile: ReturnType<typeof vi.fn>
   saveOwnProfile: ReturnType<typeof vi.fn>
+  client: QueryClient
 } {
   const getOwnProfile = vi.fn().mockResolvedValue({ ok: true, profile: stored(platform) })
   const saveOwnProfile = vi.fn(async ({ changes }: { changes: Partial<OwnProfile> }) => ({
@@ -40,7 +42,7 @@ function setup(platform: Platform): {
       <AccountCard platform={platform} profileEditing />
     </QueryClientProvider>
   )
-  return { getOwnProfile, saveOwnProfile }
+  return { getOwnProfile, saveOwnProfile, client }
 }
 
 async function openEditor(): Promise<HTMLElement> {
@@ -109,6 +111,43 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
         })
       )
     ).toBeTruthy()
+  })
+
+  it('forgets the saved line when you sign out, so the next sign-in never shows it', async () => {
+    const { client } = setup(platform)
+    const dialog = await openEditor()
+    fireEvent.change(within(dialog).getByLabelText(msg('settings.accounts.profile.bio')), {
+      target: { value: 'New bio' }
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: msg('settings.accounts.profile.save') })
+    )
+    const saved = msg('settings.accounts.profile.saved', {
+      platform: msg(`settings.accounts.${platform}.label`)
+    })
+    expect(await screen.findByText(saved)).toBeTruthy()
+
+    act(() => {
+      client.setQueryData(authStatusQueryKey(platform), {
+        platform,
+        state: 'unauthenticated',
+        accountId: null,
+        displayName: null
+      })
+    })
+    expect(await screen.findByLabelText(msg('settings.accounts.password'))).toBeTruthy()
+    act(() => {
+      client.setQueryData(authStatusQueryKey(platform), {
+        platform,
+        state: 'authenticated',
+        accountId: 'another-account',
+        displayName: 'Trinity'
+      })
+    })
+    expect(
+      await screen.findByRole('button', { name: msg('settings.accounts.profile.edit') })
+    ).toBeTruthy()
+    expect(screen.queryByText(saved)).toBeNull()
   })
 
   it('keeps the edits and explains a failed Save', async () => {
