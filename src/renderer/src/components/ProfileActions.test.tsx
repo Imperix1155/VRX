@@ -247,6 +247,43 @@ describe('ProfileActions', () => {
     expect(actionButtons()).toEqual(['unfriend', 'block'])
   })
 
+  it('keeps focus on the pressed button while it sends and after a refusal', async () => {
+    let answer: (result: SocialActionResult) => void = () => undefined
+    bridge.socialAction.mockImplementationOnce(
+      () => new Promise<SocialActionResult>((resolve) => (answer = resolve))
+    )
+    renderActions()
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.block') }))
+    const dialog = screen.getByRole('alertdialog')
+    const confirm = within(dialog).getByRole('button', { name: msg('profile.actions.block') })
+    const cancel = within(dialog).getByRole('button', {
+      name: msg('profile.actions.confirm.cancel')
+    })
+    confirm.focus()
+    fireEvent.click(confirm)
+
+    // aria-disabled, not disabled: Chromium drops focus from a disabled
+    // button to the page behind the dialog; jsdom doesn't.
+    await screen.findByRole('button', { name: msg('profile.actions.confirm.sending') })
+    expect(confirm.hasAttribute('disabled')).toBe(false)
+    expect(confirm.getAttribute('aria-disabled')).toBe('true')
+    expect(cancel.hasAttribute('disabled')).toBe(false)
+    expect(cancel.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(confirm)
+    // Presses while it sends do nothing.
+    fireEvent.click(cancel)
+    fireEvent.click(confirm)
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+    expect(bridge.socialAction).toHaveBeenCalledTimes(1)
+
+    answer({ ok: false, reason: 'unavailable' })
+    await screen.findByRole('alert')
+    expect(document.activeElement).toBe(confirm)
+    expect(confirm.hasAttribute('aria-disabled')).toBe(false)
+    expect(cancel.hasAttribute('aria-disabled')).toBe(false)
+  })
+
   it.each(['touch', 'pen'])(
     'closes on a %s tap’s click, not its press, so the tap stays on the scrim',
     async (pointerType) => {

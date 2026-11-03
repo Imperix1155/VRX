@@ -381,21 +381,25 @@ function SocialConfirmDialog({
           </p>
         ) : null}
         <div className="mt-[var(--space-1)] flex flex-wrap items-center justify-end gap-[var(--space-2)]">
+          {/* While it sends, both buttons keep keyboard focus (aria-disabled):
+              a disabled one would drop it to the page behind the dialog. */}
           <button
             ref={cancelRef}
             type="button"
-            disabled={pending}
-            onClick={onClose}
-            className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-sm font-medium text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+            aria-disabled={pending || undefined}
+            onClick={() => {
+              if (!pendingRef.current) onClose()
+            }}
+            className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-sm font-medium text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors aria-disabled:pointer-events-none aria-disabled:opacity-50"
           >
             {t('profile.actions.confirm.cancel')}
           </button>
           <button
             type="button"
-            disabled={pending}
+            aria-disabled={pending || undefined}
             data-social-confirm-submit=""
             onClick={() => void confirm()}
-            className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] disabled:pointer-events-none disabled:opacity-50"
+            className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] aria-disabled:pointer-events-none aria-disabled:opacity-50"
             style={
               action === 'unblock'
                 ? {

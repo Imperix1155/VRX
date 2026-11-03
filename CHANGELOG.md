@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Join confirmation, Unfriend, Block and Unblock: after a press outside
   closes the confirmation, keyboard focus goes back to the button that
   opened it instead of the page.
+- Unfriend, Block and Unblock: the confirmation's buttons keep keyboard
+  focus while the change is sent, and after a refusal focus stays on the
+  button you pressed, instead of dropping to the page behind the dialog.
 
 ## [1.4.0-dev.7] - 2026-11-03
 
