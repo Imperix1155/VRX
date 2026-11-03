@@ -1135,19 +1135,36 @@ describe('ProfileDetails', () => {
         ok: true,
         profile: { ...profile(platform), isFriend: false }
       })
+      let finish: (result: { ok: true }) => void = () => undefined
+      bridge.sendFriendRequest.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          }) as never
+      )
       const userId = platform === 'vrchat' ? VRC_ID : CVR_ID
       const name = platform === 'vrchat' ? 'Lumen' : 'Ember'
       renderWith(<ProfileDetails platform={platform} userId={userId} />)
-      const add = await screen.findByRole('button', {
+      const add = await screen.findByRole<HTMLButtonElement>('button', {
         name: msg('friendActions.addAria', {
           name,
           platform: platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
         })
       })
+      add.focus()
       fireEvent.click(add)
+      // Keyboard focus stays on Add friend while it sends (`disabled` would
+      // drop it to the page), and a second press sends nothing.
+      await waitFor(() => expect(add.getAttribute('aria-disabled')).toBe('true'))
+      expect(add.disabled).toBe(false)
+      expect(document.activeElement).toBe(add)
+      fireEvent.click(add)
+      act(() => finish({ ok: true }))
       await waitFor(() =>
         expect(screen.getByRole('status').textContent).toContain(msg('friendActions.sent'))
       )
+      // The button gave way to the result line, and focus went with it.
+      expect(document.activeElement).toBe(screen.getByRole('status'))
       expect(bridge.sendFriendRequest).toHaveBeenCalledExactlyOnceWith({ platform, userId })
       expect(screen.queryByRole('button', { name: /friend request/i })).toBeNull()
     }
@@ -1171,10 +1188,12 @@ describe('ProfileDetails', () => {
       )
     )
     expect(
-      screen.getByRole<HTMLButtonElement>('button', {
-        name: msg('friendActions.addAria', { name: 'Lumen', platform: 'VRChat' })
-      }).disabled
-    ).toBe(false)
+      screen
+        .getByRole<HTMLButtonElement>('button', {
+          name: msg('friendActions.addAria', { name: 'Lumen', platform: 'VRChat' })
+        })
+        .getAttribute('aria-disabled')
+    ).toBe('false')
   })
 
   it('answers a waiting request instead of sending a new one', async () => {

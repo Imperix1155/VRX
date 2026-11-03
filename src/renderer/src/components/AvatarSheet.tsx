@@ -145,9 +145,22 @@ function AvatarSheetPanel({
   const switcher = useSwitchAvatar()
   const [status, setStatus] = useState<SwitchStatus>({ state: 'idle' })
   const switching = switcher.isPending
+  // Wear stays focusable while it works (`aria-disabled`, not `disabled`, which
+  // drops keyboard focus). When the switch lands and "You're wearing this"
+  // takes its place, focus that was on it moves there instead of to the page.
+  const wearRef = useRef<HTMLButtonElement>(null)
+  const wornRef = useRef<HTMLSpanElement>(null)
+  const returnFocus = useRef(false)
+  useEffect(() => {
+    if (!worn || !returnFocus.current) return
+    returnFocus.current = false
+    const active = document.activeElement
+    if (active === null || active === document.body) wornRef.current?.focus({ preventScroll: true })
+  }, [worn])
 
   function wear(): void {
     if (accountId === null || switching) return
+    returnFocus.current = document.activeElement === wearRef.current
     setStatus({ state: 'idle' })
     switcher.mutate(
       { avatar, accountId },
@@ -284,7 +297,9 @@ function AvatarSheetPanel({
               <span className="flex max-w-[16rem] shrink-0 flex-col items-end">
                 {worn ? (
                   <span
-                    className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)]"
+                    ref={wornRef}
+                    tabIndex={-1}
+                    className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] outline-none"
                     style={{
                       borderColor: 'var(--border)',
                       background: 'color-mix(in srgb, var(--glass-information) 78%, transparent)'
@@ -296,14 +311,15 @@ function AvatarSheetPanel({
                   </span>
                 ) : (
                   <button
+                    ref={wearRef}
                     type="button"
                     onClick={wear}
-                    disabled={switching || accountId === null}
+                    aria-disabled={switching || accountId === null}
                     aria-label={t('avatars.sheet.wearAria', {
                       name: shown.name,
                       platform: platformName
                     })}
-                    className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-60 motion-safe:transition-[filter]"
+                    className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-[filter]"
                     style={{
                       borderColor: 'var(--control-active-border)',
                       background: showBannerImage

@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friend details: a long custom status takes up to two lines, like the
   name, and shows in full in its tooltip, instead of being cut after one
   line with no way to read the rest.
+- Keyboard and screen readers: Wear, Activity's Clear, Add friend, Accept
+  and Decline (in profiles and the Inbox) and the Inbox's Hide keep keyboard
+  focus while they work, instead of dropping it to the page, and a failed
+  answer leaves it on the button. When Wear or Add friend gives way to "You're
+  wearing this" or the sent line, focus moves there.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

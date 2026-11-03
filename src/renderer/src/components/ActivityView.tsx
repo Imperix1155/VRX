@@ -303,8 +303,11 @@ export default function ActivityView(): React.JSX.Element {
         />
         <button
           type="button"
-          disabled={entries.length === 0}
+          // Not `disabled`: once the list it cleared is empty, a disabled
+          // button would drop keyboard focus to the page.
+          aria-disabled={entries.length === 0}
           onClick={() => {
+            if (entries.length === 0) return
             // Clear takes only what is on screen, like the Inbox's Hide all:
             // the filtered platforms and the shown kind. A failed clear keeps
             // the list as it is; the next push refreshes it.
@@ -314,7 +317,7 @@ export default function ActivityView(): React.JSX.Element {
             }).catch(() => undefined)
           }}
           aria-label={t('activity.clearAria')}
-          className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent motion-safe:transition-colors"
+          className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent motion-safe:transition-colors"
         >
           {t('activity.clear')}
         </button>

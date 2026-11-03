@@ -72,7 +72,8 @@ const QUIET_BUTTON = [
   'shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium',
   'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]',
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)]',
-  'disabled:cursor-default disabled:opacity-50 motion-safe:transition-colors cursor-pointer'
+  'disabled:cursor-default disabled:opacity-50 aria-disabled:cursor-default aria-disabled:opacity-50',
+  'motion-safe:transition-colors cursor-pointer'
 ].join(' ')
 
 export default function InboxView(): React.JSX.Element {
@@ -274,10 +275,15 @@ export default function InboxView(): React.JSX.Element {
                 </div>
                 {item.kind === 'friend-request' ? (
                   <div className="flex shrink-0 items-center gap-[var(--space-1)]">
+                    {/* Not `disabled` while answering: a disabled button
+                        drops keyboard focus, and a failed answer would leave
+                        it on the page. */}
                     <button
                       type="button"
-                      onClick={() => void answer(item, 'accept')}
-                      disabled={sending !== undefined}
+                      onClick={() => {
+                        if (sending === undefined) void answer(item, 'accept')
+                      }}
+                      aria-disabled={sending !== undefined}
                       aria-label={t('friendActions.acceptAria', { name })}
                       className={FRIEND_ACTION_BUTTON}
                     >
@@ -287,8 +293,10 @@ export default function InboxView(): React.JSX.Element {
                     </button>
                     <button
                       type="button"
-                      onClick={() => void answer(item, 'decline')}
-                      disabled={sending !== undefined}
+                      onClick={() => {
+                        if (sending === undefined) void answer(item, 'decline')
+                      }}
+                      aria-disabled={sending !== undefined}
                       aria-label={t('friendActions.declineAria', { name })}
                       className={QUIET_BUTTON}
                     >
@@ -301,8 +309,10 @@ export default function InboxView(): React.JSX.Element {
                 <button
                   type="button"
                   data-inbox-hide=""
-                  onClick={() => void hide(item)}
-                  disabled={sending !== undefined}
+                  onClick={() => {
+                    if (sending === undefined) void hide(item)
+                  }}
+                  aria-disabled={sending !== undefined}
                   aria-label={t(HIDE_ARIA_KEYS[item.kind], { name })}
                   className={QUIET_BUTTON}
                 >

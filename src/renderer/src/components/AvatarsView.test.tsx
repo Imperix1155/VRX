@@ -414,6 +414,42 @@ describe('AvatarsView', () => {
     expect(within(worn).getByRole('button', { name: cardName(cvrOther) })).toBeTruthy()
   })
 
+  it('keeps keyboard focus on Wear while it works, then on what takes its place', async () => {
+    let finish: (result: { ok: boolean }) => void = () => undefined
+    bridge.switchAvatar.mockImplementationOnce(
+      () =>
+        new Promise<{ ok: boolean }>((resolve) => {
+          finish = resolve
+        })
+    )
+    renderView()
+    fireEvent.click(await screen.findByRole('button', { name: cardName(cvrOther) }))
+    const sheet = screen.getByRole('dialog', {
+      name: msg('avatars.sheet.aria', {
+        name: cvrOther.name,
+        platform: msg('dashboard.platformCvr')
+      })
+    })
+    const wear = within(sheet).getByRole<HTMLButtonElement>('button', {
+      name: msg('avatars.sheet.wearAria', {
+        name: cvrOther.name,
+        platform: msg('dashboard.platformCvr')
+      })
+    })
+    wear.focus()
+    fireEvent.click(wear)
+    await waitFor(() => expect(wear.getAttribute('aria-disabled')).toBe('true'))
+    // `disabled` would drop keyboard focus to the page while it works.
+    expect(wear.disabled).toBe(false)
+    expect(document.activeElement).toBe(wear)
+    fireEvent.click(wear)
+    expect(bridge.switchAvatar).toHaveBeenCalledTimes(1)
+
+    act(() => finish({ ok: true }))
+    const wornNow = await within(sheet).findByText(msg('avatars.sheet.wornNow'))
+    await waitFor(() => expect(document.activeElement).toBe(wornNow))
+  })
+
   it('shows the sheet worn state instead of a Wear button for the worn avatar', async () => {
     renderView()
     await screen.findAllByRole('button', { name: cardName(vrcWorn) })

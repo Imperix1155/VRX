@@ -5,7 +5,7 @@
  * accepted or declined (owner, 2026-11-01).
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
+import { act, render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { InboxItem, InboxSnapshot } from '@shared/inbox'
 import type { Friend } from '@shared/types'
@@ -246,18 +246,37 @@ describe('InboxView', () => {
   })
 
   it('keeps the row and names the platform when an answer fails', async () => {
-    bridge.answerFriendRequest.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
-    renderInbox()
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: msg('friendActions.declineAria', { name: 'Bob' })
-      })
+    let fail: (result: { ok: false; reason: 'unavailable' }) => void = () => undefined
+    bridge.answerFriendRequest.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          fail = resolve
+        })
     )
+    renderInbox()
+    const decline = await screen.findByRole<HTMLButtonElement>('button', {
+      name: msg('friendActions.declineAria', { name: 'Bob' })
+    })
+    decline.focus()
+    fireEvent.click(decline)
+    // Keyboard focus stays on the pressed button while it sends and after it
+    // fails: `disabled` would drop it to the page. More presses send nothing.
+    await waitFor(() => expect(decline.getAttribute('aria-disabled')).toBe('true'))
+    expect(decline.disabled).toBe(false)
+    expect(document.activeElement).toBe(decline)
+    fireEvent.click(decline)
+    fireEvent.click(
+      screen.getByRole('button', { name: msg('friendActions.acceptAria', { name: 'Bob' }) })
+    )
+    expect(bridge.answerFriendRequest).toHaveBeenCalledTimes(1)
+    act(() => fail({ ok: false, reason: 'unavailable' }))
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toBe(
         msg('friendActions.error.unavailable', { platform: 'ChilloutVR' })
       )
     )
+    expect(document.activeElement).toBe(decline)
+    expect(decline.getAttribute('aria-disabled')).toBe('false')
     expect(screen.getByText('Bob')).toBeTruthy()
     expect(bridge.answerFriendRequest).toHaveBeenCalledWith(
       expect.objectContaining({ answer: 'decline' })

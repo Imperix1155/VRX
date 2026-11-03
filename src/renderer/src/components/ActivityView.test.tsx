@@ -235,8 +235,10 @@ describe('ActivityView', () => {
     // The hint wraps into even lines, never leaving one word alone.
     expect(screen.getByText(msg('activity.emptyHint')).className).toContain('text-balance')
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') }).disabled
-    ).toBe(true)
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') })
+        .getAttribute('aria-disabled')
+    ).toBe('true')
     cleanup()
 
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, activityFilter: 'world' } })
@@ -244,18 +246,30 @@ describe('ActivityView', () => {
     expect(screen.getByText(msg('activity.filteredEmpty'))).toBeTruthy()
     // Nothing on screen, so there is nothing for Clear to take away.
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') }).disabled
-    ).toBe(true)
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') })
+        .getAttribute('aria-disabled')
+    ).toBe('true')
   })
 
   it('clears through main and empties the list at once', async () => {
     renderView()
-    fireEvent.click(screen.getByRole('button', { name: msg('activity.clearAria') }))
+    const clear = screen.getByRole<HTMLButtonElement>('button', {
+      name: msg('activity.clearAria')
+    })
+    clear.focus()
+    fireEvent.click(clear)
     expect(clearActivity).toHaveBeenCalledExactlyOnceWith({
       platforms: ['vrchat', 'chilloutvr'],
       filter: 'all'
     })
     await waitFor(() => expect(screen.getByText(msg('activity.emptyHeading'))).toBeTruthy())
+    // Keyboard focus stays on Clear: `disabled` would drop it to the page.
+    expect(document.activeElement).toBe(clear)
+    expect(clear.disabled).toBe(false)
+    expect(clear.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(clear)
+    expect(clearActivity).toHaveBeenCalledTimes(1)
   })
 
   it('clears only what is on screen: the filtered platform and the shown kind', async () => {
@@ -280,8 +294,10 @@ describe('ActivityView', () => {
     renderView(entries.filter((entry) => entry.platform === 'chilloutvr'))
     expect(screen.getByText(msg('activity.emptyHeading'))).toBeTruthy()
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') }).disabled
-    ).toBe(true)
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') })
+        .getAttribute('aria-disabled')
+    ).toBe('true')
   })
 
   it('asks to connect a single filtered platform that is signed out', () => {

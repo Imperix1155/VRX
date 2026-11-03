@@ -19,5 +19,6 @@ export const FRIEND_ACTION_BUTTON = [
   'px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)]',
   'hover:brightness-110 active:brightness-95',
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)]',
-  'disabled:cursor-default disabled:opacity-60 motion-safe:transition-[filter] cursor-pointer'
+  'disabled:cursor-default disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60',
+  'motion-safe:transition-[filter] cursor-pointer'
 ].join(' ')
