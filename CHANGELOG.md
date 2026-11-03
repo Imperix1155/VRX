@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.7] - 2026-11-03
+
 ### Fixed
 
 - Screen readers: each Activity row says its platform, so one friend's
