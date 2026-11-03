@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   focus while they work, instead of dropping it to the page, and a failed
   answer leaves it on the button. When Wear or Add friend gives way to "You're
   wearing this" or the sent line, focus moves there.
+- Picked friends: after a Remove, keyboard focus goes to the next Remove
+  (the other platform's when this one's list is empty), instead of jumping to
+  the dialog's ✕, so pressing Enter again no longer closes the dialog.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

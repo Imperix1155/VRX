@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
@@ -56,6 +56,7 @@ function PickRow({
       </span>
       <button
         type="button"
+        data-picked-remove=""
         disabled={disabled}
         aria-label={removeLabel}
         className={REMOVE_CLASS}
@@ -114,7 +115,29 @@ function PlatformPicks({
   const { known, missing } = namedPicks(picked, roster ?? [])
   const disabled = busy || !writable
 
+  // After a Remove, keyboard focus goes to the row that took its place, or
+  // the one above; with this platform's list empty, to the other platform's
+  // first Remove. With nothing left to remove, ✕ takes it.
+  const sectionRef = useRef<HTMLElement>(null)
+  const refocus = useRef<number | null>(null)
+  useEffect(() => {
+    if (busy || refocus.current === null) return
+    const index = refocus.current
+    refocus.current = null
+    const section = sectionRef.current
+    const buttons = section?.querySelectorAll<HTMLButtonElement>('[data-picked-remove]')
+    const target = buttons?.length
+      ? buttons[Math.min(index, buttons.length - 1)]
+      : section?.closest('dialog')?.querySelector<HTMLButtonElement>('[data-picked-remove]')
+    target?.focus()
+  }, [busy])
+
   const remove = async (ids: string[]): Promise<void> => {
+    const buttons = [
+      ...(sectionRef.current?.querySelectorAll<HTMLButtonElement>('[data-picked-remove]') ?? [])
+    ]
+    const index = buttons.findIndex((button) => button === document.activeElement)
+    refocus.current = index < 0 ? null : index
     onBusy(true)
     const failure = await setPicks(platform, accountId, ids, false)
     onBusy(false)
@@ -131,7 +154,11 @@ function PlatformPicks({
           : null
 
   return (
-    <section className="flex flex-col gap-[var(--space-1)]" data-picked-platform={platform}>
+    <section
+      ref={sectionRef}
+      className="flex flex-col gap-[var(--space-1)]"
+      data-picked-platform={platform}
+    >
       <PlatformHeading platform={platform} />
       {emptyKey !== null ? (
         <p className="text-[12.5px] text-[var(--text-dim)]">
