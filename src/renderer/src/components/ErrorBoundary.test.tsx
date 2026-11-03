@@ -224,7 +224,9 @@ describe('ErrorBoundary', () => {
 
   it.each([
     INSTALLED_FRAME.replace('Sample%20User', 'Sample%20(Home)'),
-    'file:///D:/Games%20(old)/VRX/resources/app.asar/out/renderer/assets/index-abc123.js:12:345',
+    ['file://', 'D:', 'Games%20(old)', 'VRX', 'resources', 'app.asar', 'out', 'renderer', 'assets']
+      .concat('index-abc123.js:12:345')
+      .join('/'),
     'file://Sample-PC/Shared/Sample/VRX/resources/app.asar/out/renderer/assets/index-abc123.js:12:345'
   ])('leaves every folder name out of %s', (frame) => {
     const writeText = stubClipboard(() => Promise.resolve())
