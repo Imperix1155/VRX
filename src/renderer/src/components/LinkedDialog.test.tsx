@@ -184,3 +184,19 @@ it('closes only on a main-button press outside its own box, and a middle press p
   expect(fireEvent.pointerDown(panel, { button: 0, clientX: 20, clientY: 20 })).toBe(false)
   expect(onClose).toHaveBeenCalledTimes(1)
 })
+it('closes on a tap’s click, not its press, so the tap never lands on the page behind', () => {
+  const onClose = vi.fn()
+  render(
+    <LinkedDialog title="Picked friends" onClose={onClose}>
+      <p>Rows</p>
+    </LinkedDialog>
+  )
+  const panel = screen.getByRole('dialog')
+  expect(fireEvent.pointerDown(panel, { button: 0, pointerType: 'touch' })).toBe(false)
+  expect(onClose).not.toHaveBeenCalled()
+  fireEvent.click(panel)
+  expect(onClose).toHaveBeenCalledTimes(1)
+  // A click with no tap before it (a drag that ended outside) closes nothing.
+  fireEvent.click(panel)
+  expect(onClose).toHaveBeenCalledTimes(1)
+})

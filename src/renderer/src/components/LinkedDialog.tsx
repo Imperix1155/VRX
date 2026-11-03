@@ -1,6 +1,19 @@
 import { useEffect, useLayoutEffect, useId, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+/** A press on the backdrop: on the dialog element, outside its own box. Its
+ *  scrollbar, and the corners beside its rounded panel, are part of it. */
+function onBackdrop(event: React.MouseEvent<HTMLDialogElement>): boolean {
+  if (event.target !== event.currentTarget) return false
+  const box = event.currentTarget.getBoundingClientRect()
+  return !(
+    event.clientX >= box.left &&
+    event.clientX < box.right &&
+    event.clientY >= box.top &&
+    event.clientY < box.bottom
+  )
+}
+
 /** Native modality owns keyboard trapping and background inertness. */
 export default function LinkedDialog({
   title,
@@ -100,6 +113,7 @@ export default function LinkedDialog({
   // cancelled wherever it ends, or Linux pastes the selection into the field
   // that kept focus.
   const middlePress = useRef<number | null>(null)
+  const closeOnClick = useRef(false)
   return (
     <dialog
       ref={dialog}
@@ -116,23 +130,24 @@ export default function LinkedDialog({
       onPointerDown={(event) => {
         event.stopPropagation()
         middlePress.current = null
-        if (event.target !== event.currentTarget) return
-        // The dialog's own scrollbar, and the corners beside its rounded
-        // panel, are part of it, not the page behind.
-        const box = event.currentTarget.getBoundingClientRect()
-        if (
-          event.clientX >= box.left &&
-          event.clientX < box.right &&
-          event.clientY >= box.top &&
-          event.clientY < box.bottom
-        )
-          return
+        closeOnClick.current = false
+        if (!onBackdrop(event)) return
         // Cancelled either way: a press held back leaves focus in the field,
         // so typing goes on there, and one that closes leaves focus on the
         // button the dialog hands it back to. Only the main button closes.
         event.preventDefault()
         if (event.button === 1) middlePress.current = event.pointerId
-        if (!holdsBack && event.button === 0) onClose()
+        if (holdsBack || event.button !== 0) return
+        // A tap closes on its click instead: once the dialog is gone, that
+        // click would land on whatever was under the finger.
+        if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+          closeOnClick.current = true
+        } else onClose()
+      }}
+      onClick={(event) => {
+        if (!closeOnClick.current) return
+        closeOnClick.current = false
+        if (onBackdrop(event) && !holdsBack) onClose()
       }}
       onPointerUp={(event) => {
         if (event.button !== 1) return
