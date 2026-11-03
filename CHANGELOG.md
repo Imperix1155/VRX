@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.9] - 2026-11-03
+
 ### Fixed
 
 - Unfriend, Block and Unblock: an answer that arrives after its
