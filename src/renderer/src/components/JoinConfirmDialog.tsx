@@ -5,9 +5,10 @@
  * `settings.confirmJoin` is on.
  *
  * A TRUE modal (aria-modal) — the app's first. Per the owner's ruling it still
- * wears the VRX-225 drawer's SOFT scrim + outside-pointerdown close; DESIGN.md
- * reserves the heavier `--scrim` for true modals, so the scrim choice is
- * flagged for the owner's eyeball rather than silently "upgraded".
+ * wears the VRX-225 drawer's SOFT scrim, and a press or tap on it closes the
+ * dialog (useScrimDismiss); DESIGN.md reserves the heavier `--scrim` for true
+ * modals, so the scrim choice is flagged for the owner's eyeball rather than
+ * silently "upgraded".
  *
  * Visual-weight order (owner-ruled): type-named headline → policy space (the
  * moderation context) → who's-there → mode → actions. The "More info" expander
@@ -671,9 +672,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-[var(--space-6)]">
-      {/* Soft scrim (owner-ruled, the VRX-225 pattern) — pure depth; outside
-          pointerdown closes like the drawer, but not while the launch is in
-          flight (the modal is inert then). */}
+      {/* Soft scrim (owner-ruled, the VRX-225 pattern) — pure depth; a press
+          or tap on it closes only this dialog (useScrimDismiss), but not while
+          the launch is in flight (the modal is inert then). */}
       <div
         data-testid="join-confirm-scrim"
         aria-hidden="true"

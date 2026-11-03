@@ -2921,6 +2921,35 @@ describe('Explore confirmation source', () => {
     expect(screen.queryByRole('dialog', { name: 'Explore World' })).toBeNull()
   })
 
+  it('closes on a press on its scrim, which stays there, so the Explore sheet behind stays open', () => {
+    const pressBehind = vi.fn()
+    document.addEventListener('pointerdown', pressBehind)
+    try {
+      render(<ExploreTestSurface />)
+      fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+      const pressed = fireEvent.pointerDown(screen.getByTestId('join-confirm-scrim'), {
+        pointerType: 'mouse'
+      })
+
+      expect(pressed).toBe(false)
+      expect(screen.queryByRole('dialog', { name: 'Explore World' })).toBeNull()
+      expect(pressBehind).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('pointerdown', pressBehind)
+    }
+  })
+
+  it('closes on a touch tap’s click on its scrim, not its press', () => {
+    render(<ExploreTestSurface />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const scrim = screen.getByTestId('join-confirm-scrim')
+    fireEvent.pointerDown(scrim, { pointerType: 'touch' })
+    expect(screen.getByRole('dialog', { name: 'Explore World' })).toBeTruthy()
+    fireEvent.click(scrim)
+
+    expect(screen.queryByRole('dialog', { name: 'Explore World' })).toBeNull()
+  })
+
   it('uses the same no-picker VRC and explicit-CVR mode semantics, including never ask again', async () => {
     const joinExploreRoom = vi.fn().mockResolvedValue({ ok: true })
     window.vrx = { ...window.vrx, joinExploreRoom } as unknown as Window['vrx']
