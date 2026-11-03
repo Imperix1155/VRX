@@ -6,8 +6,9 @@
  * being checked, so opening a drawer does not flicker.
  *
  * Every button here gives way to the line's next state as soon as it is
- * pressed, so it first moves keyboard focus to the note (`focusFallback`),
- * like the note's own Retry, instead of letting it fall to the page.
+ * pressed, so it first moves keyboard focus to where that state shows
+ * (`focusOnPress`) instead of letting it fall to the page. Not to the note
+ * itself: a held or second Enter would then type into it.
  */
 import { useTranslation } from 'react-i18next'
 import { FRIEND_NOTE_MAX_LENGTH, VRCHAT_ACCOUNT_NOTE_MAX_LENGTH } from '@shared/accountNotes'
@@ -23,7 +24,7 @@ export default function AccountNoteStatus({
   account,
   hasNote,
   isEditing,
-  focusFallback
+  focusOnPress
 }: {
   platform: Platform
   account: UseAccountNoteResult
@@ -31,13 +32,13 @@ export default function AccountNoteStatus({
   hasNote: boolean
   isEditing: boolean
   /** Takes keyboard focus when a button here is pressed. */
-  focusFallback: React.RefObject<HTMLElement | null>
+  focusOnPress: React.RefObject<HTMLElement | null>
 }): React.JSX.Element | null {
   const { t } = useTranslation()
   const name = platformName(t, platform)
   const { view } = account
   const press = (action: () => void) => (): void => {
-    focusFallback.current?.focus()
+    focusOnPress.current?.focus()
     action()
   }
 
