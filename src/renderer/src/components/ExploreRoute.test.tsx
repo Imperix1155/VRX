@@ -220,6 +220,40 @@ describe('ExploreRoute world sheet', () => {
     expect(scroller().scrollTop).toBe(0)
   })
 
+  it('closes on Escape pressed the moment the sheet shows', async () => {
+    query.vrc = { ...source, worlds: [world] }
+    let finish: (snapshot: ExploreWorldSnapshot) => void = () => undefined
+    worldReads.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    render(<ExploreRoute />)
+    fireEvent.click(screen.getByRole('button', { name: /^a world on .*view rooms$/i }))
+    // Outside act, React commits and runs passive effects in separate tasks,
+    // as in the app. Escape pressed as soon as the rooms show, before any
+    // later task, must still close the sheet.
+    let pressed = false
+    const observer = new MutationObserver(() => {
+      if (pressed || screen.queryByRole('dialog') === null) return
+      pressed = true
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true })
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    const previous = actEnvironment.IS_REACT_ACT_ENVIRONMENT
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false
+    try {
+      finish(ready)
+      await waitFor(() => expect(pressed).toBe(true))
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    } finally {
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = previous
+      observer.disconnect()
+    }
+  })
+
   it('switches an open sheet to another world in place, at the top, without moving focus', async () => {
     const other: ExploreWorld = {
       ...world,

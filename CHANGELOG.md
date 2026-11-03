@@ -83,6 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dialogs: pressing a dialog's own scrollbar no longer closes it; after a
   press outside closes one, keyboard focus goes back to the button that
   opened it instead of the page; and only the main mouse button closes one.
+- Explore: a world's rooms close on Escape or a press outside from the
+  moment they show, instead of a moment later.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

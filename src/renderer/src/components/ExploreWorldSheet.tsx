@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InstancePill from './InstancePill'
 import type {
@@ -225,7 +225,10 @@ export default function ExploreWorldSheet({
     }
     wasOpenRef.current = open
   }, [consumeFocusRestoreSuppression, focusFallback, open])
-  useEffect(() => {
+  // The sheet shows when its rooms arrive, not on the press that opened it,
+  // so Escape and a press outside start working in the commit that shows it,
+  // not a task later.
+  useLayoutEffect(() => {
     if (!open || !dismissable) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
@@ -233,7 +236,7 @@ export default function ExploreWorldSheet({
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose, open, dismissable])
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !dismissable) return
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target
