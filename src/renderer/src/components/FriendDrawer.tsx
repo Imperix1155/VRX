@@ -751,7 +751,9 @@ function DrawerFullProfile({
                 onFocus={() => {
                   focusedSection.current = section
                 }}
-                onBlur={() => {
+                onBlur={(event) => {
+                  // Another window taking focus leaves it here for the return.
+                  if (event.relatedTarget === null && !document.hasFocus()) return
                   focusedSection.current = null
                 }}
                 className="flex flex-col gap-[var(--space-2)]"
