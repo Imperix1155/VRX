@@ -273,10 +273,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Notes: a note you are typing in friend details is saved when you quit VRX
   with Ctrl+Q, Cmd+Q or Quit in the tray, instead of being lost.
 - Friend details: after you unfriend someone there, their full profile no
-  longer offers Add friend, which could only answer "You're already friends."
+  longer offers Add friend while friend details still show them.
 - Full profiles: Add friend right after Unfriend in the same profile sends
-  the request, instead of answering "You're already friends." until your
-  friends list catches up.
+  the request, also to someone you sent one earlier, instead of answering
+  "You're already friends." until your friends list caught up.
 - Dashboard: Latest invites keeps when each invite came in sight in a narrow
   window; the invite's words shorten first, instead of cutting off the time.
 - Friend details: an open Unfriend or Block question closes with friend
@@ -290,7 +290,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Unfriend or block, instead of a Try again that couldn't help.
 - Screen readers and voice control: the Join pills on friend rows and hot
   cards, and Add friend, now say the words they show ("Public: Join Amy in
-  SunDown"), first in English, so saying what you see presses them.
+  SunDown"), so saying what you see presses them. They say those words first;
+  in Japanese, Add friend says them last.
 
 ## [1.4.0-dev.4] - 2026-11-01
 
