@@ -17,6 +17,7 @@ import type { SocialAction, SocialActionResult } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
 import { useScrimDismiss } from '../hooks/useScrimDismiss'
 import { useRelationship, useSocialAction } from '../queries/community'
+import { keepTabInModal } from '../utils/modalTab'
 import GoToAccountsButton from './GoToAccountsButton'
 import PlatformPill from './PlatformPill'
 
@@ -310,27 +311,13 @@ function SocialConfirmDialog({
     if (event.key !== 'Tab') return
     const panel = panelRef.current
     if (panel === null) return
-    const focusables = Array.from(panel.querySelectorAll<HTMLElement>('button')).filter(
-      (element) => !element.hasAttribute('disabled')
+    // The dimmed buttons stay in the loop while it sends (aria-disabled).
+    const buttons = Array.from(panel.querySelectorAll<HTMLElement>('button'))
+    keepTabInModal(
+      event,
+      panel,
+      buttons.filter((element) => !element.hasAttribute('disabled'))
     )
-    const first = focusables[0]
-    const last = focusables[focusables.length - 1]
-    const active = document.activeElement
-    if (first === undefined || last === undefined) {
-      panel.focus({ preventScroll: true })
-      event.preventDefault()
-    } else if (!focusables.some((element) => element === active)) {
-      // Outside the panel, or on the panel itself after a press on its text,
-      // where Shift+Tab would leave the dialog: back to the first button.
-      first.focus()
-      event.preventDefault()
-    } else if (event.shiftKey && active === first) {
-      last.focus()
-      event.preventDefault()
-    } else if (!event.shiftKey && active === last) {
-      first.focus()
-      event.preventDefault()
-    }
   }
 
   return createPortal(

@@ -42,6 +42,7 @@ import {
 } from '../hooks/useJoinInstance'
 import { useJoinHandoff } from '../hooks/useJoinHandoff'
 import { useScrimDismiss } from '../hooks/useScrimDismiss'
+import { keepTabInModal } from '../utils/modalTab'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { policySpaceFor, type PolicySpace } from '../utils/instancePolicySpace'
@@ -153,30 +154,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
       if (event.key !== 'Tab') return
       const panel = panelRef.current
       if (panel === null) return
-      const focusables = getFocusables(panel)
-      const active = document.activeElement
-      if (focusables.length === 0) {
-        panel.focus({ preventScroll: true })
-        event.preventDefault()
-        return
-      }
-      const first = focusables[0]
-      const last = focusables[focusables.length - 1]
-      if (first === undefined || last === undefined) return
-      if (
-        active === null ||
-        !panel.contains(active) ||
-        !focusables.includes(active as HTMLElement)
-      ) {
-        first.focus({ preventScroll: true })
-        event.preventDefault()
-      } else if (event.shiftKey && active === first) {
-        last.focus()
-        event.preventDefault()
-      } else if (!event.shiftKey && active === last) {
-        first.focus()
-        event.preventDefault()
-      }
+      keepTabInModal(event, panel, getFocusables(panel))
     }
     document.addEventListener('keydown', onKey)
     const boundary = window.vrx?.onIdentityBoundary?.(({ platform }) => invalidatePending(platform))
@@ -542,29 +520,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
       if (event.key !== 'Tab') return
       const panel = panelRef.current
       if (panel === null) return
-      const focusables = getFocusables(panel)
-      const first: HTMLElement | undefined = focusables[0]
-      const last: HTMLElement | undefined = focusables[focusables.length - 1]
-      const active = document.activeElement
-      if (
-        active === null ||
-        !panel.contains(active) ||
-        (active !== null && !focusables.some((el) => el === active))
-      ) {
-        // Focus is OUTSIDE the panel, on a disabled/hidden element, or the
-        // panel itself while every control is inert — pull it to a valid anchor.
-        const target = first ?? panel
-        target.focus({ preventScroll: true })
-        event.preventDefault()
-      } else if (first !== undefined && last !== undefined) {
-        if (event.shiftKey && active === first) {
-          last.focus()
-          event.preventDefault()
-        } else if (!event.shiftKey && active === last) {
-          first.focus()
-          event.preventDefault()
-        }
-      }
+      // Focus OUTSIDE the panel, on a disabled/hidden element, or on the panel
+      // itself while every control is inert goes back to a valid anchor.
+      keepTabInModal(event, panel, getFocusables(panel))
     }
     document.addEventListener('keydown', onKeyDown)
     return () => {
