@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
 function listItems(container: HTMLElement | null): HTMLElement[] {
   return [...(container?.querySelectorAll<HTMLElement>('[data-list-key]') ?? [])]
@@ -26,7 +26,7 @@ export function useFocusFollowsList(
   // The keys as one value, so the effect runs when they change, not on
   // every render's new array.
   const signature = keys.join('\n')
-  useEffect(() => {
+  useLayoutEffect(() => {
     const was = held.current
     if (was === null) return
     const items = listItems(container.current)

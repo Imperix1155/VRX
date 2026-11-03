@@ -14,7 +14,7 @@
  * details leave it out: everyone there is on the friends list, and a friend
  * unfriended there stays shown only until the platform's own message.
  */
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CommunityGroup, PersonProfile, ProfileBadge, ProfileResult } from '@shared/community'
 import type { FriendActionResult, FriendRequestAnswer } from '@shared/friendActions'
@@ -321,11 +321,12 @@ function FriendAction({
   const answerFriendRequest = useAnswerFriendRequest()
   const [state, setState] = useState<FriendActionState>({ kind: 'idle' })
   // When the buttons give way to the result, focus that was on them moves to
-  // the result line instead of falling to the page.
+  // the result line instead of falling to the page, in the same commit, as
+  // useFocusLanding does.
   const rowRef = useRef<HTMLDivElement>(null)
   const statusRef = useRef<HTMLParagraphElement>(null)
   const returnFocus = useRef(false)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (state.kind !== 'done' || !returnFocus.current) return
     returnFocus.current = false
     const active = document.activeElement

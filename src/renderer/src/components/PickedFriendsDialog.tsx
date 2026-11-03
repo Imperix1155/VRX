@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
@@ -110,7 +110,7 @@ function useFocusAfterRemove(busy: boolean): {
   const removes = (): HTMLButtonElement[] => [
     ...(sectionRef.current?.querySelectorAll<HTMLButtonElement>('[data-picked-remove]') ?? [])
   ]
-  useEffect(() => {
+  useLayoutEffect(() => {
     const index = refocus.current
     if (busy || index === null) return
     refocus.current = null

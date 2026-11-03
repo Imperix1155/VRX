@@ -7,7 +7,7 @@
  * the opener. VRChat and ChilloutVR show the same fields in the same order;
  * only the platform stripe and label differ.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AvatarItem, AvatarSwitchResult } from '@shared/avatarLibrary'
 import { useAvatar } from '../hooks/useAvatar'
@@ -147,11 +147,12 @@ function AvatarSheetPanel({
   const switching = switcher.isPending
   // Wear stays focusable while it works (`aria-disabled`, not `disabled`, which
   // drops keyboard focus). When the switch lands and "You're wearing this"
-  // takes its place, focus that was on it moves there instead of to the page.
+  // takes its place, focus that was on it moves there in the same commit,
+  // instead of to the page.
   const wearRef = useRef<HTMLButtonElement>(null)
   const wornRef = useRef<HTMLSpanElement>(null)
   const returnFocus = useRef(false)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!worn || !returnFocus.current) return
     returnFocus.current = false
     const active = document.activeElement
