@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   OWN_BIO_MAX_LENGTH,
@@ -148,6 +148,21 @@ function StatusPicker({
   )
 }
 
+/** A failed save the platform may have taken in part (not a refusal of the
+ *  text, nor a wait), so Save stays available afterwards. */
+function mayHoldPart(reason: SaveFailure): boolean {
+  return reason !== 'invalid' && reason !== 'cooldown'
+}
+
+/** A field over its platform's limit: Save waits until it fits. */
+function isTooLong(draft: Draft): boolean {
+  return (
+    draft.bio.length > OWN_BIO_MAX_LENGTH ||
+    draft.pronouns.length > OWN_PRONOUNS_MAX_LENGTH ||
+    draft.statusText.length > OWN_STATUS_TEXT_MAX_LENGTH
+  )
+}
+
 function ProfileForm({
   profile,
   saving,
@@ -159,7 +174,8 @@ function ProfileForm({
   profile: OwnProfile
   saving: boolean
   onSaving: (saving: boolean) => void
-  /** Whether the fields differ from what loaded, so a stray press can't drop them. */
+  /** Whether what was typed differs from what loaded, so a stray press
+   *  can't drop it. */
   onDirtyChange: (dirty: boolean) => void
   onCancel: () => void
   onSaved: () => void
@@ -178,19 +194,14 @@ function ProfileForm({
   // After a failed Save the platform may hold part of it, so Save stays
   // available even when the text matches what the editor first loaded.
   const [failedOnce, setFailedOnce] = useState(false)
-  const tooLong =
-    draft.bio.length > OWN_BIO_MAX_LENGTH ||
-    draft.pronouns.length > OWN_PRONOUNS_MAX_LENGTH ||
-    draft.statusText.length > OWN_STATUS_TEXT_MAX_LENGTH
-  const dirty = hasChanges(draft, profile)
-  const canSave = !saving && !tooLong && (failedOnce || dirty)
-  useEffect(() => {
-    onDirtyChange(dirty)
-  }, [dirty, onDirtyChange])
+  const canSave = !saving && !isTooLong(draft) && (failedOnce || hasChanges(draft, profile))
 
+  // One field changes per event, so the draft on screen is the one to patch.
   const update = (patch: Partial<Draft>): void => {
+    const next = { ...draft, ...patch }
     setFailure(null)
-    setDraft((current) => ({ ...current, ...patch }))
+    setDraft(next)
+    onDirtyChange(hasChanges(next, profile))
   }
 
   async function handleSave(event: React.FormEvent): Promise<void> {
@@ -203,7 +214,7 @@ function ProfileForm({
     if (result.ok) onSaved()
     else {
       setFailure(result.reason)
-      if (result.reason !== 'invalid' && result.reason !== 'cooldown') setFailedOnce(true)
+      if (mayHoldPart(result.reason)) setFailedOnce(true)
     }
   }
 

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isHotInstanceMember } from '@shared/hotInstanceKey'
-import type { Friend } from '@shared/types'
+import type { Friend, Platform } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
 import { useSettingsStore } from '../stores/settings'
 import { instancePillFor } from '../utils/instancePill'
@@ -50,6 +50,43 @@ function RowWorld({
   )
 }
 
+/** Above a world's caption: in a two-world picture, its platform's short
+ *  name, so the halves' colors are never the only way to tell them apart
+ *  (DESIGN.md §9.2); and the access pill when the world is shown. */
+function WorldTags({
+  platform,
+  split,
+  pill
+}: {
+  platform: Platform
+  split: boolean
+  pill: ReturnType<typeof instancePillFor> | null
+}): React.JSX.Element | null {
+  const { t } = useTranslation()
+  if (!split && !pill) return null
+  return (
+    <span className="linked-world-tags">
+      {split && (
+        <span
+          data-linked-world-platform=""
+          className={`linked-world-platform linked-platform-${platform}`}
+        >
+          {t(
+            platform === 'vrchat'
+              ? 'friends.platform.vrchatShort'
+              : 'friends.platform.chilloutvrShort'
+          )}
+        </span>
+      )}
+      {pill && (
+        <span className="linked-world-pill">
+          <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
+        </span>
+      )}
+    </span>
+  )
+}
+
 function WorldLayer({ friend, split }: { friend: Friend; split: boolean }): React.JSX.Element {
   const { t } = useTranslation()
   const { labelScheme } = useSettingsStore((state) => state.settings)
@@ -85,29 +122,7 @@ function WorldLayer({ friend, split }: { friend: Friend; split: boolean }): Reac
         data-linked-world-position={lower ? 'cvr-lower-left' : split ? 'vrc-upper-right' : 'single'}
         className={`linked-world-overlay ${lower ? 'linked-world-lower' : 'linked-world-upper'}`}
       >
-        {(split || pill) && (
-          <span className="linked-world-tags">
-            {/* Two worlds: each half names its platform, so the halves' colors
-                are never the only way to tell them apart (DESIGN.md §9.2). */}
-            {split && (
-              <span
-                data-linked-world-platform=""
-                className={`linked-world-platform linked-platform-${friend.platform}`}
-              >
-                {t(
-                  friend.platform === 'vrchat'
-                    ? 'friends.platform.vrchatShort'
-                    : 'friends.platform.chilloutvrShort'
-                )}
-              </span>
-            )}
-            {pill && (
-              <span className="linked-world-pill">
-                <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
-              </span>
-            )}
-          </span>
-        )}
+        <WorldTags platform={friend.platform} split={split} pill={pill} />
         {/* A long world name is cut to fit its half; the tooltip has it whole. */}
         <span className="linked-world-caption" title={caption}>
           {caption}
