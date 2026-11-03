@@ -89,10 +89,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Friend details: for a linked person, the VRChat and ChilloutVR buttons under
   the name say "View VRChat profile" or "View ChilloutVR profile" to screen
   readers and in their tooltip, and show the drawer's focus ring.
-- Friend details: in Japanese, Identities is 「アカウントの関連付け」
-  everywhere, including its Back button, and a friend request is always
-  「フレンドリクエスト」 as in the Inbox, so Add friend reads
-  「フレンドリクエストを送る」.
+- Japanese: Identities is 「アカウントの関連付け」 everywhere, including its
+  Back button, and a friend request is always 「フレンドリクエスト」 as in the
+  Inbox, so Add friend in a full profile reads 「フレンドリクエストを送る」.
 - Identities: its dialogs close with the same ✕ button and keyboard focus
   ring as friend details, and so do a linked person's Choose a destination,
   Your VRChat or ChilloutVR profile in Accounts, and Picked friends.
@@ -289,8 +288,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full profiles: when a platform asks you to sign in again, the profile
   offers Go to Accounts, like the pages.
 - Screen readers and voice control: the Join pills on friend rows and hot
-  cards, and Add friend, now say the words they show first ("Public: Join
-  Amy in SunDown"), so saying what you see presses them.
+  cards, and Add friend, now say the words they show ("Public: Join Amy in
+  SunDown"), first in English, so saying what you see presses them.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

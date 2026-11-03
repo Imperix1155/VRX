@@ -508,7 +508,9 @@ Settings → Behavior → Friend details open from keeps the row body inert.
 The instance pill's Join stays a separate control with the normal
 confirmation and denial behavior. Its spoken name starts with the access words
 it shows ("Public: Join Amy in SunDown"), as the hot cards' pills do, so speech
-users can say what they see; Add friend's name starts with its words too.
+users can say what they see. Add friend's spoken name holds its visible words
+too: first in English ("Add friend: Amy on VRChat"), last in Japanese, as its
+word order puts the verb.
 
 Dashboard statistic cards are one set (owner, 2026-11-01): each card has the
 same layout, a VT323 number in `--text` and its label in `--text-dim`, with no
