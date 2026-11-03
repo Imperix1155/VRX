@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.10] - 2026-11-03
+
 ### Fixed
 
 - Japanese: a group's details call its member count メンバー数, so it no
