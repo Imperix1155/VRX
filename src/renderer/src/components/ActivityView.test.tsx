@@ -144,6 +144,12 @@ describe('ActivityView', () => {
     expect(rows[3]).toContain(msg('activity.online'))
   })
 
+  it("shows a cut-off line whole on hover, without ChilloutVR's instance tag", () => {
+    renderView()
+    const line = msg('activity.onlineIn', { world: 'Sunset Bay' })
+    expect(screen.getByText(line).getAttribute('title')).toBe(line)
+  })
+
   it("names each row's platform when it is read out, in the language's own punctuation", async () => {
     const aliceCvr = fullFriend('Alice', 'chilloutvr')
     useFriendsMock.mockImplementation((platform: string) => ({

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Activity: hovering a line that is cut off shows the whole line, without
+  the instance number VRX hides everywhere else on ChilloutVR worlds.
+- Japanese: a group's details call its member count メンバー数, so it no
+  longer reads the same as the メンバー role shown beside it.
+
 ## [1.4.0-dev.9] - 2026-11-03
 
 ### Fixed
