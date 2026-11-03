@@ -247,6 +247,24 @@ describe('ProfileActions', () => {
     expect(actionButtons()).toEqual(['unfriend', 'block'])
   })
 
+  it.each(['touch', 'pen'])(
+    'closes on a %s tap’s click, not its press, so the tap stays on the scrim',
+    async (pointerType) => {
+      renderActions()
+      await openOptions()
+      fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.unfriend') }))
+      const scrim = screen.getByTestId('social-confirm-scrim')
+      fireEvent.pointerDown(scrim, { pointerType })
+      // Still there for the tap's click, which would otherwise land behind it.
+      expect(screen.getByRole('alertdialog')).toBeTruthy()
+      fireEvent.pointerUp(scrim, { pointerType })
+      fireEvent.click(scrim)
+
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+      expect(bridge.socialAction).not.toHaveBeenCalled()
+    }
+  )
+
   it('offers Retry when the check fails', async () => {
     bridge.getRelationship.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
     renderActions()

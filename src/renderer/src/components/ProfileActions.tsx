@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { SocialAction, SocialActionResult } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
+import { useScrimDismiss } from '../hooks/useScrimDismiss'
 import { useRelationship, useSocialAction } from '../queries/community'
 import GoToAccountsButton from './GoToAccountsButton'
 import PlatformPill from './PlatformPill'
@@ -246,6 +247,10 @@ function SocialConfirmDialog({
   useEffect(() => {
     close.current = onClose
   }, [onClose])
+  const { onPointerDown: onScrimPointerDown, onClick: onScrimClick } = useScrimDismiss(
+    !pending,
+    onClose
+  )
 
   // Focus starts on Cancel and goes back to the button that opened the
   // dialog, or to the toggle when that button changed (Block became Unblock).
@@ -334,9 +339,8 @@ function SocialConfirmDialog({
       <div
         data-testid="social-confirm-scrim"
         aria-hidden="true"
-        onPointerDown={() => {
-          if (!pendingRef.current) onClose()
-        }}
+        onPointerDown={onScrimPointerDown}
+        onClick={onScrimClick}
         className="absolute inset-0 bg-[var(--scrim)]"
       />
       <div
