@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.8] - 2026-11-03
+
 ### Fixed
 
 - Keyboard: the favorites menu's choices, Join on a room in Explore, and
