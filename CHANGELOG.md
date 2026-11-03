@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Unfriend, Block and Unblock: an answer that arrives after its
+  confirmation closed, as when friend details close while the change is
+  sent, no longer closes a confirmation opened since.
+
 ## [1.4.0-dev.8] - 2026-11-03
 
 ### Fixed
