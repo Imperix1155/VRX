@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dialogs (Edit profile, Identities, Picked friends, Choose a destination):
   when Escape is pressed several times in a row and the window closes the
   dialog itself, VRX closes it too, so its button opens it again.
+- Welcome setup: the summary lists every Dashboard section that's on, in
+  its Dashboard order, instead of only Popular now and Hot Instances, so it
+  no longer says "Friend counts only" while Wearing now and Latest invites
+  are on.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

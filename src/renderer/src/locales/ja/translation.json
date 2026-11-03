@@ -1161,7 +1161,6 @@
       "notConnected": "{{platform}}：未接続",
       "unreachable": "{{platform}}：現在接続できません",
       "dashboardNone": "フレンド数のみ",
-      "dashboardBoth": "{{first}}、次に{{second}}",
       "alertsOff": "すべてオフ",
       "alertsSome": "{{total}}件中{{count}}件オン",
       "lookValue": "{{theme}}・グロー{{glow}}",

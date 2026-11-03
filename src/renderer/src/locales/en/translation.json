@@ -1169,7 +1169,6 @@
       "notConnected": "{{platform}} not connected",
       "unreachable": "{{platform}} can’t be reached right now",
       "dashboardNone": "Friend counts only",
-      "dashboardBoth": "{{first}}, then {{second}}",
       "alertsOff": "All off",
       "alertsSome": "{{count}} of {{total}} on",
       "lookValue": "{{theme}}, {{glow}} glow",
