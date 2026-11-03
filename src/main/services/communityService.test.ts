@@ -251,6 +251,16 @@ describe('CommunityService search', () => {
     expect(vrc.search).not.toHaveBeenCalled()
   })
 
+  it('sends one kanji, often a whole word, but not one kana or letter', async () => {
+    const { vrc, service } = setup()
+    for (const query of ['ね', 'ネ', 'é']) {
+      expect(await service.search('vrchat', query)).toEqual({ ok: false, reason: 'invalid-query' })
+    }
+    expect(vrc.search).not.toHaveBeenCalled()
+    expect(await service.search('vrchat', ' 猫 ')).toMatchObject({ ok: true })
+    expect(vrc.search).toHaveBeenCalledWith('猫', expect.anything())
+  })
+
   it('normalizes the text, adopts world results, and spaces searches 2 s apart', async () => {
     const { vrc, service, now, adopt } = setup()
     const first = await service.search('vrchat', '  Cozy   Cafe ')

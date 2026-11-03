@@ -20,6 +20,7 @@ import {
 } from '@shared/community'
 import type { RelationshipResult, SocialAction, SocialActionResult } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
+import { keepShown, type Kept } from '../utils/community'
 import { useAvatarAccount } from './avatarLibrary'
 
 type CommunityKind =
@@ -136,16 +137,59 @@ export function useCommunitySearch(
   })
 }
 
-/** Explore's New or Recently updated list, read when its tab opens. */
+/**
+ * A Search press. A refused answer (searches too close together, a busy
+ * line, no connection) is never kept as that text's answer: the press asks
+ * main again, once, on each platform it names. A good answer stays in use
+ * for its 2 minutes, so pressing Search again for it sends nothing.
+ */
+export function useSearchAgainIfRefused(): (query: string, platforms: readonly Platform[]) => void {
+  const client = useQueryClient()
+  const vrchat = useAvatarAccount('vrchat')
+  const chilloutvr = useAvatarAccount('chilloutvr')
+  return useCallback(
+    (query: string, platforms: readonly Platform[]) => {
+      for (const platform of platforms) {
+        const accountId = platform === 'vrchat' ? vrchat : chilloutvr
+        if (accountId === null) continue
+        // The shown search reads again now; one about to show reads on arrival.
+        void client.invalidateQueries(
+          {
+            queryKey: communityQueryKey(
+              'community-search',
+              platform,
+              accountId,
+              query.toLowerCase()
+            ),
+            exact: true,
+            predicate: (entry) =>
+              (entry.state.data as CommunitySearchResult | undefined)?.ok === false
+          },
+          { cancelRefetch: false }
+        )
+      }
+    },
+    [client, vrchat, chilloutvr]
+  )
+}
+
+/**
+ * Explore's New or Recently updated list, read when its tab opens. A later
+ * read that fails keeps the list that loaded (`keepShown`).
+ */
 export function useWorldList(
   platform: Platform,
   list: WorldList,
   enabled: boolean
-): UseQueryResult<WorldListResult, Error> {
+): UseQueryResult<Kept<WorldListResult>, Error> {
   const accountId = useAvatarAccount(platform)
   return useQuery({
     queryKey: communityQueryKey('world-list', platform, accountId, list),
-    queryFn: () => bridge().getWorldList({ platform, list }),
+    queryFn: async ({ client, queryKey }) =>
+      keepShown(
+        client.getQueryData<Kept<WorldListResult>>(queryKey),
+        await bridge().getWorldList({ platform, list })
+      ),
     enabled: enabled && accountId !== null,
     ...READ_OPTIONS,
     staleTime: 2 * 60_000
@@ -182,15 +226,22 @@ export function usePlayersOnline(
   })
 }
 
-/** The signed-in user's groups, read when the Groups page opens. */
+/**
+ * The signed-in user's groups, read when the Groups page opens. A later read
+ * that fails keeps the groups that loaded (`keepShown`).
+ */
 export function useMyGroups(
   platform: Platform,
   enabled: boolean
-): UseQueryResult<MyGroupsResult, Error> {
+): UseQueryResult<Kept<MyGroupsResult>, Error> {
   const accountId = useAvatarAccount(platform)
   return useQuery({
     queryKey: communityQueryKey('my-groups', platform, accountId),
-    queryFn: () => bridge().getMyGroups({ platform }),
+    queryFn: async ({ client, queryKey }) =>
+      keepShown(
+        client.getQueryData<Kept<MyGroupsResult>>(queryKey),
+        await bridge().getMyGroups({ platform })
+      ),
     enabled: enabled && accountId !== null,
     ...READ_OPTIONS
   })
@@ -206,11 +257,12 @@ export function useRefreshMyGroups(): (platform: Platform) => Promise<void> {
   )
 }
 
+/** A failed Refresh keeps what shows, marked `refreshFailed` (`keepShown`). */
 function useCommunityRefresh(): (
   kind: CommunityKind,
   platform: Platform,
   detail: string,
-  read: () => Promise<unknown>
+  read: () => Promise<{ ok: boolean }>
 ) => Promise<void> {
   const client = useQueryClient()
   const vrchat = useAvatarAccount('vrchat')
@@ -222,7 +274,7 @@ function useCommunityRefresh(): (
       const key = communityQueryKey(kind, platform, accountId, detail)
       await client.cancelQueries({ queryKey: key, exact: true })
       const result = await read()
-      client.setQueryData(key, result)
+      client.setQueryData<Kept<{ ok: boolean }>>(key, (previous) => keepShown(previous, result))
     },
     [client, vrchat, chilloutvr]
   )

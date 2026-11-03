@@ -351,6 +351,8 @@
       "retry": "再試行",
       "retrying": "再試行中…",
       "signOut": "サインアウト",
+      "signOutConfirm": "{{platform}} からサインアウトしますか？",
+      "cancel": "キャンセル",
       "username": "ユーザー名またはメールアドレス",
       "email": "メールアドレス",
       "usernamePlaceholder": "you@example.com",
@@ -468,7 +470,8 @@
       "error": "設定を保存できませんでした。変更は現在の画面に適用されていますが、再起動すると失われる可能性があります。",
       "unsaved": "設定に未保存の変更があります。",
       "retry": "設定の保存を再試行",
-      "saving": "保存中…"
+      "saving": "保存中…",
+      "loadFallback": "保存した設定を読み込めなかったため、いまは初期設定で表示しています。保存した設定はそのまま残っています。"
     },
     "bugReport": {
       "label": "不具合を見つけたら",
@@ -541,7 +544,9 @@
     "heading": "問題が発生しました",
     "hint": "予期しないエラーが発生しました。アプリを再読み込みしてみてください。",
     "reload": "再読み込み",
-    "copyDiagnostics": "診断情報をコピー"
+    "copyDiagnostics": "診断情報をコピー",
+    "copied": "コピーしました",
+    "copyFailed": "診断情報をコピーできませんでした。もう一度お試しください。"
   },
   "greeting": "VRXへようこそ",
   "friends": {
@@ -568,7 +573,8 @@
       "targetChanged": "場所が変わりました — もう一度参加を試してください",
       "joiningDisabled": "設定で参加が無効になっています",
       "notJoinable": "参加できなくなりました — 移動したかオフラインになった可能性があります",
-      "inviteFailed": "VRChatの招待を送れませんでした。もう一度参加を試してください。"
+      "inviteFailed": "VRChatの招待を送れませんでした。もう一度参加を試してください。",
+      "launchFailed": "ゲームを起動できませんでした。インストールされているか確認してください。"
     },
     "joinNotice": {
       "inGame": "起動中のゲームに送りました",
@@ -639,7 +645,7 @@
     "offline": "オフラインになりました",
     "openFriend": "{{name}} をフレンドで開く",
     "clear": "クリア",
-    "clearAria": "アクティビティをすべてクリア",
+    "clearAria": "表示中のアクティビティをクリア",
     "emptyHeading": "まだアクティビティはありません",
     "emptyHint": "VRXを開いている間、フレンドのオンライン、ワールド移動、オフラインがここに表示されます。",
     "filteredEmpty": "この条件で表示できるものはありません。",
@@ -875,6 +881,7 @@
     "viewRooms": "ルームを見る",
     "confirmAria": "{{world}} への参加を確認",
     "refresh": "更新",
+    "refreshing": "更新中…",
     "joinFailed": "このルームに参加できませんでした。更新してからもう一度お試しください。",
     "visiblePublicRooms": "表示可能なパブリックルーム",
     "unknownCount": "不明",
@@ -962,6 +969,8 @@
     "yourUploads": "アップロードしたアバター",
     "uploadCount_other": "{{count}}体",
     "loadingPlatform": "{{platform}} のアバターを読み込み中…",
+    "stale": "{{platform}} のアバターを更新できませんでした。最後に読み込んだ内容を表示しています。",
+    "staleRateLimited": "{{platform}} から間隔をあけるよう求められました。最後に読み込んだ内容を表示しています。1分ほどしてからもう一度お試しください。",
     "empty": "アップロードしたアバターはまだありません。",
     "noCurrent": {
       "vrchat": "着用中の VRChat アバターを確認できませんでした。",
@@ -1026,7 +1035,7 @@
     },
     "settings": {
       "label": "自動更新",
-      "description": "新しいバージョンをバックグラウンドでダウンロードし、アプリ終了時に適用します。",
+      "description": "新しいバージョンをバックグラウンドでダウンロードし、VRX を終了したときに適用します。",
       "channel": {
         "aria": "更新チャンネル",
         "stable": "安定版",
@@ -1042,6 +1051,7 @@
       "releases": "リリースページを開く",
       "unsupportedNote": "このポータブル版は自動更新に対応していません。",
       "currentVersion": "VRX v{{version}}",
+      "upToDate": "VRX v{{version}} は最新です。",
       "failure": {
         "checkNetwork": "更新を確認できませんでした。接続を確認してから、もう一度お試しください。",
         "downloadWrite": "更新をダウンロードできませんでした。接続と空き容量を確認してから、もう一度お試しください。解決しない場合は、最新リリースを手動でインストールしてください。",
@@ -1152,7 +1162,9 @@
       "alertsOff": "すべてオフ",
       "alertsSome": "{{total}}件中{{count}}件オン",
       "lookValue": "{{theme}}・グロー{{glow}}",
-      "lookValuePicture": "{{theme}}・グロー{{glow}}・背景画像あり"
+      "lookValuePicture": "{{theme}}・グロー{{glow}}・背景画像あり",
+      "lookValueNoGlow": "{{theme}}・グローなし",
+      "lookValuePictureNoGlow": "{{theme}}・グローなし・背景画像あり"
     }
   },
   "inbox": {
@@ -1180,8 +1192,8 @@
       "live": "受信箱にはVRXの起動中に届いたものが表示され、VRXを終了すると消えます。"
     },
     "notConnected": {
-      "vrchat": "ここで招待を確認するにはVRChatに接続してください",
-      "chilloutvr": "ここで招待を確認するにはChilloutVRに接続してください"
+      "vrchat": "ここで招待とフレンドリクエストを確認するにはVRChatに接続してください",
+      "chilloutvr": "ここで招待とフレンドリクエストを確認するにはChilloutVRに接続してください"
     },
     "loadError": "受信箱を読み込めませんでした"
   },
@@ -1193,6 +1205,8 @@
       "vrchat": "ここで確認するにはVRChatに接続してください",
       "chilloutvr": "ここで確認するにはChilloutVRに接続してください"
     },
+    "stale": "{{platform}} から最新の情報を取得できませんでした。最後に読み込んだ内容を表示しています。",
+    "staleRateLimited": "{{platform}} から間隔をあけるよう求められました。最後に読み込んだ内容を表示しています。1分ほどしてからもう一度お試しください。",
     "error": {
       "unavailable": "{{platform}} に接続できませんでした。少ししてからもう一度お試しください。",
       "rate-limited": "{{platform}} から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
@@ -1205,10 +1219,10 @@
     "placeholder": "人とワールドを検索",
     "aria": "人とワールドを検索",
     "submit": "検索",
-    "hint": "Enterで VRChat と ChilloutVR を名前で検索します。",
+    "hint": "Enterで人とワールドを名前で検索します。",
     "people": "人",
     "worlds": "ワールド",
-    "noPeople": "見つかりませんでした。",
+    "noPeople": "人は見つかりませんでした。",
     "noWorlds": "ワールドは見つかりませんでした。",
     "friend": "フレンド",
     "openPersonAria": "{{name}}（{{platform}}）。プロフィールを開く"

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, Platform } from '@shared/types'
+import type { FriendRoster } from './IPlatformAdapter'
 import { CvrAdapter } from './CvrAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import {
@@ -39,7 +40,7 @@ afterEach(() => {
 })
 
 describe.each(['vrchat', 'chilloutvr'] as const)('%s roster event coalescing', (platform) => {
-  it('bounds an event storm to one follow-up and publishes its result to every caller', async () => {
+  it('bounds an event storm to one follow-up per run and publishes each result to its callers', async () => {
     let releaseFirst!: () => void
     let releaseLast!: () => void
     const first = new Promise<void>((resolve) => {
@@ -56,7 +57,7 @@ describe.each(['vrchat', 'chilloutvr'] as const)('%s roster event coalescing', (
         if (snapshots === 1) await first
         if (snapshots === 2) await last
       }
-      const name = snapshots === 1 ? 'First' : 'Final'
+      const name = ['First', 'Final'][snapshots - 1] ?? 'Later'
       if (platform === 'chilloutvr')
         return jsonResponse({
           message: 'ok',
@@ -81,17 +82,23 @@ describe.each(['vrchat', 'chilloutvr'] as const)('%s roster event coalescing', (
     }
     releaseFirst()
     await vi.waitFor(() => expect(snapshots).toBe(2))
+    // The final read is already out, so its answer may miss these changes:
+    // callers from here on share one more run after it.
+    const later: Promise<FriendRoster>[] = []
     for (let i = 0; i < 50; i++) {
       event()
-      callers.push(adapter.getFriends())
+      later.push(adapter.getFriends())
     }
     releaseLast()
     const results = await Promise.all(callers)
     expect(results.every((result) => result === results[0])).toBe(true)
     expect(results[0]?.friends[0]?.displayName).toBe('Final')
-    expect(fetchMock).toHaveBeenCalledTimes(platform === 'chilloutvr' ? 2 : 6)
+    const laterResults = await Promise.all(later)
+    expect(laterResults.every((result) => result === laterResults[0])).toBe(true)
+    expect(laterResults[0]?.friends[0]?.displayName).toBe('Later')
+    expect(fetchMock).toHaveBeenCalledTimes(platform === 'chilloutvr' ? 3 : 9)
     await adapter.getFriends()
-    expect(snapshots).toBe(3)
+    expect(snapshots).toBe(4)
   })
 
   it('drops pending follow-up when an active roster rate limits', async () => {

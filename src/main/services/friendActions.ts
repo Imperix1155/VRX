@@ -47,7 +47,8 @@ export interface FriendActionsServiceOptions {
   adapters: ReadonlyMap<Platform, FriendActionsAdapter>
   inbox: {
     friendRequest(platform: Platform, id: string): FriendRequestRecord | null
-    dismiss(platform: Platform, id: string): boolean
+    /** The row leaves; the same person may send a new request later. */
+    answered(platform: Platform, id: string): boolean
   }
   /** A search listed this person in the current session (`CommunityService`). */
   wasListed: (platform: Platform, userId: string) => boolean
@@ -100,7 +101,9 @@ export class FriendActionsService {
         if (record === null) return this.fail(platform, answer, 'unknown-request')
         await adapter.answerFriendRequest(record, answer, state.lease)
         assertRequestLease(state.lease)
-        this.options.inbox.dismiss(platform, id)
+        // Not a Hide: answered rows are held back only briefly, so a new
+        // request from the same person still shows (ChilloutVR reuses the ID).
+        this.options.inbox.answered(platform, id)
         return { ok: true }
       })
     )

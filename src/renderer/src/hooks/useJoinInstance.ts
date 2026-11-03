@@ -60,6 +60,9 @@ export function joinFailureMessageKey(reason: JoinFeedback): string {
   if (reason === 'target-changed') return 'friends.joinFailure.targetChanged'
   if (reason === 'joining-disabled') return 'friends.joinFailure.joiningDisabled'
   if (reason === 'invite-failed') return 'friends.joinFailure.inviteFailed'
+  // Nothing on this PC opened the game's link (often the game isn't installed):
+  // the connection has nothing to do with it, and another try won't help.
+  if (reason === 'launch-failed') return 'friends.joinFailure.launchFailed'
   return 'friends.joinFailed'
 }
 
@@ -93,6 +96,16 @@ export interface FriendPendingConfirm {
   /** When main returns `target-changed`, the `dataUpdatedAt` watermark we must
    *  wait to exceed before another Confirm can proceed. */
   awaitingCacheAfter: number | null
+  /** Join came from a hot instance (card or sheet): the user picked the
+   *  instance, not this friend, so another friend still there can stand in
+   *  (`friendForPending`). */
+  fromHotInstance: boolean
+}
+
+/** How a `join` was asked for. */
+interface JoinOptions {
+  /** From a hot instance's card or sheet, through one of its members. */
+  fromHotInstance?: boolean
 }
 
 /** A discovery-room confirmation is deliberately not represented as a Friend. */
@@ -110,7 +123,7 @@ export interface ExplorePendingConfirm {
 
 export type PendingConfirm = FriendPendingConfirm | ExplorePendingConfirm
 
-export type ConfirmPendingResult = 'joined' | 'review-required' | 'unavailable' | 'failed'
+type ConfirmPendingResult = 'joined' | 'review-required' | 'unavailable' | 'failed'
 
 interface JoinSnapshot {
   /** True while ANY surface's join is in flight. */
@@ -127,16 +140,38 @@ interface JoinSnapshot {
   failureReason: JoinFeedback | null
 }
 
-interface JoinStore {
-  subscribe: (listener: () => void) => () => void
-  getSnapshot: () => JoinSnapshot
-  join: (friend: Friend) => Promise<void>
+/** What the shared store lets every surface do; `useJoinInstance` hands these out as is. */
+interface JoinActions {
+  join: (friend: Friend, options?: JoinOptions) => Promise<void>
   joinExplore: (world: ExploreWorld, room: ExploreRoom) => Promise<void>
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
   acknowledgePendingTarget: (presentedKey?: string) => boolean
   cancelPending: () => void
   invalidatePending: (platform?: Platform) => void
   invalidateFriendPending: () => void
+}
+
+interface JoinStore extends JoinActions {
+  subscribe: (listener: () => void) => () => void
+  getSnapshot: () => JoinSnapshot
+}
+
+/**
+ * One roster read after main turned a Join down because the friend moved:
+ * main is ahead of the renderer cache, and without it the next Join (or the
+ * dialog's wait for the new place) could outlive a 'manual' reconcile cadence.
+ * A read already running is reused, never restarted.
+ */
+function readRosterAfterMove(platform: Platform): void {
+  void queryClient.refetchQueries({ queryKey: friendsQueryKey(platform) }, { cancelRefetch: false })
+}
+
+/** Whether the friends cache still shows `friend` joinable at `target`. */
+function cacheStillShows(friend: Friend, target: JoinTarget): boolean {
+  const live = readFriendsCache(friend.platform).friends?.find(
+    (f) => f.platformUserId === friend.platformUserId
+  )
+  return live !== undefined && isFriendJoinable(live) && targetFor(live)?.key === target.key
 }
 
 /** Read the latest friends array and the query's dataUpdatedAt watermark for CAS. */
@@ -159,6 +194,34 @@ function targetFor(friend: Friend): JoinTarget | null {
   const key = hotInstanceKey(friend.platform, friend.instance.instanceId, friend.instance.worldId)
   if (key === null) return null
   return { key, worldId: friend.instance.worldId, instanceId: friend.instance.instanceId }
+}
+
+/**
+ * The live friend a parked friend confirmation stands for: the friend Join was
+ * pressed for. A Join from a hot instance is for the instance, so once that
+ * friend is no longer joinable in the reviewed instance, the first other
+ * joinable friend still there by name (the hot card's own order) stands in.
+ * Only when nobody is left does the dialog show the move or "no longer
+ * available" for the original friend.
+ */
+export function friendForPending(
+  friends: readonly Friend[] | undefined,
+  pending: Pick<
+    FriendPendingConfirm,
+    'platform' | 'platformUserId' | 'reviewedTarget' | 'fromHotInstance'
+  >
+): Friend | undefined {
+  const own = friends?.find((f) => f.platformUserId === pending.platformUserId)
+  if (!pending.fromHotInstance || friends === undefined) return own
+  const inReviewed = (f: Friend): boolean =>
+    f.platform === pending.platform &&
+    isFriendJoinable(f) &&
+    targetFor(f)?.key === pending.reviewedTarget.key
+  if (own !== undefined && inReviewed(own)) return own
+  const standIn = friends
+    .filter(inReviewed)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))[0]
+  return standIn ?? own
 }
 
 /**
@@ -248,8 +311,19 @@ function createJoinStore(): JoinStore {
         expectedTarget: { worldId: target.worldId, instanceId: target.instanceId }
       })
       if (generation !== sessionGeneration) return
-      if (result.ok) showJoinResult(friendKey, result)
-      else showFailureBlip(friendKey, result.reason)
+      if (result.ok) {
+        showJoinResult(friendKey, result)
+      } else {
+        showFailureBlip(friendKey, result.reason)
+        // Main turned down the place the list still shows, so its record is
+        // ahead of the cache and every retry would send the same old target:
+        // read the roster once, as Confirm does. A moved friend's live update
+        // has usually landed by now; then the list shows the new place and
+        // nothing is read.
+        if (result.reason === 'target-changed' && cacheStillShows(friend, target)) {
+          readRosterAfterMove(friend.platform)
+        }
+      }
     } catch {
       // Bridge exceptions are user-equivalent to a denial: blip, never an
       // unhandled rejection.
@@ -262,7 +336,7 @@ function createJoinStore(): JoinStore {
     }
   }
 
-  async function join(friend: Friend): Promise<void> {
+  async function join(friend: Friend, options: JoinOptions = {}): Promise<void> {
     // The snapshot IS the cross-surface latch: one active join blocks all.
     if (snapshot.joining) return
     // The confirmation dialog is MODAL: while one is parked, a join request
@@ -297,7 +371,8 @@ function createJoinStore(): JoinStore {
           platformUserId: friend.platformUserId,
           displayName: friend.displayName,
           reviewedTarget: target,
-          awaitingCacheAfter: null
+          awaitingCacheAfter: null,
+          fromHotInstance: options.fromHotInstance === true
         }
       })
       return
@@ -393,7 +468,7 @@ function createJoinStore(): JoinStore {
     // 'unavailable' without calling main.
     const { friends, dataUpdatedAt, queryError } = readFriendsCache(pc.platform)
     if (queryError !== null || friends === undefined) return 'unavailable'
-    const live = friends.find((f) => f.platformUserId === pc.platformUserId)
+    const live = friendForPending(friends, pc)
     if (!live) return 'unavailable'
     if (!isFriendJoinable(live)) return 'unavailable'
     const liveTarget = targetFor(live)
@@ -406,7 +481,9 @@ function createJoinStore(): JoinStore {
     emit({ joining: true })
     clearFailureBlip()
     const generationAtStart = sessionGeneration
-    const friendKey = friendJoinKey(pc)
+    // The friend main is asked about: the one Join was pressed for, or the
+    // friend standing in for them in the same hot instance.
+    const friendKey = friendJoinKey(live)
     try {
       if (!window.vrx) {
         // The session may have been invalidated while we were not awaiting; do
@@ -418,7 +495,7 @@ function createJoinStore(): JoinStore {
       }
       const result = await window.vrx.joinInstance({
         platform: pc.platform,
-        friendId: pc.platformUserId,
+        friendId: live.platformUserId,
         mode,
         expectedTarget: {
           worldId: pc.reviewedTarget.worldId,
@@ -441,7 +518,7 @@ function createJoinStore(): JoinStore {
         // immediately so the dialog is never stranded waiting for an update
         // that has already landed. Otherwise arm the watermark and wait.
         const after = readFriendsCache(pc.platform)
-        const afterLive = after.friends?.find((f) => f.platformUserId === pc.platformUserId)
+        const afterLive = friendForPending(after.friends, pc)
         const afterTarget = afterLive && isFriendJoinable(afterLive) ? targetFor(afterLive) : null
         if (afterTarget !== null && afterTarget.key !== pc.reviewedTarget.key) {
           emit({
@@ -457,9 +534,7 @@ function createJoinStore(): JoinStore {
           },
           joining: false
         })
-        // Main is ahead of the renderer cache; force a single refetch so the
-        // wait cannot outlive a 'manual' reconcile cadence.
-        void queryClient.refetchQueries({ queryKey: friendsQueryKey(pc.platform) })
+        readRosterAfterMove(pc.platform)
         return 'review-required'
       }
       // Ordinary terminal failure: clear the dialog and show the attributed blip.
@@ -483,7 +558,7 @@ function createJoinStore(): JoinStore {
     // longer vouch for.
     const { friends, queryError } = readFriendsCache(pc.platform)
     if (queryError !== null || friends === undefined) return false
-    const live = friends.find((f) => f.platformUserId === pc.platformUserId)
+    const live = friendForPending(friends, pc)
     if (!live || !isFriendJoinable(live)) return false
     const liveTarget = targetFor(live)
     if (liveTarget === null) return false
@@ -577,20 +652,16 @@ const sharedJoinStore = createJoinStore()
  * the dialog enters an UNAVAILABLE state (Cancel only). Confirm performs a
  * synchronous cache preflight before invoking main, and main compares the
  * renderer's expected target against its authoritative current target.
+ * A Join from a hot instance (`{ fromHotInstance: true }`) is for the
+ * instance: the live friend is `friendForPending`'s pick, so another friend
+ * still there stands in before DRIFT or UNAVAILABLE shows.
  */
-export function useJoinInstance(): {
+export function useJoinInstance(): JoinActions & {
   isJoining: boolean
   pendingConfirm: PendingConfirm | null
   joinFailedFor: (friend: Friend) => boolean
   joinFailureFor: (friend: Pick<Friend, 'platform' | 'platformUserId'>) => JoinFeedback | null
   joinExploreFailureFor: (world: ExploreWorld, room: ExploreRoom) => JoinFeedback | null
-  join: (friend: Friend) => Promise<void>
-  joinExplore: (world: ExploreWorld, room: ExploreRoom) => Promise<void>
-  confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
-  acknowledgePendingTarget: (presentedKey?: string) => boolean
-  cancelPending: () => void
-  invalidatePending: (platform?: Platform) => void
-  invalidateFriendPending: () => void
 } {
   const { joining, pendingConfirm, failedFriendId, failureReason } = useSyncExternalStore(
     sharedJoinStore.subscribe,

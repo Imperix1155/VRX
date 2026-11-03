@@ -4,7 +4,7 @@ import {
   FRIEND_ACTION_SPACING_MS,
   type FriendRequestAnswer
 } from '@shared/friendActions'
-import type { Platform } from '@shared/types'
+import type { AdapterEvent, Platform } from '@shared/types'
 import {
   FriendActionRefusedError,
   FriendActionUnavailableError,
@@ -14,6 +14,7 @@ import {
 import { AuthError, NetworkError, RateLimitError } from './adapters/errors'
 import type { RequestLease } from './adapters/RequestLease'
 import { FriendActionsService, MAX_SENT_FRIEND_REQUESTS } from './friendActions'
+import { InboxService } from './inbox'
 
 const VRC_USER = 'usr_5a3c1e2d-0000-4000-8000-000000000001'
 const CVR_USER = 'B81D5892-5119-4F44-B473-7BF4FFDA0458'
@@ -60,7 +61,7 @@ function setup(): {
   cvr: FakeAdapter
   service: FriendActionsService
   rows: Map<string, FriendRequestRecord>
-  dismiss: ReturnType<typeof vi.fn>
+  answered: ReturnType<typeof vi.fn>
   listed: Set<string>
   friends: Set<string>
   now: { value: number }
@@ -77,7 +78,7 @@ function setup(): {
   const now = { value: 10_000 }
   const sleeps: number[] = []
   const log = vi.fn()
-  const dismiss = vi.fn((platform: Platform, id: string) => rows.delete(`${platform}|${id}`))
+  const answered = vi.fn((platform: Platform, id: string) => rows.delete(`${platform}|${id}`))
   const service = new FriendActionsService({
     adapters: new Map<Platform, FriendActionsAdapter>([
       ['vrchat', vrc],
@@ -85,7 +86,7 @@ function setup(): {
     ]),
     inbox: {
       friendRequest: (platform, id) => rows.get(`${platform}|${id}`) ?? null,
-      dismiss
+      answered
     },
     wasListed: (platform, userId) => listed.has(`${platform}|${userId}`),
     isFriend: (platform, userId) => friends.has(`${platform}|${userId}`),
@@ -97,12 +98,12 @@ function setup(): {
     },
     log
   })
-  return { vrc, cvr, service, rows, dismiss, listed, friends, now, sleeps, log }
+  return { vrc, cvr, service, rows, answered, listed, friends, now, sleeps, log }
 }
 
 describe('FriendActionsService answers', () => {
   it('sends one answer for a row main holds and hides the row once it went out', async () => {
-    const { vrc, service, dismiss } = setup()
+    const { vrc, service, answered } = setup()
     await expect(service.answer('vrchat', ROW, 'accept')).resolves.toEqual({ ok: true })
     expect(vrc.answerFriendRequest).toHaveBeenCalledTimes(1)
     expect(vrc.answerFriendRequest.mock.calls[0]![0]).toEqual({
@@ -110,7 +111,7 @@ describe('FriendActionsService answers', () => {
       senderId: VRC_USER
     })
     expect(vrc.answerFriendRequest.mock.calls[0]![1]).toBe('accept')
-    expect(dismiss).toHaveBeenCalledWith('vrchat', ROW)
+    expect(answered).toHaveBeenCalledWith('vrchat', ROW)
   })
 
   it('refuses a row main does not hold without any request', async () => {
@@ -129,7 +130,7 @@ describe('FriendActionsService answers', () => {
   })
 
   it('keeps the row when the platform refuses or cannot be reached', async () => {
-    const { vrc, service, dismiss, log } = setup()
+    const { vrc, service, answered, log } = setup()
     vrc.error = new FriendActionRefusedError('no')
     await expect(service.answer('vrchat', ROW, 'accept')).resolves.toEqual({
       ok: false,
@@ -155,7 +156,7 @@ describe('FriendActionsService answers', () => {
       ok: false,
       reason: 'not-authenticated'
     })
-    expect(dismiss).not.toHaveBeenCalled()
+    expect(answered).not.toHaveBeenCalled()
     // Logs carry no row or person.
     for (const [, meta] of log.mock.calls) {
       expect(JSON.stringify(meta)).not.toContain('usr_')
@@ -327,5 +328,94 @@ describe('FriendActionsService friend requests', () => {
     expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(ids.length)
     await service.send('vrchat', ids[0]!)
     expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(ids.length + 1)
+  })
+})
+
+describe('FriendActionsService with the real inbox', () => {
+  // ChilloutVR names a friend request by its sender, so every request from one
+  // person has the same row ID.
+  const sender = CVR_USER.toLowerCase()
+  const rowId = `friend-request:${sender}`
+  const request: AdapterEvent = {
+    type: 'inbox',
+    platform: 'chilloutvr',
+    change: {
+      op: 'add',
+      entries: [
+        {
+          sourceId: sender,
+          kind: 'friend-request',
+          senderId: sender,
+          senderName: 'Kai',
+          worldName: null
+        }
+      ]
+    }
+  }
+
+  function wired(): {
+    inbox: InboxService
+    service: FriendActionsService
+    notify: ReturnType<typeof vi.fn>
+    advance: (ms: number) => void
+  } {
+    let mono = 0
+    const notify = vi.fn()
+    const inbox = new InboxService({
+      now: () => 1_000_000 + mono,
+      clock: () => mono,
+      onChanged: () => undefined,
+      notify,
+      isAlertEnabled: () => true
+    })
+    const service = new FriendActionsService({
+      adapters: new Map<Platform, FriendActionsAdapter>([
+        ['chilloutvr', new FakeAdapter('chilloutvr')]
+      ]),
+      inbox,
+      wasListed: () => false,
+      isFriend: () => false,
+      clock: () => mono,
+      sleep: () => Promise.resolve()
+    })
+    return {
+      inbox,
+      service,
+      notify,
+      advance: (ms) => {
+        mono += ms
+      }
+    }
+  }
+
+  it.each<FriendRequestAnswer>(['decline', 'accept'])(
+    'after %s, the same person can ask again and is shown and alerted',
+    async (answer) => {
+      const { inbox, service, notify, advance } = wired()
+      inbox.consume(request)
+      await expect(service.answer('chilloutvr', rowId, answer)).resolves.toEqual({ ok: true })
+      expect(inbox.snapshot().items).toEqual([])
+
+      // The socket repeating its list right after the answer changes nothing.
+      advance(1_000)
+      inbox.consume(request)
+      expect(inbox.snapshot().items).toEqual([])
+
+      // Minutes later they send a new request.
+      advance(5 * 60_000)
+      notify.mockClear()
+      inbox.consume(request)
+      expect(inbox.snapshot().items.map((item) => item.id)).toEqual([rowId])
+      expect(notify).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('a hidden request stays hidden for the session', () => {
+    const { inbox, advance } = wired()
+    inbox.consume(request)
+    expect(inbox.dismiss('chilloutvr', rowId)).toBe(true)
+    advance(5 * 60_000)
+    inbox.consume(request)
+    expect(inbox.snapshot().items).toEqual([])
   })
 })

@@ -18,6 +18,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useAvatar } from '../hooks/useAvatar'
+import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { useTranslation } from 'react-i18next'
 import { isFriendJoinable } from '@shared/joinability'
@@ -64,7 +65,11 @@ export default function HotInstanceSheet({
 
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
   const joinTarget = shown?.members.find(isFriendJoinable) ?? null
-  const joinFailure = joinTarget !== null && shown !== null ? joinFailureFor(joinTarget) : null
+  // What the last Join through any member said (see HotInstanceCard).
+  const joinFailure =
+    joinTarget !== null && shown !== null
+      ? (shown.members.map(joinFailureFor).find((reason) => reason !== null) ?? null)
+      : null
   const bannerDataUrl = useAvatar(shown?.thumbnailUrl ?? null, bannerRef, 'picture')
   const [failedBannerKey, setFailedBannerKey] = useState<string | null>(null)
   const bannerImageKey = bannerDataUrl ? `${shown?.thumbnailUrl ?? ''}\u0000${bannerDataUrl}` : null
@@ -85,6 +90,10 @@ export default function HotInstanceSheet({
     if (!open) return
     closeButtonRef.current?.focus()
   }, [open])
+
+  // Another instance, or the same one reopened, starts at the top. groupKey
+  // names the world too: two VRChat worlds can share an instance number.
+  const scrollRef = useScrollTopOnShow(open, shown === null ? null : shown.groupKey)
 
   // Esc closes while open. NO focus trap (non-modal contract).
   useEffect(() => {
@@ -162,7 +171,11 @@ export default function HotInstanceSheet({
 
   function joinSheetTarget(event: React.MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation()
-    if (joinTarget !== null) void join(joinTarget)
+    // aria-disabled, not disabled, while a join runs (as InstancePill does): a
+    // focused button that disabled itself would drop keyboard focus to the page.
+    if (isJoining) return
+    // For the instance, not this member: the dialog keeps it while anyone is there.
+    if (joinTarget !== null) void join(joinTarget, { fromHotInstance: true })
   }
 
   return (
@@ -230,7 +243,10 @@ export default function HotInstanceSheet({
           {/* Grab bar: drag or click for more about this instance. */}
           <SheetGrabBar expansion={expansion} />
 
-          <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]">
+          <div
+            ref={scrollRef}
+            className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]"
+          >
             {/* Banner */}
             <div
               ref={bannerRef}
@@ -290,12 +306,12 @@ export default function HotInstanceSheet({
                     <button
                       type="button"
                       onClick={joinSheetTarget}
-                      disabled={isJoining}
+                      aria-disabled={isJoining || undefined}
                       aria-label={t('friends.joinAria', {
                         name: joinTarget.displayName,
                         world: worldName
                       })}
-                      className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
+                      className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:brightness-100 motion-safe:transition-[filter]"
                       style={{
                         borderColor:
                           'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',

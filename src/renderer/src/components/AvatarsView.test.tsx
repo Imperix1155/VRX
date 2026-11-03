@@ -5,7 +5,7 @@
  * switched from the sheet, and nothing loads for a signed-out platform.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { AvatarItem, AvatarLibraryResult } from '@shared/avatarLibrary'
 import type { AuthStatus, Platform } from '@shared/types'
@@ -23,7 +23,13 @@ vi.mock('../queries/auth', async (importOriginal) => ({
     const data: AuthStatus =
       state === 'authenticated'
         ? { platform, state, accountId: `${platform}-me`, displayName: 'Me' }
-        : { platform, state: 'unauthenticated', accountId: null, displayName: null }
+        : {
+            platform,
+            // 'error': the sign-in check couldn't reach the platform.
+            state: state === 'error' ? 'error' : 'unauthenticated',
+            accountId: null,
+            displayName: null
+          }
     return { data, isSuccess: true, isFetching: false, isPending: false }
   }
 }))
@@ -124,6 +130,19 @@ describe('AvatarsView', () => {
         .map((button) => button.getAttribute('aria-label'))
     ).toEqual([cardName(cvrWorn), cardName(cvrOther), cardName(vrcWorn), cardName(vrcOther)])
     expect(within(uploads).getByText(msg('avatars.uploadCount', { count: 4 }))).toBeTruthy()
+    // The row's heading already says "Wearing now"; its cards don't repeat it.
+    expect(within(worn).getAllByText(msg('avatars.wearingNow'))).toHaveLength(1)
+    for (const card of within(worn).getAllByRole('button')) {
+      expect(card.hasAttribute('aria-describedby')).toBe(false)
+    }
+    // In the uploads grid the line marks the worn ones among the rest.
+    expect(within(uploads).getAllByText(msg('avatars.wearingNow'))).toHaveLength(2)
+    expect(
+      within(uploads).getByRole('button', {
+        name: cardName(vrcWorn),
+        description: msg('avatars.wearingNow')
+      })
+    ).toBeTruthy()
   })
 
   it('reads only the platform the filter shows', async () => {
@@ -135,16 +154,86 @@ describe('AvatarsView', () => {
     expect(screen.queryByRole('button', { name: cardName(vrcOther) })).toBeNull()
   })
 
-  it('shows the same connect notice for a signed-out platform and reads nothing for it', async () => {
+  it('adds no line under ALL for a signed-out platform and reads nothing for it', async () => {
     authState.chilloutvr = 'unauthenticated'
     renderView()
     await screen.findByRole('button', { name: cardName(vrcOther) })
-    expect(screen.getByText(msg('avatars.notConnected.chilloutvr'))).toBeTruthy()
+    expect(screen.queryByText(msg('avatars.notConnected.chilloutvr'))).toBeNull()
     expect(bridge.getAvatarLibrary).toHaveBeenCalledWith({ platform: 'vrchat' })
     expect(bridge.getAvatarLibrary).not.toHaveBeenCalledWith({ platform: 'chilloutvr' })
+  })
+
+  it('shows the connect notice when the filter picks a signed-out platform', async () => {
+    authState.chilloutvr = 'unauthenticated'
+    useFriendsStore.setState({ platformFilter: 'chilloutvr' })
+    renderView()
+    expect(await screen.findByText(msg('avatars.notConnected.chilloutvr'))).toBeTruthy()
+    expect(bridge.getAvatarLibrary).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: msg('avatars.notConnected.openAccounts') }))
     expect(useUiStore.getState().activeTab).toBe('settings')
     expect(useUiStore.getState().settingsCategory).toBe('accounts')
+  })
+
+  it('offers Accounts, not Try again, when a platform asks to sign in again', async () => {
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>(
+        platform === 'vrchat' ? { ok: false, reason: 'not-authenticated' } : library(platform)
+      )
+    )
+    renderView()
+    const text = msg('avatars.error.not-authenticated', { platform: msg('dashboard.platformVrc') })
+    expect(await screen.findByText(text)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('avatars.retry') })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: msg('avatars.notConnected.openAccounts') }))
+    expect(useUiStore.getState().activeTab).toBe('settings')
+    expect(useUiStore.getState().settingsCategory).toBe('accounts')
+  })
+
+  it('says you have no uploads only once every shown platform has answered', async () => {
+    let answerVrchat: (result: AvatarLibraryResult) => void = () => undefined
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      platform === 'vrchat'
+        ? new Promise<AvatarLibraryResult>((resolve) => {
+            answerVrchat = resolve
+          })
+        : Promise.resolve<AvatarLibraryResult>({
+            ok: true,
+            platform,
+            avatars: [],
+            complete: true,
+            current: cvrWorn
+          })
+    )
+    renderView()
+    await screen.findByRole('button', { name: cardName(cvrWorn) })
+    const vrcLoading = msg('avatars.loadingPlatform', { platform: msg('dashboard.platformVrc') })
+    expect(screen.getByText(vrcLoading)).toBeTruthy()
+    // ChilloutVR has no uploads, but VRChat hasn't answered yet.
+    expect(screen.queryByText(msg('avatars.empty'))).toBeNull()
+    expect(screen.queryByRole('region', { name: msg('avatars.yourUploads') })).toBeNull()
+    answerVrchat({ ok: true, platform: 'vrchat', avatars: [], complete: true, current: null })
+    expect(await screen.findByText(msg('avatars.empty'))).toBeTruthy()
+    expect(screen.queryByText(vrcLoading)).toBeNull()
+  })
+
+  it('shows no endless Loading line while a sign-in check could not reach a platform', async () => {
+    authState.vrchat = 'error'
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>({
+        ok: true,
+        platform,
+        avatars: [],
+        complete: true,
+        current: cvrWorn
+      })
+    )
+    renderView()
+    // Nothing is read for VRChat, so ChilloutVR's empty library is the whole answer.
+    expect(await screen.findByText(msg('avatars.empty'))).toBeTruthy()
+    expect(
+      screen.queryByText(msg('avatars.loadingPlatform', { platform: msg('dashboard.platformVrc') }))
+    ).toBeNull()
+    expect(bridge.getAvatarLibrary).not.toHaveBeenCalledWith({ platform: 'vrchat' })
   })
 
   it('shows a typed failure with Try again', async () => {
@@ -159,6 +248,110 @@ describe('AvatarsView', () => {
     expect(screen.getByRole('button', { name: cardName(cvrOther) })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: msg('avatars.retry') }))
     await waitFor(() => expect(bridge.getAvatarLibrary).toHaveBeenCalledTimes(3))
+  })
+
+  it('says it is loading while Try again asks again, then shows the new answer', async () => {
+    let answer: (result: AvatarLibraryResult) => void = () => {}
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>(
+        platform === 'vrchat' ? { ok: false, reason: 'unavailable' } : library(platform)
+      )
+    )
+    renderView()
+    const vrc = msg('dashboard.platformVrc')
+    expect(
+      await screen.findByText(msg('avatars.error.unavailable', { platform: vrc }))
+    ).toBeTruthy()
+
+    bridge.getAvatarLibrary.mockImplementation(
+      () => new Promise<AvatarLibraryResult>((resolve) => (answer = resolve))
+    )
+    const retry = screen.getByRole('button', { name: msg('avatars.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    // The press shows: the platform's loading line, no red line, no second Try again.
+    const loading = await screen.findByText(msg('avatars.loadingPlatform', { platform: vrc }))
+    expect(screen.queryByText(msg('avatars.error.unavailable', { platform: vrc }))).toBeNull()
+    expect(screen.queryByRole('button', { name: msg('avatars.retry') })).toBeNull()
+    // Keyboard focus stays on that line, not the top of the window.
+    const line = loading.closest('[role="status"]')
+    expect(line).not.toBeNull()
+    expect(document.activeElement).toBe(line)
+
+    await act(async () => answer({ ok: false, reason: 'unavailable' }))
+    expect(
+      await screen.findByText(msg('avatars.error.unavailable', { platform: vrc }))
+    ).toBeTruthy()
+    expect(document.activeElement).toBe(line)
+  })
+
+  it('says VRChat asked to slow down when a Refresh of loaded avatars gets a 429', async () => {
+    renderView()
+    await screen.findAllByRole('button', { name: cardName(vrcOther) })
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>(
+        platform === 'vrchat' ? { ok: false, reason: 'rate-limited' } : library(platform)
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: msg('avatars.refresh') }))
+    const line = await screen.findByText(
+      msg('avatars.staleRateLimited', { platform: msg('dashboard.platformVrc') })
+    )
+    expect(line.className).toContain('text-[var(--text-dim)]')
+    expect(screen.getAllByRole('button', { name: cardName(vrcOther) }).length).toBeGreaterThan(0)
+  })
+
+  it('keeps keyboard focus on Refresh while it runs and ignores more presses', async () => {
+    renderView()
+    await screen.findAllByRole('button', { name: cardName(vrcOther) })
+    const waiting: Array<() => void> = []
+    bridge.getAvatarLibrary.mockImplementation(
+      ({ platform }) =>
+        new Promise<AvatarLibraryResult>((resolve) =>
+          waiting.push(() => resolve(library(platform)))
+        )
+    )
+    const before = bridge.getAvatarLibrary.mock.calls.length
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: msg('avatars.refresh') })
+    button.focus()
+    fireEvent.click(button)
+    const busy = await screen.findByRole<HTMLButtonElement>('button', {
+      name: msg('avatars.refreshing')
+    })
+    // Off while it runs, yet still focusable, so keyboard focus stays on it.
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
+    expect(busy.disabled).toBe(false)
+    expect(document.activeElement).toBe(busy)
+    const asked = bridge.getAvatarLibrary.mock.calls.length
+    expect(asked).toBeGreaterThan(before)
+    fireEvent.click(busy)
+    fireEvent.click(busy)
+    expect(bridge.getAvatarLibrary.mock.calls.length).toBe(asked)
+
+    await act(async () => waiting.forEach((answer) => answer()))
+    const idle = await screen.findByRole('button', { name: msg('avatars.refresh') })
+    expect(idle.getAttribute('aria-disabled')).toBeNull()
+  })
+
+  it('keeps the loaded avatars when a Refresh fails, and says so in a dim line', async () => {
+    renderView()
+    await screen.findAllByRole('button', { name: cardName(vrcOther) })
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve<AvatarLibraryResult>(
+        platform === 'vrchat' ? { ok: false, reason: 'unavailable' } : library(platform)
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: msg('avatars.refresh') }))
+    const line = await screen.findByText(
+      msg('avatars.stale', { platform: msg('dashboard.platformVrc') })
+    )
+    expect(line.className).toContain('text-[var(--text-dim)]')
+    expect(screen.getAllByRole('button', { name: cardName(vrcOther) }).length).toBeGreaterThan(0)
+    expect(
+      screen.queryByText(
+        msg('avatars.error.unavailable', { platform: msg('dashboard.platformVrc') })
+      )
+    ).toBeNull()
   })
 
   it('opens the details sheet and wears an avatar', async () => {

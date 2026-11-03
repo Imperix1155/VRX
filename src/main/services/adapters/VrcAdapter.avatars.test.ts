@@ -91,6 +91,46 @@ describe('VrcAdapter avatar library', () => {
     )
   })
 
+  it('ends each avatar read at the first 429 without sending it again', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const fetchMock = vi.fn(
+      async () => new Response(null, { status: 429, headers: { 'Retry-After': '0' } })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+
+    await expect(adapter.getOwnAvatars(adapter.captureAvatarLease())).rejects.toBeInstanceOf(
+      RateLimitError
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await expect(adapter.getCurrentAvatar(adapter.captureAvatarLease())).rejects.toBeInstanceOf(
+      RateLimitError
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    await expect(
+      adapter.getAvatarDetails(avatarId(1), adapter.captureAvatarLease())
+    ).rejects.toBeInstanceOf(RateLimitError)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('stops paging the avatar list at a 429 instead of resuming after the wait', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    let next = 0
+    // Page two answers 429 once; a resend would get full pages until the cap.
+    const fetchMock = vi.fn(async () =>
+      fetchMock.mock.calls.length === 2
+        ? new Response(null, { status: 429, headers: { 'Retry-After': '0' } })
+        : jsonResponse(Array.from({ length: 100 }, () => avatar(next++)))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+
+    await expect(adapter.getOwnAvatars(adapter.captureAvatarLease())).rejects.toBeInstanceOf(
+      RateLimitError
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('switches with one PUT to the select route and never retries it', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const fetchMock = vi

@@ -6,7 +6,13 @@ import {
   type InboxKind
 } from '@shared/inbox'
 import type { AdapterEvent, Friend, Platform } from '@shared/types'
-import { INBOX_ALERT_LIMIT, INBOX_ALERT_WINDOW_MS, InboxService } from './inbox'
+import {
+  INBOX_ALERT_LIMIT,
+  INBOX_ALERT_WINDOW_MS,
+  INBOX_ANSWERED_HOLD_MS,
+  INBOX_CONNECT_QUIET_MS,
+  InboxService
+} from './inbox'
 
 function rig(alerts: Partial<Record<InboxKind, boolean>> = {}): {
   inbox: InboxService
@@ -189,6 +195,30 @@ describe('InboxService', () => {
     expect(r.inbox.snapshot().items).toEqual([])
   })
 
+  it('an answered row leaves and is held back only briefly, so its sender can ask again', () => {
+    const r = rig()
+    // ChilloutVR's request ID is the sender's own ID, the same on every request.
+    const request = entry({ sourceId: 'g1', kind: 'friend-request', senderId: 'g1' })
+    r.inbox.consume(add('chilloutvr', request))
+    expect(r.inbox.answered('chilloutvr', 'friend-request:g1')).toBe(true)
+    expect(r.inbox.answered('chilloutvr', 'friend-request:g1')).toBe(false)
+    expect(r.inbox.snapshot().items).toEqual([])
+
+    r.advance(INBOX_ANSWERED_HOLD_MS - 1)
+    r.inbox.consume(add('chilloutvr', request))
+    expect(r.inbox.snapshot().items).toEqual([])
+
+    r.advance(1)
+    r.inbox.consume(add('chilloutvr', request))
+    expect(r.inbox.snapshot().items.map((item) => item.id)).toEqual(['friend-request:g1'])
+
+    // A boundary forgets the hold along with everything else.
+    r.inbox.answered('chilloutvr', 'friend-request:g1')
+    r.inbox.resetPlatform('chilloutvr')
+    r.inbox.consume(add('chilloutvr', request))
+    expect(r.inbox.snapshot().items).toHaveLength(1)
+  })
+
   it('a boundary forgets the platform completely, the other platform untouched', () => {
     const r = rig()
     r.inbox.consume(add('vrchat', entry()))
@@ -267,6 +297,30 @@ describe('InboxService', () => {
     r.inbox.consume(add('vrchat', entry({ sourceId: 'not_x', senderId: 'usr_x' })))
     r.inbox.consume(add('vrchat', entry({ sourceId: 'not_y', senderId: 'usr_x' })))
     expect(r.notify).toHaveBeenCalledTimes(INBOX_ALERT_LIMIT + 2)
+  })
+
+  it('shows what ChilloutVR lists as it connects without alerting; later rows alert', () => {
+    const r = rig({ 'friend-request': true, invite: true })
+    const request = (id: string): InboxEntry =>
+      entry({ sourceId: id, kind: 'friend-request', senderId: id, worldName: null })
+    r.inbox.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+    r.advance(1_000)
+    // Requests still open from before, sent as the socket connects.
+    r.inbox.consume(add('chilloutvr', request('usr_b'), request('usr_c')))
+    r.inbox.consume(add('chilloutvr', entry({ sourceId: 'inv-1', senderId: 'usr_d' })))
+    expect(r.inbox.snapshot().items).toHaveLength(3)
+    expect(r.notify).not.toHaveBeenCalled()
+
+    r.advance(INBOX_CONNECT_QUIET_MS)
+    r.inbox.consume(add('chilloutvr', request('usr_e')))
+    expect(r.notify).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ platform: 'chilloutvr', senderId: 'usr_e' })
+    )
+
+    // VRChat sends notifications only as they happen, so they alert at once.
+    r.inbox.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    r.inbox.consume(add('vrchat', entry({ sourceId: 'not_9', senderId: 'usr_f' })))
+    expect(r.notify).toHaveBeenCalledTimes(2)
   })
 
   it('a throwing switch or notifier never breaks the inbox', () => {

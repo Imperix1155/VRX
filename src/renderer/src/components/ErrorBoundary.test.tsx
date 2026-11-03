@@ -10,8 +10,8 @@
  * @testing-library/react was added to devDependencies for this test.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
-import '../i18n'
+import { act, render, screen, cleanup, fireEvent } from '@testing-library/react'
+import i18n from '../i18n'
 import ErrorBoundary from './ErrorBoundary'
 
 // Suppress the expected React error noise from the throwing child.
@@ -28,7 +28,39 @@ afterEach(() => {
   // Explicit cleanup needed because vitest doesn't auto-wire @testing-library
   // cleanup without a setupFiles entry.
   cleanup()
+  vi.useRealTimers()
+  Reflect.deleteProperty(navigator, 'clipboard')
 })
+
+function stubClipboard(writeText: (text: string) => Promise<void>): ReturnType<typeof vi.fn> {
+  const spy = vi.fn(writeText)
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText: spy }, configurable: true })
+  return spy
+}
+
+/** A packaged build's stack: the install folder sits under the Windows account. */
+const INSTALLED_FRAME = [
+  'file://',
+  'C:',
+  'Users',
+  'Sample%20User',
+  'AppData',
+  'Local',
+  'Programs',
+  'vrx',
+  'resources',
+  'app.asar',
+  'out',
+  'renderer',
+  'assets',
+  'index-abc123.js:12:345'
+].join('/')
+
+function InstalledBomb({ frame = INSTALLED_FRAME }: { frame?: string }): React.JSX.Element {
+  const error = new Error(`Failed to load ${frame}`)
+  error.stack = `Error: boom\n    at Panel (${frame})\n    at ${frame}`
+  throw error
+}
 
 function Bomb(): React.JSX.Element {
   throw new Error('test render error')
@@ -118,5 +150,97 @@ describe('ErrorBoundary', () => {
 
     expect(container.querySelector('.min-h-screen')).not.toBeNull()
     expect(screen.getByRole('img', { name: 'VRX' })).toBeDefined()
+  })
+
+  it('confirms a copy for a moment, then offers it again', async () => {
+    vi.useFakeTimers()
+    const writeText = stubClipboard(() => Promise.resolve())
+    render(
+      <ErrorBoundary>
+        <Bomb />
+      </ErrorBoundary>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.copyDiagnostics') }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(writeText).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: i18n.t('error.copied') })).toBeDefined()
+    expect(screen.getByRole('status').textContent).toBe(i18n.t('error.copied'))
+
+    act(() => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(screen.getByRole('button', { name: i18n.t('error.copyDiagnostics') })).toBeDefined()
+    expect(screen.getByRole('status').textContent).toBe('')
+  })
+
+  it('says so when the copy fails, until the next try', async () => {
+    stubClipboard(() => Promise.reject(new Error('denied')))
+    render(
+      <ErrorBoundary>
+        <Bomb />
+      </ErrorBoundary>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.copyDiagnostics') }))
+
+    expect((await screen.findByText(i18n.t('error.copyFailed'))).getAttribute('role')).toBe(
+      'status'
+    )
+    expect(screen.getByRole('button', { name: i18n.t('error.copyDiagnostics') })).toBeDefined()
+  })
+
+  it('reports a failure when there is no clipboard at all', () => {
+    render(
+      <ErrorBoundary>
+        <Bomb />
+      </ErrorBoundary>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.copyDiagnostics') }))
+
+    expect(screen.getByRole('status').textContent).toBe(i18n.t('error.copyFailed'))
+  })
+
+  it('leaves the install folder out of the copied diagnostics', () => {
+    const writeText = stubClipboard(() => Promise.resolve())
+    render(
+      <ErrorBoundary>
+        <InstalledBomb />
+      </ErrorBoundary>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.copyDiagnostics') }))
+
+    expect(writeText).toHaveBeenCalledOnce()
+    const copied = String(writeText.mock.calls[0]?.[0])
+    expect(copied).not.toMatch(/Sample|Users|AppData|file:/)
+    expect(copied).toContain('Failed to load index-abc123.js:12:345')
+    expect(copied).toContain('at Panel (index-abc123.js:12:345)')
+  })
+
+  it.each([
+    INSTALLED_FRAME.replace('Sample%20User', 'Sample%20(Home)'),
+    ['file://', 'D:', 'Games%20(old)', 'VRX', 'resources', 'app.asar', 'out', 'renderer', 'assets']
+      .concat('index-abc123.js:12:345')
+      .join('/'),
+    'file://Sample-PC/Shared/Sample/VRX/resources/app.asar/out/renderer/assets/index-abc123.js:12:345'
+  ])('leaves every folder name out of %s', (frame) => {
+    const writeText = stubClipboard(() => Promise.resolve())
+    render(
+      <ErrorBoundary>
+        <InstalledBomb frame={frame} />
+      </ErrorBoundary>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('error.copyDiagnostics') }))
+
+    const copied = String(writeText.mock.calls[0]?.[0])
+    expect(copied).not.toMatch(/Sample|Home|Games|Shared|Users|file:/)
+    expect(copied).toContain('Failed to load index-abc123.js:12:345')
+    expect(copied).toContain('at Panel (index-abc123.js:12:345)')
   })
 })

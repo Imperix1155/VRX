@@ -370,7 +370,7 @@ export default function InboxView(): React.JSX.Element {
       {items.length === 0 ? (
         <div className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
           <p className="text-sm font-semibold text-[var(--text-dim)]">{t('inbox.emptyHeading')}</p>
-          <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
+          <p className="mt-[var(--space-1)] max-w-[52ch] text-balance text-xs text-[var(--text-dim)]">
             {t('inbox.emptyHint')}
           </p>
         </div>

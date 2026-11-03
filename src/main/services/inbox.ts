@@ -5,12 +5,16 @@
  * Memory-only, and nothing here talks to a platform: dismissing or clearing
  * hides a row in VRX and never answers, declines or marks anything on the
  * user's account. Answering a friend request is `FriendActionsService`'s job;
- * it looks the row up here and hides it once the platform took the answer. Rows are bounded per platform, deduped by sender, and
+ * it looks the row up here and takes it out once the platform took the answer. Rows are bounded per platform, deduped by sender, and
  * cleared at every account boundary. Dismissed record IDs are remembered (also
- * bounded) so a socket replay after a reconnect stays hidden.
+ * bounded) so a socket replay after a reconnect stays hidden. Answered ones are
+ * held back only for `INBOX_ANSWERED_HOLD_MS`: ChilloutVR names a request by
+ * its sender, so a longer memory would hide that person's next request.
  *
  * Alerts read their switch at dispatch, default off, and are rate limited per
- * platform and per sender. Nothing logged here carries a name or world.
+ * platform and per sender. Rows ChilloutVR sends just after its socket connects
+ * show without an alert: they may be the list of what is still open from
+ * before. Nothing logged here carries a name or world.
  */
 import {
   MAX_INBOX_DISMISSED_PER_PLATFORM,
@@ -25,6 +29,13 @@ import type { AdapterEvent, Platform } from '@shared/types'
 /** Alerts per platform in one window, and the window. */
 export const INBOX_ALERT_LIMIT = 3
 export const INBOX_ALERT_WINDOW_MS = 60_000
+/** How long an answered request's record ID is held back: long enough for a
+ *  socket to repeat its list, short enough that the person can ask again. */
+export const INBOX_ANSWERED_HOLD_MS = 60_000
+/** After ChilloutVR's socket connects, rows that arrive within this long show
+ *  without an alert. Whether it lists still-open records on connect is
+ *  unconfirmed (api-volatility.md); if it does, they are not news. */
+export const INBOX_CONNECT_QUIET_MS = 10_000
 
 export interface InboxServiceOptions {
   /** Wall clock (ms since epoch) for the time shown on each row. */
@@ -47,14 +58,24 @@ interface PlatformInbox {
   items: Map<string, StoredItem>
   /** Insertion-ordered set of dismissed item IDs, oldest first. */
   dismissed: Set<string>
+  /** Answered item IDs and when (monotonic), oldest first; held back briefly. */
+  answered: Map<string, number>
   recentAlerts: Array<{ at: number; key: string }>
+  /** Monotonic time until which new rows show without an alert. */
+  quietUntil: number
 }
 
 const itemIdOf = (entry: Pick<InboxEntry, 'kind' | 'sourceId'>): string =>
   `${entry.kind}:${entry.sourceId}`
 
 function emptyInbox(): PlatformInbox {
-  return { items: new Map(), dismissed: new Set(), recentAlerts: [] }
+  return {
+    items: new Map(),
+    dismissed: new Set(),
+    answered: new Map(),
+    recentAlerts: [],
+    quietUntil: 0
+  }
 }
 
 export class InboxService {
@@ -69,6 +90,14 @@ export class InboxService {
   consume(event: AdapterEvent): void {
     if (event.type === 'friend-added') {
       this.settleFriendRequest(event.platform, event.friend.platformUserId)
+      return
+    }
+    if (event.type === 'connection') {
+      // VRChat sends notifications only as they happen; only ChilloutVR's
+      // frames may repeat what is still open as the socket connects.
+      if (event.platform === 'chilloutvr' && event.health === 'live') {
+        this.platforms.chilloutvr.quietUntil = this.options.clock() + INBOX_CONNECT_QUIET_MS
+      }
       return
     }
     if (event.type !== 'inbox') return
@@ -129,6 +158,23 @@ export class InboxService {
     return true
   }
 
+  /** The platform took an answer to this row: it leaves, and its ID is held
+   *  back only for `INBOX_ANSWERED_HOLD_MS`, unlike a hidden row, so the same
+   *  person can ask again. False when it is already gone. */
+  answered(platform: Platform, id: string): boolean {
+    const inbox = this.platforms[platform]
+    if (!inbox.items.delete(id)) return false
+    inbox.answered.delete(id)
+    inbox.answered.set(id, this.options.clock())
+    while (inbox.answered.size > MAX_INBOX_DISMISSED_PER_PLATFORM) {
+      const oldest = inbox.answered.keys().next().value
+      if (oldest === undefined) break
+      inbox.answered.delete(oldest)
+    }
+    this.options.onChanged()
+    return true
+  }
+
   /** Hide every row for these platforms. */
   clear(platforms: readonly Platform[]): void {
     let changed = false
@@ -154,7 +200,7 @@ export class InboxService {
     let changed = false
     for (const entry of entries) {
       const id = itemIdOf(entry)
-      if (inbox.dismissed.has(id)) continue
+      if (inbox.dismissed.has(id) || this.justAnswered(inbox, id)) continue
       const existing = inbox.items.get(id)
       if (existing) {
         // A replay of a known record: refresh names, keep its time and place.
@@ -192,6 +238,7 @@ export class InboxService {
       }
     }
     if (changed) this.options.onChanged()
+    if (this.options.clock() < inbox.quietUntil) return
     for (const item of fresh) {
       if (inbox.items.has(item.id)) this.alert(inbox, item)
     }
@@ -230,6 +277,15 @@ export class InboxService {
       if (oldest === undefined) break
       inbox.dismissed.delete(oldest)
     }
+  }
+
+  /** Answered moments ago, so this is the socket repeating itself. */
+  private justAnswered(inbox: PlatformInbox, id: string): boolean {
+    const at = inbox.answered.get(id)
+    if (at === undefined) return false
+    if (this.options.clock() - at < INBOX_ANSWERED_HOLD_MS) return true
+    inbox.answered.delete(id)
+    return false
   }
 
   private alert(inbox: PlatformInbox, item: InboxItem): void {

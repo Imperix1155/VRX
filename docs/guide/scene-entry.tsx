@@ -22,7 +22,8 @@ if (root === null) throw new Error('Missing scene root')
 
 const SCENE_VARIANTS: Record<string, string[]> = {
   updater: ['available', 'downloading', 'downloaded', 'idle'],
-  settings: ['ready', 'save-error', 'picked-alerts'],
+  settings: ['ready', 'save-error', 'read-error', 'picked-alerts'],
+  setup: ['ready', 'signed-out', 'save-error'],
   inbox: ['ready', 'empty'],
   drawer: drawerScenarios.map(({ value }) => value),
   join: joinScenarios.map(({ value }) => value),

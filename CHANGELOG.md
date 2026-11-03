@@ -32,6 +32,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Scrollbars are slim and follow the theme in every list and panel, like the
   main page.
 - Welcome setup: the first screen sits in the middle of the window.
+- Join dialog: while the game starts, Join reads "Joining…", as it already
+  did when joining from Explore.
+- Explore: the Join dialog shows the room's access as the same colored pill
+  as the room list, under the platform.
+- Join dialog: while VRX checks whether the game is already open, the VR or
+  Desktop choice stays hidden in its place, so the dialog no longer shows it
+  for a moment and then jumps to the "is open" note. When ChilloutVR asks
+  each time, Join waits for that check instead of starting the game in a
+  mode picked for you while the answer is out.
+- Window: the box shown when the VRX window stops working says so in plain
+  words, in English and Japanese, and says Reload brings it back. It no longer
+  shows a developer reason code.
+- Error screen: Copy diagnostics says "Copied" when it worked, and says so
+  when it couldn't copy.
+- Updates: the sidebar update button says "try again" only after a download
+  or install failed, not after a background check couldn't connect.
+- Updates: Automatic updates says new versions install when you quit VRX,
+  since closing the window only hides it in the tray.
+- Welcome setup: the summary reads "no glow" when the background glow is off,
+  instead of "Off glow".
+- Alerts: with Min. friends set to 1, the hot instance alert reads "1 friend
+  is in Pug Lounge", not "1 friend is together in Pug Lounge".
+- Activity and Inbox: the empty page's hint wraps into even lines instead of
+  leaving one word on a line of its own.
+- Inbox: with a platform not connected, the page says connecting shows your
+  invites and friend requests there, not only your invites.
+- Search, Explore, Groups and Avatars: Try again now shows the platform's
+  loading line until the platform answers, so a second refusal no longer
+  looks like an ignored press. Keyboard focus stays on that line instead of
+  dropping to the top of the window.
+- Explore: a world panel keeps a plain space for the world's picture until it
+  arrives, so the rooms and Join buttons no longer jump down when it does.
+- Explore: Refresh reads "Refreshing…" and waits until the worlds or favorites
+  it asked for arrive, like Groups and Avatars, so it is clear the press did
+  something.
+- Search: the hint under the search box says it searches people and worlds by
+  name, instead of naming VRChat and ChilloutVR even when the filter shows
+  only one.
+- Search: in Japanese, an empty People section now says no people were found,
+  so it no longer reads as if the whole search found nothing.
+- Search: one kanji, such as 猫, is enough to search, since it is often a whole
+  word. Other text still needs at least 2 characters.
+- Search, Groups and Explore's New and Recently updated: the button to
+  Accounts reads "Go to Accounts", like everywhere else.
+- Avatars: the cards in the Wearing now row no longer repeat "Wearing now"
+  under the heading that already says it.
+- Avatars: with ALL selected, a platform you aren't signed in to no longer
+  adds a "Connect" line, like every other page. Picking that platform in the
+  filter still shows it with Go to Accounts.
 
 ### Fixed
 
@@ -89,6 +138,115 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before anything is saved, instead of failing after it on every start.
 - Avatars and Groups: the count beside each heading is as easy to read as
   the other counts.
+- Avatars: when VRChat or ChilloutVR asks VRX to slow down, the avatar list
+  and Wearing now stop and say to try again in a minute, instead of showing
+  Loading while they ask up to three more times.
+- Alerts: if VRChat or ChilloutVR can't be reached at all when VRX starts
+  (no connection), VRX keeps checking once a minute while it sits in the
+  tray, so live updates and friend alerts start as soon as the platform
+  answers, without opening the window. A platform that answers but refuses
+  (for example asking VRX to slow down) is not asked again from the tray.
+- Friends: when the computer reports no internet connection, the list says
+  it couldn't refresh, with Retry, instead of showing an old list as if it
+  were current or saying Loading with no end.
+- Friends: a new ChilloutVR friend who arrives while VRX is still reading the
+  list after another change now appears, instead of staying missing until the
+  next refresh. VRX reads the list once more for it (never after the platform
+  asked it to slow down).
+- Friend details: the note check, the full profile and, on ChilloutVR, the
+  block options share one look-up of the person, instead of asking VRChat or
+  ChilloutVR up to three times.
+- Join: when this PC can't start the game, the message says to check that
+  the game is installed, instead of telling you to check your connection and
+  try again.
+- Join: with Confirm before joining off, "Location changed — try Join again"
+  now has VRX read the friend list once when the list still shows the old
+  place, so the next Join works even when the background re-sync is set to
+  manual. When the friend's update has already arrived, nothing is read.
+- Hot Instances: the instance panel's Join keeps keyboard focus while a join
+  runs, so the next Tab stays in the panel instead of starting over at the
+  top of the window.
+- Hot Instances: after Join on a hot card, its message gets its own line under
+  the world name, so the name and the access pill keep their size.
+- Hot Instances: with a screen reader, a hot card's world name is a button that
+  also says the platform, the access and who is there, and Join is no longer
+  inside another button.
+- Hot Instances: if the friend a hot card's Join went through leaves before you
+  confirm, the Join dialog joins through a friend still there, instead of
+  offering that friend's new place or saying the instance can't be joined.
+- Hot Instances: a hot card and its panel show what the last Join said even
+  when it went through a different friend in the same instance.
+- Window: after you dismiss the box that says the VRX window stopped working,
+  opening VRX again from the tray, its shortcut or an alert brings the window
+  back instead of leaving it empty.
+- Window: the "not responding" box closes by itself once VRX answers again, so
+  pressing Enter on it can no longer reload a window that works.
+- Window: a window VRX opens again (on macOS after you closed it) appears once
+  it is drawn, without an empty flash first.
+- Error screen: copied diagnostics leave out folder names.
+- Updates: Check for updates in Settings → About now says "VRX is up to date"
+  when there is nothing newer, instead of looking like nothing happened.
+- Updates: the portable Windows build no longer lets you switch the update
+  channel or Automatic updates, since it can't update itself.
+- Updates: screen readers now hear when an update check, download or install
+  fails in Settings → About.
+- Welcome setup: when a choice can't be saved, the setup says so and offers
+  Retry, like the rest of the app, instead of finishing as if it was saved.
+- Settings: when VRX can't read your saved settings at start, a notice says it
+  is showing the defaults for now and that your saved settings are kept,
+  instead of quietly looking as if your choices were forgotten.
+- Accounts: Sign out now asks once before it signs you out, so a stray click
+  beside Edit profile no longer ends your session.
+- Language: on a computer set to a language VRX doesn't offer, such as German
+  or Korean, times and numbers are in English like the rest of VRX, so the
+  Inbox, Dashboard and Activity no longer mix "vor 2 Stunden" in with "Just
+  now".
+- Activity: Clear takes away only what the page shows. With VRChat picked in
+  the top bar it no longer wipes your ChilloutVR history too, or the kinds the
+  Show filter hides, and it is off while nothing shows.
+- Inbox: after you accept or decline a ChilloutVR friend request, a new
+  request from the same person shows up and alerts you again, instead of
+  staying hidden until VRX restarts.
+- Alerts: on a Mac with the VRX window closed, friends coming online alert you
+  again and show in Activity after the connection drops and comes back,
+  instead of each friend's first change being missed. VRX reads the friend
+  list once when the connection comes back, as an open window does.
+- Inbox: ChilloutVR invites and requests that come in the first seconds after
+  VRX connects show without an alert, so ones still waiting from before no
+  longer alert you again each time VRX starts.
+- Search: after "One moment. Wait a second, then search again.", pressing
+  Search again searches, instead of doing nothing for up to two minutes. The
+  same text searched again later asks again too.
+- Explore, Groups and Avatars: when a Refresh or a later read fails, the
+  worlds, groups or avatars that loaded stay on screen with a dim line saying
+  so, instead of being replaced by an error. When the platform asked VRX to
+  slow down, the line also says to try again in a minute.
+- Explore: picking another world while a world panel is open switches the
+  panel in place and shows the new world from its top, instead of sliding the
+  panel away and back and moving focus to the world you had open before.
+- Search: searching for ".." shows no ChilloutVR results instead of "Couldn't
+  reach ChilloutVR", and sends nothing to ChilloutVR.
+- Explore → Favorites: when your VRChat or ChilloutVR favorites couldn't load,
+  the line saying so is red, and the page no longer also says you have no
+  favorite worlds yet.
+- Search and Groups: opening another person or group, or the same one again,
+  starts at the top of its panel instead of where the last one was scrolled.
+- Search: a person without a picture, or whose picture can't load, shows the
+  first letter of their name instead of an empty box.
+- Search, Groups, Explore's New and Recently updated, and Avatars: lines such
+  as "You aren't in any groups yet." wait until every platform shown has
+  answered, instead of showing while the other one is still loading.
+- Search, Groups, Explore's New and Recently updated, and Avatars: when a
+  platform asks you to sign in again, the line offers Go to Accounts instead
+  of a Try again that couldn't help.
+- Dashboard: in Wearing now, a platform that asks you to sign in again
+  offers Go to Accounts instead of Try again, like the Avatars page.
+- Avatars: when the sign-in check can't reach a platform, the page no longer
+  says it is loading that platform's avatars without end, and the other
+  platform's "no uploads" line no longer waits for it.
+- Hot Instances and Explore: the panel opens each instance or world at its
+  top, also when you open the same one again, instead of where you last
+  scrolled.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

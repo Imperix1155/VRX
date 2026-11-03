@@ -45,7 +45,7 @@ import type { SetHomeWorldResult } from './homeWorld'
 import type { InboxSnapshot } from './inbox'
 import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
-import type { ActivityEntry } from './activity'
+import type { ActivityEntry, ActivityFilter } from './activity'
 import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
 import type { GameFavoritesResult, GameFavoriteWriteResult } from './gameFavorites'
 import type {
@@ -246,8 +246,9 @@ export interface IpcInvoke {
   /** The in-memory activity list, newest first. Main records it from the live
    *  sockets; reading it makes no platform request. */
   'get-activity': { req: void; res: ActivityEntry[] }
-  /** Forget every activity entry. */
-  'clear-activity': { req: void; res: void }
+  /** Forget the activity the page shows: these platforms' entries of the
+   *  shown kind (`all` for every kind). Anything else stays. */
+  'clear-activity': { req: { platforms: Platform[]; filter: ActivityFilter }; res: void }
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */
   'open-logs-folder': { req: void; res: void }

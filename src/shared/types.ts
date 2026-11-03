@@ -342,6 +342,14 @@ export interface AuthStatus {
    * cookie expired; VRX-173). Drives the method-aware reprompt copy.
    */
   twoFactorMethod?: TwoFactorMethod
+  /**
+   * Present ONLY when `state` is `'error'` and the check got no answer at all
+   * (offline, a name that didn't resolve, or no reply within the request
+   * timeout). A platform that answered and refused (429, 403, 5xx, an
+   * unreadable reply) leaves it out, so the renderer never repeats those
+   * checks while the window is hidden.
+   */
+  unreachable?: true
 }
 
 /**

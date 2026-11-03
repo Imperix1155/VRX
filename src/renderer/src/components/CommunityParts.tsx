@@ -8,7 +8,7 @@ import { memo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
-import { useUiStore } from '../stores/ui'
+import GoToAccountsButton from './GoToAccountsButton'
 import { platformName, type CommunityNoticeReason, type CommunitySource } from '../utils/community'
 import { initialOf } from '../utils/initialOf'
 
@@ -25,7 +25,11 @@ const ERROR_KEYS: Record<CommunityNoticeReason, string> = {
   'invalid-query': 'community.error.invalid-query'
 }
 
-/** One platform's not-connected, loading or failed line. Ready and idle show nothing. */
+/**
+ * One platform's not-connected, loading, failed or stale line. Ready and idle
+ * show nothing. Failed is red (nothing loaded); stale is dim, because the
+ * answer that loaded last still shows (DESIGN.md §9.4).
+ */
 export function CommunityNotice({
   platform,
   state,
@@ -36,50 +40,54 @@ export function CommunityNotice({
   onRetry?: () => void
 }): React.JSX.Element | null {
   const { t } = useTranslation()
-  const setActiveTab = useUiStore((s) => s.setActiveTab)
-  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
+  const noticeRef = useRef<HTMLDivElement>(null)
   if (state.kind === 'ready' || state.kind === 'idle' || state.kind === 'auth-pending') return null
   const name = platformName(t, platform)
 
   let text: string
   let action: React.JSX.Element | null = null
   let tone = 'text-[var(--text-dim)]'
+  const accountsButton = <GoToAccountsButton label={t('community.openAccounts')} />
   if (state.kind === 'not-connected') {
     text = t(NOT_CONNECTED_KEYS[platform])
-    action = (
-      <button
-        type="button"
-        onClick={() => {
-          setActiveTab('settings')
-          setSettingsCategory('accounts')
-        }}
-        className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-      >
-        {t('community.openAccounts')}
-      </button>
-    )
+    action = accountsButton
   } else if (state.kind === 'failed') {
     text = t(ERROR_KEYS[state.reason], { platform: name })
     tone = 'text-[var(--error)]'
+    // "Sign in again" is done in Accounts; another try would only fail the same way.
     action =
-      onRetry && state.reason !== 'invalid-query' ? (
+      state.reason === 'not-authenticated' ? (
+        accountsButton
+      ) : onRetry && state.reason !== 'invalid-query' ? (
         <button
           type="button"
-          onClick={onRetry}
+          onClick={() => {
+            onRetry()
+            // The line turns into the loading line and this button leaves it;
+            // focus stays on the line, beside a Try again that comes back.
+            noticeRef.current?.focus({ preventScroll: true })
+          }}
           className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
         >
           {t('community.retry')}
         </button>
       ) : null
+  } else if (state.kind === 'stale') {
+    // The page's own Refresh is the way to try again.
+    text = t(state.rateLimited ? 'community.staleRateLimited' : 'community.stale', {
+      platform: name
+    })
   } else {
     text = t('community.loading', { platform: name })
   }
 
   return (
     <div
+      ref={noticeRef}
       role={state.kind === 'failed' ? 'alert' : 'status'}
       data-community-notice={platform}
-      className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)]"
+      tabIndex={-1}
+      className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)] outline-none"
     >
       {/* The notice text names the platform, so the dot is never the only cue. */}
       <span
@@ -162,7 +170,7 @@ export interface CommunityTileProps {
   detail?: string | null
   imageUrl: string | null
   /**
-   * `square`: a small picture beside the name (people, profile groups).
+   * `square`: a small picture beside the name (people in Search).
    * `wide`: the picture on top (worlds). `icon`: a square icon centered above
    * the name on a soft copy of itself (the Groups page), wider than tall.
    */
@@ -174,8 +182,9 @@ export interface CommunityTileProps {
 
 /**
  * One person, group or world as a picture tile. The picture loads through
- * main's image proxy when the tile nears the viewport and falls back to a
- * neutral fill. Memoized: a page can hold many tiles.
+ * main's image proxy when the tile nears the viewport. Until then, or without
+ * one, a person or group shows the name's first letter and a world a neutral
+ * fill. Memoized: a page can hold many tiles.
  */
 export const CommunityTile = memo(function CommunityTile({
   platform,
@@ -221,10 +230,11 @@ export const CommunityTile = memo(function CommunityTile({
     </span>
   )
   const shown = image && failedImage !== image ? image : null
-  // People and profile groups: a small square picture beside the name, so a
-  // page of them stays scannable. Worlds: the picture on top, like Explore.
-  // The Groups page: the icon on top, centered over a blurred copy of itself so
-  // a square logo is never cropped; with no picture, the name's first letter.
+  // People: a small square picture beside the name, so a page of them stays
+  // scannable; with no picture, the name's first letter, as friend pictures
+  // have. Worlds: the picture on top, like Explore. The Groups page: the icon
+  // on top, centered over a blurred copy of itself so a square logo is never
+  // cropped; with no picture, the name's first letter on the platform color.
   const body =
     shape === 'icon' ? (
       <>
@@ -293,9 +303,14 @@ export const CommunityTile = memo(function CommunityTile({
         <div className="flex min-w-0 flex-1 items-center gap-[var(--space-3)] p-[var(--space-2)]">
           <div
             ref={pictureRef}
-            className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-[10px] bg-[var(--surface-hover)]"
+            data-community-tile-picture={shown ? 'image' : 'initial'}
+            className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-[var(--surface-hover)]"
           >
-            {picture}
+            {picture ?? (
+              <span aria-hidden="true" className="text-lg font-semibold text-[var(--text-dim)]">
+                {initialOf(title)}
+              </span>
+            )}
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-[var(--space-1)]">
             {name}

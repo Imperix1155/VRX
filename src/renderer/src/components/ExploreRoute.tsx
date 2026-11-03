@@ -150,21 +150,43 @@ export default function ExploreRoute(): React.JSX.Element {
   const { isJoining, joinExplore, joinExploreFailureFor, pendingConfirm } = useJoinInstance()
 
   const [tab, setTab] = useState<ExploreTab>('popular')
+  // Like Groups and Avatars: Refresh reads "Refreshing…" and stays off until
+  // the reads its press started answer. Status lines stay quiet (§9.4).
+  const [refreshingTabs, setRefreshingTabs] = useState<ReadonlySet<ExploreTab>>(new Set())
+  const track = useCallback((pressed: ExploreTab, reads: ReadonlyArray<Promise<unknown>>) => {
+    setRefreshingTabs((tabs) => new Set(tabs).add(pressed))
+    void Promise.allSettled(reads).then(() =>
+      setRefreshingTabs((tabs) => new Set([...tabs].filter((other) => other !== pressed)))
+    )
+  }, [])
   const refreshList = useRefreshWorldList()
   const refreshShownList = useCallback(() => {
     if (tab === 'popular' || tab === 'favorites') return
-    for (const platform of shownPlatforms(platformFilter))
-      void refreshList(platform, tab).catch(() => undefined)
-  }, [platformFilter, refreshList, tab])
+    track(
+      tab,
+      shownPlatforms(platformFilter).map((platform) => refreshList(platform, tab))
+    )
+  }, [platformFilter, refreshList, tab, track])
   const gameFavoritesOn = useSettingsStore((s) => s.settings.useGameFavorites) === true
   const refreshFavorites = useCallback(() => {
-    for (const platform of shownPlatforms(platformFilter)) void refreshGameFavorites(platform)
-  }, [platformFilter])
+    track(
+      'favorites',
+      shownPlatforms(platformFilter).map((platform) => refreshGameFavorites(platform))
+    )
+  }, [platformFilter, track])
   const refresh = useCallback(() => {
     const platforms =
       platformFilter === 'all' ? (['vrchat', 'chilloutvr'] as const) : ([platformFilter] as const)
-    for (const platform of platforms) void requestExplore(platform, 'manual').catch(() => undefined)
-  }, [platformFilter])
+    track(
+      'popular',
+      platforms.map((platform) => requestExplore(platform, 'manual'))
+    )
+  }, [platformFilter, track])
+  // Popular now answers at once and keeps finding worlds after; it is busy
+  // until no shown platform is still loading.
+  const refreshing =
+    refreshingTabs.has(tab) ||
+    (tab === 'popular' && snapshots.some((snapshot) => snapshot.status === 'loading'))
 
   if (notConnectedPlatform !== null) {
     // The same Connect gate as the Dashboard and Hot Instances pages.
@@ -206,16 +228,18 @@ export default function ExploreRoute(): React.JSX.Element {
         {tab !== 'favorites' || gameFavoritesOn ? (
           <button
             type="button"
-            onClick={
-              tab === 'popular'
-                ? refresh
-                : tab === 'favorites'
-                  ? refreshFavorites
-                  : refreshShownList
-            }
-            className="canvas-control shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
+            onClick={() => {
+              if (refreshing) return
+              if (tab === 'popular') refresh()
+              else if (tab === 'favorites') refreshFavorites()
+              else refreshShownList()
+            }}
+            // aria-disabled, not disabled: a pressed Refresh that turned itself
+            // off would drop keyboard focus to the page.
+            aria-disabled={refreshing || undefined}
+            className="canvas-control shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-colors"
           >
-            {t('explore.refresh')}
+            {refreshing ? t('explore.refreshing') : t('explore.refresh')}
           </button>
         ) : null}
       </div>

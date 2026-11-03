@@ -469,7 +469,7 @@ describe('ExploreView', () => {
   it.each([
     ['joining-disabled', 'Joining is disabled in Settings'],
     ['rate-limited', 'Too many attempts — try again shortly'],
-    ['launch-failed', "Couldn't join. Check the game and connection, then use Join to try again."],
+    ['launch-failed', "Couldn't start the game. Check that it is installed."],
     ['not-joinable', 'Couldn’t join this room. Try again after refreshing.'],
     ['stale', 'Couldn’t join this room. Try again after refreshing.']
   ] as const)('explains a %s room join failure', (reason, copy) => {
@@ -517,6 +517,36 @@ describe('ExploreView', () => {
     )
     fireEvent.error(document.querySelector('img')!)
     expect(document.querySelector('img')).toBeNull()
+  })
+
+  it('holds the picture’s place before it arrives and after it fails', () => {
+    const selected = world('chilloutvr', 'cvr', 'CVR World')
+    const props: React.ComponentProps<typeof ExploreWorldSheet> = {
+      snapshot: {
+        ...source('chilloutvr', [selected]),
+        world: selected,
+        rooms: [],
+        roomsComplete: true
+      },
+      opener: null,
+      focusFallback: null,
+      onClose: vi.fn(),
+      onJoin: vi.fn()
+    }
+    const { rerender } = render(<ExploreWorldSheet {...props} />)
+    const slot = screen.getByTestId('explore-sheet-picture')
+    expect(slot.className).toContain('h-[120px]')
+    expect(slot.className).toContain('bg-[var(--surface-hover)]')
+    expect(slot.querySelector('img')).toBeNull()
+
+    rerender(<ExploreWorldSheet {...props} image="synthetic://late-picture" />)
+    expect(screen.getByTestId('explore-sheet-picture')).toBe(slot)
+    expect(slot.querySelector('img')?.getAttribute('src')).toBe('synthetic://late-picture')
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(slot.className).toContain('h-[220px]')
+    fireEvent.error(slot.querySelector('img')!)
+    expect(slot.querySelector('img')).toBeNull()
+    expect(screen.getByTestId('explore-sheet-picture').className).toContain('h-[220px]')
   })
 
   it('the grab bar expands the world sheet into world details on both platforms', () => {

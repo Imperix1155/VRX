@@ -204,6 +204,83 @@ describe('ExploreRoute world sheet', () => {
     expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
   })
 
+  it('opens the same world again at the top of the sheet', async () => {
+    query.vrc = { ...source, worlds: [world] }
+    worldReads.mockResolvedValue(ready)
+    render(<ExploreRoute />)
+    const card = screen.getByRole('button', { name: /open visible rooms for a world/i })
+    fireEvent.click(card)
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    const scroller = (): Element => screen.getByRole('dialog').querySelector('.overflow-y-auto')!
+    scroller().scrollTop = 200
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.click(card)
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    expect(scroller().scrollTop).toBe(0)
+  })
+
+  it('switches an open sheet to another world in place, at the top, without moving focus', async () => {
+    const other: ExploreWorld = {
+      ...world,
+      worldId: 'other',
+      worldRef: 'other-ref',
+      name: 'B world'
+    }
+    query.vrc = { ...source, worlds: [world, other] }
+    worldReads.mockResolvedValueOnce(ready)
+    render(<ExploreRoute />)
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    const scroller = (): Element => screen.getByRole('dialog').querySelector('.overflow-y-auto')!
+    scroller().scrollTop = 200
+
+    let answer: (snapshot: ExploreWorldSnapshot) => void = () => {}
+    worldReads.mockImplementationOnce(
+      () => new Promise<ExploreWorldSnapshot>((resolve) => (answer = resolve))
+    )
+    const card = screen.getByRole('button', { name: /open visible rooms for b world/i })
+    card.focus()
+    fireEvent.click(card)
+    // While B loads, the sheet already names it and stays open and expanded.
+    expect(
+      screen.getByRole('dialog', { name: 'Visible public rooms for B world on VRChat' })
+    ).toBeTruthy()
+    expect(screen.getByText('Loading visible public rooms…')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Show less' })).toBeTruthy()
+    expect(document.activeElement).toBe(card)
+    expect(scroller().scrollTop).toBe(0)
+
+    await act(async () => {
+      answer({
+        ...ready,
+        world: other,
+        rooms: ready.rooms.map((room) => ({ ...room, worldId: 'other' }))
+      })
+      await Promise.resolve()
+    })
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    expect(document.activeElement).toBe(card)
+  })
+
+  it('closes a switched sheet instead of loading forever when the bridge fails', async () => {
+    const other: ExploreWorld = {
+      ...world,
+      worldId: 'other',
+      worldRef: 'other-ref',
+      name: 'B world'
+    }
+    query.vrc = { ...source, worlds: [world, other] }
+    worldReads.mockResolvedValueOnce(ready).mockRejectedValueOnce(new Error('bridge closed'))
+    render(<ExploreRoute />)
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for b world/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(worldReads).toHaveBeenCalledTimes(2)
+  })
+
   it('uses the explicit sheet refresh instead of a hidden retry', async () => {
     worldReads.mockResolvedValue({ ...ready, isStale: true })
     render(<ExploreRoute />)
@@ -605,6 +682,58 @@ describe('ExploreRoute world sheet', () => {
     expect(screen.queryByText('Worlds loading…')).toBeNull()
     expect(screen.queryByText('VRChat results may be out of date.')).toBeNull()
     expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
+  })
+})
+
+describe('ExploreRoute Refresh', () => {
+  it('reads Refreshing… and stays off until a list’s Refresh answers', async () => {
+    let answer: () => void = () => {}
+    refreshWorldListMock.mockImplementationOnce(
+      () => new Promise<undefined>((resolve) => (answer = () => resolve(undefined)))
+    )
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ExploreRoute />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'New' }))
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Refresh' })
+    button.focus()
+    fireEvent.click(button)
+    const busy = screen.getByRole<HTMLButtonElement>('button', { name: 'Refreshing…' })
+    // Off while it runs, yet still focusable, so keyboard focus stays on it.
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
+    expect(busy.disabled).toBe(false)
+    expect(document.activeElement).toBe(busy)
+    fireEvent.click(busy)
+    expect(refreshWorldListMock).toHaveBeenCalledTimes(1)
+    expect(refreshWorldListMock).toHaveBeenCalledWith('vrchat', 'new')
+
+    await act(async () => answer())
+    const idle = screen.getByRole<HTMLButtonElement>('button', { name: 'Refresh' })
+    expect(idle.getAttribute('aria-disabled')).toBeNull()
+  })
+
+  it('reads Refreshing… while Popular now is still finding worlds', () => {
+    query.vrc = { ...source, status: 'loading' }
+    const { rerender } = render(<ExploreRoute />)
+    // Cards stay on screen and the status lines stay quiet (DESIGN.md §9.4).
+    expect(screen.getByText('A world')).toBeTruthy()
+    expect(screen.queryByText('Worlds loading…')).toBeNull()
+    expect(
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: 'Refreshing…' })
+        .getAttribute('aria-disabled')
+    ).toBe('true')
+
+    query.vrc = { ...source, status: 'ready' }
+    rerender(<ExploreRoute />)
+    expect(
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: 'Refresh' })
+        .getAttribute('aria-disabled')
+    ).toBeNull()
   })
 })
 

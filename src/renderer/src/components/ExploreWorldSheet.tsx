@@ -12,6 +12,7 @@ import WorldFavoriteStar from './WorldFavoriteStar'
 import HomeWorldControl from './HomeWorldControl'
 import SheetGrabBar from './SheetGrabBar'
 import { SheetFacts, type SheetFact } from './SheetFacts'
+import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { joinFailureMessageKey, type JoinFeedback } from '../hooks/useJoinInstance'
 import { formatCount, regionLabelKey } from '../utils/exploreFormat'
@@ -187,6 +188,9 @@ export default function ExploreWorldSheet({
     panelRef,
     collapsed: { minHeight: '0px', maxHeight: '55vh' }
   })
+  // The scroll area is keyed by world, so another world starts at its top; the
+  // same world opened again starts there too, like the hot and community sheets.
+  const scrollRef = useScrollTopOnShow(open)
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const [expiredFreshnessKey, setExpiredFreshnessKey] = useState<string | null>(null)
   const freshnessKey =
@@ -321,17 +325,29 @@ export default function ExploreWorldSheet({
           {/* Same grab bar as the Hot Instance sheet: it gives the close button
               its own row, so the world picture never sits under it. */}
           <SheetGrabBar expansion={expansion} />
-          <div className="min-h-0 flex-1 overflow-y-auto p-[var(--space-4)]">
-            {image && failedImage !== image ? (
-              <img
-                src={image}
-                alt=""
-                className={`w-full rounded-[13px] object-cover motion-safe:transition-[height] motion-safe:duration-[220ms] ${
-                  expansion.expanded ? 'h-[220px]' : 'h-[120px]'
-                }`}
-                onError={() => setFailedImage(image)}
-              />
-            ) : null}
+          {/* Keyed by world, so a sheet switched to another world starts at its top. */}
+          <div
+            ref={scrollRef}
+            key={`${world.platform}:${world.worldId}`}
+            className="min-h-0 flex-1 overflow-y-auto p-[var(--space-4)]"
+          >
+            {/* The cards' neutral fill holds the picture's place, so a picture
+                that arrives late never pushes the rooms and Join down. */}
+            <div
+              data-testid="explore-sheet-picture"
+              className={`w-full overflow-hidden rounded-[13px] bg-[var(--surface-hover)] motion-safe:transition-[height] motion-safe:duration-[220ms] ${
+                expansion.expanded ? 'h-[220px]' : 'h-[120px]'
+              }`}
+            >
+              {image && failedImage !== image ? (
+                <img
+                  src={image}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={() => setFailedImage(image)}
+                />
+              ) : null}
+            </div>
             <div className="mt-[var(--space-3)]">
               {/* The star follows the name (favorites, owner 2026-11-01); its
                   panel lines up under the whole title row. */}

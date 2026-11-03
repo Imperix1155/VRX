@@ -405,9 +405,12 @@ function UpdaterSettingsRow(): React.JSX.Element {
   const autoUpdate = useSettingsStore((s) => s.settings.autoUpdate)
   const updateChannel = useSettingsStore((s) => s.settings.updateChannel)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
+  // Set once a check pressed here has answered, until the next press.
+  const [checkedHere, setCheckedHere] = useState(false)
 
   const handleButtonClick = (): void => {
     if (state.state === 'checking' || state.state === 'downloading') return
+    setCheckedHere(false)
     if (state.state === 'unsupported') {
       void window.vrx?.openUrl({ url: releasesUrlFor(__APP_VERSION__) })
       return
@@ -420,7 +423,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
       void install()
       return
     }
-    void check()
+    void check().then(() => setCheckedHere(true))
   }
 
   const isChecking = state.state === 'checking'
@@ -429,6 +432,8 @@ function UpdaterSettingsRow(): React.JSX.Element {
   const isUnsupported = state.state === 'unsupported'
   const isUpdateAvailable = state.state === 'update-available'
   const buttonDisabled = isChecking || isDownloading
+  // The check found nothing newer: say so, or the press looks like it did nothing.
+  const upToDate = checkedHere && state.state === 'idle' && state.failure == null && !actionFailed
 
   const buttonLabel = isUnsupported
     ? t('updater.settings.releases')
@@ -472,26 +477,31 @@ function UpdaterSettingsRow(): React.JSX.Element {
           </p>
         )}
         {state.failure != null && (
-          <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+          <p role="alert" className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
             {t(UPDATER_FAILURE_KEYS[state.failure])}
           </p>
         )}
-        <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-          {t('updater.settings.currentVersion', { version: state.currentVersion })}
+        <p role="status" className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+          {t(upToDate ? 'updater.settings.upToDate' : 'updater.settings.currentVersion', {
+            version: state.currentVersion
+          })}
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-[var(--space-2)]">
+        {/* A build that cannot update itself has nothing for these to change. */}
         <SegmentedControl
           values={UPDATE_CHANNELS}
           active={updateChannel}
           labelKeys={UPDATE_CHANNEL_LABEL_KEYS}
           ariaLabel={t('updater.settings.channel.aria')}
           onChange={(value) => updateSettings({ updateChannel: value })}
+          disabled={isUnsupported}
         />
         <Toggle
           checked={autoUpdate}
           ariaLabel={t('updater.settings.label')}
           onChange={(checked) => updateSettings({ autoUpdate: checked })}
+          disabled={isUnsupported}
         />
         <button
           type="button"

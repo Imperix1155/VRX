@@ -15,10 +15,17 @@ import {
   normalizeCommunityQuery,
   type PersonSummary
 } from '@shared/community'
+import type { ExploreWorld } from '@shared/explore'
 import { useAuthStatus } from '../queries/auth'
-import { useCommunitySearch } from '../queries/community'
+import { useCommunitySearch, useSearchAgainIfRefused } from '../queries/community'
 import { useFriendsStore } from '../stores/friends'
-import { communitySource, interleave, platformName } from '../utils/community'
+import {
+  communitySource,
+  interleave,
+  platformName,
+  shownPlatforms,
+  sourcesSettled
+} from '../utils/community'
 import CommunitySheet from './CommunitySheet'
 import { CommunityHeading, CommunityNotices, CommunityTile, TileGrid } from './CommunityParts'
 import ProfileDetails from './ProfileDetails'
@@ -37,6 +44,7 @@ export default function SearchView(): React.JSX.Element {
   const cvrAuth = useAuthStatus('chilloutvr')
   const vrc = useCommunitySearch('vrchat', query, showVrc)
   const cvr = useCommunitySearch('chilloutvr', query, showCvr)
+  const searchAgainIfRefused = useSearchAgainIfRefused()
   const vrcState = communitySource(vrcAuth, vrc)
   const cvrState = communitySource(cvrAuth, cvr)
   const sources = [
@@ -58,6 +66,11 @@ export default function SearchView(): React.JSX.Element {
     [vrcResult, cvrResult]
   )
   const answered = vrcResult !== null || cvrResult !== null
+  // A section with nothing in it yet waits for every shown platform, so "No
+  // people found." is never just the first platform's answer.
+  const settled = sourcesSettled(sources)
+  const showPeople = answered && (people.length > 0 || settled)
+  const showWorlds = answered && (worlds.length > 0 || settled)
   // An expired world card renews its reference by reading these same results
   // again (main answers from its 5 minute cache when it can).
   const recover: RecoverWorlds = async (platform) => {
@@ -94,6 +107,8 @@ export default function SearchView(): React.JSX.Element {
     if (next === null) return
     setPerson(null)
     setQuery(next)
+    // Pressing Search again after "One moment" (or another refusal) asks again.
+    searchAgainIfRefused(next, shownPlatforms(platformFilter))
   }
 
   return (
@@ -138,37 +153,17 @@ export default function SearchView(): React.JSX.Element {
         onRetry={(platform) => void (platform === 'vrchat' ? vrc : cvr).refetch()}
       />
 
-      {answered ? (
-        <div className="flex flex-col gap-[var(--space-6)]">
-          <section aria-label={t('search.people')}>
-            <CommunityHeading>{t('search.people')}</CommunityHeading>
-            {people.length === 0 ? (
-              <p className="canvas-text text-sm text-[var(--text-dim)]">{t('search.noPeople')}</p>
-            ) : (
-              <TileGrid min={220}>
-                {people.map((item) => (
-                  <PersonTile
-                    key={`${item.platform}:${item.userId}`}
-                    person={item}
-                    onOpen={(opener) => {
-                      openerRef.current = opener
-                      setPerson(item)
-                    }}
-                  />
-                ))}
-              </TileGrid>
-            )}
-          </section>
-          <section aria-label={t('search.worlds')}>
-            <CommunityHeading>{t('search.worlds')}</CommunityHeading>
-            {worlds.length === 0 ? (
-              <p className="canvas-text text-sm text-[var(--text-dim)]">{t('search.noWorlds')}</p>
-            ) : (
-              <WorldResults worlds={worlds} recover={recover} />
-            )}
-          </section>
-        </div>
-      ) : null}
+      <SearchResults
+        people={people}
+        worlds={worlds}
+        showPeople={showPeople}
+        showWorlds={showWorlds}
+        recover={recover}
+        onOpenPerson={(item, opener) => {
+          openerRef.current = opener
+          setPerson(item)
+        }}
+      />
 
       <CommunitySheet
         item={shownPerson}
@@ -188,6 +183,61 @@ export default function SearchView(): React.JSX.Element {
       >
         {(item) => <ProfileDetails platform={item.platform} userId={item.userId} />}
       </CommunitySheet>
+    </div>
+  )
+}
+
+/**
+ * The People and Worlds sections. A section with nothing in it yet stays out
+ * until every shown platform has answered (`showPeople`, `showWorlds`).
+ */
+function SearchResults({
+  people,
+  worlds,
+  showPeople,
+  showWorlds,
+  recover,
+  onOpenPerson
+}: {
+  people: readonly PersonSummary[]
+  worlds: readonly ExploreWorld[]
+  showPeople: boolean
+  showWorlds: boolean
+  recover: RecoverWorlds
+  onOpenPerson: (person: PersonSummary, opener: HTMLElement) => void
+}): React.JSX.Element | null {
+  const { t } = useTranslation()
+  if (!showPeople && !showWorlds) return null
+  return (
+    <div className="flex flex-col gap-[var(--space-6)]">
+      {showPeople ? (
+        <section aria-label={t('search.people')}>
+          <CommunityHeading>{t('search.people')}</CommunityHeading>
+          {people.length === 0 ? (
+            <p className="canvas-text text-sm text-[var(--text-dim)]">{t('search.noPeople')}</p>
+          ) : (
+            <TileGrid min={220}>
+              {people.map((item) => (
+                <PersonTile
+                  key={`${item.platform}:${item.userId}`}
+                  person={item}
+                  onOpen={(opener) => onOpenPerson(item, opener)}
+                />
+              ))}
+            </TileGrid>
+          )}
+        </section>
+      ) : null}
+      {showWorlds ? (
+        <section aria-label={t('search.worlds')}>
+          <CommunityHeading>{t('search.worlds')}</CommunityHeading>
+          {worlds.length === 0 ? (
+            <p className="canvas-text text-sm text-[var(--text-dim)]">{t('search.noWorlds')}</p>
+          ) : (
+            <WorldResults worlds={worlds} recover={recover} />
+          )}
+        </section>
+      ) : null}
     </div>
   )
 }

@@ -10,7 +10,7 @@ import type { WorldList } from '@shared/community'
 import { useAuthStatus } from '../queries/auth'
 import { useWorldList } from '../queries/community'
 import { useFriendsStore } from '../stores/friends'
-import { communitySource, interleave } from '../utils/community'
+import { communitySource, interleave, sourcesSettled } from '../utils/community'
 import { CommunityNotices } from './CommunityParts'
 import type { RecoverWorlds } from '../hooks/useExploreWorldSelection'
 import WorldResults from './WorldResults'
@@ -41,7 +41,9 @@ export default function ExploreListPanel({ list }: { list: WorldList }): React.J
     () => interleave([vrcWorlds ?? [], cvrWorlds ?? []]),
     [vrcWorlds, cvrWorlds]
   )
-  const anyReady = vrcWorlds !== null || cvrWorlds !== null
+  // "No worlds" waits for every shown platform, not just the first one back.
+  const empty =
+    (vrcWorlds !== null || cvrWorlds !== null) && worlds.length === 0 && sourcesSettled(sources)
   // An expired world card renews its reference by reading these same results
   // again (main answers from its 5 minute cache when it can).
   const recover: RecoverWorlds = async (platform) => {
@@ -58,7 +60,7 @@ export default function ExploreListPanel({ list }: { list: WorldList }): React.J
         sources={noticed}
         onRetry={(platform) => void (platform === 'vrchat' ? vrc : cvr).refetch()}
       />
-      {anyReady && worlds.length === 0 ? (
+      {empty ? (
         <p className="canvas-text text-sm text-[var(--text-dim)]">{t('explore.lists.empty')}</p>
       ) : null}
       {worlds.length > 0 ? <WorldResults worlds={worlds} recover={recover} /> : null}

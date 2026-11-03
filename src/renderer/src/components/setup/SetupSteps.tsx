@@ -569,10 +569,21 @@ export const DoneStep = forwardRef<
       ? t('setup.done.alertsOff')
       : t('setup.done.alertsSome', { count: alertsOn, total: SETUP_ALERTS.length })
 
-  const look = t(picture ? 'setup.done.lookValuePicture' : 'setup.done.lookValue', {
-    theme: t(THEME_CHOICES.find(([value]) => value === s.theme)?.[1] ?? 'setup.look.system'),
-    glow: t(GLOW_LABEL_KEYS[s.backgroundGlow])
-  })
+  // "Dark, no glow" rather than "Dark, Off glow".
+  const noGlow = s.backgroundGlow === 'off'
+  const look = t(
+    picture
+      ? noGlow
+        ? 'setup.done.lookValuePictureNoGlow'
+        : 'setup.done.lookValuePicture'
+      : noGlow
+        ? 'setup.done.lookValueNoGlow'
+        : 'setup.done.lookValue',
+    {
+      theme: t(THEME_CHOICES.find(([value]) => value === s.theme)?.[1] ?? 'setup.look.system'),
+      glow: t(GLOW_LABEL_KEYS[s.backgroundGlow])
+    }
+  )
 
   const rows: Array<[string, string]> = [
     ['setup.done.accounts', accounts],

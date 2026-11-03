@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
+import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { PictureBackedPill } from './CardPictureBackdrop'
 import PlatformPill from './PlatformPill'
@@ -66,6 +67,12 @@ export default function CommunitySheet<T>({
     if (!open) return
     closeButtonRef.current?.focus()
   }, [open])
+
+  // Another person or group, or the same one reopened, starts at the top. The
+  // sheet stays mounted between items, so its scroll position would otherwise
+  // carry over and show the next one scrolled past its banner and name.
+  const shownKey = shown === null ? null : itemKey(shown)
+  const scrollRef = useScrollTopOnShow(open, shownKey)
 
   useEffect(() => {
     if (!open) return
@@ -130,10 +137,13 @@ export default function CommunitySheet<T>({
             }}
           />
           <SheetGrabBar expansion={expansion} />
-          <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]">
+          <div
+            ref={scrollRef}
+            className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]"
+          >
             {/* A new item starts with a fresh banner and fresh disclosures. */}
-            <SheetBanner key={itemKey(shown)} header={head} tall={expansion.expanded} />
-            <div key={`body:${itemKey(shown)}`}>{children(shown)}</div>
+            <SheetBanner key={shownKey} header={head} tall={expansion.expanded} />
+            <div key={`body:${shownKey}`}>{children(shown)}</div>
             {expansion.expanded && head.more !== undefined && head.more.length > 0 ? (
               <SheetFacts heading={t('sheet.moreHeading')} facts={head.more} />
             ) : null}

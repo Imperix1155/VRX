@@ -80,14 +80,18 @@ export const SETTINGS_PENDING_NOTICE_DELAY_MS = 2_000
 
 /**
  * Settings persistence notice. A failed save shows immediately as an alert with
- * Retry. An ordinary in-flight save stays silent: the pending notice appears only
- * when the latest change is still unsaved after SETTINGS_PENDING_NOTICE_DELAY_MS,
- * so routine edits never flash a banner or trigger a screen-reader announcement.
+ * Retry. Settings that could not be read (main answered with defaults) show as
+ * an alert until a save reaches the real file. An ordinary in-flight save stays
+ * silent: the pending notice appears only when the latest change is still
+ * unsaved after SETTINGS_PENDING_NOTICE_DELAY_MS, so routine edits never flash
+ * a banner or trigger a screen-reader announcement. The welcome setup, which
+ * replaces the shell, shows it too.
  */
-function SettingsPersistenceNotice(): React.JSX.Element | null {
+export function SettingsPersistenceNotice(): React.JSX.Element | null {
   const { t } = useTranslation()
   const dirty = useSettingsStore((s) => s.dirty)
   const saveError = useSettingsStore((s) => s.saveError)
+  const loadFallback = useSettingsStore((s) => s.loadFallback)
   const saving = useSettingsStore((s) => s.saving)
   const settings = useSettingsStore((s) => s.settings)
   const retrySave = useSettingsStore((s) => s.retrySave)
@@ -105,19 +109,28 @@ function SettingsPersistenceNotice(): React.JSX.Element | null {
   }, [waiting, settings])
 
   const pendingTooLong = waiting && pendingSince === settings
-  if (!dirty || (!saveError && !pendingTooLong)) return null
+  const failed = dirty && saveError
+  // Failures first: a failed save, then settings that could not be read.
+  const warning = failed || loadFallback
+  if (!warning && !pendingTooLong) return null
   return (
-    <div className={noticeClass} role={saveError ? 'alert' : 'status'}>
+    <div className={noticeClass} role={warning ? 'alert' : 'status'}>
       {/* The failure's non-color cue (R2): a warning glyph before its words. */}
-      {saveError && (
+      {warning && (
         <span aria-hidden="true" className="shrink-0 text-sm text-[var(--error)]">
           ⚠
         </span>
       )}
       <span className="min-w-0 flex-1">
-        {t(saveError ? 'settings.persistence.error' : 'settings.persistence.unsaved')}
+        {t(
+          failed
+            ? 'settings.persistence.error'
+            : loadFallback
+              ? 'settings.persistence.loadFallback'
+              : 'settings.persistence.unsaved'
+        )}
       </span>
-      {saveError && (
+      {failed && (
         <button type="button" className={buttonClass} disabled={saving} onClick={retrySave}>
           {t(saving ? 'settings.persistence.saving' : 'settings.persistence.retry')}
         </button>

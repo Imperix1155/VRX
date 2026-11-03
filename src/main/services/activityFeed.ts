@@ -1,5 +1,5 @@
 import type { AdapterEvent, Friend, InstanceInfo, Platform } from '@shared/types'
-import type { ActivityEntry, ActivityKind } from '@shared/activity'
+import type { ActivityEntry, ActivityFilter, ActivityKind } from '@shared/activity'
 import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM } from '@shared/constants'
 import { isWorldHidden } from '@shared/hotInstanceKey'
 import { FriendAlerts, type FriendAlert } from './friendAlerts'
@@ -110,7 +110,24 @@ export class ActivityFeed {
     this.flush()
   }
 
-  /** The user cleared the list or turned it off. */
+  /** The page's Clear: forget what it shows, these platforms' entries of the
+   *  shown kind. History the page hides (the other platform, other kinds)
+   *  stays. */
+  clear(platforms: readonly Platform[], filter: ActivityFilter): void {
+    let any = false
+    for (const platform of new Set(platforms)) {
+      const platformEntries = this.platformEntries(platform)
+      const kept = platformEntries.filter((entry) => filter !== 'all' && entry.kind !== filter)
+      if (kept.length === platformEntries.length) continue
+      platformEntries.splice(0, platformEntries.length, ...kept)
+      any = true
+    }
+    if (!any) return
+    this.changed = true
+    this.flush()
+  }
+
+  /** The user turned the list off. */
   clearAll(): void {
     let any = false
     for (const platformEntries of this.entries.values()) {

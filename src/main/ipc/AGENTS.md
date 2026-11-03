@@ -59,8 +59,10 @@ Persistence, network, cache, and account-transition policy stay in services.
   version, install type and system only, and still checks `isAllowedUrl`.
   `test-vr-alert` takes no input; main writes the test alert and sends it to
   XSOverlay on this computer only, returning a typed result with no error text.
-- `get-activity` and `clear-activity` take no input and only read or clear
-  `ActivityFeed`; neither makes a platform request.
+- `get-activity` takes no input. `clear-activity` takes one or two
+  allowlisted platforms and an `ACTIVITY_FILTERS` kind, and forgets only those
+  entries. Both only read or clear `ActivityFeed`; neither makes a platform
+  request.
 - `get-avatar` accepts a length-capped URL string, delegates to `AvatarCache`,
   and returns a `data:` result or `null`. It never exposes fetch, cookies, or
   redirects.

@@ -21,6 +21,9 @@ interface SettingsState {
   /** True once the initial persisted-settings load has resolved. */
   hydrated: boolean
   saveError: boolean
+  /** True while main answered the load with defaults because the settings file
+   *  could not be read; cleared once a save reaches the real file. */
+  loadFallback: boolean
   saving: boolean
   saveAttempt: number
   retrySave: () => void
@@ -39,6 +42,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   dirty: false,
   hydrated: false,
   saveError: false,
+  loadFallback: false,
   saving: false,
   saveAttempt: 0,
   retrySave: () => set((state) => ({ saveAttempt: state.saveAttempt + 1 })),

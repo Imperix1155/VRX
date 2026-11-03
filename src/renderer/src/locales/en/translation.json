@@ -354,6 +354,8 @@
       "retry": "Retry",
       "retrying": "Retrying…",
       "signOut": "Sign out",
+      "signOutConfirm": "Sign out of {{platform}}?",
+      "cancel": "Cancel",
       "username": "Username or email",
       "email": "Email address",
       "usernamePlaceholder": "you@example.com",
@@ -471,7 +473,8 @@
       "error": "Settings could not be saved. Your changes are still applied here, but may be lost on restart.",
       "unsaved": "Settings have unsaved changes.",
       "retry": "Retry saving settings",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "loadFallback": "VRX couldn't read your saved settings, so it's showing the defaults for now. Your saved settings are kept."
     },
     "bugReport": {
       "label": "Found a bug?",
@@ -544,7 +547,9 @@
     "heading": "Something went wrong",
     "hint": "An unexpected error occurred. You can try reloading the app.",
     "reload": "Reload",
-    "copyDiagnostics": "Copy diagnostics"
+    "copyDiagnostics": "Copy diagnostics",
+    "copied": "Copied",
+    "copyFailed": "Couldn't copy the diagnostics. Try again."
   },
   "greeting": "Welcome to VRX",
   "friends": {
@@ -571,7 +576,8 @@
       "targetChanged": "Location changed — try Join again",
       "joiningDisabled": "Joining is disabled in Settings",
       "notJoinable": "No longer joinable — they may have moved or gone offline",
-      "inviteFailed": "Couldn't send the VRChat invite. Use Join to try again."
+      "inviteFailed": "Couldn't send the VRChat invite. Use Join to try again.",
+      "launchFailed": "Couldn't start the game. Check that it is installed."
     },
     "joinNotice": {
       "inGame": "Sent to your open game",
@@ -642,7 +648,7 @@
     "offline": "Went offline",
     "openFriend": "Open {{name}} in Friends",
     "clear": "Clear",
-    "clearAria": "Clear all activity",
+    "clearAria": "Clear the activity shown",
     "emptyHeading": "No activity yet",
     "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open.",
     "filteredEmpty": "Nothing to show with these filters.",
@@ -882,6 +888,7 @@
     "viewRooms": "View rooms",
     "confirmAria": "Confirm joining {{world}}",
     "refresh": "Refresh",
+    "refreshing": "Refreshing…",
     "joinFailed": "Couldn’t join this room. Try again after refreshing.",
     "visiblePublicRooms": "Visible public rooms",
     "unknownCount": "Unknown",
@@ -970,6 +977,8 @@
     "uploadCount_one": "{{count}} avatar",
     "uploadCount_other": "{{count}} avatars",
     "loadingPlatform": "Loading your {{platform}} avatars…",
+    "stale": "Couldn't refresh your {{platform}} avatars. Showing what loaded last.",
+    "staleRateLimited": "{{platform}} asked VRX to slow down. Showing what loaded last; try again in a minute.",
     "empty": "You haven't uploaded any avatars yet.",
     "noCurrent": {
       "vrchat": "VRX couldn't tell which VRChat avatar you're wearing.",
@@ -1034,7 +1043,7 @@
     },
     "settings": {
       "label": "Automatic updates",
-      "description": "Download new versions in the background and apply them when the app closes.",
+      "description": "Download new versions in the background and install them when you quit VRX.",
       "channel": {
         "aria": "Update channel",
         "stable": "Stable",
@@ -1050,6 +1059,7 @@
       "releases": "Open releases page",
       "unsupportedNote": "This portable build cannot update itself automatically.",
       "currentVersion": "VRX v{{version}}",
+      "upToDate": "VRX v{{version}} is up to date.",
       "failure": {
         "checkNetwork": "Couldn't check for updates. Check your connection and try again.",
         "downloadWrite": "Couldn't download the update. Check your connection and available storage, then try again. If it keeps failing, install the latest release manually.",
@@ -1160,7 +1170,9 @@
       "alertsOff": "All off",
       "alertsSome": "{{count}} of {{total}} on",
       "lookValue": "{{theme}}, {{glow}} glow",
-      "lookValuePicture": "{{theme}}, {{glow}} glow, your own picture"
+      "lookValuePicture": "{{theme}}, {{glow}} glow, your own picture",
+      "lookValueNoGlow": "{{theme}}, no glow",
+      "lookValuePictureNoGlow": "{{theme}}, no glow, your own picture"
     }
   },
   "inbox": {
@@ -1188,19 +1200,21 @@
       "live": "The inbox lists what arrives while VRX is open and forgets it when VRX closes."
     },
     "notConnected": {
-      "vrchat": "Connect VRChat to see your invites here",
-      "chilloutvr": "Connect ChilloutVR to see your invites here"
+      "vrchat": "Connect VRChat to see your invites and friend requests here",
+      "chilloutvr": "Connect ChilloutVR to see your invites and friend requests here"
     },
     "loadError": "Could not load your inbox right now"
   },
   "community": {
     "loading": "Loading {{platform}}…",
     "retry": "Try again",
-    "openAccounts": "Open Accounts",
+    "openAccounts": "Go to Accounts",
     "notConnected": {
       "vrchat": "Connect VRChat to see it here",
       "chilloutvr": "Connect ChilloutVR to see it here"
     },
+    "stale": "Couldn't get the latest from {{platform}}. Showing what loaded last.",
+    "staleRateLimited": "{{platform}} asked VRX to slow down. Showing what loaded last; try again in a minute.",
     "error": {
       "unavailable": "Couldn't reach {{platform}}. Try again in a moment.",
       "rate-limited": "{{platform}} asked VRX to slow down. Try again in a minute.",
@@ -1213,7 +1227,7 @@
     "placeholder": "Search people and worlds",
     "aria": "Search people and worlds",
     "submit": "Search",
-    "hint": "Press Enter to search VRChat and ChilloutVR by name.",
+    "hint": "Press Enter to search people and worlds by name.",
     "people": "People",
     "worlds": "Worlds",
     "noPeople": "No people found.",

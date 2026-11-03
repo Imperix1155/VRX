@@ -204,6 +204,30 @@ describe('DashboardGlance: Wearing now', () => {
   })
 })
 
+describe('DashboardGlance: Wearing now sign-in', () => {
+  it('offers Accounts, not Try again, when a platform asks to sign in again', async () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false } })
+    bridge.getCurrentAvatar.mockImplementation(({ platform }) =>
+      Promise.resolve(
+        platform === 'vrchat'
+          ? { ok: true, platform, current: null }
+          : { ok: false, reason: 'not-authenticated' }
+      )
+    )
+    renderGlance()
+    const failure = await screen.findByRole('alert')
+    expect(failure.textContent).toContain(
+      msg('avatars.error.not-authenticated', { platform: platformName('chilloutvr') })
+    )
+    expect(within(failure).queryByRole('button', { name: msg('avatars.retry') })).toBeNull()
+    fireEvent.click(
+      within(failure).getByRole('button', { name: msg('avatars.notConnected.openAccounts') })
+    )
+    expect(useUiStore.getState().activeTab).toBe('settings')
+    expect(useUiStore.getState().settingsCategory).toBe('accounts')
+  })
+})
+
 describe('DashboardGlance: Latest invites', () => {
   it('shows the newest invite per platform, skips friend requests, and links to the Inbox', async () => {
     inboxItems = [

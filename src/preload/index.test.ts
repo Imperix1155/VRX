@@ -37,7 +37,7 @@ async function exposedBridge(): Promise<{
   onFriendEvent: (callback: (payload: FriendEvent) => void) => () => void
   onIdentityBoundary: (callback: (payload: { platform: 'vrchat' }) => void) => () => void
   getActivity: () => Promise<unknown>
-  clearActivity: () => Promise<unknown>
+  clearActivity: (request: { platforms: 'vrchat'[]; filter: 'online' }) => Promise<unknown>
   onActivityChanged: (callback: () => void) => () => void
   onInboxChanged: (callback: () => void) => () => void
   testVrAlert: () => Promise<unknown>
@@ -115,13 +115,16 @@ describe('preload social action bridge', () => {
 })
 
 describe('preload activity bridge', () => {
-  it('reads and clears through the typed channels with no payload', async () => {
+  it('reads with no payload and clears the scope on screen through the typed channels', async () => {
     electron.invoke.mockResolvedValue([])
     const bridge = await exposedBridge()
     await bridge.getActivity()
-    await bridge.clearActivity()
+    await bridge.clearActivity({ platforms: ['vrchat'], filter: 'online' })
     expect(electron.invoke).toHaveBeenNthCalledWith(1, 'get-activity', undefined)
-    expect(electron.invoke).toHaveBeenNthCalledWith(2, 'clear-activity', undefined)
+    expect(electron.invoke).toHaveBeenNthCalledWith(2, 'clear-activity', {
+      platforms: ['vrchat'],
+      filter: 'online'
+    })
   })
 
   it('forwards change pushes without a payload and unsubscribes the same listener', async () => {

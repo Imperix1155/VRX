@@ -87,7 +87,7 @@ const vrx = {
   getJoinHandoff: (req: IpcInvoke['get-join-handoff']['req']) => invoke('get-join-handoff', req),
   getAppStatus: () => invoke('get-app-status', undefined),
   getActivity: () => invoke('get-activity', undefined),
-  clearActivity: () => invoke('clear-activity', undefined),
+  clearActivity: (req: IpcInvoke['clear-activity']['req']) => invoke('clear-activity', req),
   onActivityChanged: (callback: () => void) => {
     const listener = (): void => callback()
     ipcRenderer.on('activity-changed', listener)

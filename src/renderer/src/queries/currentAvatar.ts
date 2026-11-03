@@ -8,6 +8,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { AvatarLibraryResult, CurrentAvatarResult } from '@shared/avatarLibrary'
 import type { Platform } from '@shared/types'
+import type { Kept } from '../utils/community'
 import {
   AVATAR_LIBRARY_STALE_MS,
   avatarLibraryQueryKey,
@@ -45,11 +46,16 @@ export function useWornAvatar(platform: Platform, enabled: boolean): WornAvatarS
   const current = useQuery({
     queryKey: currentAvatarQueryKey(platform, accountId),
     queryFn: async (): Promise<CurrentAvatarResult> => {
-      // A fresh Avatars page read already says what is worn: no request.
-      const state = queryClient.getQueryState<AvatarLibraryResult>(
+      // A fresh Avatars page read already says what is worn: no request. A
+      // library kept after a failed read is not a fresh read.
+      const state = queryClient.getQueryState<Kept<AvatarLibraryResult>>(
         avatarLibraryQueryKey(platform, accountId)
       )
-      if (state?.data?.ok && Date.now() - state.dataUpdatedAt < AVATAR_LIBRARY_STALE_MS) {
+      if (
+        state?.data?.ok &&
+        state.data.refreshFailed !== true &&
+        Date.now() - state.dataUpdatedAt < AVATAR_LIBRARY_STALE_MS
+      ) {
         return { ok: true, platform, current: state.data.current }
       }
       if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
@@ -62,7 +68,8 @@ export function useWornAvatar(platform: Platform, enabled: boolean): WornAvatarS
     networkMode: 'always'
   })
 
-  const fromLibrary = library.data?.ok === true ? library.data : undefined
+  const fromLibrary =
+    library.data?.ok === true && library.data.refreshFailed !== true ? library.data : undefined
   const result: CurrentAvatarResult | undefined =
     fromLibrary && library.dataUpdatedAt >= current.dataUpdatedAt
       ? { ok: true, platform, current: fromLibrary.current }

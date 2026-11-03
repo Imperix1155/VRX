@@ -45,7 +45,8 @@ const updaterState: {
     progressPercent: 0,
     failure: null
   },
-  check: vi.fn(),
+  // The hook's actions always answer with a promise.
+  check: vi.fn(() => Promise.resolve()),
   download: vi.fn(),
   install: vi.fn()
 }))
@@ -685,6 +686,47 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     renderSettings()
 
     expect(screen.getByText(msg('updater.settings.failure.checkNetwork'))).toBeTruthy()
+    // Announced like the other updater failure line.
+    expect(screen.getByRole('alert').textContent).toBe(msg('updater.settings.failure.checkNetwork'))
+  })
+
+  it('says VRX is up to date after a check pressed here finds nothing new', async () => {
+    updaterState.check.mockResolvedValue(undefined)
+    useUiStore.setState({ settingsCategory: 'about' })
+    renderSettings()
+    const upToDate = i18n.t('updater.settings.upToDate', { version: '0.14.0' })
+    const plainVersion = i18n.t('updater.settings.currentVersion', { version: '0.14.0' })
+    expect(screen.queryByText(upToDate)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: msg('updater.settings.check') }))
+
+    const line = await screen.findByText(upToDate)
+    expect(line.getAttribute('role')).toBe('status')
+    expect(screen.queryByText(plainVersion)).toBeNull()
+
+    // The next press starts over: the line goes until that check answers.
+    updaterState.check.mockReturnValue(new Promise(() => undefined))
+    fireEvent.click(screen.getByRole('button', { name: msg('updater.settings.check') }))
+    expect(screen.queryByText(upToDate)).toBeNull()
+    expect(screen.getByText(plainVersion)).toBeTruthy()
+  })
+
+  it('never says up to date when the check failed', async () => {
+    updaterState.check.mockImplementation(() => {
+      updaterState.state = { ...updaterState.state, state: 'error', failure: 'check-network' }
+      return Promise.resolve()
+    })
+    useUiStore.setState({ settingsCategory: 'about' })
+    renderSettings()
+
+    fireEvent.click(screen.getByRole('button', { name: msg('updater.settings.check') }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(
+      screen.queryByText(i18n.t('updater.settings.upToDate', { version: '0.14.0' }))
+    ).toBeNull()
   })
 
   it('downloaded state shows "Restart to update" and triggers install', () => {
@@ -728,6 +770,31 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     // The link follows this build's channel: every release for a test build,
     // the latest release for a full one (url-allowlist.test.ts pins both).
     expect(openUrl).toHaveBeenCalledWith({ url: releasesUrlFor(__APP_VERSION__) })
+  })
+
+  it('keeps the channel and Automatic updates still in a build that cannot update itself', () => {
+    updaterState.state = {
+      state: 'unsupported',
+      currentVersion: '0.14.0',
+      availableVersion: null,
+      progressPercent: 0,
+      failure: null
+    }
+    useUiStore.setState({ settingsCategory: 'about' })
+    renderSettings()
+
+    const channel = screen.getByRole('radiogroup', { name: msg('updater.settings.channel.aria') })
+    const toggle = screen.getByRole('radiogroup', { name: msg('updater.settings.label') })
+    const beta = within(channel).getByRole('radio', { name: msg('updater.settings.channel.beta') })
+    const on = within(toggle).getByRole('radio', { name: msg('settings.boolean.on') })
+    expect(beta.getAttribute('aria-disabled')).toBe('true')
+    expect(on.getAttribute('aria-disabled')).toBe('true')
+
+    fireEvent.click(beta)
+    fireEvent.click(on)
+    expect(useSettingsStore.getState().settings.updateChannel).toBe('stable')
+    expect(useSettingsStore.getState().settings.autoUpdate).toBe(false)
+    expect(useSettingsStore.getState().dirty).toBe(false)
   })
 })
 
