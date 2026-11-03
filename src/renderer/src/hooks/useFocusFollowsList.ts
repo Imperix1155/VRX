@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 
 function listItems(container: HTMLElement | null): HTMLElement[] {
   return [...(container?.querySelectorAll<HTMLElement>('[data-list-key]') ?? [])]
@@ -59,4 +59,24 @@ export function useFocusFollowsList(
       if (next instanceof Node && !container.current?.contains(next)) held.current = null
     }
   }
+}
+
+/** A grid of hot instance cards (the Dashboard's and the Hot Instances page's):
+ *  `attach` goes on the grid as its `ref`, with the focus handlers, and each
+ *  card's world name takes focus. */
+export function useHotGridFocus(
+  instances: readonly { groupKey: string }[],
+  fallback: React.RefObject<HTMLElement | null>
+): {
+  attach: (grid: HTMLDivElement | null) => void
+  onFocus: (event: React.FocusEvent<HTMLElement>) => void
+  onBlur: (event: React.FocusEvent<HTMLElement>) => void
+} {
+  const grid = useRef<HTMLDivElement | null>(null)
+  const attach = useCallback((node: HTMLDivElement | null) => {
+    grid.current = node
+  }, [])
+  const keys = instances.map((instance) => instance.groupKey)
+  const { onFocus, onBlur } = useFocusFollowsList(keys, grid, '[data-hot-open]', fallback)
+  return { attach, onFocus, onBlur }
 }
