@@ -528,6 +528,53 @@ describe('DashboardView states (W5)', () => {
   })
 })
 
+describe('Dashboard hot cards and keyboard focus', () => {
+  const inWorld = (id: string, name: string, n: number): Friend =>
+    makeFriend({
+      platformUserId: id,
+      displayName: name,
+      instance: {
+        worldId: `wrld_${n}`,
+        instanceId: `wrld_${n}:1~public`,
+        worldName: `World ${n}`,
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        groupId: null,
+        groupImageUrl: null,
+        region: 'us',
+        userCount: 6
+      }
+    })
+
+  it('hands focus to the card in its place when the focused card leaves by itself', () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1, dashboardHideEmpty: false }
+    })
+    try {
+      const ann = inWorld('a1', 'Ann', 1)
+      const bob = inWorld('b1', 'Bob', 2)
+      stubQueries({ data: [ann, bob], isPending: false }, { data: [], isPending: false })
+      const view = render(<DashboardView />)
+      const opens = [...document.querySelectorAll<HTMLElement>('[data-hot-open]')]
+      expect(opens).toHaveLength(2)
+      opens[0]!.focus()
+      const leaving = opens[0]!.textContent ?? ''
+      const staying = leaving.includes('World 1') ? bob : ann
+      // Its friends moved on: only the other card is left.
+      stubQueries({ data: [staying], isPending: false }, { data: [], isPending: false })
+      act(() => view.rerender(<DashboardView />))
+      const left = [...document.querySelectorAll<HTMLElement>('[data-hot-open]')]
+      expect(left).toHaveLength(1)
+      expect(document.activeElement).toBe(left[0])
+    } finally {
+      useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
+    }
+  })
+})
+
 // ─── HotInstanceCard Join (VRX-237) ───────────────────────────────────────────
 
 describe('HotInstanceCard Join (VRX-237)', () => {

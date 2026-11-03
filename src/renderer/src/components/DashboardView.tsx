@@ -15,10 +15,11 @@
  *    Instances page, which shows every one.
  *  - Empty state when nothing is hot.
  */
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFriendSummary } from '../hooks/useFriendSummary'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
+import { useFocusFollowsList } from '../hooks/useFocusFollowsList'
 import { dashboardSectionOrderOf, type Platform } from '@shared/types'
 import {
   dashboardBlocks,
@@ -166,6 +167,15 @@ function DashboardContent(): React.JSX.Element {
   const dismissExplore = useCallback(() => setExploreDismissSignal((signal) => signal + 1), [])
   const { selectedInstance, openSheet, closeSheet, clearSelection, fallbackFocusRef } =
     useHotInstanceSheet(hotInstances, dismissExplore)
+  // As on the Hot Instances page: a card that leaves by itself hands keyboard
+  // focus to the card in its place, not the page.
+  const hotGridRef = useRef<HTMLDivElement>(null)
+  const followHotFocus = useFocusFollowsList(
+    shownHot.map((instance) => instance.groupKey),
+    hotGridRef,
+    '[data-hot-open]',
+    fallbackFocusRef
+  )
 
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
@@ -262,7 +272,12 @@ function DashboardContent(): React.JSX.Element {
         // that fill the row → 1 column on a narrow pane, a lone card full-width.
         // Rules live in main.css (inline styles can't do @container/:only-child). (VRX-199)
         <div className="hotwrap">
-          <div className={hotPictures ? 'hot-grid hot-grid--picture' : 'hot-grid'}>
+          <div
+            ref={hotGridRef}
+            className={hotPictures ? 'hot-grid hot-grid--picture' : 'hot-grid'}
+            onFocus={followHotFocus.onFocus}
+            onBlur={followHotFocus.onBlur}
+          >
             {shownHot.map((inst) => (
               <HotInstanceCard
                 key={inst.groupKey}

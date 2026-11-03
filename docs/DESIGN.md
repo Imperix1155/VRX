@@ -174,10 +174,12 @@ Use the existing overlay components instead of building a new scrim or focus
 pattern. A non-modal sheet never claims `aria-modal` or traps focus. A true
 modal keeps keyboard focus inside, even when its actions are disabled.
 
-A button that is busy, or has nothing left to do, stays focusable with
-`aria-disabled` rather than `disabled`, which drops keyboard focus to the
-page. When it gives way to a result, or its item leaves a list, focus moves to
-the result or the item in its place; focus the user moved elsewhere stays put.
+Outside a modal dialog, a button that is busy, or has nothing left to do,
+stays focusable with `aria-disabled` rather than `disabled`, which drops
+keyboard focus to the page. A dialog that disables its controls while saving
+puts focus back on the control last used, or ✕, when the save settles. When a
+button gives way to a result, or its item leaves a list, focus moves to the
+result or the item in its place; focus the user moved elsewhere stays put.
 
 Sources: [`main.css`](../src/renderer/src/assets/main.css),
 [`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),

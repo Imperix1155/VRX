@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   welcome setup, instead of also "pills" and "tags".
 - Hot Instances: the help says the Dashboard shows the busiest few,
   instead of always two, since it shows more when Hot Instances has the
-  picture cards.
+  picture cards on a wide window.
 - Screen readers: each account card, in Settings and the welcome setup, is
   named by its platform, and so is its sign-in form, so the two cards'
   Password, Connect and Sign out no longer sound the same.
@@ -76,9 +76,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   switch's note is read with it; and moving a Dashboard section says
   "Wearing now: 2 of 4" instead of "Wearing now is now 2 of 4".
 - Keyboard and screen readers: when the hot instance card that has focus
-  goes away because its friends moved on, focus moves to the card in its
-  place instead of falling to the page; and when a newer invite from the same
-  person replaces an Inbox row, focus stays on that row.
+  goes away because its friends moved on, on the Dashboard or the Hot
+  Instances page, focus moves to the card in its place instead of falling to
+  the page; and when a newer invite from the same person replaces an Inbox
+  row, focus stays on that row.
+- Dialogs: pressing a dialog's own scrollbar no longer closes it; after a
+  press outside closes one, keyboard focus goes back to the button that
+  opened it instead of the page; and only the main mouse button closes one.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

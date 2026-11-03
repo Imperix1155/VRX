@@ -112,9 +112,26 @@ export default function LinkedDialog({
       onPointerDown={(event) => {
         event.stopPropagation()
         if (event.target !== event.currentTarget) return
-        // A press held back leaves focus where it was, so typing goes on there.
-        if (holdsBack) event.preventDefault()
-        else onClose()
+        // The dialog's own scrollbar, and the corners beside its rounded
+        // panel, are part of it, not the page behind.
+        const box = event.currentTarget.getBoundingClientRect()
+        if (
+          event.clientX >= box.left &&
+          event.clientX < box.right &&
+          event.clientY >= box.top &&
+          event.clientY < box.bottom
+        )
+          return
+        // Cancelled either way: a press held back leaves focus in the field,
+        // so typing goes on there, and one that closes leaves focus on the
+        // button the dialog hands it back to. Only the main button closes.
+        event.preventDefault()
+        if (!holdsBack && event.button === 0) onClose()
+      }}
+      onPointerUp={(event) => {
+        // A middle press outside would paste the selection (Linux) into the
+        // field that kept focus.
+        if (event.target === event.currentTarget && event.button === 1) event.preventDefault()
       }}
       onCancel={(event) => {
         event.preventDefault()

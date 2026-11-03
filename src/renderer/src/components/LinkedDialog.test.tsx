@@ -149,6 +149,29 @@ it('keeps the browser from closing a dialog that holds Escape back, and a held-b
   expect(onClose).not.toHaveBeenCalled()
   view.rerender(dialog({}))
   expect(panel.getAttribute('closedby')).toBe('closerequest')
-  expect(fireEvent.pointerDown(panel)).toBe(true)
+  // A press that closes it is cancelled too, so focus lands on the opener
+  // instead of moving to what was under the pointer.
+  expect(fireEvent.pointerDown(panel)).toBe(false)
+  expect(onClose).toHaveBeenCalledTimes(1)
+})
+it('closes only on a main-button press outside its own box, and a middle press pastes nothing', () => {
+  const onClose = vi.fn()
+  render(
+    <LinkedDialog title="Picked friends" onClose={onClose}>
+      <p>Rows</p>
+    </LinkedDialog>
+  )
+  const panel = screen.getByRole('dialog')
+  vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue(
+    DOMRect.fromRect({ x: 100, y: 100, width: 300, height: 200 })
+  )
+  // Its own scrollbar, at the right edge inside the box: not outside.
+  expect(fireEvent.pointerDown(panel, { button: 0, clientX: 395, clientY: 200 })).toBe(true)
+  // A middle press outside keeps focus where it is and doesn't close it, and
+  // its release is cancelled so Linux doesn't paste the selection there.
+  expect(fireEvent.pointerDown(panel, { button: 1, clientX: 20, clientY: 20 })).toBe(false)
+  expect(fireEvent.pointerUp(panel, { button: 1, clientX: 20, clientY: 20 })).toBe(false)
+  expect(onClose).not.toHaveBeenCalled()
+  expect(fireEvent.pointerDown(panel, { button: 0, clientX: 20, clientY: 20 })).toBe(false)
   expect(onClose).toHaveBeenCalledTimes(1)
 })
