@@ -250,7 +250,7 @@ describe('FriendDrawer (VRX-69)', () => {
   it('the opener is a native button distinct from Join, with a composed accessible name', () => {
     render(<FriendsList />)
     const opener = rowOpener('Alex')
-    const joinButton = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const joinButton = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
 
     // Two DISTINCT focusable controls — the Join pill is never nested inside
     // an interactive role (VRX-69 review restructure).
@@ -370,7 +370,7 @@ describe('FriendDrawer (VRX-69)', () => {
 
     // Real pointer order on the other row's Join pill: pointerdown (not an
     // opener, not the panel → closes the card) THEN click (joins).
-    const joinMika = screen.getByRole('button', { name: 'Join Mika in The Great Pug' })
+    const joinMika = screen.getByRole('button', { name: 'Public: Join Mika in The Great Pug' })
     fireEvent.pointerDown(joinMika)
     expect(screen.queryByRole('dialog')).toBeNull()
     await act(async () => {
@@ -707,7 +707,7 @@ describe('FriendDrawer (VRX-69)', () => {
   it('clicking the join pill inside the row does NOT open the drawer', async () => {
     render(<FriendsList />)
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -1197,7 +1197,7 @@ describe('VRX-228 whole-card drawer opener (default) + avatar-only setting', () 
     fireEvent.click(rowLi('Alex'))
     expect(dialog().getAttribute('aria-label')).toBe('Alex')
 
-    const joinMika = screen.getByRole('button', { name: 'Join Mika in The Great Pug' })
+    const joinMika = screen.getByRole('button', { name: 'Public: Join Mika in The Great Pug' })
     // The pill is NEVER part of the opener surface — even inside a card-mode
     // row: the card closes on the pointerdown (the VRX-225 sequence)…
     fireEvent.pointerDown(joinMika)

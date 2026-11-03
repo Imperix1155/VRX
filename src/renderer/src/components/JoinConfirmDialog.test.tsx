@@ -310,7 +310,7 @@ describe('join path interception (confirmJoin on)', () => {
       </>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
     const dialog = confirmDialog()
     expect(joinInstance).not.toHaveBeenCalled()
     // Focus lands on Cancel — the SAFE default; Confirm is never auto-focused.
@@ -433,7 +433,7 @@ describe('confirmJoin off (one-click behavior preserved)', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
 
@@ -464,7 +464,7 @@ describe('confirmJoin off (one-click behavior preserved)', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
 
@@ -1433,7 +1433,7 @@ describe('modal behavior', () => {
       </>
     )
     const search = screen.getByPlaceholderText('Search friends')
-    fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
     expect(confirmDialog()).toBeTruthy()
 
     fireEvent.keyDown(document, { key: '/' })
@@ -1647,7 +1647,7 @@ describe('focus management', () => {
         <JoinConfirmDialog />
       </>
     )
-    const pill = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const pill = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
     pill.focus()
     fireEvent.click(pill)
     const dialog = confirmDialog()
@@ -1665,7 +1665,7 @@ describe('focus management', () => {
         <JoinConfirmDialog />
       </>
     )
-    const pill = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const pill = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
     pill.focus()
     fireEvent.click(pill)
     expect(confirmDialog()).toBeTruthy()
@@ -1687,7 +1687,7 @@ describe('focus management', () => {
         <JoinConfirmDialog />
       </>
     )
-    const pill = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const pill = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
     pill.focus()
     fireEvent.click(pill)
 
