@@ -187,7 +187,8 @@ function LocalSection({ local }: { local: LocalStar }): React.JSX.Element {
       </h4>
       <ChoiceRow
         on={local.on}
-        disabled={!local.writable || saving}
+        disabled={!local.writable}
+        busy={saving}
         name={t('favorites.menu.vrxStar')}
         note={null}
         onToggle={() => void toggle()}
@@ -287,7 +288,8 @@ function GameSection({
                 <li key={group.key}>
                   <ChoiceRow
                     on={inGroup}
-                    disabled={saving !== null || (!inGroup && !addable)}
+                    disabled={!inGroup && !addable}
+                    busy={saving !== null}
                     name={group.name}
                     note={
                       group.capacity === null
@@ -335,12 +337,16 @@ function Note({ children }: { children: React.ReactNode }): React.JSX.Element {
 function ChoiceRow({
   on,
   disabled,
+  busy,
   name,
   note,
   onToggle
 }: {
   on: boolean
+  /** Can't be chosen at all (signed out, or a group it can't join). */
   disabled: boolean
+  /** A save is under way: presses wait, and focus stays on the row. */
+  busy: boolean
   name: string
   note: string | null
   onToggle: () => void
@@ -350,9 +356,14 @@ function ChoiceRow({
       type="button"
       aria-pressed={on}
       disabled={disabled}
-      onClick={onToggle}
+      // Not `disabled` while saving: a disabled button drops keyboard focus to
+      // the page, and Escape there no longer folds the panel.
+      aria-disabled={busy || undefined}
+      onClick={() => {
+        if (!busy) onToggle()
+      }}
       data-favorite-choice=""
-      className="favorite-choice flex w-full items-center gap-[var(--space-2)] rounded-[9px] px-[var(--space-2)] py-[5px] text-left text-[13px] text-[var(--text)] hover:bg-[var(--surface-hover)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] disabled:opacity-50 disabled:hover:bg-transparent"
+      className="favorite-choice flex w-full items-center gap-[var(--space-2)] rounded-[9px] px-[var(--space-2)] py-[5px] text-left text-[13px] text-[var(--text)] hover:bg-[var(--surface-hover)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] disabled:opacity-50 disabled:hover:bg-transparent aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent"
     >
       <span
         aria-hidden="true"

@@ -170,7 +170,8 @@ describe('identity management', () => {
       const retry = screen.getByRole<HTMLButtonElement>('button', { name: 'Retry linked profiles' })
       fireEvent.click(retry)
       fireEvent.click(retry)
-      await waitFor(() => expect(retry.disabled).toBe(true))
+      // aria-disabled while it reads, so keyboard focus stays on Retry.
+      await waitFor(() => expect(retry.getAttribute('aria-disabled')).toBe('true'))
       expect(read).toHaveBeenCalledTimes(2)
       await act(async () => finish({ ok: true, value: snapshot }))
       await waitFor(() =>

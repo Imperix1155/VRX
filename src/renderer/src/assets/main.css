@@ -142,14 +142,15 @@
 .linked-world-pill {
   display: inline-flex;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-base) 42%, transparent);
+  /* The opaque card color, as the VRC and CVR tags beside it have, in both
+     themes: the picture never shows through, so every access word keeps 4.5:1
+     on any art (dark 6.4:1 or more on a white picture, light 5.6:1 or more on
+     a black one). */
+  background: var(--glass-information);
   backdrop-filter: blur(10px);
 }
-/* Light pictures stay bright, so the light pill takes the card-color backing
-   other pills over a picture use (PictureBackedPill) and its word keeps 4.5:1. */
+/* The backing already carries the word; a pale glow would only blur it. */
 [data-theme='light'] .linked-world-pill {
-  background: color-mix(in srgb, var(--glass-information) 78%, transparent);
-  /* The backing already carries the word; a pale glow would only blur it. */
   text-shadow: none;
 }
 .linked-identities,
@@ -375,10 +376,10 @@
   --plat-cvr-badge-text: var(--plat-cvr-ghost-text);
   --plat-vrc-badge-border: var(--plat-vrc-ghost-border);
   --plat-cvr-badge-border: var(--plat-cvr-ghost-border);
-  /* Badges over a picture keep a small card-color backing so the word reads
-     on bright art. */
-  --plat-vrc-picture-badge-bg: color-mix(in srgb, var(--glass-information) 78%, transparent);
-  --plat-cvr-picture-badge-bg: color-mix(in srgb, var(--glass-information) 78%, transparent);
+  /* Badges over a picture keep a small, opaque card-color backing, so the
+     brand-tinted word keeps 4.5:1 even on white art. */
+  --plat-vrc-picture-badge-bg: var(--glass-information);
+  --plat-cvr-picture-badge-bg: var(--glass-information);
   /* Friends-list rail: it sits on a row already washed in the same hue, so it
      takes a stronger tint and edge than the other pills to stand out from it. */
   --plat-vrc-rail-bg: color-mix(in srgb, var(--vrc) 30%, transparent);

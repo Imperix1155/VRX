@@ -69,3 +69,41 @@ it('fences an explicit retry when an identity boundary starts a fresh local read
   dispose()
   client.clear()
 })
+
+it('keeps keyboard focus on Retry while it reads, and there when the read fails again', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  let fail!: (result: { ok: false; reason: 'storage' }) => void
+  const read = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: false, reason: 'storage' })
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          fail = resolve
+        })
+    )
+  window.vrx = {
+    getLinkedProfiles: read,
+    onIdentityBoundary: () => () => {}
+  } as unknown as Window['vrx']
+  const dispose = subscribeLinkedProfiles(client)
+  render(
+    <QueryClientProvider client={client}>
+      <Feedback />
+    </QueryClientProvider>
+  )
+  const retry = await screen.findByRole('button', { name: 'Retry linked profiles' })
+  retry.focus()
+  fireEvent.click(retry)
+  await waitFor(() => expect(retry.getAttribute('aria-disabled')).toBe('true'))
+  // A disabled button would drop focus to the page.
+  expect(retry.hasAttribute('disabled')).toBe(false)
+  fireEvent.click(retry)
+  expect(read).toHaveBeenCalledTimes(2)
+  await act(async () => fail({ ok: false, reason: 'storage' }))
+  await waitFor(() => expect(retry.getAttribute('aria-disabled')).toBeNull())
+  expect(screen.getByRole('button', { name: 'Retry linked profiles' })).toBe(retry)
+  expect(document.activeElement).toBe(retry)
+  dispose()
+  client.clear()
+})

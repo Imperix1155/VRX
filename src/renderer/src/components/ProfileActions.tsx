@@ -15,7 +15,9 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { SocialAction, SocialActionResult } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
+import { useScrimDismiss } from '../hooks/useScrimDismiss'
 import { useRelationship, useSocialAction } from '../queries/community'
+import { keepTabInModal } from '../utils/modalTab'
 import GoToAccountsButton from './GoToAccountsButton'
 import PlatformPill from './PlatformPill'
 
@@ -246,6 +248,10 @@ function SocialConfirmDialog({
   useEffect(() => {
     close.current = onClose
   }, [onClose])
+  const { onPointerDown: onScrimPointerDown, onClick: onScrimClick } = useScrimDismiss(
+    !pending,
+    onClose
+  )
 
   // Focus starts on Cancel and goes back to the button that opened the
   // dialog, or to the toggle when that button changed (Block became Unblock).
@@ -282,16 +288,17 @@ function SocialConfirmDialog({
     try {
       const result = await send(platform, userId, action)
       if (result.ok) {
+        // Still sending until this answer's render closes the dialog, so a
+        // press in between can't send the change a second time.
         onDone(action)
         return
       }
       setFailure(result.reason)
     } catch {
       setFailure('unknown')
-    } finally {
-      pendingRef.current = false
-      setPending(false)
     }
+    pendingRef.current = false
+    setPending(false)
   }
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
@@ -305,24 +312,13 @@ function SocialConfirmDialog({
     if (event.key !== 'Tab') return
     const panel = panelRef.current
     if (panel === null) return
-    const focusables = Array.from(panel.querySelectorAll<HTMLElement>('button')).filter(
-      (element) => !element.hasAttribute('disabled')
+    // The dimmed buttons stay in the loop while it sends (aria-disabled).
+    const buttons = Array.from(panel.querySelectorAll<HTMLElement>('button'))
+    keepTabInModal(
+      event,
+      panel,
+      buttons.filter((element) => !element.hasAttribute('disabled'))
     )
-    const first = focusables[0]
-    const last = focusables[focusables.length - 1]
-    if (first === undefined || last === undefined) {
-      panel.focus({ preventScroll: true })
-      event.preventDefault()
-    } else if (event.shiftKey && document.activeElement === first) {
-      last.focus()
-      event.preventDefault()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      first.focus()
-      event.preventDefault()
-    } else if (!panel.contains(document.activeElement)) {
-      first.focus()
-      event.preventDefault()
-    }
   }
 
   return createPortal(
@@ -334,9 +330,8 @@ function SocialConfirmDialog({
       <div
         data-testid="social-confirm-scrim"
         aria-hidden="true"
-        onPointerDown={() => {
-          if (!pendingRef.current) onClose()
-        }}
+        onPointerDown={onScrimPointerDown}
+        onClick={onScrimClick}
         className="absolute inset-0 bg-[var(--scrim)]"
       />
       <div
@@ -377,21 +372,27 @@ function SocialConfirmDialog({
           </p>
         ) : null}
         <div className="mt-[var(--space-1)] flex flex-wrap items-center justify-end gap-[var(--space-2)]">
+          {/* While it sends, both buttons keep keyboard focus (aria-disabled):
+              a disabled one would drop it to the page behind the dialog. They
+              keep pointer events too, so another press lands on the button,
+              whose click does nothing then, and not on the panel under it. */}
           <button
             ref={cancelRef}
             type="button"
-            disabled={pending}
-            onClick={onClose}
-            className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-sm font-medium text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+            aria-disabled={pending || undefined}
+            onClick={() => {
+              if (!pendingRef.current) onClose()
+            }}
+            className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-sm font-medium text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-[var(--control-fill)]"
           >
             {t('profile.actions.confirm.cancel')}
           </button>
           <button
             type="button"
-            disabled={pending}
+            aria-disabled={pending || undefined}
             data-social-confirm-submit=""
             onClick={() => void confirm()}
-            className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] disabled:pointer-events-none disabled:opacity-50"
+            className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:brightness-100 aria-disabled:active:brightness-100"
             style={
               action === 'unblock'
                 ? {

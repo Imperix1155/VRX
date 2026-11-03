@@ -35,9 +35,9 @@ or launch authority.
 **Boot and auth**
 
 - Show `BootSplash` until settings hydrate, then notify main once. A platform
-  in `authenticated` or `error` state, or a failed auth query, enters the
-  shell; pending auth keeps the splash, so login never flashes over a restored
-  session.
+  in `authenticated` or `error` state, or a failed auth query, also while
+  Retry runs it again (`isAuthCheckFailing`), enters the shell; other pending
+  auth keeps the splash, so login never flashes over a restored session.
 - The login screen remounts its form per platform tab and locks the tabs while
   submitting. `CREDENTIAL_PERSISTENCE_FAILED` and the two sign-in-from-this-PC
   results (per platform, `importErrorKey`) get dedicated copy. A

@@ -5,9 +5,10 @@
  * `settings.confirmJoin` is on.
  *
  * A TRUE modal (aria-modal) — the app's first. Per the owner's ruling it still
- * wears the VRX-225 drawer's SOFT scrim + outside-pointerdown close; DESIGN.md
- * reserves the heavier `--scrim` for true modals, so the scrim choice is
- * flagged for the owner's eyeball rather than silently "upgraded".
+ * wears the VRX-225 drawer's SOFT scrim, and a press or tap on it closes the
+ * dialog (useScrimDismiss); DESIGN.md reserves the heavier `--scrim` for true
+ * modals, so the scrim choice is flagged for the owner's eyeball rather than
+ * silently "upgraded".
  *
  * Visual-weight order (owner-ruled): type-named headline → policy space (the
  * moderation context) → who's-there → mode → actions. The "More info" expander
@@ -40,6 +41,8 @@ import {
   type FriendPendingConfirm
 } from '../hooks/useJoinInstance'
 import { useJoinHandoff } from '../hooks/useJoinHandoff'
+import { useScrimDismiss } from '../hooks/useScrimDismiss'
+import { keepTabInModal } from '../utils/modalTab'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { policySpaceFor, type PolicySpace } from '../utils/instancePolicySpace'
@@ -122,6 +125,10 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const { t } = useTranslation()
   const { pendingConfirm, isJoining, confirmPending, cancelPending, invalidatePending } =
     useJoinInstance()
+  const { onPointerDown: onScrimPointerDown, onClick: onScrimClick } = useScrimDismiss(
+    !isJoining,
+    cancelPending
+  )
   const joinMode = useSettingsStore((state) => state.settings.joinMode)
   const labelScheme = useSettingsStore((state) => state.settings.labelScheme)
   const updateSettings = useSettingsStore((state) => state.updateSettings)
@@ -147,30 +154,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
       if (event.key !== 'Tab') return
       const panel = panelRef.current
       if (panel === null) return
-      const focusables = getFocusables(panel)
-      const active = document.activeElement
-      if (focusables.length === 0) {
-        panel.focus({ preventScroll: true })
-        event.preventDefault()
-        return
-      }
-      const first = focusables[0]
-      const last = focusables[focusables.length - 1]
-      if (first === undefined || last === undefined) return
-      if (
-        active === null ||
-        !panel.contains(active) ||
-        !focusables.includes(active as HTMLElement)
-      ) {
-        first.focus({ preventScroll: true })
-        event.preventDefault()
-      } else if (event.shiftKey && active === first) {
-        last.focus()
-        event.preventDefault()
-      } else if (!event.shiftKey && active === last) {
-        first.focus()
-        event.preventDefault()
-      }
+      keepTabInModal(event, panel, getFocusables(panel))
     }
     document.addEventListener('keydown', onKey)
     const boundary = window.vrx?.onIdentityBoundary?.(({ platform }) => invalidatePending(platform))
@@ -223,9 +207,8 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
       <div
         data-testid="join-confirm-scrim"
         aria-hidden="true"
-        onPointerDown={() => {
-          if (!isJoining) cancelPending()
-        }}
+        onPointerDown={onScrimPointerDown}
+        onClick={onScrimClick}
         className="absolute inset-0 bg-[var(--scrim-soft)]"
       />
       <div
@@ -380,6 +363,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
     invalidateFriendPending
   } = joinState
   const pendingConfirm = rawPendingConfirm as FriendPendingConfirm | null
+  const { onPointerDown: onScrimPointerDown, onClick: onScrimClick } = useScrimDismiss(
+    !isJoining,
+    cancelPending
+  )
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -533,29 +520,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
       if (event.key !== 'Tab') return
       const panel = panelRef.current
       if (panel === null) return
-      const focusables = getFocusables(panel)
-      const first: HTMLElement | undefined = focusables[0]
-      const last: HTMLElement | undefined = focusables[focusables.length - 1]
-      const active = document.activeElement
-      if (
-        active === null ||
-        !panel.contains(active) ||
-        (active !== null && !focusables.some((el) => el === active))
-      ) {
-        // Focus is OUTSIDE the panel, on a disabled/hidden element, or the
-        // panel itself while every control is inert — pull it to a valid anchor.
-        const target = first ?? panel
-        target.focus({ preventScroll: true })
-        event.preventDefault()
-      } else if (first !== undefined && last !== undefined) {
-        if (event.shiftKey && active === first) {
-          last.focus()
-          event.preventDefault()
-        } else if (!event.shiftKey && active === last) {
-          first.focus()
-          event.preventDefault()
-        }
-      }
+      // Focus OUTSIDE the panel, on a disabled/hidden element, or on the panel
+      // itself while every control is inert goes back to a valid anchor.
+      keepTabInModal(event, panel, getFocusables(panel))
     }
     document.addEventListener('keydown', onKeyDown)
     return () => {
@@ -663,15 +630,14 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-[var(--space-6)]">
-      {/* Soft scrim (owner-ruled, the VRX-225 pattern) — pure depth; outside
-          pointerdown closes like the drawer, but not while the launch is in
-          flight (the modal is inert then). */}
+      {/* Soft scrim (owner-ruled, the VRX-225 pattern) — pure depth; a press
+          or tap on it closes only this dialog (useScrimDismiss), but not while
+          the launch is in flight (the modal is inert then). */}
       <div
         data-testid="join-confirm-scrim"
         aria-hidden="true"
-        onPointerDown={() => {
-          if (!isJoining) cancelPending()
-        }}
+        onPointerDown={onScrimPointerDown}
+        onClick={onScrimClick}
         className="absolute inset-0 bg-[var(--scrim-soft)]"
       />
       <div

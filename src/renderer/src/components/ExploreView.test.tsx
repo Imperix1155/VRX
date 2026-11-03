@@ -242,9 +242,46 @@ describe('ExploreView', () => {
     }
     const props = setup({ worlds: [selected], sheet: snapshot, isJoining: true })
     const button = screen.getByRole('button', { name: 'Joining…' })
-    expect(button.hasAttribute('disabled')).toBe(true)
+    // aria-disabled, not disabled: the Join just pressed keeps keyboard focus.
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button.hasAttribute('disabled')).toBe(false)
     fireEvent.click(button)
     expect(props.onJoinRoom).not.toHaveBeenCalled()
+  })
+
+  it('keeps keyboard focus on a room’s Join while the Join runs', () => {
+    const selected = world('vrchat', 'busy', 'Busy World')
+    const snapshot: ExploreWorldSnapshot = {
+      ...source('vrchat', [selected]),
+      world: selected,
+      rooms: [room('vrchat', { state: 'available', selectionRef: 'synthetic' }, selected.worldId)],
+      roomsComplete: true
+    }
+    const props: React.ComponentProps<typeof ExploreView> = {
+      worlds: [selected],
+      total: 4,
+      platformSnapshots: [source('vrchat', [selected])],
+      sheet: snapshot,
+      sheetOpener: null,
+      focusFallback: null,
+      onTotalChange: vi.fn(),
+      onOpenWorld: vi.fn(),
+      onCloseSheet: vi.fn(),
+      onJoinRoom: vi.fn()
+    }
+    const view = render(<ExploreView {...props} />)
+    const join = screen.getByRole('button', { name: 'Join' })
+    join.focus()
+    fireEvent.click(join)
+    expect(props.onJoinRoom).toHaveBeenCalledOnce()
+    view.rerender(<ExploreView {...props} isJoining />)
+    expect(screen.getByRole('button', { name: 'Joining…' })).toBe(join)
+    // jsdom keeps focus on a disabled button; Chromium doesn't.
+    expect(join.hasAttribute('disabled')).toBe(false)
+    expect(document.activeElement).toBe(join)
+    view.rerender(<ExploreView {...props} isJoining={false} />)
+    expect(screen.getByRole('button', { name: 'Join' })).toBe(join)
+    expect(document.activeElement).toBe(join)
   })
 
   it('disables restricted room actions, closes on Escape, and focuses Close on open', () => {
@@ -339,6 +376,31 @@ describe('ExploreView', () => {
     fireEvent.click(refreshFirst)
     expect(props.onJoinRoom).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['a room from saved results', true, 'vrc'],
+    ['a room of another world', false, 'another-world']
+  ])(
+    'keeps %s, which can’t be joined anyway, disabled while a Join runs',
+    (_, isStale, worldId) => {
+      const selected = world('vrchat', 'vrc', 'VRC World')
+      setup({
+        worlds: [selected],
+        sheet: {
+          ...source('vrchat', [selected]),
+          isStale,
+          world: selected,
+          rooms: [room('vrchat', { state: 'available', selectionRef: 'synthetic' }, worldId)],
+          roomsComplete: true
+        },
+        isJoining: true
+      })
+      // Only a room that is open once the Join ends keeps focus (aria-disabled).
+      const button = screen.getByRole('button', { name: 'Joining…' })
+      expect(button.hasAttribute('disabled')).toBe(true)
+      expect(button.hasAttribute('aria-disabled')).toBe(false)
+    }
+  )
 
   it('claims saved results only while saved rooms are on screen', () => {
     const selected = world('vrchat', 'vrc', 'VRC World')

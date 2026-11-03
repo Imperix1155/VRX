@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Keyboard: the favorites menu's choices, Join on a room in Explore, and
+  Retry on the account, settings and linked-profiles notices keep keyboard
+  focus while they work, instead of dropping it to the page, so Escape still
+  folds the favorites menu and a Retry that fails again leaves focus on
+  Retry. A Retry that fails again no longer flickers the account or linked
+  profiles notice away and back.
+- Sign-in: when a platform's sign-in check fails and the other platform is
+  signed out, Retry no longer swaps the window for the start-up screen until
+  the check answers; the account notice, with keyboard focus on its Retry,
+  stays.
+- Contrast: the access word beside a linked friend's world picture sits on
+  an opaque card-colored backing in both themes, and so do the VRC and CVR
+  badges on picture cards in the dark theme, so they keep 4.5:1 contrast on
+  any picture.
+- Dialogs: a tap outside one on a touch screen closes it without also
+  pressing whatever was under your finger, and keyboard focus goes back to
+  the button that opened it.
+- Join confirmation: a press outside it closes only the confirmation, so
+  the friend details or the Explore or Hot Instances sheet behind it stay
+  open.
+- Join confirmation, Unfriend, Block and Unblock: after a press outside
+  closes the confirmation, keyboard focus goes back to the button that
+  opened it instead of the page.
+- Unfriend, Block and Unblock: the confirmation's buttons keep keyboard
+  focus while the change is sent, even after a double-click, and after a
+  refusal focus stays on the button you pressed, instead of dropping to the
+  page behind the dialog. After a click on the confirmation's text,
+  Shift+Tab no longer leaves it.
+
 ## [1.4.0-dev.7] - 2026-11-03
 
 ### Fixed
