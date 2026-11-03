@@ -83,7 +83,7 @@ export function Avatar({
         )}
         {!isDrawer && ring.glyph && (
           <span
-            className={`absolute -right-px -bottom-px grid ${badgeSize} place-items-center rounded-full border-2 border-[var(--bg-base)]`}
+            className={`status-badge absolute -right-px -bottom-px grid ${badgeSize} place-items-center rounded-full border-2 border-[var(--bg-base)]`}
             style={{ background: `var(${ring.colorVar})` }}
             aria-hidden="true"
           />
@@ -162,7 +162,7 @@ export function Avatar({
       </span>
       {!isDrawer && ring.glyph && (
         <span
-          className={`absolute -right-px -bottom-px grid ${badgeSize} place-items-center rounded-full border-2 border-[var(--bg-base)]`}
+          className={`status-badge absolute -right-px -bottom-px grid ${badgeSize} place-items-center rounded-full border-2 border-[var(--bg-base)]`}
           style={{ background: `var(${ring.colorVar})` }}
           aria-hidden="true"
         />

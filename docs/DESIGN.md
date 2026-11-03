@@ -330,6 +330,13 @@ Don't design a mobile layout from a narrow documentation viewport.
 9 px rounded bar in `--scrollbar-thumb` on a clear track, set once in
 `main.css`; High Contrast draws the thumb in the text color.
 
+**High Contrast.** Windows High Contrast removes shadows and the app's own
+colors, so `main.css` redraws, in High Contrast only and in system colors,
+what VRX draws with them: the keyboard focus ring becomes a `Highlight`
+outline, and the chosen option of a switch, the current page and a toggle
+that is on use `Highlight` with `HighlightText`. The status dot on a picture
+keeps its own colors there, as the friends list's color-only exception needs.
+
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
 Explore, Search, Groups, Avatars, Settings. Hot Instances, Activity, Inbox,
 Explore, Search and Groups can be hidden in Settings → Appearance → Sidebar
