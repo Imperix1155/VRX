@@ -87,8 +87,8 @@
       "rateLimited": "Too many local changes. Wait a moment, then try again.",
       "linkNeedsBoth": "Both platforms must be signed in and available to link."
     },
-    "people_one": "{{count}} person",
-    "people_other": "{{count}} people",
+    "people_one": "{{count, number}} person",
+    "people_other": "{{count, number}} people",
     "unknownName": "Unknown friend",
     "sharedNotes": "Shared notes",
     "back": "Back to combined profile",
@@ -129,12 +129,12 @@
       "allShort": "ALL",
       "aria": "Platform filter"
     },
-    "friendCount_one": "<b>{{count}}</b> friend",
-    "friendCount_other": "<b>{{count}}</b> friends",
+    "friendCount_one": "<b>{{count, number}}</b> friend",
+    "friendCount_other": "<b>{{count, number}}</b> friends",
     "counts": {
       "aria": "Friends and players online",
-      "friendsOnline_one": "{{count}} friend online",
-      "friendsOnline_other": "{{count}} friends online",
+      "friendsOnline_one": "{{count, number}} friend online",
+      "friendsOnline_other": "{{count, number}} friends online",
       "playingNow": "Playing right now",
       "note": "As each platform reports it. Checked at most every 5 minutes."
     },
@@ -212,7 +212,7 @@
     },
     "labelScheme": {
       "label": "Instance labels",
-      "description": "Which words the instance pills use.",
+      "description": "Which words the instance labels use.",
       "aria": "Instance label scheme selector",
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
@@ -422,6 +422,7 @@
           "load": "Couldn't load your {{platform}} profile. Check your connection and try again.",
           "unavailable": "Couldn't save to {{platform}}. Check your connection and try again.",
           "wait": "Saving too often. Wait a few seconds, then try again.",
+          "loadWait": "{{platform}} asked VRX to slow down. Try again in a minute.",
           "invalid": "Some text is too long to save.",
           "signedOut": "{{platform}} signed you out. Sign in again, then try again."
         }
@@ -602,10 +603,10 @@
       "offline": "Offline"
     },
     "section": {
-      "inGame": "In-Game ({{count}})",
-      "online": "Online ({{count}})",
-      "offline": "Offline ({{count}})",
-      "favorites": "Favorites ({{count}})"
+      "inGame": "In-Game ({{count, number}})",
+      "online": "Online ({{count, number}})",
+      "offline": "Offline ({{count, number}})",
+      "favorites": "Favorites ({{count, number}})"
     },
     "instance": {
       "unknownWorld": "Unknown World",
@@ -825,7 +826,7 @@
     "hotThresholdLabel": "Min. friends",
     "hotHelp": {
       "label": "About Hot Instances",
-      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows two: the top one from each platform when both have one, otherwise the top two. The Hot Instances page shows all of them, with the most friends first.",
+      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows the busiest few, starting with the top one from each platform. The Hot Instances page shows all of them, with the most friends first.",
       "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you turn them on in Settings → Notifications."
     },
     "seeAll_one": "See {{count}}",
@@ -976,8 +977,8 @@
     "refreshing": "Refreshing…",
     "wearingNow": "Wearing now",
     "yourUploads": "Your uploads",
-    "uploadCount_one": "{{count}} avatar",
-    "uploadCount_other": "{{count}} avatars",
+    "uploadCount_one": "{{count, number}} avatar",
+    "uploadCount_other": "{{count, number}} avatars",
     "loadingPlatform": "Loading your {{platform}} avatars…",
     "stale": "Couldn't refresh your {{platform}} avatars. Showing what loaded last.",
     "staleRateLimited": "{{platform}} asked VRX to slow down. Showing what loaded last; try again in a minute.",
@@ -1152,7 +1153,7 @@
     "look": {
       "title": "Pick a look",
       "lead": "It changes as you pick, so you can see it right away.",
-      "labelsDescription": "The words on instance tags, like Friends+ (VRChat) or Friends of Friends (ChilloutVR).",
+      "labelsDescription": "The words on instance labels, like Friends+ (VRChat) or Friends of Friends (ChilloutVR).",
       "aria": "Theme",
       "system": "Match my PC"
     },

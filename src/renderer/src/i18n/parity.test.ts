@@ -157,6 +157,50 @@ describe('Japanese terms', () => {
     // The button's words stay part of its full name for screen readers.
     expect(ja.friendActions.addAria).toContain(ja.friendActions.add)
   })
+
+  it('calls Hot Instances ホットインスタンス everywhere; 人気 is Popular now', () => {
+    expect(all.filter((text) => text.includes('人気インスタンス'))).toEqual([])
+  })
+
+  it('calls published worlds 公開ワールド, as Popular now does', () => {
+    expect(all.filter((text) => text.includes('パブリックワールド'))).toEqual([])
+  })
+
+  it('calls the instance words インスタンスラベル, as the setting does', () => {
+    expect(ja.settings.labelScheme.label).toBe('インスタンスラベル')
+    expect(all.filter((text) => /インスタンスピル|インスタンスのタグ/.test(text))).toEqual([])
+  })
+})
+
+describe('English terms', () => {
+  function texts(obj: Record<string, unknown>): string[] {
+    return Object.values(obj).flatMap((value) =>
+      value !== null && typeof value === 'object'
+        ? texts(value as Record<string, unknown>)
+        : [String(value)]
+    )
+  }
+
+  it('calls the instance words instance labels, as the setting does', () => {
+    expect(en.settings.labelScheme.label).toBe('Instance labels')
+    expect(texts(en).filter((text) => /instance (pills|tags)/i.test(text))).toEqual([])
+  })
+})
+
+describe('counts', () => {
+  it.each([
+    ['en', 'Offline (1,200)', '1,234'],
+    ['ja', 'オフライン (1,200)', '1,234']
+  ] as const)('%s: friend counts of a thousand or more are grouped', async (lang, offline, top) => {
+    const { default: i18n } = await import('./index')
+    const t = i18n.getFixedT(lang)
+    expect(t('friends.section.offline', { count: 1200 })).toBe(offline)
+    expect(t('shell.friendCount', { count: 1234 })).toContain(top)
+    expect(t('shell.counts.friendsOnline', { count: 1234 })).toContain(top)
+    expect(t('linking.people', { count: 1234 })).toContain(top)
+    // The plural still follows the number itself.
+    expect(i18n.getFixedT('en')('friends.section.offline', { count: 1 })).toBe('Offline (1)')
+  })
 })
 
 // A control's spoken name holds the words it shows (WCAG 2.5.3), so speech
@@ -176,5 +220,20 @@ describe('names that hold their visible words', () => {
     expect(bundle.friendActions.addAria.toLowerCase()).toContain(
       bundle.friendActions.add.toLowerCase()
     )
+  })
+
+  it.each([
+    ['en', en],
+    ['ja', ja]
+  ] as const)('%s: world cards, Wear and Set as home world say their words', (_lang, bundle) => {
+    expect(bundle.explore.openWorldAria).toContain(bundle.explore.viewRooms)
+    expect(bundle.avatars.sheet.wearAria).toContain(bundle.avatars.sheet.wear)
+    expect(bundle.explore.home.setAria).toContain(bundle.explore.home.set)
+    // English starts with them; Japanese puts the verb last, as for Add friend.
+    if (bundle === en) {
+      expect(en.avatars.sheet.wearAria.startsWith(en.avatars.sheet.wear)).toBe(true)
+      expect(en.explore.home.setAria.startsWith(en.explore.home.set)).toBe(true)
+      expect(en.explore.openWorldAria.startsWith('{{world}}')).toBe(true)
+    }
   })
 })

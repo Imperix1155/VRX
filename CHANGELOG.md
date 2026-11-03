@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   home world now start their spoken names with the words they show ("Pug
   Lounge on VRChat. View rooms"), and a linked friend's "2 locations" pill
   says it chooses where to join them, instead of only "2 locations".
+- Friend counts of a thousand or more are grouped, as player counts are:
+  "Offline (1,200)" and "1,234 friends", also on the Dashboard and in
+  Japanese.
+- Edit profile: when VRChat or ChilloutVR asks VRX to slow down while your
+  profile loads, it says so, instead of "Saving too often".
+- Japanese: the alert setting calls Hot Instances ホットインスタンス, as
+  everywhere else, instead of 人気インスタンス, which read like Popular now;
+  Explore's empty line says 公開ワールド like the line above it; and a world's
+  regions are listed with 、.
+- Instance labels are called instance labels everywhere, in Settings and the
+  welcome setup, instead of also "pills" and "tags".
+- Hot Instances: the help no longer says the Dashboard shows two, since a
+  wide window shows more.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

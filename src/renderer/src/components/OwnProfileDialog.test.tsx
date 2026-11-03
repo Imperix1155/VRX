@@ -166,6 +166,24 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
     expect(await within(dialog).findByLabelText(msg('settings.accounts.profile.bio'))).toBeTruthy()
     expect(getOwnProfile).toHaveBeenCalledTimes(2)
   })
+
+  it('says the platform asked to slow down when a read is refused, not that you saved', async () => {
+    const { getOwnProfile } = setup(platform)
+    getOwnProfile.mockResolvedValueOnce({ ok: false, reason: 'rate-limited' })
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.accounts.profile.edit') })
+    )
+    const dialog = await screen.findByRole('dialog')
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert.textContent).toContain(
+      msg('settings.accounts.profile.error.loadWait', {
+        platform: platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
+      })
+    )
+    expect(alert.textContent).not.toContain(msg('settings.accounts.profile.error.wait'))
+    // Nothing is asked again until Retry is pressed.
+    expect(getOwnProfile).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('Edit profile — welcome setup', () => {

@@ -51,11 +51,11 @@ interface StatCardProps {
  * neither presence color would be honest, and the label says what it is.
  */
 function StatCard({ value, labelKey }: StatCardProps): React.JSX.Element {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <div className="glass glass-information min-w-0 p-[16px_18px]">
       <div className="font-[family-name:var(--font-mono)] text-[38px] leading-none tabular-nums text-[var(--text)]">
-        {value}
+        {new Intl.NumberFormat(i18n.language).format(value)}
       </div>
       <div className="mt-[var(--space-1)] text-[12.5px] text-[var(--text-dim)]">{t(labelKey)}</div>
     </div>

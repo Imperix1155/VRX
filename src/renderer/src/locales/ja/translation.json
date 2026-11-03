@@ -87,7 +87,7 @@
       "rateLimited": "ローカルでの変更が多すぎます。少し待ってから再試行してください。",
       "linkNeedsBoth": "リンクするには両プラットフォームにサインインし、利用可能である必要があります。"
     },
-    "people_other": "{{count}}人",
+    "people_other": "{{count, number}}人",
     "unknownName": "不明なフレンド",
     "sharedNotes": "共有メモ",
     "back": "統合プロフィールに戻る",
@@ -128,10 +128,10 @@
       "allShort": "ALL",
       "aria": "プラットフォームフィルター"
     },
-    "friendCount_other": "フレンド<b>{{count}}</b>人",
+    "friendCount_other": "フレンド<b>{{count, number}}</b>人",
     "counts": {
       "aria": "オンラインのフレンドとプレイヤー",
-      "friendsOnline_other": "フレンド{{count}}人がオンライン",
+      "friendsOnline_other": "フレンド{{count, number}}人がオンライン",
       "playingNow": "いまプレイ中の人数",
       "note": "各プラットフォームの発表です。確認は最大5分に1回です。"
     },
@@ -209,7 +209,7 @@
     },
     "labelScheme": {
       "label": "インスタンスラベル",
-      "description": "インスタンスピルの用語。",
+      "description": "インスタンスラベルに使う言葉。",
       "aria": "インスタンスラベルのスキーム選択",
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
@@ -275,7 +275,7 @@
       "heading": "通知",
       "scope": {
         "label": "通知する相手",
-        "description": "全員、または選んだフレンドだけ。人気インスタンスの通知は変わりません。",
+        "description": "全員、または選んだフレンドだけ。ホットインスタンスの通知は変わりません。",
         "everyone": "全員",
         "picked": "選んだフレンド",
         "aria": "通知を送るフレンド"
@@ -419,6 +419,7 @@
           "load": "{{platform}} のプロフィールを読み込めませんでした。接続を確認して、もう一度お試しください。",
           "unavailable": "{{platform}} に保存できませんでした。接続を確認して、もう一度お試しください。",
           "wait": "保存が続いています。数秒待ってから、もう一度お試しください。",
+          "loadWait": "{{platform}} から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
           "invalid": "長すぎて保存できない項目があります。",
           "signedOut": "{{platform}} からサインアウトされました。もう一度サインインしてからお試しください。"
         }
@@ -599,10 +600,10 @@
       "offline": "オフライン"
     },
     "section": {
-      "inGame": "ゲーム中 ({{count}})",
-      "online": "オンライン ({{count}})",
-      "offline": "オフライン ({{count}})",
-      "favorites": "お気に入り ({{count}})"
+      "inGame": "ゲーム中 ({{count, number}})",
+      "online": "オンライン ({{count, number}})",
+      "offline": "オフライン ({{count, number}})",
+      "favorites": "お気に入り ({{count, number}})"
     },
     "instance": {
       "unknownWorld": "不明なワールド",
@@ -820,7 +821,7 @@
     "hotThresholdLabel": "最少フレンド数",
     "hotHelp": {
       "label": "ホットインスタンスについて",
-      "description": "ホットインスタンスには、同じインスタンスに集まっているフレンドが表示されます。ゲーム内にいて、居場所が公開されているフレンドだけを数えます。プラットフォームフィルターに従い、VRChatとChilloutVRは別々に集計します。ダッシュボードには2件を表示します。両方のプラットフォームにある場合はそれぞれの上位1件、そうでない場合は上位2件です。ホットインスタンスのページにはすべてを、フレンドが多い順に表示します。",
+      "description": "ホットインスタンスには、同じインスタンスに集まっているフレンドが表示されます。ゲーム内にいて、居場所が公開されているフレンドだけを数えます。プラットフォームフィルターに従い、VRChatとChilloutVRは別々に集計します。ダッシュボードには上位の数件を、各プラットフォームの1位から表示します。ホットインスタンスのページにはすべてを、フレンドが多い順に表示します。",
       "threshold": "−と＋で、表示に必要なフレンドの最小人数を{{min}}〜{{max}}人に設定できます。「設定」→「通知」でホットインスタンス通知をオンにした場合、この人数が通知のしきい値にもなります。"
     },
     "seeAll": "すべて表示（{{count}}）",
@@ -895,7 +896,7 @@
       "stale": "{{platform}} の結果は最新ではない可能性があります。"
     },
     "stale": "保存済みの結果を表示しています。",
-    "empty": "現在利用可能なパブリックワールドはありません。",
+    "empty": "現在利用可能な公開ワールドはありません。",
     "notLoaded": "ワールドはまだ読み込まれていません。「更新」を押して読み込んでください。",
     "sheetAria": "{{platform}} の {{world}} にある表示可能なパブリックルーム",
     "loadingRooms": "表示可能なパブリックルームを読み込み中…",
@@ -969,7 +970,7 @@
     "refreshing": "更新中…",
     "wearingNow": "着用中",
     "yourUploads": "アップロードしたアバター",
-    "uploadCount_other": "{{count}}体",
+    "uploadCount_other": "{{count, number}}体",
     "loadingPlatform": "{{platform}} のアバターを読み込み中…",
     "stale": "{{platform}} のアバターを更新できませんでした。最後に読み込んだ内容を表示しています。",
     "staleRateLimited": "{{platform}} から間隔をあけるよう求められました。最後に読み込んだ内容を表示しています。1分ほどしてからもう一度お試しください。",
@@ -1144,7 +1145,7 @@
     "look": {
       "title": "見た目を選ぶ",
       "lead": "選ぶとすぐに切り替わるので、その場で確認できます。",
-      "labelsDescription": "インスタンスのタグに出る言葉です。例：Friends+（VRChat）、フレンドのフレンド（ChilloutVR）。",
+      "labelsDescription": "インスタンスラベルに出る言葉です。例：Friends+（VRChat）、フレンドのフレンド（ChilloutVR）。",
       "aria": "テーマ",
       "system": "PCに合わせる"
     },

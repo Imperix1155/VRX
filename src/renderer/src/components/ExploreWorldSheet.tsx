@@ -270,7 +270,10 @@ export default function ExploreWorldSheet({
           ? formatCount(world.activity.value, i18n.language)
           : t('explore.unknownCount')
     },
-    { label: t('explore.more.regions'), value: regions.length > 0 ? regions.join(', ') : notShown },
+    {
+      label: t('explore.more.regions'),
+      value: regions.length > 0 ? regions.join(t('listSeparator')) : notShown
+    },
     {
       label: t('explore.more.checked'),
       value:

@@ -366,7 +366,7 @@ export default function OwnProfileDialog({
               result?.ok === false && result.reason === 'not-authenticated'
                 ? 'settings.accounts.profile.error.signedOut'
                 : result?.ok === false && result.reason === 'rate-limited'
-                  ? 'settings.accounts.profile.error.wait'
+                  ? 'settings.accounts.profile.error.loadWait'
                   : 'settings.accounts.profile.error.load',
               { platform: label }
             )}
