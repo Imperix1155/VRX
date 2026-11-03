@@ -494,6 +494,14 @@ describe('renderer design token contract', () => {
       )
     }
   })
+
+  it('backs the platform tag over a picture with the opaque card color, so art never shows through its word', () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const rule = /\.linked-world-tags \.linked-world-platform\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
+    expect(rule).toMatch(
+      /background:\s*linear-gradient\(var\(--linked-badge-bg\),\s*var\(--linked-badge-bg\)\),\s*var\(--glass-information\)\s*;/
+    )
+  })
 })
 
 describe('compiled glass material', () => {

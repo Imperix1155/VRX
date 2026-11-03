@@ -132,13 +132,12 @@
   align-items: center;
   gap: var(--space-1);
 }
-/* Over a picture the platform tag keeps its own tint on the same backing as
-   the access pill beside it, so its word stays readable on bright art. */
+/* Over a picture the platform tag keeps its own tint on the card's color, as
+   it looks on the card itself; the picture never shows through, so its word
+   keeps 4.5:1 on bright art too. */
 .linked-world-tags .linked-world-platform {
   background:
-    linear-gradient(var(--linked-badge-bg), var(--linked-badge-bg)),
-    color-mix(in srgb, var(--bg-base) 72%, transparent);
-  backdrop-filter: blur(10px);
+    linear-gradient(var(--linked-badge-bg), var(--linked-badge-bg)), var(--glass-information);
 }
 .linked-world-pill {
   display: inline-flex;
