@@ -5,7 +5,7 @@
  * Dashboard switch never hides the page.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import type { Friend, VrcFriend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
@@ -85,6 +85,12 @@ describe('HotInstancesView', () => {
     )
     expect(container.querySelectorAll('[data-hot-card-layout="picture"]')).toHaveLength(8)
     expect(screen.getByRole('spinbutton')).toBeTruthy()
+    // The top bar holds the page's heading; the cards' headings sit under this one.
+    const section = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })
+    expect(
+      within(section).getByRole('heading', { level: 2, name: msg('dashboard.sectionHotInstances') })
+    ).toBeTruthy()
+    expect(within(section).getAllByRole('heading', { level: 3 })).toHaveLength(8)
   })
 
   it('shows the empty state below the threshold', () => {

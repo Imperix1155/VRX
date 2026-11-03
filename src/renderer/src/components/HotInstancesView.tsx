@@ -79,7 +79,12 @@ export default function HotInstancesView(): React.JSX.Element {
   return (
     <div>
       <FriendsSourceNotice failures={sourceFailures} wording="summary" />
-      <section aria-label={t('dashboard.sectionHotInstances')}>
+      {/* The top bar holds the page's heading; this one, for screen readers
+          only, puts the cards' headings under it in order (§8). */}
+      <section aria-labelledby="hot-instances-heading">
+        <h2 id="hot-instances-heading" className="sr-only">
+          {t('dashboard.sectionHotInstances')}
+        </h2>
         <div className="mb-[12px]">
           <HotInstancesHeader ref={fallbackFocusRef} />
         </div>

@@ -178,7 +178,7 @@ export default function SetupWizard(): React.JSX.Element {
   const showSkip = step !== 'done' && !skipping
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-[var(--space-4)]">
+    <main className="flex min-h-screen items-center justify-center p-[var(--space-4)]">
       <section
         aria-labelledby="setup-step-title"
         className="glass glass-information relative flex h-[min(660px,calc(100vh-32px))] w-full max-w-[640px] flex-col overflow-hidden px-[30px] pb-[22px] pt-[26px]"
@@ -226,6 +226,6 @@ export default function SetupWizard(): React.JSX.Element {
           </div>
         </div>
       </section>
-    </div>
+    </main>
   )
 }

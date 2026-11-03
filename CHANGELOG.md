@@ -305,6 +305,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Screen readers: the platform's loading or failure line on Search, Explore,
   Groups and Avatars is read once when it changes, while keyboard focus rests
   on it.
+- Screen readers: the sign-in screen and the welcome setup are the page's main
+  area, headed by the VRX mark and by each step's title, and the Hot
+  Instances page puts its cards' headings under a page heading, so jumping by
+  heading or to the main area works there too. They look the same.
 
 ## [1.4.0-dev.4] - 2026-11-01
 

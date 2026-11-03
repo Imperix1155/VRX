@@ -93,6 +93,14 @@ describe('LoginScreen (W6)', () => {
     expect(screen.getByRole('img', { name: 'VRX' })).toBeTruthy()
   })
 
+  it('is the page’s main landmark, headed by the VRX mark', () => {
+    renderLogin()
+    const main = screen.getByRole('main')
+    const heading = screen.getByRole('heading', { level: 1, name: 'VRX' })
+    expect(main.contains(heading)).toBe(true)
+    expect(main.contains(screen.getByRole('radiogroup'))).toBe(true)
+  })
+
   it('scrolls its own screen, so a tall card never loses its bottom', () => {
     // The body never scrolls (§8). Centering with align-items clipped the
     // card's bottom (the notices, an error) when it outgrew a short window.
