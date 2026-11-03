@@ -165,6 +165,18 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(scoped.getByText('Trust: Known User')).toBeTruthy()
   })
 
+  it('keeps a long custom status readable: two lines, then the whole status in its title', () => {
+    const status = '今日はまったりワールド巡り中です。気軽にジョインしてね！よろ'
+    mockFriends([{ ...joinableFriend, statusDescription: status }])
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const line = within(screen.getByRole('dialog', { name: 'Alex' })).getByText(status)
+    expect(line.getAttribute('title')).toBe(status)
+    expect(line.classList.contains('line-clamp-2')).toBe(true)
+    expect(line.classList.contains('truncate')).toBe(false)
+  })
+
   it('hides an offline friend’s old custom status', () => {
     mockFriends([
       { ...joinableFriend, presence: { state: 'offline' }, status: null, instance: null }

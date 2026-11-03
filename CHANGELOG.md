@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its Dashboard order, instead of only Popular now and Hot Instances, so it
   no longer says "Friend counts only" while Wearing now and Latest invites
   are on.
+- Friend details: a long custom status takes up to two lines, like the
+  name, and shows in full in its tooltip, instead of being cut after one
+  line with no way to read the rest.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

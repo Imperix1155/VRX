@@ -377,8 +377,15 @@ export default function FriendDrawer({
                 >
                   {profileName || t('linking.unknownName')}
                 </h2>
+                {/* Like the name: two lines, then clamped, with the whole
+                    status in the title. */}
                 {customStatus && (
-                  <p className="truncate text-[12.5px] text-[var(--text-dim)]">{customStatus}</p>
+                  <p
+                    className="line-clamp-2 break-words text-[12.5px] text-[var(--text-dim)]"
+                    title={customStatus}
+                  >
+                    {customStatus}
+                  </p>
                 )}
                 {combined && onNavigate ? (
                   <div className="mt-[var(--space-1)] flex gap-[var(--space-2)]">
