@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.5] - 2026-11-03
+
 ### Changed
 
 - Settings: every page switch (Hot Instances, Activity, Inbox, Explore, Search
