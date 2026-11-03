@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Retry on the account, settings and linked-profiles notices keep keyboard
   focus while they work, instead of dropping it to the page, so Escape still
   folds the favorites menu and a Retry that fails again leaves focus on
-  Retry. A failed retry of the linked profiles no longer flickers the notice
-  away and back.
+  Retry. A Retry that fails again no longer flickers the account or linked
+  profiles notice away and back.
 - Dark theme: the access word beside a linked friend's world picture and the
   VRC and CVR badges on picture cards keep 4.5:1 contrast on bright
   pictures, on the card-colored backing other labels over a picture use.

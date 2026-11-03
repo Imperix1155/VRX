@@ -17,8 +17,12 @@ const noticeClass =
 
 function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | null {
   const { t } = useTranslation()
-  const { isError, isFetching, refetch } = useAuthStatus(platform)
-  if (!isError) return null
+  const { isError, isFetching, status, errorUpdatedAt, refetch } = useAuthStatus(platform)
+  // A check again after one that failed with nothing loaded reads as pending,
+  // not as an error; keep the notice, and keyboard focus on Retry, until it
+  // answers.
+  const rechecking = status === 'pending' && errorUpdatedAt > 0
+  if (!isError && !rechecking) return null
   return (
     <div className={noticeClass} role="status">
       <span className="min-w-0 flex-1">

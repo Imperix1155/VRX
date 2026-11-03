@@ -11,11 +11,15 @@ const refetch = vi.fn()
 let vrchatAuthError = true
 let vrchatState = 'authenticated'
 let vrchatFetching = false
+let vrchatStatus = 'error'
+let vrchatErrorUpdatedAt = 0
 vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: string) => ({
     data: { state: platform === 'vrchat' ? vrchatState : 'authenticated' },
     isError: platform === 'vrchat' && vrchatAuthError,
     isFetching: platform === 'vrchat' && vrchatFetching,
+    status: platform === 'vrchat' ? vrchatStatus : 'success',
+    errorUpdatedAt: platform === 'vrchat' ? vrchatErrorUpdatedAt : 0,
     refetch
   })
 }))
@@ -25,6 +29,8 @@ afterEach(() => {
   vrchatAuthError = true
   vrchatState = 'authenticated'
   vrchatFetching = false
+  vrchatStatus = 'error'
+  vrchatErrorUpdatedAt = 0
   refetch.mockClear()
   useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
   useSettingsStore.setState({
@@ -180,4 +186,29 @@ describe('settings persistence notice timing', () => {
     expect(screen.getByRole('alert').textContent).toContain(i18n.t('settings.persistence.error'))
     expect(unsaved()).toBeNull()
   })
+})
+
+it('keeps the account notice and focus on Retry while a check that failed with nothing loaded runs again', () => {
+  vrchatErrorUpdatedAt = 1
+  const view = render(<RecoveryNotices />)
+  const retry = screen.getByRole('button', { name: i18n.t('settings.accounts.retry') })
+  retry.focus()
+  fireEvent.click(retry)
+  expect(refetch).toHaveBeenCalledTimes(1)
+  // With nothing loaded, the check running again reads as pending, not as an
+  // error, until it answers.
+  vrchatAuthError = false
+  vrchatStatus = 'pending'
+  vrchatFetching = true
+  view.rerender(<RecoveryNotices />)
+  expect(retry.isConnected).toBe(true)
+  expect(retry.getAttribute('aria-disabled')).toBe('true')
+  expect(document.activeElement).toBe(retry)
+  // It fails again: the same Retry, still focused, works again.
+  vrchatAuthError = true
+  vrchatStatus = 'error'
+  vrchatFetching = false
+  view.rerender(<RecoveryNotices />)
+  expect(document.activeElement).toBe(retry)
+  expect(retry.hasAttribute('aria-disabled')).toBe(false)
 })
