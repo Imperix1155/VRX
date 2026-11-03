@@ -118,14 +118,15 @@ export default function AccountCard({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) })
   })
 
-  // The question, and the "Profile saved" line, belong to the sign-in they
-  // came from: any change closes them, so neither comes back on its own after
-  // signing in again, as the same account or another.
+  // The question, Edit profile and the "Profile saved" line belong to the
+  // sign-in they came from: any change closes them, so none comes back on its
+  // own after signing in again, as the same account or another.
   const signOutContext = `${isError}:${authStatus?.state}:${authStatus?.accountId}:${flow.pending2fa === null}`
   const [questionContext, setQuestionContext] = useState(signOutContext)
   if (questionContext !== signOutContext) {
     setQuestionContext(signOutContext)
     setConfirmingSignOut(false)
+    setEditingProfile(false)
     setProfileSaved(false)
   }
 

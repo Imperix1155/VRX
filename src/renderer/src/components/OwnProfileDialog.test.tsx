@@ -136,6 +136,33 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
     expect(saveOwnProfile).not.toHaveBeenCalled()
   })
 
+  it('closes Edit profile when the sign-in ends, so it never opens by itself at the next one', async () => {
+    const { client, getOwnProfile } = setup(platform)
+    await openEditor()
+    act(() => {
+      client.setQueryData(authStatusQueryKey(platform), {
+        platform,
+        state: 'unauthenticated',
+        accountId: null,
+        displayName: null
+      })
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    act(() => {
+      client.setQueryData(authStatusQueryKey(platform), {
+        platform,
+        state: 'authenticated',
+        accountId: 'another-account',
+        displayName: 'Trinity'
+      })
+    })
+    expect(
+      await screen.findByRole('button', { name: msg('settings.accounts.profile.edit') })
+    ).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(getOwnProfile).toHaveBeenCalledTimes(1)
+  })
+
   it('forgets the saved line when you sign out, so the next sign-in never shows it', async () => {
     const { client } = setup(platform)
     const dialog = await openEditor()
@@ -192,6 +219,27 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
     )
   })
 
+  it('says the platform asked to slow down when it refuses a Save, not that you saved too often', async () => {
+    const { saveOwnProfile } = setup(platform)
+    saveOwnProfile.mockResolvedValueOnce({ ok: false, reason: 'rate-limited' })
+    const dialog = await openEditor()
+    fireEvent.change(within(dialog).getByLabelText(msg('settings.accounts.profile.bio')), {
+      target: { value: 'New bio' }
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: msg('settings.accounts.profile.save') })
+    )
+    expect(
+      await within(dialog).findByText(
+        msg('settings.accounts.profile.error.slowDown', {
+          platform: msg(`settings.accounts.${platform}.label`)
+        })
+      )
+    ).toBeTruthy()
+    expect(within(dialog).queryByText(msg('settings.accounts.profile.error.wait'))).toBeNull()
+    expect(saveOwnProfile).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps Save available after a failed Save, even with the text put back', async () => {
     const { saveOwnProfile } = setup(platform)
     saveOwnProfile.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
@@ -238,7 +286,7 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
     const dialog = await screen.findByRole('dialog')
     const alert = await within(dialog).findByRole('alert')
     expect(alert.textContent).toContain(
-      msg('settings.accounts.profile.error.loadWait', {
+      msg('settings.accounts.profile.error.slowDown', {
         platform: platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
       })
     )

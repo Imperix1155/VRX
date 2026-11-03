@@ -422,7 +422,7 @@
           "load": "Couldn't load your {{platform}} profile. Check your connection and try again.",
           "unavailable": "Couldn't save to {{platform}}. Check your connection and try again.",
           "wait": "Saving too often. Wait a few seconds, then try again.",
-          "loadWait": "{{platform}} asked VRX to slow down. Try again in a minute.",
+          "slowDown": "{{platform}} asked VRX to slow down. Try again in a minute.",
           "invalid": "Some text is too long to save.",
           "signedOut": "{{platform}} signed you out. Sign in again, then try again."
         }

@@ -28,7 +28,7 @@ type SaveFailure = Exclude<SaveOwnProfileResult, { ok: true }>['reason']
 
 const FAILURE_KEY: Record<SaveFailure, string> = {
   'not-authenticated': 'settings.accounts.profile.error.signedOut',
-  'rate-limited': 'settings.accounts.profile.error.wait',
+  'rate-limited': 'settings.accounts.profile.error.slowDown',
   cooldown: 'settings.accounts.profile.error.wait',
   invalid: 'settings.accounts.profile.error.invalid',
   unavailable: 'settings.accounts.profile.error.unavailable'
@@ -389,7 +389,7 @@ export default function OwnProfileDialog({
               result?.ok === false && result.reason === 'not-authenticated'
                 ? 'settings.accounts.profile.error.signedOut'
                 : result?.ok === false && result.reason === 'rate-limited'
-                  ? 'settings.accounts.profile.error.loadWait'
+                  ? 'settings.accounts.profile.error.slowDown'
                   : 'settings.accounts.profile.error.load',
               { platform: label }
             )}
