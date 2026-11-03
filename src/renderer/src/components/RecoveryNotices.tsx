@@ -4,6 +4,7 @@ import type { Platform } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { useAuthStatus } from '../queries/auth'
+import { isAuthCheckFailing } from '../queries/authCheck'
 import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
 
 // A compact one-row strip: text and its action share the row, so a notice
@@ -18,11 +19,9 @@ const noticeClass =
 function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | null {
   const { t } = useTranslation()
   const { isError, isFetching, status, errorUpdatedAt, refetch } = useAuthStatus(platform)
-  // A check again after one that failed with nothing loaded reads as pending,
-  // not as an error; keep the notice, and keyboard focus on Retry, until it
-  // answers.
-  const rechecking = status === 'pending' && errorUpdatedAt > 0
-  if (!isError && !rechecking) return null
+  // Also while Retry runs the check again, so the notice and keyboard focus
+  // on Retry stay until it answers.
+  if (!isAuthCheckFailing({ isError, status, errorUpdatedAt })) return null
   return (
     <div className={noticeClass} role="status">
       <span className="min-w-0 flex-1">

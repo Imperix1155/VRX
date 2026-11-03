@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   folds the favorites menu and a Retry that fails again leaves focus on
   Retry. A Retry that fails again no longer flickers the account or linked
   profiles notice away and back.
+- Sign-in: when a platform's sign-in check fails and the other platform is
+  signed out, Retry no longer swaps the window for the start-up screen until
+  the check answers; the account notice, with keyboard focus on its Retry,
+  stays.
 - Dark theme: the access word beside a linked friend's world picture and the
   VRC and CVR badges on picture cards keep 4.5:1 contrast on bright
   pictures, on an opaque card-colored backing.
