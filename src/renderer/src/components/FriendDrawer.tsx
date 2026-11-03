@@ -656,6 +656,7 @@ export default function FriendDrawer({
             <div className="ml-auto flex items-center gap-[var(--space-2)]">
               <FriendFavoriteStar
                 accounts={shownAccounts}
+                owner={scrollOwner ?? undefined}
                 name={profileName || t('linking.unknownName')}
                 drawerOpen={open}
                 onLeave={onNoteBlur}

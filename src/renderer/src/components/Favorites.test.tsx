@@ -263,7 +263,7 @@ describe('favorite friends', () => {
   })
 
   // Friend details stay open while the user picks the next friend in the list.
-  it("keeps a failed VRX star with its friend, out of the next friend's panel", async () => {
+  it("keeps a failed VRX star out of the next friend's panel", async () => {
     signIn('vrchat')
     const bridge = window.vrx as unknown as Record<string, ReturnType<typeof vi.fn>>
     bridge.setFavoriteFriend!.mockResolvedValue({ ok: false, reason: 'invalid' })
@@ -283,6 +283,30 @@ describe('favorite friends', () => {
     view.rerender(<FriendFavoriteStar accounts={[friend('vrchat', 'usr_bea')]} name="Bea" />)
     await openMenu('Bea')
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('keeps a linked person’s open panel and focus when their accounts change', async () => {
+    signIn('vrchat')
+    const view = render(
+      <FriendFavoriteStar
+        owner="person:alex"
+        accounts={[friend('vrchat', 'usr_alex')]}
+        name="Alex"
+      />
+    )
+    await openMenu('Alex')
+    const star = choice('Star in VRX (this PC only)')
+    star.focus()
+    // Their ChilloutVR account joins the view once its roster arrives.
+    view.rerender(
+      <FriendFavoriteStar
+        owner="person:alex"
+        accounts={[friend('vrchat', 'usr_alex'), friend('chilloutvr', 'cvr_alex')]}
+        name="Alex"
+      />
+    )
+    expect(choice('Star in VRX (this PC only)')).toBe(star)
+    expect(document.activeElement).toBe(star)
   })
 
   it("lets the next friend be starred while the last friend's save is still running", async () => {
