@@ -11,6 +11,7 @@ import {
   type FriendActionsAdapter,
   type FriendRequestRecord
 } from './adapters/FriendActionsAdapter'
+import { SOCIAL_ACTION_COOLDOWN_MS } from '@shared/socialActions'
 import type { SocialActionAdapter } from './adapters/SocialActionAdapter'
 import { AuthError, NetworkError, RateLimitError } from './adapters/errors'
 import type { RequestLease } from './adapters/RequestLease'
@@ -293,14 +294,23 @@ describe('FriendActionsService friend requests', () => {
     expect(vrc.sendFriendRequest).not.toHaveBeenCalled()
   })
 
-  it('sends right after an Unfriend VRX sent, before the roster catches up', async () => {
-    // Wired as main wires them: Add friend asks the profile's Unfriend memory.
+  it('follows an Unfriend VRX sent, and refuses someone who is a friend again', async () => {
+    // Wired as main wires them (app.ts): an unfriend that went through takes
+    // the person off main's roster and forgets the request sent to them.
     const vrc = new FakeAdapter('vrchat')
     const roster = new Set([VRC_USER])
+    let now = 0
     const lease = (): RequestLease => ({
       generation: 1,
       signal: new AbortController().signal,
       isCurrent: () => true
+    })
+    const service = new FriendActionsService({
+      adapters: new Map<Platform, FriendActionsAdapter>([['vrchat', vrc]]),
+      inbox: { friendRequest: () => null, answered: vi.fn() },
+      wasListed: () => true,
+      isFriend: (_platform, userId) => roster.has(userId),
+      sleep: () => Promise.resolve()
     })
     const social = new SocialActionService({
       adapters: new Map<Platform, SocialActionAdapter>([
@@ -317,14 +327,12 @@ describe('FriendActionsService friend requests', () => {
         ]
       ]),
       isFriend: (_platform, userId) => roster.has(userId),
-      isKnownPerson: () => true
-    })
-    const service = new FriendActionsService({
-      adapters: new Map<Platform, FriendActionsAdapter>([['vrchat', vrc]]),
-      inbox: { friendRequest: () => null, answered: vi.fn() },
-      wasListed: () => true,
-      isFriend: (platform, userId) => social.isFriend(platform, userId),
-      sleep: () => Promise.resolve()
+      isKnownPerson: () => true,
+      unfriended: (platform, userId) => {
+        roster.delete(userId)
+        service.forgetRequest(platform, userId)
+      },
+      clock: () => now
     })
 
     await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({
@@ -332,8 +340,37 @@ describe('FriendActionsService friend requests', () => {
       reason: 'already-friends'
     })
     await expect(social.act('vrchat', VRC_USER, 'unfriend')).resolves.toMatchObject({ ok: true })
-    expect(roster.has(VRC_USER)).toBe(true)
     await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({ ok: true })
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
+
+    // They accept: a friend again, so Add friend sends nothing.
+    roster.add(VRC_USER)
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({
+      ok: false,
+      reason: 'already-friends'
+    })
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
+
+    // Unfriended again later in the same session: a new request goes out.
+    now += SOCIAL_ACTION_COOLDOWN_MS
+    await expect(social.act('vrchat', VRC_USER, 'unfriend')).resolves.toMatchObject({ ok: true })
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({ ok: true })
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(2)
+  })
+
+  it('forgets a request it sent only for that person and platform', async () => {
+    const { cvr, vrc, service, listed } = setup()
+    listed.add(`chilloutvr|${CVR_USER.toLowerCase()}`)
+    listed.add(`vrchat|${VRC_USER}`)
+    await service.send('chilloutvr', CVR_USER)
+    await service.send('vrchat', VRC_USER)
+
+    // ChilloutVR IDs compare without case.
+    service.forgetRequest('chilloutvr', CVR_USER.toUpperCase())
+    service.forgetRequest('chilloutvr', VRC_USER)
+    await service.send('chilloutvr', CVR_USER)
+    await service.send('vrchat', VRC_USER)
+    expect(cvr.sendFriendRequest).toHaveBeenCalledTimes(2)
     expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
   })
 

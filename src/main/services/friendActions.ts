@@ -136,6 +136,15 @@ export class FriendActionsService {
     )
   }
 
+  /**
+   * The person stopped being a friend (an Unfriend VRX sent went through), so
+   * a new press may send them a request again. Sends nothing itself.
+   */
+  forgetRequest(platform: Platform, userId: string): void {
+    const id = platform === 'chilloutvr' ? userId.toLowerCase() : userId
+    this.states.get(platform)?.sent.delete(id)
+  }
+
   /** Forget a platform's state at a sign-out, account change, or dead session. */
   clearPlatform(platform: Platform): void {
     this.states.delete(platform)

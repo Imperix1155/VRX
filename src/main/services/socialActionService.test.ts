@@ -61,12 +61,15 @@ function setup(): {
   friends: Set<string>
   advance: (ms: number) => void
   log: ReturnType<typeof vi.fn>
+  unfriended: ReturnType<typeof vi.fn>
 } {
   let now = 1_000
   const vrc = new FakeAdapter('vrchat')
   const cvr = new FakeAdapter('chilloutvr')
   const friends = new Set([FRIEND, CVR_FRIEND.toLowerCase()])
   const log = vi.fn()
+  // Main takes the person off its roster when told (app.ts).
+  const unfriended = vi.fn((_platform: Platform, userId: string) => friends.delete(userId))
   const service = new SocialActionService({
     adapters: new Map<Platform, SocialActionAdapter>([
       ['vrchat', vrc],
@@ -74,10 +77,11 @@ function setup(): {
     ]),
     isFriend: (_platform, userId) => friends.has(userId),
     isKnownPerson: (_platform, userId) => userId === SEARCHED,
+    unfriended,
     clock: () => now,
     log
   })
-  return { service, vrc, cvr, friends, advance: (ms) => (now += ms), log }
+  return { service, vrc, cvr, friends, advance: (ms) => (now += ms), log, unfriended }
 }
 
 describe('SocialActionService', () => {
@@ -151,7 +155,7 @@ describe('SocialActionService', () => {
       relationship: { platform: 'vrchat', userId: FRIEND, isFriend: false, blocked: true }
     })
     advance(SOCIAL_ACTION_COOLDOWN_MS)
-    // The roster has not caught up yet; the unfriend still counts.
+    // Main's roster dropped them as the unfriend went through.
     await expect(service.getRelationship('vrchat', FRIEND)).resolves.toMatchObject({
       relationship: { isFriend: false, blocked: true }
     })
@@ -238,20 +242,23 @@ describe('SocialActionService', () => {
   })
 
   it('compares ChilloutVR IDs without case and sends them lower case', async () => {
-    const { service, cvr } = setup()
+    const { service, cvr, unfriended } = setup()
     await expect(service.act('chilloutvr', CVR_FRIEND, 'unfriend')).resolves.toMatchObject({
       ok: true,
       relationship: { userId: CVR_FRIEND.toLowerCase(), isFriend: false }
     })
     expect(cvr.unfriend).toHaveBeenCalledWith(CVR_FRIEND.toLowerCase(), expect.anything())
+    expect(unfriended).toHaveBeenCalledWith('chilloutvr', CVR_FRIEND.toLowerCase())
   })
 
   it('forgets everything at an account boundary', async () => {
     const { service, vrc } = setup()
-    await service.act('vrchat', FRIEND, 'unfriend')
+    await service.act('vrchat', FRIEND, 'unblock')
     vrc.generation += 1
+    // What VRX remembered belonged to the old account: read again.
+    vrc.blocked = true
     await expect(service.getRelationship('vrchat', FRIEND)).resolves.toMatchObject({
-      relationship: { isFriend: true }
+      relationship: { isFriend: true, blocked: true }
     })
     expect(vrc.getBlocked).toHaveBeenCalledTimes(1)
 
@@ -263,30 +270,39 @@ describe('SocialActionService', () => {
     expect(vrc.block).not.toHaveBeenCalled()
   })
 
-  it('counts an unfriend it sent before the roster does, for this account only', async () => {
-    const { service, vrc, cvr, friends, advance } = setup()
-    expect(service.isFriend('vrchat', FRIEND)).toBe(true)
-    expect(service.isFriend('vrchat', SEARCHED)).toBe(false)
-
-    await service.act('vrchat', FRIEND, 'unfriend')
-    // The roster still lists the friend; the unfriend VRX sent counts first.
-    expect(friends.has(FRIEND)).toBe(true)
-    expect(service.isFriend('vrchat', FRIEND)).toBe(false)
-    await service.act('chilloutvr', CVR_FRIEND, 'unfriend')
-    expect(service.isFriend('chilloutvr', CVR_FRIEND)).toBe(false)
-    expect(cvr.unfriend).toHaveBeenCalledTimes(1)
-
-    // Once the memory ages out, the roster answers again.
-    advance(RELATIONSHIP_CACHE_MS)
-    expect(service.isFriend('vrchat', FRIEND)).toBe(true)
-
-    // Another account's unfriend never counts for the one signed in now.
+  it('tells main about an unfriend that went through, and only that', async () => {
+    const { service, vrc, cvr, friends, advance, unfriended } = setup()
+    await service.act('vrchat', FRIEND, 'block')
     advance(SOCIAL_ACTION_COOLDOWN_MS)
+    await service.act('vrchat', FRIEND, 'unblock')
+    expect(unfriended).not.toHaveBeenCalled()
+
+    // A refused or failed unfriend changes nobody's roster.
+    advance(SOCIAL_ACTION_COOLDOWN_MS)
+    vrc.error = new NetworkError('offline')
     await service.act('vrchat', FRIEND, 'unfriend')
+    cvr.error = new SocialNotSentError()
+    await service.act('chilloutvr', CVR_FRIEND, 'unfriend')
+    expect(unfriended).not.toHaveBeenCalled()
+    expect(friends.has(FRIEND)).toBe(true)
+
+    // Nor does one whose account changed while it was out.
+    advance(SOCIAL_ACTION_COOLDOWN_MS)
+    vrc.error = null
+    vrc.hold()
+    const pending = service.act('vrchat', FRIEND, 'unfriend')
     vrc.generation += 1
-    expect(service.isFriend('vrchat', FRIEND)).toBe(true)
-    // Asking sends nothing.
-    expect(vrc.getBlocked).not.toHaveBeenCalled()
+    vrc.finish()
+    await expect(pending).resolves.toEqual({ ok: false, reason: 'not-authenticated' })
+    expect(unfriended).not.toHaveBeenCalled()
+
+    // One that went through: told once, before the answer says who is a friend.
+    await expect(service.act('vrchat', FRIEND, 'unfriend')).resolves.toMatchObject({
+      ok: true,
+      relationship: { isFriend: false }
+    })
+    expect(unfriended).toHaveBeenCalledTimes(1)
+    expect(unfriended).toHaveBeenCalledWith('vrchat', FRIEND)
   })
 
   it('does not report a write for an account that changed while it was sent', async () => {
