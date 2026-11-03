@@ -315,16 +315,19 @@ function SocialConfirmDialog({
     )
     const first = focusables[0]
     const last = focusables[focusables.length - 1]
+    const active = document.activeElement
     if (first === undefined || last === undefined) {
       panel.focus({ preventScroll: true })
       event.preventDefault()
-    } else if (event.shiftKey && document.activeElement === first) {
-      last.focus()
-      event.preventDefault()
-    } else if (!event.shiftKey && document.activeElement === last) {
+    } else if (!focusables.some((element) => element === active)) {
+      // Outside the panel, or on the panel itself after a press on its text,
+      // where Shift+Tab would leave the dialog: back to the first button.
       first.focus()
       event.preventDefault()
-    } else if (!panel.contains(document.activeElement)) {
+    } else if (event.shiftKey && active === first) {
+      last.focus()
+      event.preventDefault()
+    } else if (!event.shiftKey && active === last) {
       first.focus()
       event.preventDefault()
     }
@@ -382,7 +385,9 @@ function SocialConfirmDialog({
         ) : null}
         <div className="mt-[var(--space-1)] flex flex-wrap items-center justify-end gap-[var(--space-2)]">
           {/* While it sends, both buttons keep keyboard focus (aria-disabled):
-              a disabled one would drop it to the page behind the dialog. */}
+              a disabled one would drop it to the page behind the dialog. They
+              keep pointer events too, so another press lands on the button,
+              whose click does nothing then, and not on the panel under it. */}
           <button
             ref={cancelRef}
             type="button"
@@ -390,7 +395,7 @@ function SocialConfirmDialog({
             onClick={() => {
               if (!pendingRef.current) onClose()
             }}
-            className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-sm font-medium text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors aria-disabled:pointer-events-none aria-disabled:opacity-50"
+            className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-sm font-medium text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-[var(--control-fill)]"
           >
             {t('profile.actions.confirm.cancel')}
           </button>
@@ -399,7 +404,7 @@ function SocialConfirmDialog({
             aria-disabled={pending || undefined}
             data-social-confirm-submit=""
             onClick={() => void confirm()}
-            className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] aria-disabled:pointer-events-none aria-disabled:opacity-50"
+            className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:brightness-100 aria-disabled:active:brightness-100"
             style={
               action === 'unblock'
                 ? {

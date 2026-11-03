@@ -33,8 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closes the confirmation, keyboard focus goes back to the button that
   opened it instead of the page.
 - Unfriend, Block and Unblock: the confirmation's buttons keep keyboard
-  focus while the change is sent, and after a refusal focus stays on the
-  button you pressed, instead of dropping to the page behind the dialog.
+  focus while the change is sent, even after a double-click, and after a
+  refusal focus stays on the button you pressed, instead of dropping to the
+  page behind the dialog. After a click on the confirmation's text,
+  Shift+Tab no longer leaves it.
 
 ## [1.4.0-dev.7] - 2026-11-03
 

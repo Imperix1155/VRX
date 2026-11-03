@@ -271,6 +271,12 @@ describe('ProfileActions', () => {
     expect(cancel.hasAttribute('disabled')).toBe(false)
     expect(cancel.getAttribute('aria-disabled')).toBe('true')
     expect(document.activeElement).toBe(confirm)
+    // Another press, such as a double-click's second, lands on the button and
+    // not on the panel under it, which would take focus. jsdom doesn't
+    // hit-test, so check that the dimmed buttons keep pointer events.
+    for (const button of [confirm, cancel]) {
+      expect(button.className).not.toContain('pointer-events-none')
+    }
     // Presses while it sends do nothing.
     fireEvent.click(cancel)
     fireEvent.click(confirm)
@@ -282,6 +288,21 @@ describe('ProfileActions', () => {
     expect(document.activeElement).toBe(confirm)
     expect(confirm.hasAttribute('aria-disabled')).toBe(false)
     expect(cancel.hasAttribute('aria-disabled')).toBe(false)
+  })
+
+  it('keeps Tab in the dialog when focus is on the dialog itself, as after a press on its text', async () => {
+    renderActions()
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.unfriend') }))
+    const dialog = screen.getByRole('alertdialog')
+    const cancel = within(dialog).getByRole('button', {
+      name: msg('profile.actions.confirm.cancel')
+    })
+    for (const shiftKey of [true, false]) {
+      dialog.focus()
+      expect(fireEvent.keyDown(dialog, { key: 'Tab', shiftKey })).toBe(false)
+      expect(document.activeElement).toBe(cancel)
+    }
   })
 
   it.each(['touch', 'pen'])(
