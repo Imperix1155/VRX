@@ -48,7 +48,7 @@
  * the opening row on close (owner of that contract is FriendsList's
  * `closeDrawer`).
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, Platform, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
@@ -620,8 +620,10 @@ export default function FriendDrawer({
             )}
             {shown && (
               <DrawerFullProfile
-                // A different person starts collapsed again.
-                key={shownAccounts.map((a) => `${a.platform}:${a.platformUserId}`).join('|')}
+                // Keyed by the person, like the star: a linked person's stays
+                // open while one of their accounts leaves (an Unfriend, say),
+                // and a different person starts collapsed again.
+                key={scrollOwner ?? ''}
                 accounts={shownAccounts}
                 drawerOpen={open}
               />
@@ -689,7 +691,10 @@ export default function FriendDrawer({
 }
 
 /** Collapsed by default: nothing is read until the user opens it. Everyone
- *  here is on the friends list, so the profile offers no friend action. */
+ *  here is on the friends list, so the profile offers no friend action. When
+ *  one of a linked person's accounts leaves while keyboard focus is in its
+ *  section (or in that section's Unfriend question), focus moves to the
+ *  toggle instead of falling to the page. */
 function DrawerFullProfile({
   accounts,
   drawerOpen
@@ -699,10 +704,34 @@ function DrawerFullProfile({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  // The section holding focus, followed through the React tree, so the
+  // question a section portals to the page body still counts as inside it.
+  const focusedSection = useRef<string | null>(null)
+  const focusLeft = useRef(false)
+  // The cleanup runs while the leaving section is still on the page.
+  const watchSection = useCallback((node: HTMLDivElement | null) => {
+    if (node === null) return
+    const section = node.dataset.profileSection
+    return () => {
+      if (focusedSection.current === section || node.contains(document.activeElement)) {
+        focusLeft.current = true
+      }
+    }
+  }, [])
+  useLayoutEffect(() => {
+    if (!focusLeft.current) return
+    focusLeft.current = false
+    const active = document.activeElement
+    if (active === null || active === document.body) {
+      toggleRef.current?.focus({ preventScroll: true })
+    }
+  })
   const ordered = inPlatformOrder(accounts)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
       <button
+        ref={toggleRef}
         type="button"
         aria-expanded={open}
         data-drawer-full-profile=""
@@ -712,23 +741,34 @@ function DrawerFullProfile({
         {t(open ? 'drawer.fullProfile.hide' : 'drawer.fullProfile.show')}
       </button>
       {open
-        ? ordered.map((account) => (
-            <div
-              key={`${account.platform}:${account.platformUserId}`}
-              className="flex flex-col gap-[var(--space-2)]"
-            >
-              {ordered.length > 1 ? (
-                <PlatformPill platform={account.platform} className="self-start" />
-              ) : null}
-              <ProfileDetails
-                platform={account.platform}
-                userId={account.platformUserId}
-                showTrust={account.trustRank == null}
-                showFriendAction={false}
-                panelOpen={drawerOpen}
-              />
-            </div>
-          ))
+        ? ordered.map((account) => {
+            const section = `${account.platform}:${account.platformUserId}`
+            return (
+              <div
+                key={section}
+                ref={watchSection}
+                data-profile-section={section}
+                onFocus={() => {
+                  focusedSection.current = section
+                }}
+                onBlur={() => {
+                  focusedSection.current = null
+                }}
+                className="flex flex-col gap-[var(--space-2)]"
+              >
+                {ordered.length > 1 ? (
+                  <PlatformPill platform={account.platform} className="self-start" />
+                ) : null}
+                <ProfileDetails
+                  platform={account.platform}
+                  userId={account.platformUserId}
+                  showTrust={account.trustRank == null}
+                  showFriendAction={false}
+                  panelOpen={drawerOpen}
+                />
+              </div>
+            )
+          })
         : null}
     </div>
   )

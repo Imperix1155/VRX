@@ -11,8 +11,8 @@
  * Someone who is not a friend yet gets one friend action on top (owner,
  * 2026-11-01): Accept and Decline when their request is waiting in the Inbox,
  * otherwise Add friend. Main sends it only to someone a search listed. Friend
- * details leave it out: everyone there is on the friends list, even just
- * after an Unfriend, and main answers Add friend for them "already friends".
+ * details leave it out: everyone there is on the friends list, and a friend
+ * unfriended there stays shown only until the platform's own message.
  */
 import { useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

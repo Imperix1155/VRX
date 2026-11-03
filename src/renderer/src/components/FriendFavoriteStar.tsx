@@ -20,8 +20,9 @@ export default function FriendFavoriteStar({
   onLeave
 }: {
   accounts: readonly Friend[]
-  /** Who the panel belongs to (a linked person, or one account). Defaults to
-   *  the accounts, so a linked person whose accounts change keeps it open. */
+  /** Who the panel belongs to (a linked person, or one account), so a linked
+   *  person whose shown accounts change keeps it open. Without it the panel
+   *  belongs to the accounts and starts over when they change. */
   owner?: string
   name: string
   drawerOpen?: boolean

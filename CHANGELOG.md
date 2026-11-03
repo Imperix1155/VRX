@@ -273,24 +273,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Notes: a note you are typing in friend details is saved when you quit VRX
   with Ctrl+Q, Cmd+Q or Quit in the tray, instead of being lost.
 - Friend details: after you unfriend someone there, their full profile no
-  longer offers Add friend, which could only answer "You're already friends."
+  longer offers Add friend while friend details still show them.
 - Full profiles: Add friend right after Unfriend in the same profile sends
-  the request, instead of answering "You're already friends." until your
-  friends list catches up.
-- Dashboard: Latest invites keeps when each invite came in sight in a narrow
-  window; the invite's words shorten first, instead of cutting off the time.
+  the request, also to someone you sent one earlier, instead of answering
+  "You're already friends." until your friends list caught up.
+- Dashboard: Latest invites keeps the time each invite came in whole in a
+  narrow window; the invite's words shorten first, instead of cutting off the
+  time.
 - Friend details: an open Unfriend or Block question closes with friend
   details when that friend leaves your list, instead of staying on screen with
   keyboard focus lost after Cancel.
 - Friend details: the star panel of the next friend you open no longer shows a
   "Couldn't save" left from another friend's star, and it doesn't wait for
   another friend's star to finish saving.
+- Friend details: when one of a linked friend's accounts leaves your list
+  (you unfriended it there, say), their full profile and star panel stay
+  open, and keyboard focus stays in friend details instead of falling to the
+  page.
 - Full profiles: when a platform asks you to sign in again, the profile
   offers Go to Accounts, like the pages. So does the block check behind
   Unfriend or block, instead of a Try again that couldn't help.
 - Screen readers and voice control: the Join pills on friend rows and hot
   cards, and Add friend, now say the words they show ("Public: Join Amy in
-  SunDown"), first in English, so saying what you see presses them.
+  SunDown"), so saying what you see presses them. They say those words first;
+  in Japanese, Add friend says them last.
 - High Contrast (Windows): keyboard focus shows a ring again on every control,
   and what is chosen shows in the system highlight color: the current page in
   the sidebar, the picked side of VRC / ALL / CVR and the other switches,
