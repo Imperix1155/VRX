@@ -62,6 +62,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cards, and Add friend, now say the words they show ("Public: Join Amy in
   SunDown"), so saying what you see presses them. They say those words first;
   in Japanese, Add friend says them last.
+- High Contrast (Windows): keyboard focus shows a ring again on every control,
+  and what is chosen shows in the system highlight color: the current page in
+  the sidebar, the picked side of VRC / ALL / CVR and the other switches,
+  toggles that are on, the status chosen in Edit profile, and the welcome
+  setup's choices and progress. The presence ring and status dot on pictures
+  keep their colors.
+- Full profiles: Retry keeps keyboard focus on the profile's line and shows
+  Loading until the platform answers, then moves focus to the profile, worlds
+  or groups that loaded. A profile, or its worlds or groups, that couldn't
+  load is red, like the pages; an answer such as "This profile is no longer
+  available." stays dim.
+- Explore: when keyboard focus falls back to the page, after a panel closes
+  for example, the page no longer draws a focus ring around everything.
+- Screen readers: the platform's loading or failure line on Search, Explore,
+  Groups and Avatars is read once when it changes, while keyboard focus rests
+  on it.
+- Screen readers: the sign-in screen and the welcome setup are the page's main
+  area, headed by the VRX mark and by each step's title, and the Hot
+  Instances page puts its cards' headings under a page heading, so jumping by
+  heading or to the main area works there too. They look the same.
 
 ## [1.4.0-dev.5] - 2026-11-03
 

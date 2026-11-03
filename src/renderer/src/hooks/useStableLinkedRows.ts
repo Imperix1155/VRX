@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Friend } from '@shared/types'
-import type { LinkedRow, ProfileTarget } from '../utils/projectLinkedFriends'
+import { matchedName, type LinkedRow, type ProfileTarget } from '../utils/projectLinkedFriends'
 
 const MAX_STABLE_LINKED_ROWS_MS = 5_000
 
@@ -14,6 +14,7 @@ interface DeferredRow {
 interface StableRowsState {
   input: LinkedRow[]
   heldKey: string | null
+  search: string
   displayed: LinkedRow[]
   deferred: DeferredRow | null
   releasedHeldKey: string | null
@@ -50,27 +51,29 @@ function currentName(rows: LinkedRow[], deferred: DeferredRow, friends: Friend[]
 }
 
 /** The name the current search matched, never a previous search's: the held
- *  row's own, or, when the person's rows split or merged, the one their rows
- *  show now. */
-function currentMatch(rows: LinkedRow[], deferred: DeferredRow, name: string): string | undefined {
+ *  row's own, or, when the person's rows split or merged, the one the search
+ *  gives a row of this name among the person's names now. */
+function currentMatch(
+  rows: LinkedRow[],
+  deferred: DeferredRow,
+  name: string,
+  search: string
+): string | undefined {
   const held = rows.find((row) => row.key === deferred.heldKey)
   if (held !== undefined) return held.matchedName
-  const person = rows.filter((row) => row.personKey === deferred.personKey)
-  const sameName = person.find((row) => row.name === name)
-  if (sameName !== undefined) return sameName.matchedName
-  const matched = person.flatMap((row) => (row.matchedName === undefined ? [] : [row.matchedName]))
-  // Another row matched by this row's own name, so this one needs none.
-  return matched.includes(name) ? undefined : matched[0]
+  if (name === '') return undefined
+  const names = rows.find((row) => row.personKey === deferred.personKey)?.searchNames
+  return names === undefined ? undefined : matchedName(name, names, search)
 }
 
-function deferRow(rows: LinkedRow[], deferred: DeferredRow): LinkedRow[] {
+function deferRow(rows: LinkedRow[], deferred: DeferredRow, search: string): LinkedRow[] {
   const friends = currentFriends(rows, deferred)
   const name = currentName(rows, deferred, friends)
   const retained: LinkedRow = {
     ...deferred.row,
     accounts: friends,
     name,
-    matchedName: currentMatch(rows, deferred, name)
+    matchedName: currentMatch(rows, deferred, name, search)
   }
   const heldStillExists = rows.some((row) => row.key === deferred.heldKey)
   const withoutPerson = rows.filter((row) =>
@@ -105,14 +108,16 @@ function hasStructuralChange(
 function nextState(
   current: StableRowsState,
   rows: LinkedRow[],
-  heldKey: string | null
+  heldKey: string | null,
+  search: string
 ): StableRowsState {
-  if (current.input === rows && current.heldKey === heldKey) return current
+  if (current.input === rows && current.heldKey === heldKey && current.search === search)
+    return current
   if (heldKey !== current.heldKey) {
-    return { input: rows, heldKey, displayed: rows, deferred: null, releasedHeldKey: null }
+    return { input: rows, heldKey, search, displayed: rows, deferred: null, releasedHeldKey: null }
   }
   if (heldKey === null || current.releasedHeldKey === heldKey) {
-    return { ...current, input: rows, displayed: rows, deferred: null }
+    return { ...current, input: rows, search, displayed: rows, deferred: null }
   }
   // Unlink/replacement changes identity, not placement. Never retain the old
   // person beside accounts now owned by a different projection identity.
@@ -130,15 +135,22 @@ function nextState(
         )
     )
   ) {
-    return { input: rows, heldKey, displayed: rows, deferred: null, releasedHeldKey: heldKey }
+    return {
+      input: rows,
+      heldKey,
+      search,
+      displayed: rows,
+      deferred: null,
+      releasedHeldKey: heldKey
+    }
   }
   if (current.deferred !== null) {
-    return { ...current, input: rows, displayed: deferRow(rows, current.deferred) }
+    return { ...current, input: rows, search, displayed: deferRow(rows, current.deferred, search) }
   }
 
   const previous = current.displayed.find((row) => row.key === heldKey)
   if (previous === undefined || !hasStructuralChange(current.displayed, heldKey, rows)) {
-    return { ...current, input: rows, displayed: rows }
+    return { ...current, input: rows, search, displayed: rows }
   }
   const deferred: DeferredRow = {
     heldKey,
@@ -146,18 +158,24 @@ function nextState(
     row: previous,
     index: current.displayed.findIndex((row) => row.key === heldKey)
   }
-  return { ...current, input: rows, displayed: deferRow(rows, deferred), deferred }
+  return { ...current, input: rows, search, displayed: deferRow(rows, deferred, search), deferred }
 }
 
 /**
  * Holds exactly one interacted linked row in its old placement while current
  * friend payloads continue to flow through it. The caller owns hover/focus
- * identity and clears it for account/session boundaries.
+ * identity and clears it for account/session boundaries. `search` is the
+ * text the rows were projected with.
  */
-export function useStableLinkedRows(rows: LinkedRow[], heldKey: string | null): LinkedRow[] {
+export function useStableLinkedRows(
+  rows: LinkedRow[],
+  heldKey: string | null,
+  search = ''
+): LinkedRow[] {
   const [state, setState] = useState<StableRowsState>(() => ({
     input: rows,
     heldKey,
+    search,
     displayed: rows,
     deferred: null,
     releasedHeldKey: null
@@ -185,8 +203,11 @@ export function useStableLinkedRows(rows: LinkedRow[], heldKey: string | null): 
           row.accounts.every((account, i) => account === next.accounts[i])
         )
       }))
-  if (state.heldKey !== heldKey || (heldKey !== null && !equivalent())) {
-    const next = nextState(state, rows, heldKey)
+  if (
+    state.heldKey !== heldKey ||
+    (heldKey !== null && (state.search !== search || !equivalent()))
+  ) {
+    const next = nextState(state, rows, heldKey, search)
     setState(next)
     displayed = next.displayed
   }

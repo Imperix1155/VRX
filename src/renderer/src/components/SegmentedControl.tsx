@@ -57,7 +57,7 @@ export default function SegmentedControl<T extends string>({
     >
       {/* Sliding bubble — left/width measured from the active button (see above) */}
       <span
-        className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
+        className="segmented-bubble absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
         style={{
           left: `${bubble.left}px`,
           width: `${bubble.width}px`,

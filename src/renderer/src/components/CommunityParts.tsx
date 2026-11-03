@@ -82,9 +82,10 @@ export function CommunityNotice({
   }
 
   return (
+    // Keyboard focus can rest on the line, so the line itself has no role that
+    // changes under it; its words are what screen readers hear change.
     <div
       ref={noticeRef}
-      role={state.kind === 'failed' ? 'alert' : 'status'}
       data-community-notice={platform}
       tabIndex={-1}
       className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)] outline-none"
@@ -95,7 +96,9 @@ export function CommunityNotice({
         className="inline-block h-[8px] w-[8px] shrink-0 rounded-full"
         style={{ background: platform === 'vrchat' ? 'var(--vrc)' : 'var(--cvr)' }}
       />
-      <p className={`text-sm ${tone}`}>{text}</p>
+      <p role={state.kind === 'failed' ? 'alert' : 'status'} className={`text-sm ${tone}`}>
+        {text}
+      </p>
       {action}
     </div>
   )

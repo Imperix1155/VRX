@@ -596,25 +596,32 @@ describe('GroupsView', () => {
           waiting.push(() => void loaded(request).then(resolve))
         )
     )
-    const button = screen.getByRole<HTMLButtonElement>('button', { name: msg('groups.refresh') })
-    button.focus()
-    fireEvent.click(button)
-    const busy = await screen.findByRole<HTMLButtonElement>('button', {
-      name: msg('groups.refreshing')
-    })
-    // Off while it runs, yet still focusable, so keyboard focus stays on it.
-    expect(busy.getAttribute('aria-disabled')).toBe('true')
-    expect(busy.disabled).toBe(false)
-    expect(document.activeElement).toBe(busy)
-    fireEvent.click(busy)
-    fireEvent.click(busy)
-    expect(bridge.getMyGroups).toHaveBeenCalledTimes(4)
+    // Put the usual answer back even if a check below fails, so later tests
+    // don't wait on this test's unanswered reads.
+    try {
+      const button = screen.getByRole<HTMLButtonElement>('button', {
+        name: msg('groups.refresh')
+      })
+      button.focus()
+      fireEvent.click(button)
+      const busy = await screen.findByRole<HTMLButtonElement>('button', {
+        name: msg('groups.refreshing')
+      })
+      // Off while it runs, yet still focusable, so keyboard focus stays on it.
+      expect(busy.getAttribute('aria-disabled')).toBe('true')
+      expect(busy.disabled).toBe(false)
+      expect(document.activeElement).toBe(busy)
+      fireEvent.click(busy)
+      fireEvent.click(busy)
+      expect(bridge.getMyGroups).toHaveBeenCalledTimes(4)
 
-    await act(async () => waiting.forEach((answer) => answer()))
-    const idle = await screen.findByRole('button', { name: msg('groups.refresh') })
-    expect(idle.getAttribute('aria-disabled')).toBeNull()
-    expect(bridge.getMyGroups).toHaveBeenCalledTimes(4)
-    bridge.getMyGroups.mockImplementation(loaded)
+      await act(async () => waiting.forEach((answer) => answer()))
+      const idle = await screen.findByRole('button', { name: msg('groups.refresh') })
+      expect(idle.getAttribute('aria-disabled')).toBeNull()
+      expect(bridge.getMyGroups).toHaveBeenCalledTimes(4)
+    } finally {
+      bridge.getMyGroups.mockImplementation(loaded)
+    }
   })
 
   it('keeps the loaded groups when a Refresh fails, and says so in a dim line', async () => {
@@ -779,6 +786,11 @@ describe('ExploreListPanel', () => {
     // Keyboard focus stays on the platform's line, not the top of the window.
     const line = document.querySelector('[data-community-notice="vrchat"]')
     expect(document.activeElement).toBe(line)
+    // The focused line has no role to change under it; its words are the live part.
+    expect(line?.getAttribute('role')).toBeNull()
+    expect(within(line as HTMLElement).getByRole('status').textContent).toBe(
+      msg('community.loading', { platform: 'VRChat' })
+    )
     // A second refusal shows again, so it never looks like an ignored press.
     act(() => answer({ ok: false, reason: 'rate-limited' }))
     expect(await screen.findByText(failed)).toBeTruthy()
@@ -983,6 +995,129 @@ describe('ProfileDetails', () => {
     fireEvent.click(screen.getByRole('button', { name: msg('community.openAccounts') }))
     expect(useUiStore.getState().activeTab).toBe('settings')
     expect(useUiStore.getState().settingsCategory).toBe('accounts')
+  })
+
+  it('keeps keyboard focus on the profile line while Retry asks again', async () => {
+    bridge.getProfile.mockResolvedValueOnce({ ok: false, reason: 'unavailable' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    const failed = msg('profile.error.unavailable')
+    // The profile never loaded, so the line is red, as on the pages.
+    expect((await screen.findByText(failed)).className).toContain('text-[var(--error)]')
+    const next = deferred<unknown>()
+    bridge.getProfile.mockImplementationOnce(() => next.promise as never)
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    // Loading words until the platform answers, so the press never looks ignored.
+    expect(await screen.findByText(msg('profile.loading'))).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
+    const line = document.querySelector('[data-profile-line]')
+    expect(document.activeElement).toBe(line)
+    expect(line?.getAttribute('role')).toBeNull()
+
+    await act(async () => next.resolve({ ok: false, reason: 'unavailable' }))
+    expect(await screen.findByText(failed)).toBeTruthy()
+    expect(screen.getByRole('button', { name: msg('community.retry') })).toBeTruthy()
+    expect(document.activeElement).toBe(line)
+    expect(bridge.getProfile).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows a read that failed outright in red, and an answer like "gone" dim', async () => {
+    bridge.getProfile.mockRejectedValueOnce(new Error('offline'))
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    const failed = await screen.findByText(msg('profile.error.unavailable'))
+    expect(failed.getAttribute('role')).toBe('alert')
+    expect(failed.className).toContain('text-[var(--error)]')
+    const next = deferred<unknown>()
+    bridge.getProfile.mockImplementationOnce(() => next.promise as never)
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    expect(await screen.findByText(msg('profile.loading'))).toBeTruthy()
+    expect(document.activeElement).toBe(document.querySelector('[data-profile-line]'))
+
+    await act(async () => next.resolve({ ok: false, reason: 'not-found' }))
+    const gone = await screen.findByText(msg('profile.error.not-found'))
+    expect(gone.className).toContain('text-[var(--text-dim)]')
+    expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
+  })
+
+  it('keeps keyboard focus on a failed list while its Retry asks again', async () => {
+    bridge.getProfileWorlds.mockResolvedValueOnce({ ok: false, reason: 'unavailable' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    fireEvent.click(await screen.findByRole('button', { name: msg('profile.showWorlds') }))
+    const failed = await screen.findByText(msg('profile.listError'))
+    expect(failed.className).toContain('text-[var(--error)]')
+    const next = deferred<unknown>()
+    bridge.getProfileWorlds.mockImplementationOnce(() => next.promise as never)
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    expect(await screen.findByText(msg('profile.listLoading'))).toBeTruthy()
+    const line = document.querySelector('[data-profile-line]')
+    expect(document.activeElement).toBe(line)
+
+    await act(async () => next.resolve({ ok: false, reason: 'unavailable' }))
+    expect(await screen.findByText(msg('profile.listError'))).toBeTruthy()
+    expect(document.activeElement).toBe(line)
+    expect(bridge.getProfileWorlds).toHaveBeenCalledTimes(2)
+  })
+
+  it('moves keyboard focus to the profile when Retry brings it', async () => {
+    bridge.getProfile.mockResolvedValueOnce({ ok: false, reason: 'unavailable' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    await screen.findByText(msg('profile.error.unavailable'))
+    const next = deferred<unknown>()
+    bridge.getProfile.mockImplementationOnce(() => next.promise as never)
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    expect(await screen.findByText(msg('profile.loading'))).toBeTruthy()
+
+    await act(async () => next.resolve({ ok: true, profile: profile('vrchat') }))
+    await screen.findByText('Hello there')
+    expect(document.activeElement).toBe(document.querySelector('[data-profile-details]'))
+  })
+
+  it('leaves focus the user moved elsewhere when Retry brings the profile', async () => {
+    bridge.getProfile.mockResolvedValueOnce({ ok: false, reason: 'unavailable' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    await screen.findByText(msg('profile.error.unavailable'))
+    const next = deferred<unknown>()
+    bridge.getProfile.mockImplementationOnce(() => next.promise as never)
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    const elsewhere = document.createElement('button')
+    document.body.appendChild(elsewhere)
+    try {
+      elsewhere.focus()
+      await act(async () => next.resolve({ ok: true, profile: profile('vrchat') }))
+      await screen.findByText('Hello there')
+      expect(document.activeElement).toBe(elsewhere)
+    } finally {
+      elsewhere.remove()
+    }
+  })
+
+  it('moves keyboard focus to a list when its Retry brings it', async () => {
+    bridge.getProfileWorlds.mockResolvedValueOnce({ ok: false, reason: 'unavailable' } as never)
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    const show = await screen.findByRole('button', { name: msg('profile.showWorlds') })
+    fireEvent.click(show)
+    await screen.findByText(msg('profile.listError'))
+    const next = deferred<unknown>()
+    bridge.getProfileWorlds.mockImplementationOnce(() => next.promise as never)
+    const retry = screen.getByRole('button', { name: msg('community.retry') })
+    retry.focus()
+    fireEvent.click(retry)
+    expect(await screen.findByText(msg('profile.listLoading'))).toBeTruthy()
+
+    await act(async () => next.resolve({ ok: true, worlds: [], complete: true }))
+    expect(await screen.findByText(msg('profile.noWorlds'))).toBeTruthy()
+    const box = document.getElementById(show.getAttribute('aria-controls') ?? '')
+    expect(box).not.toBeNull()
+    expect(document.activeElement).toBe(box)
   })
 
   it('offers no friend action to a friend', async () => {

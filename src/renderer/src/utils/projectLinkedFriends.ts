@@ -16,6 +16,9 @@ export interface LinkedRow {
   /** While searching: the person's other name that matched when `name` does
    *  not, so the row can show why it is listed. */
   matchedName?: string
+  /** A linked person's names in the order `matchedName` prefers them, so a
+   *  row held in place (useStableLinkedRows) can ask the search itself. */
+  searchNames?: string[]
   section: FriendSection
   platformMark: Platform | 'vrx'
 }
@@ -116,7 +119,7 @@ function matchesSearch(values: string[], search: string): boolean {
 
 /** While searching, the first of `names` that matched when the row's own
  *  `name` did not. */
-function matchedName(name: string, names: string[], search: string): string | undefined {
+export function matchedName(name: string, names: string[], search: string): string | undefined {
   const query = search.trim()
   const matches = (value: string): boolean =>
     splitByMatch(value, query).some((part) => part.isMatch)
@@ -265,6 +268,7 @@ function buildRows(input: ProjectionInput): LinkedRow[] {
         accounts: displayed.map((account) => account.friend),
         name,
         matchedName: matchedName(name, otherNames, input.search),
+        searchNames: otherNames,
         section: sectionFor(anchor.friend),
         platformMark: combinedPlatformMark(accounts)
       })
@@ -279,6 +283,7 @@ function buildRows(input: ProjectionInput): LinkedRow[] {
         accounts: [account.friend],
         name: account.friend.displayName,
         matchedName: matchedName(account.friend.displayName, otherNames, input.search),
+        searchNames: otherNames,
         section: sectionFor(account.friend),
         platformMark: account.friend.platform
       })

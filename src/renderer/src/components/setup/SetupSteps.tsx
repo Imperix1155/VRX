@@ -63,15 +63,16 @@ export const StepHeading = forwardRef<
 >(function StepHeading({ title, lead, centered = false, leadLive = false }, ref) {
   return (
     <div className={centered ? 'text-center' : undefined}>
-      {/* Focus lands here on every step change so screen readers announce it. */}
-      <h2
+      {/* Focus lands here on every step change so screen readers announce it.
+          The setup has no top bar, so each step's title is the page's heading. */}
+      <h1
         ref={ref}
         id="setup-step-title"
         tabIndex={-1}
         className="text-[22px] font-semibold leading-tight text-[var(--text)] text-balance focus:outline-none"
       >
         {title}
-      </h2>
+      </h1>
       {lead && (
         <p
           role={leadLive ? 'status' : undefined}

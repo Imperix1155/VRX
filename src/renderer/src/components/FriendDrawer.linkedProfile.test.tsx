@@ -174,6 +174,26 @@ describe('a linked person’s full profile while one account leaves', () => {
     ).toBeTruthy()
   })
 
+  it('moves focus from the question to the toggle after the window was in the background', async () => {
+    const view = await openFullProfile()
+    press(within(section('vrchat')).getByRole('button', { name: 'Unfriend or block' }))
+    press(await within(section('vrchat')).findByRole('button', { name: 'Unfriend' }))
+    const focused = document.activeElement
+    if (!(focused instanceof HTMLElement)) throw new Error('nothing focused')
+    expect(screen.getByRole('alertdialog').contains(focused)).toBe(true)
+
+    // Another window takes focus: the page hears a blur, and the question
+    // keeps focus for the return. Meanwhile VRChat's message removes the account.
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    try {
+      fireEvent.focusOut(focused, { relatedTarget: null })
+      view.rerender(drawer([cvr]))
+    } finally {
+      hasFocus.mockRestore()
+    }
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Hide full profile' }))
+  })
+
   it('moves focus from a control in the leaving section to the toggle', async () => {
     const view = await openFullProfile()
     within(section('vrchat')).getByRole('button', { name: 'Unfriend or block' }).focus()

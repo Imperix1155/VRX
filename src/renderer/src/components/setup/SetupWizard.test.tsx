@@ -101,7 +101,13 @@ describe('SetupWizard', () => {
 
   it('offers a real Skip setup button on every step before the summary', async () => {
     renderWizard(signedIn)
-    expect(screen.getByRole('heading', { name: msg('setup.welcome.title') })).toBeTruthy()
+    // No top bar here: each step's title is the page's heading, in its main landmark.
+    expect(
+      within(screen.getByRole('main')).getByRole('heading', {
+        level: 1,
+        name: msg('setup.welcome.title')
+      })
+    ).toBeTruthy()
     expect(button('setup.skip')).toBeTruthy()
     await goToSignIn()
     await screen.findByText(msg('setup.signin.one'))
