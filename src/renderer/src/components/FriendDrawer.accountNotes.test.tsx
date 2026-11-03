@@ -277,6 +277,32 @@ describe('FriendDrawer account notes', () => {
     await waitFor(() => expect(syncFriendNote).toHaveBeenCalledTimes(2))
   })
 
+  // Each button gives way to the line's next state when pressed; keyboard
+  // focus moves to the note instead of falling to the page.
+  it.each<[string, AccountNoteSyncResult]>([
+    ['Save to VRChat', { ok: true, state: 'local-only', note: 'Plays drums' }],
+    ['Retry', { ok: false, reason: 'unavailable' }],
+    ['Keep mine', { ok: true, state: 'conflict', note: 'Plays drums', accountNote: 'In game' }],
+    [
+      'Use the VRChat note',
+      { ok: true, state: 'conflict', note: 'Plays drums', accountNote: 'In game' }
+    ]
+  ])('keeps keyboard focus in the note after %s', async (label, first) => {
+    syncFriendNote.mockResolvedValueOnce(first)
+    render(<FriendsList />)
+    const scoped = within(open())
+    const button = await scoped.findByRole('button', { name: label }, slow)
+    const textarea = scoped.getByDisplayValue('Plays drums')
+    button.focus()
+    fireEvent.click(button)
+
+    expect(scoped.queryByRole('button', { name: label })).toBeNull()
+    expect(document.activeElement).toBe(textarea)
+    await waitFor(() => expect(syncFriendNote).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(scoped.getByText('Also saved to your VRChat account')).toBeTruthy())
+    expect(document.activeElement).toBe(textarea)
+  })
+
   it('never asks the account when the setting is off', async () => {
     useSettingsStore.setState({
       settings: { ...DEFAULT_SETTINGS, saveNotesToAccounts: false },

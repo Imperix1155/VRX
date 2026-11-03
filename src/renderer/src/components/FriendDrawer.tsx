@@ -602,6 +602,7 @@ export default function FriendDrawer({
                     account={accountSync}
                     hasNote={(accountNote.persisted?.note ?? '') !== ''}
                     isEditing={accountNote.isEditing}
+                    focusFallback={notesTextareaRef}
                   />
                 )}
                 <div className="flex items-baseline gap-[var(--space-2)]">
@@ -611,6 +612,7 @@ export default function FriendDrawer({
                       account={accountSync}
                       hasNote={(accountNote.persisted?.note ?? '') !== ''}
                       isEditing={accountNote.isEditing}
+                      focusFallback={notesTextareaRef}
                     />
                   )}
                   {/* Described by the field, not live: a live counter would speak on
