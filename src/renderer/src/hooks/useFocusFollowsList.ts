@@ -1,5 +1,9 @@
 import { useEffect, useRef } from 'react'
 
+function listItems(container: HTMLElement | null): HTMLElement[] {
+  return [...(container?.querySelectorAll<HTMLElement>('[data-list-key]') ?? [])]
+}
+
 /**
  * Keeps keyboard focus in a list whose items can leave by themselves, such as
  * a hot instance whose friends moved on. When the item that held focus leaves
@@ -24,11 +28,18 @@ export function useFocusFollowsList(
   const signature = keys.join('\n')
   useEffect(() => {
     const was = held.current
-    if (was === null || signature.split('\n').includes(was.key)) return
+    if (was === null) return
+    const items = listItems(container.current)
+    const index = items.findIndex((item) => item.dataset.listKey === was.key)
+    if (index >= 0) {
+      // Still here, perhaps moved: note where, so it hands over to its
+      // neighbour if it leaves later.
+      held.current = { key: was.key, index }
+      return
+    }
     held.current = null
     const active = document.activeElement
     if (active !== null && active !== document.body) return
-    const items = [...(container.current?.querySelectorAll<HTMLElement>('[data-list-key]') ?? [])]
     const item = items[Math.min(was.index, items.length - 1)]
     const target = item?.querySelector<HTMLElement>(focusSelector) ?? fallback.current
     target?.focus({ preventScroll: true })
@@ -39,8 +50,7 @@ export function useFocusFollowsList(
       const item = event.target.closest<HTMLElement>('[data-list-key]')
       const key = item?.dataset.listKey
       if (item == null || key === undefined) return
-      const items = [...(container.current?.querySelectorAll('[data-list-key]') ?? [])]
-      held.current = { key, index: Math.max(0, items.indexOf(item)) }
+      held.current = { key, index: Math.max(0, listItems(container.current).indexOf(item)) }
     },
     onBlur: (event) => {
       // Focus that moved on to somewhere else is the user's; only a fall to
