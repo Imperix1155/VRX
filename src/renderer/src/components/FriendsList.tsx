@@ -840,7 +840,8 @@ export default function FriendsList(): React.JSX.Element {
   }, [friends, allFriends, links.data, accountIds, platformFilter, searchQuery])
   const stableRows = useStableLinkedRows(
     filteredFriends ?? EMPTY_LINKED_ROWS,
-    interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null
+    interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null,
+    searchQuery
   )
   // Favorites (owner, 2026-11-01): starred friends who are on now lead the
   // list, In-Game first, and leave their presence section. A starred friend
