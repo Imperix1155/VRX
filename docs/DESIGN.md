@@ -333,9 +333,11 @@ Don't design a mobile layout from a narrow documentation viewport.
 **High Contrast.** Windows High Contrast removes shadows and the app's own
 colors, so `main.css` redraws, in High Contrast only and in system colors,
 what VRX draws with them: the keyboard focus ring becomes a `Highlight`
-outline, and the chosen option of a switch, the current page and a toggle
-that is on use `Highlight` with `HighlightText`. The status dot on a picture
-keeps its own colors there, as the friends list's color-only exception needs.
+outline; the chosen side of a switch (On and Off included), the current page
+and the chosen status in Edit profile use `Highlight` with `HighlightText`;
+and the welcome setup's chosen theme, choice dots and progress bars use
+`Highlight`. The presence ring and the status dot on a picture keep their own
+colors there, as the friends list's color-only exception needs.
 
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
 Explore, Search, Groups, Avatars, Settings. Hot Instances, Activity, Inbox,

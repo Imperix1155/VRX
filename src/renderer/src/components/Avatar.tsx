@@ -55,6 +55,15 @@ export function Avatar({
   const ringWidth = isDrawer ? 2.5 : isSmall ? 1.5 : 2.5
   const initialClass = isDrawer ? 'text-xl' : isSmall ? 'text-[10px]' : 'text-sm'
   const badgeSize = isSmall ? 'h-[9px] w-[9px]' : 'h-[16px] w-[16px]'
+  // The presence ring sits on its own layer so High Contrast can keep its
+  // color (main.css) without keeping the picture's or the letter's colors.
+  const presenceRing = (
+    <span
+      aria-hidden="true"
+      className="presence-ring pointer-events-none absolute inset-0 rounded-full"
+      style={{ boxShadow: `0 0 0 ${ringWidth}px var(${ring.colorVar})` }}
+    />
+  )
 
   if (!mergedWith) {
     return (
@@ -71,16 +80,15 @@ export function Avatar({
             aria-hidden="true"
             onError={() => setFailedImageKey(imageKey)}
             className={`${sizeClass} rounded-full object-cover`}
-            style={{ boxShadow: `0 0 0 ${ringWidth}px var(${ring.colorVar})` }}
           />
         ) : (
           <span
             className={`grid ${sizeClass} place-items-center rounded-full ${initialClass} font-semibold text-[var(--text-dim)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]`}
-            style={{ boxShadow: `0 0 0 ${ringWidth}px var(${ring.colorVar})` }}
           >
             {initial}
           </span>
         )}
+        {presenceRing}
         {!isDrawer && ring.glyph && (
           <span
             className={`status-badge absolute -right-px -bottom-px grid ${badgeSize} place-items-center rounded-full border-2 border-[var(--bg-base)]`}
@@ -153,13 +161,11 @@ export function Avatar({
       aria-label={ariaLabel ?? t(ring.labelKey)}
       className={`relative block shrink-0 ${sizeClass}`}
     >
-      <span
-        className={`relative block overflow-hidden rounded-full ${sizeClass}`}
-        style={{ boxShadow: `0 0 0 ${ringWidth}px var(${ring.colorVar})` }}
-      >
+      <span className={`relative block overflow-hidden rounded-full ${sizeClass}`}>
         {mergedFaceElement(vrchatFace, 'vrchat')}
         {mergedFaceElement(chilloutvrFace, 'chilloutvr')}
       </span>
+      {presenceRing}
       {!isDrawer && ring.glyph && (
         <span
           className={`status-badge absolute -right-px -bottom-px grid ${badgeSize} place-items-center rounded-full border-2 border-[var(--bg-base)]`}

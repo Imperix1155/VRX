@@ -65,8 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - High Contrast (Windows): keyboard focus shows a ring again on every control,
   and what is chosen shows in the system highlight color: the current page in
   the sidebar, the picked side of VRC / ALL / CVR and the other switches,
-  toggles that are on, and the welcome setup's choices and progress. The
-  status dot on pictures keeps its colors.
+  toggles that are on, the status chosen in Edit profile, and the welcome
+  setup's choices and progress. The presence ring and status dot on pictures
+  keep their colors.
 - Full profiles: Retry keeps keyboard focus on the profile's line and shows
   Loading until the platform answers. A profile, or its worlds or groups, that
   couldn't load is red, like the pages; an answer such as "This profile is no

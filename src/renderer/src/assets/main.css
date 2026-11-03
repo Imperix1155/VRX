@@ -779,7 +779,9 @@ body {
   .setup-progress-step[data-state='current'] .setup-progress-bar {
     background: Highlight;
   }
-  /* A friend's status lives in the dot's hue (DESIGN.md §9.1), so it keeps it. */
+  /* A friend's presence and status live in the ring's and the dot's hues
+     (DESIGN.md §9.1), so they keep them. */
+  .presence-ring,
   .status-badge {
     forced-color-adjust: none;
   }
