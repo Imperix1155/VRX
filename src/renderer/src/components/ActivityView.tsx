@@ -144,7 +144,14 @@ function ActivityRow({
     <button
       type="button"
       className={`${rowClass} cursor-pointer rounded-control hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors`}
-      aria-label={`${name}, ${description}, ${time}. ${t('activity.openFriend', { name })}`}
+      aria-label={t('activity.rowAria', {
+        name,
+        platform: t(
+          entry.platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr'
+        ),
+        description,
+        time
+      })}
       onClick={() => onOpen(entry)}
     >
       {body}

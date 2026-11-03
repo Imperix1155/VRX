@@ -644,7 +644,7 @@
     "joined": "{{world}} に移動しました",
     "joinedUnknown": "ワールドに移動しました",
     "offline": "オフラインになりました",
-    "openFriend": "{{name}} をフレンドで開く",
+    "rowAria": "{{name}}、{{platform}}：{{description}}、{{time}}。{{name}} をフレンドで開く",
     "clear": "クリア",
     "clearAria": "表示中のアクティビティをクリア",
     "emptyHeading": "まだアクティビティはありません",

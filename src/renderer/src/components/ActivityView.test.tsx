@@ -144,6 +144,43 @@ describe('ActivityView', () => {
     expect(rows[3]).toContain(msg('activity.online'))
   })
 
+  it("names each row's platform when it is read out, in the language's own punctuation", async () => {
+    const aliceCvr = fullFriend('Alice', 'chilloutvr')
+    useFriendsMock.mockImplementation((platform: string) => ({
+      data: platform === 'vrchat' ? [alice] : [kai, aliceCvr],
+      isPending: false
+    }))
+    const both: ActivityEntry[] = (['chilloutvr', 'vrchat'] as const).map((platform, index) => ({
+      id: 10 + index,
+      kind: 'online',
+      platform,
+      platformUserId: platform === 'vrchat' ? alice.platformUserId : aliceCvr.platformUserId,
+      displayName: 'Alice',
+      worldName: null,
+      at: now - 1_000 * (index + 1)
+    }))
+    renderView(both)
+    const [cvrRow, vrcRow] = screen.getAllByRole('button', { name: /^Alice, / })
+    // One person's two rows no longer sound the same: each says its platform.
+    expect(cvrRow!.getAttribute('aria-label')).toContain(msg('dashboard.platformCvr'))
+    expect(vrcRow!.getAttribute('aria-label')).toContain(msg('dashboard.platformVrc'))
+    expect(cvrRow!.getAttribute('aria-label')).not.toBe(vrcRow!.getAttribute('aria-label'))
+    cleanup()
+
+    await i18n.changeLanguage('ja')
+    try {
+      renderView(both)
+      const label = screen
+        .getAllByRole('button', { name: /^Alice、/ })[0]!
+        .getAttribute('aria-label')
+      // Japanese joins the parts with its own marks, not ", " and ". ".
+      expect(label).not.toMatch(/, |\. /)
+      expect(label).toContain('ChilloutVR')
+    } finally {
+      await i18n.changeLanguage('en')
+    }
+  })
+
   it('tints each entry with its own platform, the same recipe on both', () => {
     renderView()
     const items = screen.getAllByRole('listitem')

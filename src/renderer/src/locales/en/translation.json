@@ -647,7 +647,7 @@
     "joined": "Joined {{world}}",
     "joinedUnknown": "Joined a world",
     "offline": "Went offline",
-    "openFriend": "Open {{name}} in Friends",
+    "rowAria": "{{name}}, {{platform}}: {{description}}, {{time}}. Open {{name}} in Friends",
     "clear": "Clear",
     "clearAria": "Clear the activity shown",
     "emptyHeading": "No activity yet",

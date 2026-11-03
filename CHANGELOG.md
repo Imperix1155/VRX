@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Screen readers: each Activity row says its platform, so one friend's
+  VRChat and ChilloutVR rows no longer sound the same, and Japanese reads it
+  with Japanese punctuation.
+
 ## [1.4.0-dev.6] - 2026-11-03
 
 ### Changed
