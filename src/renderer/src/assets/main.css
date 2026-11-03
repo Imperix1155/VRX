@@ -127,6 +127,19 @@
     0 0 3px var(--bg-base),
     0 1px 6px var(--bg-base);
 }
+.linked-world-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+/* Over a picture the platform tag keeps its own tint on the same backing as
+   the access pill beside it, so its word stays readable on bright art. */
+.linked-world-tags .linked-world-platform {
+  background:
+    linear-gradient(var(--linked-badge-bg), var(--linked-badge-bg)),
+    color-mix(in srgb, var(--bg-base) 72%, transparent);
+  backdrop-filter: blur(10px);
+}
 .linked-world-pill {
   display: inline-flex;
   border-radius: 10px;

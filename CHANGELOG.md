@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Password, Connect and Sign out no longer sound the same.
 - Accounts: "Profile saved" goes away when you sign out, so it no longer
   shows again after signing back in, even as another account.
+- Friend details: when a linked friend is in two worlds, each half of the
+  Where picture says VRC or CVR beside its access, instead of only its
+  color, and a world name cut to fit shows in full in its tooltip.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

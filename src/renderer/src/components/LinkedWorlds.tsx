@@ -66,6 +66,9 @@ function WorldLayer({ friend, split }: { friend: Friend; split: boolean }): Reac
       : 'polygon(0 0, 100% 100%, 0 100%)'
     : undefined
   const pill = visible && friend.instance ? instancePillFor(friend.instance, labelScheme) : null
+  const caption = visible
+    ? (friend.instance?.worldName ?? t('friends.instance.unknownWorld'))
+    : t('drawer.hidden')
   return (
     <>
       <div
@@ -82,15 +85,32 @@ function WorldLayer({ friend, split }: { friend: Friend; split: boolean }): Reac
         data-linked-world-position={lower ? 'cvr-lower-left' : split ? 'vrc-upper-right' : 'single'}
         className={`linked-world-overlay ${lower ? 'linked-world-lower' : 'linked-world-upper'}`}
       >
-        {pill && (
-          <span className="linked-world-pill">
-            <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
+        {(split || pill) && (
+          <span className="linked-world-tags">
+            {/* Two worlds: each half names its platform, so the halves' colors
+                are never the only way to tell them apart (DESIGN.md §9.2). */}
+            {split && (
+              <span
+                data-linked-world-platform=""
+                className={`linked-world-platform linked-platform-${friend.platform}`}
+              >
+                {t(
+                  friend.platform === 'vrchat'
+                    ? 'friends.platform.vrchatShort'
+                    : 'friends.platform.chilloutvrShort'
+                )}
+              </span>
+            )}
+            {pill && (
+              <span className="linked-world-pill">
+                <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
+              </span>
+            )}
           </span>
         )}
-        <span className="linked-world-caption">
-          {visible
-            ? (friend.instance?.worldName ?? t('friends.instance.unknownWorld'))
-            : t('drawer.hidden')}
+        {/* A long world name is cut to fit its half; the tooltip has it whole. */}
+        <span className="linked-world-caption" title={caption}>
+          {caption}
         </span>
       </div>
       <span
