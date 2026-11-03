@@ -288,16 +288,17 @@ function SocialConfirmDialog({
     try {
       const result = await send(platform, userId, action)
       if (result.ok) {
+        // Still sending until this answer's render closes the dialog, so a
+        // press in between can't send the change a second time.
         onDone(action)
         return
       }
       setFailure(result.reason)
     } catch {
       setFailure('unknown')
-    } finally {
-      pendingRef.current = false
-      setPending(false)
     }
+    pendingRef.current = false
+    setPending(false)
   }
 
   const onKeyDown = (event: React.KeyboardEvent): void => {

@@ -6,7 +6,7 @@
  * person, and both platforms get the same buttons in the same order.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type {
   Relationship,
@@ -288,6 +288,35 @@ describe('ProfileActions', () => {
     expect(document.activeElement).toBe(confirm)
     expect(confirm.hasAttribute('aria-disabled')).toBe(false)
     expect(cancel.hasAttribute('aria-disabled')).toBe(false)
+  })
+
+  it('sends a change once when pressed again as its answer arrives, before the dialog closes', async () => {
+    let answer: (result: SocialActionResult) => void = () => undefined
+    bridge.socialAction.mockImplementationOnce(
+      () => new Promise<SocialActionResult>((resolve) => (answer = resolve))
+    )
+    renderActions()
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.block') }))
+    const confirm = within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: msg('profile.actions.block')
+    })
+    fireEvent.click(confirm)
+    await screen.findByRole('button', { name: msg('profile.actions.confirm.sending') })
+
+    await act(async () => {
+      answer({
+        ok: true,
+        relationship: { platform: 'vrchat', userId: IDS.vrchat, isFriend: true, blocked: true }
+      })
+      // The answer is handled, but the dialog's closing render hasn't run.
+      for (let tick = 0; tick < 50; tick++) await Promise.resolve()
+      expect(confirm.isConnected).toBe(true)
+      fireEvent.click(confirm)
+    })
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(bridge.socialAction).toHaveBeenCalledTimes(1)
   })
 
   it('keeps Tab in the dialog when focus is on the dialog itself, as after a press on its text', async () => {
