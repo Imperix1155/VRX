@@ -85,6 +85,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   opened it instead of the page; and only the main mouse button closes one.
 - Explore: a world's rooms close on Escape or a press outside from the
   moment they show, instead of a moment later.
+- Keyboard: holding Enter presses a button, or sends a form, once. Before, a
+  held Enter pressed it again each time it was free, so one held key could
+  send the same join, favorite or sign-in many times.
 
 ## [1.4.0-dev.6] - 2026-11-03
 

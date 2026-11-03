@@ -180,11 +180,14 @@ keyboard focus to the page. A dialog that disables its controls while saving
 puts focus back on the control last used, or ✕, when the save settles. When a
 button gives way to a result, or its item leaves a list, focus moves to the
 result or the item in its place; focus the user moved elsewhere stays put.
+A held Enter presses a button, or sends a form, once, so a button that stays
+focusable while it works doesn't run again each time it finishes.
 
 Sources: [`main.css`](../src/renderer/src/assets/main.css),
 [`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),
 [`ExploreWorldSheet.tsx`](../src/renderer/src/components/ExploreWorldSheet.tsx),
-[`JoinConfirmDialog.tsx`](../src/renderer/src/components/JoinConfirmDialog.tsx).
+[`JoinConfirmDialog.tsx`](../src/renderer/src/components/JoinConfirmDialog.tsx),
+[`installHeldEnterGuard.ts`](../src/renderer/src/installHeldEnterGuard.ts).
 
 ## §4 Canvas and glow
 
