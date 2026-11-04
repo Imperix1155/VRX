@@ -315,7 +315,7 @@ Instance ID uses `ui-monospace`, not VT323.
 Dashboard section headings use `--text-dim` at weight 400 in both themes, like
 other labels (owner decision, 2026-11-04: faint fell below 4.5:1 at their size).
 Hot Instances keeps its 18 px uppercase kicker; Popular now keeps its 20 px
-heading and tracking. Both stay semantic `h2` elements, and page headings stay
+heading and tracking. All four stay semantic `h2` elements, and page headings stay
 as they are.
 
 Fonts load from the licensed local WOFF2 files through `main.css`, with their
