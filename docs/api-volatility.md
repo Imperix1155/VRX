@@ -475,7 +475,11 @@ cached in main for 5 minutes; nothing runs on a timer.
   `/api/1/image/<file_id>/<version>/<width>` rendition, 256 wide for the icon
   and 1024 for the banner, like friend pictures (VRCX does the same). Same
   number of requests, smaller downloads. A group with no usable picture shows
-  its first letter.
+  its first letter. The Groups page also shows each group's banner (owner,
+  2026-11-04), asked for only after that group's icon has shown so icons fill
+  in first; that is one more image per group with a banner, through the same
+  shared queue, and the group sheet reuses the same copy. Both platforms send
+  the banner in the groups list already, so no extra API read is made.
 - **When it breaks:** a non-array reply (or a non-number for `/visits`) is
   unavailable; a 404 profile is not found. A 401 emits `auth-invalidated`; a
   429 surfaces as rate-limited.
