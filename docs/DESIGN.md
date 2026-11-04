@@ -528,13 +528,21 @@ guide's updater actions do nothing.
 
 The Friends list uses virtual rows and sticky, collapsible In-Game, Online,
 and Offline sections; Offline starts collapsed. Above them, a Favorites
-section (owner, 2026-11-01) holds the starred friends who are on now, In-Game
-first, and shows only while it has someone in it. A friend in one of the
-account's own favorite groups counts as starred too. A starred friend who is
-offline stays under Offline. Every starred row carries a small filled star
+section (owner, 2026-11-02) lists the starred friends who are in game, the
+ones you can jump in with, and shows only while it has someone in it. Those
+friends also stay under In-Game, so a favorite in game shows twice; online
+and offline favorites stay only in their own section. A friend in one of the
+account's own favorite groups counts as starred too. Every starred row carries a small filled star
 after the name in `--favorite` yellow (yellow, not amber, so it reads apart
 from ChilloutVR orange), and the row's accessible name says favorite. A pinned section header sits
-at the scroll area's top edge, with no strip of rows above it. Search shows
+at the scroll area's top edge, with no strip of rows above it. An Order
+control (owner, 2026-11-02), the same segmented control as the platform
+picker, sits on the left above Search friends, on the Refresh line. It orders
+the rows inside each section, the same way on both platforms: Name (A to Z,
+the default), Recent (the newest Activity first; hidden while the Activity
+page is off), World (friends in the same instance together, the biggest
+crowd first) or Joinable (the most open instance you can join first). Every
+choice keeps the sections and falls back to the name. Search shows
 matches without changing saved collapse settings; when nothing matches, only
 the no-results line shows, without empty section headers. Roving focus moves between avatars, and
 off-screen rows stay out of the Tab order. Compact rows are at least 60 px
@@ -869,11 +877,15 @@ shows no loading line until the check answers.
   When friend details close on their own (the friend left the list), an open
   dialog closes with them and sends nothing.
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
-  are wider than tall: the group's square icon centered on top over a blurred
-  copy of itself (never cropped), then the name, and the VRC/CVR badge with
+  are wider than tall (owner, 2026-11-04): the group's wide banner fills the
+  top with its square icon (never cropped) in the bottom-left corner, then the
+  name, and the VRC/CVR badge with
   the group code (or member count), led by "Owner ·" on a group you own. No
   picture, or one that fails, shows the name's first letter on the platform
-  color instead of an empty box. A group opens the bottom sheet
+  color instead of an empty box. The banner is asked for once the icon has
+  shown or failed, so icons fill in first; a group without a banner, or one
+  that fails, keeps the same layout over a blurred copy of its icon. A group
+  opens the bottom sheet
   with its banner, platform pill and role pill, description, and Details
   (Code, Members, Your role). View only.
 - **Explore** has a segmented Popular now · New · Recently updated ·

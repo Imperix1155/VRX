@@ -145,6 +145,7 @@ export default function GroupsView(): React.JSX.Element {
                       .join(' · ') || null
                   }
                   imageUrl={group.imageUrl}
+                  bannerUrl={group.bannerUrl}
                   shape="icon"
                   onOpen={(opener) => {
                     openerRef.current = opener
@@ -173,6 +174,9 @@ export default function GroupsView(): React.JSX.Element {
           platform: group.platform,
           title: group.name,
           imageUrl: group.bannerUrl ?? group.imageUrl,
+          // The banner is the same card-sized copy its Groups tile showed, so
+          // opening a group asks for nothing new.
+          rendition: group.bannerUrl === null ? 'original' : 'picture',
           ariaLabel: t('groups.sheetAria', {
             name: group.name,
             platform: platformName(t, group.platform)

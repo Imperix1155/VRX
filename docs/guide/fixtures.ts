@@ -28,6 +28,20 @@ function illustration(first: string, second: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
+/** A square, logo-like group icon: a bold mark on a flat color, as most groups have. */
+function groupIcon(background: string, mark: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="${background}"/><g fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">${mark}</g></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+const GROUP_MARKS = {
+  lantern: '<path d="M98 70h60M108 70v-14h40v14M92 86h72l-10 104h-52z"/><path d="M128 120v38"/>',
+  globe:
+    '<circle cx="128" cy="128" r="70"/><path d="M58 128h140M128 58c-34 40-34 100 0 140M128 58c34 40 34 100 0 140"/>',
+  anvil: '<path d="M60 96h120c0 28-18 40-44 44v26h28v24H92v-24h28v-26c-34-4-60-18-60-44z"/>',
+  moon: '<path d="M164 70a70 70 0 1 0 22 104 56 56 0 0 1-22-104z"/>'
+}
+
 /** Synthetic stand-in for a user's own background picture (Settings → Appearance). */
 export const backgroundPicture = illustration('#5b3fa6', '#0e7c86')
 
@@ -718,7 +732,7 @@ export const communityGroups: Record<Platform, CommunityGroup[]> = {
       code: 'LANTN.4821',
       description:
         'Slow walks through quiet worlds every Friday night. Bring a light, leave the music low.',
-      imageUrl: illustration('#1b6fd8', '#0a2a5c'),
+      imageUrl: groupIcon('#1b6fd8', GROUP_MARKS.lantern),
       bannerUrl: illustration('#2b7de9', '#08193a'),
       memberCount: 1284,
       role: 'owner'
@@ -729,7 +743,7 @@ export const communityGroups: Record<Platform, CommunityGroup[]> = {
       name: 'Atlas of Tiny Worlds and Very Long Group Names',
       code: 'ATLAS.0007',
       description: null,
-      imageUrl: illustration('#3d8bfd', '#13244a'),
+      imageUrl: groupIcon('#2f5fb3', GROUP_MARKS.globe),
       bannerUrl: null,
       memberCount: 56210,
       role: 'member'
@@ -754,7 +768,7 @@ export const communityGroups: Record<Platform, CommunityGroup[]> = {
       name: 'Prop Forge',
       code: 'FORGE',
       description: 'Makers sharing props, shaders and avatar bits.',
-      imageUrl: illustration('#f07d1a', '#5a2405'),
+      imageUrl: groupIcon('#d4621a', GROUP_MARKS.anvil),
       bannerUrl: illustration('#ff9a3c', '#3b1503'),
       memberCount: 342,
       role: 'member'
@@ -765,7 +779,7 @@ export const communityGroups: Record<Platform, CommunityGroup[]> = {
       name: 'Harbor Night Market',
       code: 'HRBR',
       description: 'A weekly market in the harbor world.',
-      imageUrl: illustration('#e86a12', '#47210a'),
+      imageUrl: groupIcon('#7a3fb8', GROUP_MARKS.moon),
       bannerUrl: null,
       memberCount: 97,
       role: 'owner'

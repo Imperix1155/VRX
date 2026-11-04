@@ -326,6 +326,14 @@ export type FriendSection = (typeof FRIEND_SECTIONS)[number]
 export const FRIEND_LIST_SECTIONS = ['favorites', ...FRIEND_SECTIONS] as const
 export type FriendListSection = (typeof FRIEND_LIST_SECTIONS)[number]
 
+/** The order inside each friends-list group (owner, 2026-11-02). Display
+ *  order; `name` (A to Z) is the default. `recent` = the newest Activity
+ *  first, `world` = friends in the same instance together (the biggest crowd
+ *  first), `joinable` = the most open instance you can join first. Every
+ *  choice falls back to the name. */
+export const FRIEND_SORTS = ['name', 'recent', 'world', 'joinable'] as const
+export type FriendSort = (typeof FRIEND_SORTS)[number]
+
 // ─── Auth (VRX-16/18 — direct login + hybrid import) ─────────────────────────
 export type AuthState = 'authenticated' | 'unauthenticated' | 'needs-2fa' | 'error'
 

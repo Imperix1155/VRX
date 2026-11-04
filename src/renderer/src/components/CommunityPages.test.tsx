@@ -29,7 +29,13 @@ import { usePlayerCounts } from '../hooks/usePlayerCounts'
 import ProfileDetails from './ProfileDetails'
 
 const avatarPicture = vi.hoisted(() => ({ current: null as string | null }))
-vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarPicture.current }))
+const avatarCalls = vi.hoisted(() => [] as Array<{ url: string | null; rendition?: string }>)
+vi.mock('../hooks/useAvatar', () => ({
+  useAvatar: (url: string | null, _ref: unknown, rendition?: string) => {
+    avatarCalls.push({ url, rendition })
+    return avatarPicture.current
+  }
+}))
 // World cards and their sheet have their own tests (ExploreRoute.test.tsx).
 const lastRecover = vi.hoisted(() => ({
   current: null as ((platform: Platform) => Promise<readonly ExploreWorld[]>) | null
@@ -572,6 +578,70 @@ describe('GroupsView', () => {
     fireEvent.error(picture()!.querySelector('img:not([aria-hidden])')!)
     expect(picture()?.getAttribute('data-community-tile-picture')).toBe('initial')
     expect(picture()?.textContent).toBe('B')
+  })
+
+  it('shows the group banner above the name with the icon in its corner', async () => {
+    const bannered = {
+      ...group('vrchat', 'Banner', 'member'),
+      imageUrl: 'https://x/icon.png',
+      bannerUrl: 'https://x/banner.png'
+    }
+    const answer = (platform: Platform): Promise<MyGroupsResult> =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        groups: platform === 'vrchat' ? [bannered] : [],
+        complete: true
+      })
+    bridge.getMyGroups
+      .mockImplementationOnce(({ platform }: { platform: Platform }) => answer(platform))
+      .mockImplementationOnce(({ platform }: { platform: Platform }) => answer(platform))
+    avatarPicture.current = 'data:image/png;base64,AAAA'
+    avatarCalls.length = 0
+    renderWith(<GroupsView />)
+    const region = await screen.findByRole('region', { name: msg('groups.heading') })
+    const tile = within(region).getByRole('button')
+    const banner = (): Element | null => tile.querySelector('[data-community-tile-banner]')
+    expect(banner()?.getAttribute('data-community-tile-banner')).toBe('image')
+    // The banner is the card-sized copy; the icon keeps its own.
+    expect(avatarCalls).toContainEqual({ url: 'https://x/banner.png', rendition: 'picture' })
+    expect(avatarCalls).toContainEqual({ url: 'https://x/icon.png', rendition: 'original' })
+    // A banner that fails to draw falls back to the icon's soft copy.
+    fireEvent.error(banner()!.querySelector('img')!)
+    expect(banner()?.getAttribute('data-community-tile-banner')).toBe('none')
+    expect(
+      tile
+        .querySelector('[data-community-tile-picture]')
+        ?.getAttribute('data-community-tile-picture')
+    ).toBe('image')
+  })
+
+  it('asks for a group banner only once its icon has shown', async () => {
+    const bannered = {
+      ...group('chilloutvr', 'Waiting', 'member'),
+      imageUrl: 'https://x/icon.png',
+      bannerUrl: 'https://x/banner.png'
+    }
+    const answer = (platform: Platform): Promise<MyGroupsResult> =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        groups: platform === 'chilloutvr' ? [bannered] : [],
+        complete: true
+      })
+    bridge.getMyGroups
+      .mockImplementationOnce(({ platform }: { platform: Platform }) => answer(platform))
+      .mockImplementationOnce(({ platform }: { platform: Platform }) => answer(platform))
+    // The icon has not arrived yet.
+    avatarPicture.current = null
+    avatarCalls.length = 0
+    renderWith(<GroupsView />)
+    const region = await screen.findByRole('region', { name: msg('groups.heading') })
+    const tile = within(region).getByRole('button')
+    expect(avatarCalls.some((call) => call.url === 'https://x/banner.png')).toBe(false)
+    expect(
+      tile.querySelector('[data-community-tile-banner]')?.getAttribute('data-community-tile-banner')
+    ).toBe('none')
   })
 
   it('asks main for a fresh list only on Refresh', async () => {

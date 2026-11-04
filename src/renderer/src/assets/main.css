@@ -403,8 +403,12 @@
      upward shadow + banner text-shadows baked verbatim from the mock. These are
      structural shadow tints, not themeable surface colors. */
   --hot-sheet-shadow: 0 -12px 44px rgba(0, 0, 0, 0.34);
-  /* The icon on a Groups page card, lifted off its blurred backdrop. */
+  /* The icon on a Groups page card, lifted off its banner: a thin ring keeps a
+     dark logo apart from a dark banner, and a soft shade under the bottom edge
+     keeps a bright banner from swallowing the icon. */
   --group-icon-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  --group-icon-ring: rgba(255, 255, 255, 0.22);
+  --group-banner-scrim: linear-gradient(to top, rgba(0, 0, 0, 0.32), transparent 62%);
   --hot-sheet-banner-title-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
   --hot-sheet-banner-subtitle-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
   /* Pictures behind banner text: dark dims the picture under light text; light
@@ -678,6 +682,8 @@
      picture and black shadows (that left the world name unreadable). */
   --hot-sheet-shadow: 0 -12px 44px rgba(31, 38, 56, 0.2);
   --group-icon-shadow: 0 4px 14px rgba(31, 38, 56, 0.2);
+  --group-icon-ring: rgba(255, 255, 255, 0.9);
+  --group-banner-scrim: linear-gradient(to top, rgba(31, 38, 56, 0.16), transparent 62%);
   /* The light scrim carries the title; no glow, so the words stay crisp. */
   --hot-sheet-banner-title-shadow: none;
   --hot-sheet-banner-subtitle-shadow: none;
@@ -1568,6 +1574,22 @@ body::after {
 @keyframes sheet-more-in {
   from {
     transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+/* A group banner fades in over the icon's soft copy once it arrives.
+   Reduced motion shows it at once. */
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .group-banner-in {
+      animation: group-banner-in 240ms ease-out;
+    }
+  }
+}
+
+@keyframes group-banner-in {
+  from {
     opacity: 0;
   }
 }
