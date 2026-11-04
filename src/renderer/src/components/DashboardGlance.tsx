@@ -129,7 +129,7 @@ function GlanceHeading({
     <div className="mx-[2px] mb-[10px] flex min-h-[28px] items-center justify-between gap-[var(--space-3)]">
       <h2
         id={id}
-        className="canvas-text truncate font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-faint)]"
+        className="canvas-text truncate font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-dim)]"
       >
         {label}
       </h2>

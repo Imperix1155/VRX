@@ -112,8 +112,8 @@ for an approved need that existing ones can't meet.
 - Text: `--text`, `--text-dim`, `--text-faint`. Don't use faint text for
   anything a person must read: notices, fine print, labels, counters, versions
   and loading lines use `--text-dim`. Faint is left for the wordmark subtitle,
-  the Dashboard section headings (§7), placeholders, disabled controls, and
-  technical identifiers such as the Hot Instance ID.
+  placeholders, disabled controls, and technical identifiers such as the Hot
+  Instance ID.
 - Errors: `--error` for missing data and failures.
 - Platforms: `--vrc`, `--cvr`, and their companion and ghost tokens.
 - Friend state: `--ingame`, `--active`, `--offline`; VRChat status: `--st-*`;
@@ -312,7 +312,8 @@ and help. VT323 accents the VRX mark, section kickers, and prominent
 statistics. Technical identifiers may use a readable monospace; the Hot
 Instance ID uses `ui-monospace`, not VT323.
 
-Dashboard section headings use `--text-faint` at weight 400 in both themes.
+Dashboard section headings use `--text-dim` at weight 400 in both themes, like
+other labels (owner decision, 2026-11-04: faint fell below 4.5:1 at their size).
 Hot Instances keeps its 18 px uppercase kicker; Popular now keeps its 20 px
 heading and tracking. Both stay semantic `h2` elements, and page headings stay
 as they are.

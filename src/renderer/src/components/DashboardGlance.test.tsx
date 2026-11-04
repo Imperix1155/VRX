@@ -291,6 +291,18 @@ describe('DashboardGlance: Latest invites', () => {
   })
 })
 
+describe('DashboardGlance: headings', () => {
+  it('shows both headings in the dim gray of other labels (owner, 2026-11-04)', async () => {
+    inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]
+    renderGlance()
+    for (const name of [msg('avatars.wearingNow'), msg('dashboard.glance.invites')]) {
+      const heading = await screen.findByRole('heading', { level: 2, name })
+      expect(heading.className).toContain('text-[var(--text-dim)]')
+      expect(heading.className).not.toContain('text-[var(--text-faint)]')
+    }
+  })
+})
+
 describe('DashboardGlance: hide empty sections', () => {
   it('drops Latest invites with nothing in it and gives Wearing now the whole row', async () => {
     renderGlance()

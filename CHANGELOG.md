@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dashboard: the section headings (Wearing now, Latest invites, Popular now
+  and Hot Instances) use the same dim gray as other labels, so they're easier
+  to read.
+
 ### Fixed
 
 - Friend notes: Keep mine, Use the VRChat or ChilloutVR note, Save to
