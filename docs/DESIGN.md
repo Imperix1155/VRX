@@ -506,13 +506,21 @@ guide's updater actions do nothing.
 
 The Friends list uses virtual rows and sticky, collapsible In-Game, Online,
 and Offline sections; Offline starts collapsed. Above them, a Favorites
-section (owner, 2026-11-01) holds the starred friends who are on now, In-Game
-first, and shows only while it has someone in it. A friend in one of the
-account's own favorite groups counts as starred too. A starred friend who is
-offline stays under Offline. Every starred row carries a small filled star
+section (owner, 2026-11-02) lists the starred friends who are in game, the
+ones you can jump in with, and shows only while it has someone in it. Those
+friends also stay under In-Game, so a favorite in game shows twice; online
+and offline favorites stay only in their own section. A friend in one of the
+account's own favorite groups counts as starred too. Every starred row carries a small filled star
 after the name in `--favorite` yellow (yellow, not amber, so it reads apart
 from ChilloutVR orange), and the row's accessible name says favorite. A pinned section header sits
-at the scroll area's top edge, with no strip of rows above it. Search shows
+at the scroll area's top edge, with no strip of rows above it. An Order
+control (owner, 2026-11-02), the same segmented control as the platform
+picker, sits on the left above Search friends, on the Refresh line. It orders
+the rows inside each section, the same way on both platforms: Name (A to Z,
+the default), Recent (the newest Activity first; hidden while the Activity
+page is off), World (friends in the same instance together, the biggest
+crowd first) or Joinable (the most open instance you can join first). Every
+choice keeps the sections and falls back to the name. Search shows
 matches without changing saved collapse settings; when nothing matches, only
 the no-results line shows, without empty section headers. Roving focus moves between avatars, and
 off-screen rows stay out of the Tab order. Compact rows are at least 60 px
