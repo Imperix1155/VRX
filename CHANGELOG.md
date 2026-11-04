@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Pictures load faster on Groups, Search and other pages. Pictures for what
+  is on screen now go first, and pictures for a page you already left are
+  skipped instead of holding up the one you're on. VRX still asks VRChat for
+  at most one thing per second.
+- While a group, person or world picture is on its way, its box shows a soft
+  loading look instead of the first letter, and the picture fades in when it
+  arrives. A first letter now always means there is no picture.
+
+### Fixed
+
+- Search: world pictures further down the results no longer stay blank after
+  waiting their turn behind the others.
+
 ## [1.4.0-dev.11] - 2026-11-04
 
 ### Changed

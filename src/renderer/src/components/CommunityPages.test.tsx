@@ -29,7 +29,10 @@ import { usePlayerCounts } from '../hooks/usePlayerCounts'
 import ProfileDetails from './ProfileDetails'
 
 const avatarPicture = vi.hoisted(() => ({ current: null as string | null }))
-vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarPicture.current }))
+vi.mock('../hooks/useAvatar', () => ({
+  useAvatar: () => avatarPicture.current,
+  useAvatarImage: () => ({ dataUrl: avatarPicture.current, pending: false, instant: false })
+}))
 // World cards and their sheet have their own tests (ExploreRoute.test.tsx).
 const lastRecover = vi.hoisted(() => ({
   current: null as ((platform: Platform) => Promise<readonly ExploreWorld[]>) | null

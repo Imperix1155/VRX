@@ -1489,6 +1489,33 @@ body::after {
   }
 }
 
+/* Community tile pictures (owner, 2026-11-04: Groups and Search pictures
+   popped in one by one). While a picture is on its way its box breathes softly
+   instead of showing the "no picture" letter, and a picture that arrives after
+   the page is up fades in. Reduced motion shows both states without motion. */
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .picture-arrive {
+      animation: picture-arrive 260ms ease-out;
+    }
+    .picture-waiting {
+      animation: picture-waiting 1.8s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes picture-arrive {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes picture-waiting {
+  50% {
+    opacity: 0.55;
+  }
+}
+
 @keyframes sheet-more-in {
   from {
     transform: translateY(8px);

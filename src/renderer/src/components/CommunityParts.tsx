@@ -7,7 +7,7 @@
 import { memo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
-import { useAvatar } from '../hooks/useAvatar'
+import { useAvatarImage } from '../hooks/useAvatar'
 import GoToAccountsButton from './GoToAccountsButton'
 import { platformName, type CommunityNoticeReason, type CommunitySource } from '../utils/community'
 import { initialOf } from '../utils/initialOf'
@@ -200,8 +200,15 @@ export const CommunityTile = memo(function CommunityTile({
 }: CommunityTileProps): React.JSX.Element {
   const pictureRef = useRef<HTMLDivElement>(null)
   // Wide tiles are world pictures: ask for the sharp copy. Square ones stay small.
-  const image = useAvatar(imageUrl, pictureRef, shape === 'wide' ? 'picture' : 'original')
+  const {
+    dataUrl: image,
+    pending,
+    instant
+  } = useAvatarImage(imageUrl, pictureRef, shape === 'wide' ? 'picture' : 'original')
   const [failedImage, setFailedImage] = useState<string | null>(null)
+  // A picture that arrives after the page is up fades in instead of popping;
+  // one already loaded this session shows at once.
+  const arrive = instant ? '' : ' picture-arrive'
   const isVrc = platform === 'vrchat'
   const stripe = (
     <div
@@ -220,7 +227,7 @@ export const CommunityTile = memo(function CommunityTile({
         src={image}
         alt=""
         decoding="async"
-        className="h-full w-full object-cover"
+        className={`h-full w-full object-cover${arrive}`}
         onError={() => setFailedImage(image)}
       />
     ) : null
@@ -233,6 +240,11 @@ export const CommunityTile = memo(function CommunityTile({
     </span>
   )
   const shown = image && failedImage !== image ? image : null
+  // While a picture is still on its way the box breathes softly instead of
+  // showing the "no picture" letter, so a page of tiles fills in calmly.
+  const waiting = shown === null && pending
+  const pictureState = shown ? 'image' : waiting ? 'loading' : 'initial'
+  const waitingClass = waiting ? ' picture-waiting' : ''
   // People: a small square picture beside the name, so a page of them stays
   // scannable; with no picture, the name's first letter, as friend pictures
   // have. Worlds: the picture on top, like Explore. The Groups page: the icon
@@ -244,7 +256,7 @@ export const CommunityTile = memo(function CommunityTile({
         {stripe}
         <div
           ref={pictureRef}
-          data-community-tile-picture={shown ? 'image' : 'initial'}
+          data-community-tile-picture={pictureState}
           className="relative flex h-[112px] shrink-0 items-center justify-center overflow-hidden bg-[var(--surface-hover)]"
         >
           {shown ? (
@@ -253,7 +265,7 @@ export const CommunityTile = memo(function CommunityTile({
               alt=""
               aria-hidden="true"
               decoding="async"
-              className="absolute inset-0 h-full w-full scale-150 object-cover opacity-60 blur-2xl"
+              className={`absolute inset-0 h-full w-full scale-150 object-cover opacity-60 blur-2xl${arrive}`}
             />
           ) : (
             <div
@@ -267,7 +279,7 @@ export const CommunityTile = memo(function CommunityTile({
             />
           )}
           <div
-            className="relative flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-[18px] shadow-[var(--group-icon-shadow)]"
+            className={`relative flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-[18px] shadow-[var(--group-icon-shadow)]${waitingClass}`}
             style={{
               background: isVrc ? 'var(--plat-vrc-rail-bg)' : 'var(--plat-cvr-rail-bg)',
               color: isVrc ? 'var(--plat-vrc-rail-text)' : 'var(--plat-cvr-rail-text)'
@@ -278,10 +290,10 @@ export const CommunityTile = memo(function CommunityTile({
                 src={shown}
                 alt=""
                 decoding="async"
-                className="h-full w-full object-cover"
+                className={`h-full w-full object-cover${arrive}`}
                 onError={() => setFailedImage(shown)}
               />
-            ) : (
+            ) : waiting ? null : (
               <span aria-hidden="true" className="text-[34px] font-bold leading-none">
                 {initialOf(title)}
               </span>
@@ -306,14 +318,15 @@ export const CommunityTile = memo(function CommunityTile({
         <div className="flex min-w-0 flex-1 items-center gap-[var(--space-3)] p-[var(--space-2)]">
           <div
             ref={pictureRef}
-            data-community-tile-picture={shown ? 'image' : 'initial'}
-            className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-[var(--surface-hover)]"
+            data-community-tile-picture={pictureState}
+            className={`relative flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-[var(--surface-hover)]${waitingClass}`}
           >
-            {picture ?? (
-              <span aria-hidden="true" className="text-lg font-semibold text-[var(--text-dim)]">
-                {initialOf(title)}
-              </span>
-            )}
+            {picture ??
+              (waiting ? null : (
+                <span aria-hidden="true" className="text-lg font-semibold text-[var(--text-dim)]">
+                  {initialOf(title)}
+                </span>
+              ))}
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-[var(--space-1)]">
             {name}
@@ -333,7 +346,7 @@ export const CommunityTile = memo(function CommunityTile({
         {stripe}
         <div
           ref={pictureRef}
-          className="relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)]"
+          className={`relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)]${waitingClass}`}
         >
           {picture}
           <PictureBadge platform={platform} />

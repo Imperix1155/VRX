@@ -223,6 +223,8 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       const dataUrl = worldImages[url] ?? (url.startsWith('data:image/') ? url : undefined)
       return Promise.resolve(dataUrl ? { ok: true, dataUrl } : null)
     },
+    // Fixture pictures are data URLs; nothing is kept the way main keeps downloads.
+    getKeptAvatar: () => Promise.resolve(null),
     getAvatarLibrary: ({ platform }) =>
       Promise.resolve({
         ok: true,

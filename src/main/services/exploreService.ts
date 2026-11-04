@@ -38,6 +38,14 @@ import { isAllowedLaunchUrl } from '../ipc/url-allowlist'
 const FRESH_MS = 60_000
 const RETAIN_MS = 300_000
 const DEADLINE_MS = 45_000
+/**
+ * New picture downloads per platform per rolling minute (docs/api-policy.md).
+ * Enough for a full Search page (10 worlds) or an Explore list (12) at once;
+ * VRChat pictures still start at most one per second in the shared queue.
+ */
+export const EXPLORE_IMAGE_FETCHES_PER_MINUTE = 24
+/** Picture downloads one platform may have running at once. */
+export const EXPLORE_IMAGE_MAX_OUTSTANDING = 2
 const IMAGE_CAPACITY_RETRY_MS = 2_000
 const IMAGE_RETRY_JITTER_MS = 750
 const IMAGE_RETRY_MIN_MS = 250
@@ -147,6 +155,8 @@ export interface ExploreServiceOptions {
   onChanged: (platform: Platform) => void
   clock?: () => number
   wallClock?: () => number
+  /** Tests only: a smaller per-minute picture budget than the shipped one. */
+  imageFetchesPerMinute?: number
 }
 
 /** Account-owned discovery caches with event-driven loads and bounded physical attempts. */
@@ -354,8 +364,10 @@ export class ExploreService {
     state: State,
     url: string
   ): Promise<string | null> | 'capacity' | 'window' {
-    if ((this.imageOutstanding.get(platform) ?? 0) >= 2) return 'capacity'
-    if (!this.take(this.imageStarts, platform, 6)) return 'window'
+    if ((this.imageOutstanding.get(platform) ?? 0) >= EXPLORE_IMAGE_MAX_OUTSTANDING)
+      return 'capacity'
+    const perMinute = this.options.imageFetchesPerMinute ?? EXPLORE_IMAGE_FETCHES_PER_MINUTE
+    if (!this.take(this.imageStarts, platform, perMinute)) return 'window'
     this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 0) + 1)
     const pending = Promise.resolve()
       .then(() => this.options.getImage(url))
@@ -1147,7 +1159,8 @@ export class ExploreService {
     return {
       ok: false,
       reason: 'deferred',
-      retryAfterMs: Math.max(IMAGE_RETRY_MIN_MS, Math.min(IMAGE_RETRY_MAX_MS, delay))
+      retryAfterMs: Math.max(IMAGE_RETRY_MIN_MS, Math.min(IMAGE_RETRY_MAX_MS, delay)),
+      wait: reason === 'capacity' ? 'busy' : 'window'
     }
   }
   private imageRetryJitter(worldRef: string): number {

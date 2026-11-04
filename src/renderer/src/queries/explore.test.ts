@@ -318,6 +318,53 @@ describe('Explore renderer requests', () => {
     for (const stop of stops) stop()
   })
 
+  it('does not give up on a card that only waited behind other downloads', async () => {
+    vi.useFakeTimers()
+    const busy = {
+      ok: false as const,
+      reason: 'deferred' as const,
+      retryAfterMs: 2_000,
+      wait: 'busy' as const
+    }
+    const getExploreImage = vi
+      .fn()
+      .mockResolvedValueOnce(busy)
+      .mockResolvedValueOnce(busy)
+      .mockResolvedValueOnce(busy)
+      .mockResolvedValueOnce(busy)
+      .mockResolvedValueOnce({ ok: true as const, dataUrl: 'data:image/png;base64,late' })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const listener = vi.fn()
+    const stop = observeExploreImage('vrchat', 'busy-ref', listener)
+
+    await vi.advanceTimersByTimeAsync(4 * 2_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(5)
+    expect(listener).toHaveBeenLastCalledWith('data:image/png;base64,late')
+    stop()
+  })
+
+  it('still bounds busy waits, so a stuck download line ends', async () => {
+    vi.useFakeTimers()
+    const getExploreImage = vi.fn().mockResolvedValue({
+      ok: false as const,
+      reason: 'deferred' as const,
+      retryAfterMs: 2_000,
+      wait: 'busy' as const
+    })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const listener = vi.fn()
+    const stop = observeExploreImage('vrchat', 'stuck-ref', listener)
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    const calls = getExploreImage.mock.calls.length
+    expect(calls).toBeGreaterThan(3)
+    expect(calls).toBeLessThanOrEqual(41)
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(calls)
+    expect(listener).toHaveBeenLastCalledWith(undefined)
+    stop()
+  })
+
   it('cancels a hidden recovery timer without resetting its shared finite budget', async () => {
     vi.useFakeTimers()
     const getExploreImage = vi

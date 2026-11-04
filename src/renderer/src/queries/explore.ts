@@ -11,6 +11,12 @@ import { queryClient } from './queryClient'
 const FRESH_FOR_MS = 60_000
 const MAX_IMAGES_PER_PLATFORM = 12
 const MAX_IMAGE_RECOVERY_ATTEMPTS = 2
+/**
+ * Short "other pictures are downloading" waits. They cost no request, so they
+ * do not use up the two recovery attempts; this only bounds a stuck line.
+ * At 2–2.75 s each, about a minute and a half.
+ */
+const MAX_IMAGE_BUSY_WAITS = 40
 const IMAGE_RETRY_MIN_MS = 250
 const IMAGE_RETRY_MAX_MS = 60_000
 
@@ -36,6 +42,7 @@ interface ImageObserverEntry {
   generation: number
   listeners: Set<(image: string | undefined) => void>
   recoveryAttempts: number
+  busyWaits: number
   deferredRetryAfterMs: number | null
   exhausted: boolean
   pending: Promise<ExploreImageResult> | null
@@ -351,7 +358,14 @@ function runObservedImageRequest(
         if (mayNotify) notifyImage(observer, undefined)
         return
       }
-      if (observer.recoveryAttempts >= MAX_IMAGE_RECOVERY_ATTEMPTS) {
+      // Waiting behind other downloads is not a failed attempt: a full page of
+      // cards takes turns, and none should give up just for being late.
+      const busy = result.wait === 'busy'
+      if (
+        busy
+          ? observer.busyWaits >= MAX_IMAGE_BUSY_WAITS
+          : observer.recoveryAttempts >= MAX_IMAGE_RECOVERY_ATTEMPTS
+      ) {
         observer.exhausted = true
         cacheImage(platform, worldRef, null)
         if (mayNotify) notifyImage(observer, undefined)
@@ -363,7 +377,8 @@ function runObservedImageRequest(
         if (mayNotify) notifyImage(observer, undefined)
         return
       }
-      observer.recoveryAttempts += 1
+      if (busy) observer.busyWaits += 1
+      else observer.recoveryAttempts += 1
       observer.deferredRetryAfterMs = retryAfterMs
       scheduleObservedImageRecovery(platform, worldRef, observer)
     },
@@ -395,6 +410,7 @@ export function observeExploreImage(
       generation: generations[platform],
       listeners: new Set(),
       recoveryAttempts: 0,
+      busyWaits: 0,
       deferredRetryAfterMs: null,
       exhausted: false,
       pending: null,
