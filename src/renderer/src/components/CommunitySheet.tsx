@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
-import { useAvatar } from '../hooks/useAvatar'
+import { useAvatar, type AvatarRendition } from '../hooks/useAvatar'
 import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { PictureBackedPill } from './CardPictureBackdrop'
@@ -23,6 +23,12 @@ export interface CommunitySheetHeader {
   title: string
   /** The banner picture: a group banner, or the person's picture. */
   imageUrl: string | null
+  /**
+   * Which copy of the banner picture to show. People and group icons keep
+   * the copy picked for them (profile icons can be huge); a group's wide
+   * banner uses the card-sized `picture` copy its Groups tile already loaded.
+   */
+  rendition?: AvatarRendition
   ariaLabel: string
   /** Quiet pills beside the platform label ("Friend", "Owner"). */
   tags?: string[]
@@ -183,9 +189,7 @@ function SheetBanner({
   tall: boolean
 }): React.JSX.Element {
   const bannerRef = useRef<HTMLDivElement>(null)
-  // People and groups: their pictures already come at a size picked for them
-  // (profile icons can be huge), so the banner keeps that copy.
-  const bannerDataUrl = useAvatar(header.imageUrl, bannerRef)
+  const bannerDataUrl = useAvatar(header.imageUrl, bannerRef, header.rendition ?? 'original')
   const [failedBanner, setFailedBanner] = useState<string | null>(null)
   const showImage = bannerDataUrl !== null && bannerDataUrl !== failedBanner
   return (

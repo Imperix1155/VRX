@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Groups: each card now shows the group's wide banner picture across the top,
+  with its square icon in the corner, instead of a square icon on a wide card.
+  Icons still load first and the banners fill in after. A group without a
+  banner keeps a soft blurred copy of its icon behind it.
+
 ## [1.4.0-dev.11] - 2026-11-04
 
 ### Changed

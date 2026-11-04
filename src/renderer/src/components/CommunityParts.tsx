@@ -173,9 +173,14 @@ export interface CommunityTileProps {
   detail?: string | null
   imageUrl: string | null
   /**
+   * `icon` tiles only: a wide picture (a group banner) that fills the space
+   * above the name, with the square icon in its corner.
+   */
+  bannerUrl?: string | null
+  /**
    * `square`: a small picture beside the name (people in Search).
-   * `wide`: the picture on top (worlds). `icon`: a square icon centered above
-   * the name on a soft copy of itself (the Groups page), wider than tall.
+   * `wide`: the picture on top (worlds). `icon`: a group's banner above the
+   * name with its square icon in the corner (the Groups page), wider than tall.
    */
   shape?: 'square' | 'wide' | 'icon'
   /** Opens a sheet; omitted for display-only tiles. */
@@ -194,6 +199,7 @@ export const CommunityTile = memo(function CommunityTile({
   title,
   detail = null,
   imageUrl,
+  bannerUrl = null,
   shape = 'square',
   onOpen,
   ariaLabel
@@ -202,6 +208,16 @@ export const CommunityTile = memo(function CommunityTile({
   // Wide tiles are world pictures: ask for the sharp copy. Square ones stay small.
   const image = useAvatar(imageUrl, pictureRef, shape === 'wide' ? 'picture' : 'original')
   const [failedImage, setFailedImage] = useState<string | null>(null)
+  const iconShown = image !== null && failedImage !== image
+  // The banner is asked for only once the icon has shown (or has none, or
+  // failed), so a page of groups fills in with icons first and the banners
+  // follow, instead of every tile waiting on two pictures at once.
+  const bannerWanted = shape === 'icon' && (imageUrl === null || iconShown || failedImage !== null)
+  const bannerRef = useRef<HTMLDivElement>(null)
+  // Banners show wide: the sharp, card-sized copy, shared with the group sheet.
+  const banner = useAvatar(bannerWanted ? bannerUrl : null, bannerRef, 'picture')
+  const [failedBanner, setFailedBanner] = useState<string | null>(null)
+  const bannerShown = banner !== null && failedBanner !== banner ? banner : null
   const isVrc = platform === 'vrchat'
   const stripe = (
     <div
@@ -235,9 +251,11 @@ export const CommunityTile = memo(function CommunityTile({
   const shown = image && failedImage !== image ? image : null
   // People: a small square picture beside the name, so a page of them stays
   // scannable; with no picture, the name's first letter, as friend pictures
-  // have. Worlds: the picture on top, like Explore. The Groups page: the icon
-  // on top, centered over a blurred copy of itself so a square logo is never
-  // cropped; with no picture, the name's first letter on the platform color.
+  // have. Worlds: the picture on top, like Explore. The Groups page: the
+  // group's wide banner on top with its square icon in the corner, so a
+  // square logo is never stretched or cropped. Without a banner, a soft
+  // blurred copy of the icon fills the space instead, and with no picture at
+  // all the name's first letter on the platform color takes the icon's place.
   const body =
     shape === 'icon' ? (
       <>
@@ -245,29 +263,48 @@ export const CommunityTile = memo(function CommunityTile({
         <div
           ref={pictureRef}
           data-community-tile-picture={shown ? 'image' : 'initial'}
-          className="relative flex h-[112px] shrink-0 items-center justify-center overflow-hidden bg-[var(--surface-hover)]"
+          className="relative h-[112px] shrink-0 overflow-hidden bg-[var(--surface-hover)]"
         >
-          {shown ? (
-            <img
-              src={shown}
-              alt=""
-              aria-hidden="true"
-              decoding="async"
-              className="absolute inset-0 h-full w-full scale-150 object-cover opacity-60 blur-2xl"
-            />
-          ) : (
-            <div
-              aria-hidden="true"
-              className="absolute inset-0"
-              style={{
-                background: isVrc
-                  ? 'linear-gradient(135deg, var(--plat-vrc-ghost-border), transparent 75%)'
-                  : 'linear-gradient(135deg, var(--plat-cvr-ghost-border), transparent 75%)'
-              }}
-            />
-          )}
           <div
-            className="relative flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-[18px] shadow-[var(--group-icon-shadow)]"
+            ref={bannerRef}
+            aria-hidden="true"
+            data-community-tile-banner={bannerShown ? 'image' : 'none'}
+            className="absolute inset-0"
+          >
+            {bannerShown ? (
+              <img
+                src={bannerShown}
+                alt=""
+                aria-hidden="true"
+                decoding="async"
+                className="group-banner-in h-full w-full object-cover"
+                onError={() => setFailedBanner(bannerShown)}
+              />
+            ) : shown ? (
+              <img
+                src={shown}
+                alt=""
+                aria-hidden="true"
+                decoding="async"
+                className="h-full w-full scale-150 object-cover opacity-60 blur-2xl"
+              />
+            ) : (
+              <div
+                className="h-full w-full"
+                style={{
+                  background: isVrc
+                    ? 'linear-gradient(135deg, var(--plat-vrc-ghost-border), transparent 75%)'
+                    : 'linear-gradient(135deg, var(--plat-cvr-ghost-border), transparent 75%)'
+                }}
+              />
+            )}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ backgroundImage: 'var(--group-banner-scrim)' }}
+            />
+          </div>
+          <div
+            className="absolute bottom-[var(--space-2)] left-[var(--space-3)] flex h-[56px] w-[56px] items-center justify-center overflow-hidden rounded-[14px] border-2 border-[var(--group-icon-ring)] shadow-[var(--group-icon-shadow)]"
             style={{
               background: isVrc ? 'var(--plat-vrc-rail-bg)' : 'var(--plat-cvr-rail-bg)',
               color: isVrc ? 'var(--plat-vrc-rail-text)' : 'var(--plat-cvr-rail-text)'
@@ -282,7 +319,7 @@ export const CommunityTile = memo(function CommunityTile({
                 onError={() => setFailedImage(shown)}
               />
             ) : (
-              <span aria-hidden="true" className="text-[34px] font-bold leading-none">
+              <span aria-hidden="true" className="text-[24px] font-bold leading-none">
                 {initialOf(title)}
               </span>
             )}
