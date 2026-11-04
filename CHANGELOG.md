@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Friends: an Order control above Search friends sorts each group by Name,
+  Recent (the newest Activity first), World (friends in the same instance
+  together) or Joinable (the most open instance you can join first). It works
+  the same for VRChat and ChilloutVR and is remembered.
+
 ### Changed
 
+- Friends: the Favorites group now lists only favorites who are in game, the
+  ones you can jump in with. They also stay in In-Game, and online and offline
+  favorites stay in their own group with the star.
 - Groups: each card now shows the group's wide banner picture across the top,
   with its square icon in the corner, instead of a square icon on a wide card.
   Icons still load first and the banners fill in after. A group without a
