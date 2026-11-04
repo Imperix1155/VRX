@@ -337,10 +337,56 @@ describe('Explore renderer requests', () => {
     const listener = vi.fn()
     const stop = observeExploreImage('vrchat', 'busy-ref', listener)
 
-    await vi.advanceTimersByTimeAsync(4 * 2_000)
+    // Nothing else finishes here, so only the slow fallback timer retries.
+    await vi.advanceTimersByTimeAsync(4 * 20_000)
     expect(getExploreImage).toHaveBeenCalledTimes(5)
     expect(listener).toHaveBeenLastCalledWith('data:image/png;base64,late')
     stop()
+  })
+
+  it('wakes waiting cards as downloads finish, inside the shared IPC budget', async () => {
+    vi.useFakeTimers()
+    const finish: Array<() => void> = []
+    let outstanding = 0
+    const getExploreImage = vi.fn(({ worldRef }: { worldRef: string }) => {
+      if (outstanding >= 2)
+        return Promise.resolve({
+          ok: false as const,
+          reason: 'deferred' as const,
+          retryAfterMs: 2_500,
+          wait: 'busy' as const
+        })
+      outstanding += 1
+      return new Promise<{ ok: true; dataUrl: string }>((resolve) =>
+        finish.push(() => {
+          outstanding -= 1
+          resolve({ ok: true, dataUrl: `data:image/png;base64,${worldRef}` })
+        })
+      )
+    })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const delivered = new Map<string, string | undefined>()
+    const stops = Array.from({ length: 12 }, (_, index) =>
+      observeExploreImage('vrchat', `page-${index}`, (image) =>
+        delivered.set(`page-${index}`, image)
+      )
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getExploreImage).toHaveBeenCalledTimes(12)
+
+    // Downloads stall for a while (a cooldown): waiting cards do not poll.
+    await vi.advanceTimersByTimeAsync(19_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(12)
+
+    // Then one finishes about every second, like VRChat's queue.
+    for (let second = 0; second < 30 && finish.length > 0; second++) {
+      finish.shift()!()
+      await vi.advanceTimersByTimeAsync(1_000)
+    }
+    expect([...delivered.values()].filter((image) => image?.startsWith('data:'))).toHaveLength(12)
+    // 120 a minute is the shared get-explore-image IPC budget.
+    expect(getExploreImage.mock.calls.length).toBeLessThan(60)
+    for (const stop of stops) stop()
   })
 
   it('still bounds busy waits, so a stuck download line ends', async () => {
@@ -355,11 +401,11 @@ describe('Explore renderer requests', () => {
     const listener = vi.fn()
     const stop = observeExploreImage('vrchat', 'stuck-ref', listener)
 
-    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    await vi.advanceTimersByTimeAsync(20 * 60_000)
     const calls = getExploreImage.mock.calls.length
     expect(calls).toBeGreaterThan(3)
     expect(calls).toBeLessThanOrEqual(41)
-    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    await vi.advanceTimersByTimeAsync(20 * 60_000)
     expect(getExploreImage).toHaveBeenCalledTimes(calls)
     expect(listener).toHaveBeenLastCalledWith(undefined)
     stop()

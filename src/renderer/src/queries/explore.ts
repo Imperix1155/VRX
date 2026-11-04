@@ -14,9 +14,15 @@ const MAX_IMAGE_RECOVERY_ATTEMPTS = 2
 /**
  * Short "other pictures are downloading" waits. They cost no request, so they
  * do not use up the two recovery attempts; this only bounds a stuck line.
- * At 2–2.75 s each, about a minute and a half.
  */
 const MAX_IMAGE_BUSY_WAITS = 40
+/**
+ * A card told "busy" does not poll: it is woken when one of its platform's
+ * downloads finishes (one card per finished download), so a page of cards
+ * stays well inside the `get-explore-image` IPC budget (120 a minute, shared).
+ * This slow timer only covers a download that finished out of sight.
+ */
+const IMAGE_BUSY_FALLBACK_MS = 20_000
 const IMAGE_RETRY_MIN_MS = 250
 const IMAGE_RETRY_MAX_MS = 60_000
 
@@ -49,6 +55,11 @@ interface ImageObserverEntry {
   timer: ReturnType<typeof setTimeout> | null
 }
 const imageObservers = new Map<string, ImageObserverEntry>()
+/** Cards waiting for a free download slot, in arrival order, by world reference. */
+const busyImageWaiters: Record<Platform, Set<string>> = {
+  vrchat: new Set(),
+  chilloutvr: new Set()
+}
 const activeImagePlatforms = new Set<Platform>()
 const resetGenerations: Record<Platform, number> = { vrchat: 0, chilloutvr: 0 }
 const resetListeners: Record<Platform, Set<() => void>> = {
@@ -227,6 +238,7 @@ export function clearExplorePlatform(platform: Platform): void {
     if (observer.timer !== null) clearTimeout(observer.timer)
     imageObservers.delete(key)
   }
+  busyImageWaiters[platform].clear()
   resetGenerations[platform] += 1
   for (const listener of resetListeners[platform]) listener()
 }
@@ -260,6 +272,8 @@ function requestExploreImageResult(
       if (response === null) cacheImage(platform, worldRef, null)
       else if (response.ok) cacheImage(platform, worldRef, response.dataUrl)
     }
+    // An answered picture may have freed a download slot: give the next card its turn.
+    if (response === null || response.ok) wakeBusyImage(platform)
     return response
   })()
   imageFlights.set(key, request)
@@ -309,8 +323,29 @@ function scheduleObservedImageRecovery(
   observer.timer = setTimeout(() => {
     observer.timer = null
     observer.deferredRetryAfterMs = null
+    busyImageWaiters[platform].delete(worldRef)
     runObservedImageRequest(platform, worldRef, observer)
   }, observer.deferredRetryAfterMs)
+}
+
+/** Hands one waiting card of this platform its turn now, instead of at its fallback timer. */
+function wakeBusyImage(platform: Platform): void {
+  const waiters = busyImageWaiters[platform]
+  for (const worldRef of waiters) {
+    const observer = imageObservers.get(imageKey(platform, worldRef))
+    if (observer === undefined || observer.deferredRetryAfterMs === null) {
+      waiters.delete(worldRef)
+      continue
+    }
+    // A card scrolled out of view keeps its place and waits until it is back.
+    if (observer.timer === null) continue
+    waiters.delete(worldRef)
+    clearTimeout(observer.timer)
+    observer.timer = null
+    observer.deferredRetryAfterMs = null
+    runObservedImageRequest(platform, worldRef, observer)
+    return
+  }
 }
 
 function runObservedImageRequest(
@@ -377,9 +412,13 @@ function runObservedImageRequest(
         if (mayNotify) notifyImage(observer, undefined)
         return
       }
-      if (busy) observer.busyWaits += 1
-      else observer.recoveryAttempts += 1
-      observer.deferredRetryAfterMs = retryAfterMs
+      if (busy) {
+        observer.busyWaits += 1
+        busyImageWaiters[platform].add(worldRef)
+      } else observer.recoveryAttempts += 1
+      observer.deferredRetryAfterMs = busy
+        ? Math.max(retryAfterMs, IMAGE_BUSY_FALLBACK_MS)
+        : retryAfterMs
       scheduleObservedImageRecovery(platform, worldRef, observer)
     },
     () => {
