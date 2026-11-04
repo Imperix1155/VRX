@@ -1761,6 +1761,28 @@ describe('Dashboard section positions (owner, 2026-10-27)', () => {
     expect(container.querySelector('[data-hot-card-layout="bar"]')).not.toBeNull()
   })
 
+  // Wearing now and Latest invites: DashboardGlance.test.tsx.
+  it('shows the big section headings in the dim gray of other labels (owner, 2026-11-04)', () => {
+    stubQueries(
+      { data: crowd('vrchat', 'Lake', 2), isPending: false },
+      { data: [], isPending: false }
+    )
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        dashboardSections: ['popular', 'wearing-now', 'hot', 'invites'],
+        dashboardSectionOrder: 'popular-first'
+      }
+    })
+    seedExplorePreview()
+    render(<DashboardView />)
+    for (const name of [msg('explore.popularNow'), msg('dashboard.sectionHotInstances')]) {
+      const heading = screen.getByRole('heading', { level: 2, name })
+      expect(heading.className).toContain('text-[var(--text-dim)]')
+      expect(heading.className).not.toContain('text-[var(--text-faint)]')
+    }
+  })
+
   it('groups glance sections that sit next to each other at the bottom', () => {
     stubQueries({ data: [], isPending: false }, { data: [], isPending: false })
     useSettingsStore.setState({

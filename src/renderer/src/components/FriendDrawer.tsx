@@ -290,6 +290,8 @@ export default function FriendDrawer({
     return () => window.removeEventListener('beforeunload', flush)
   }, [])
   const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
+  // Where the account line's next state shows; its buttons send focus here.
+  const accountLineRef = useRef<HTMLDivElement>(null)
   const retryNote = (): void => {
     // The Retry button is conditionally removed after success; retain a useful
     // keyboard target before starting the mutation.
@@ -602,15 +604,21 @@ export default function FriendDrawer({
                     account={accountSync}
                     hasNote={(accountNote.persisted?.note ?? '') !== ''}
                     isEditing={accountNote.isEditing}
+                    focusOnPress={accountLineRef}
                   />
                 )}
-                <div className="flex items-baseline gap-[var(--space-2)]">
+                <div
+                  ref={accountLineRef}
+                  tabIndex={-1}
+                  className="flex items-baseline gap-[var(--space-2)] rounded-control focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)]"
+                >
                   {!combined && shown && accountSync.view.kind !== 'conflict' && (
                     <AccountNoteStatus
                       platform={shown.platform}
                       account={accountSync}
                       hasNote={(accountNote.persisted?.note ?? '') !== ''}
                       isEditing={accountNote.isEditing}
+                      focusOnPress={accountLineRef}
                     />
                   )}
                   {/* Described by the field, not live: a live counter would speak on

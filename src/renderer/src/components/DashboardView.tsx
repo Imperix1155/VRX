@@ -85,7 +85,7 @@ function SectionHeading({
           labelled by it and screen readers get a navigable outline (audit W5). */}
       <h2
         id={id}
-        className="canvas-text font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-faint)]"
+        className="canvas-text font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-dim)]"
       >
         {t(labelKey)}
       </h2>

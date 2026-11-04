@@ -4,6 +4,11 @@
  * copy and VRX's copy both changed, a small choice between them. The line is
  * text with a glyph, never color alone. Nothing shows while the account is
  * being checked, so opening a drawer does not flicker.
+ *
+ * Every button here gives way to the line's next state as soon as it is
+ * pressed, so it first moves keyboard focus to where that state shows
+ * (`focusOnPress`) instead of letting it fall to the page. Not to the note
+ * itself: a held or second Enter would then type into it.
  */
 import { useTranslation } from 'react-i18next'
 import { FRIEND_NOTE_MAX_LENGTH, VRCHAT_ACCOUNT_NOTE_MAX_LENGTH } from '@shared/accountNotes'
@@ -18,17 +23,24 @@ export default function AccountNoteStatus({
   platform,
   account,
   hasNote,
-  isEditing
+  isEditing,
+  focusOnPress
 }: {
   platform: Platform
   account: UseAccountNoteResult
   /** VRX's saved copy is not empty. */
   hasNote: boolean
   isEditing: boolean
+  /** Takes keyboard focus when a button here is pressed. */
+  focusOnPress: React.RefObject<HTMLElement | null>
 }): React.JSX.Element | null {
   const { t } = useTranslation()
   const name = platformName(t, platform)
   const { view } = account
+  const press = (action: () => void) => (): void => {
+    focusOnPress.current?.focus()
+    action()
+  }
 
   if (view.kind === 'conflict') {
     // VRX can't take a copy longer than it keeps (main answers
@@ -60,11 +72,11 @@ export default function AccountNoteStatus({
         )}
         <div className="flex flex-wrap justify-end gap-[var(--space-1)]">
           {theirsFits && (
-            <button type="button" onClick={account.useAccountCopy} className={ACTION}>
+            <button type="button" onClick={press(account.useAccountCopy)} className={ACTION}>
               {t('drawer.notes.account.useTheirs', { platform: name })}
             </button>
           )}
-          <button type="button" onClick={account.keepMine} className={ACTION}>
+          <button type="button" onClick={press(account.keepMine)} className={ACTION}>
             {t('drawer.notes.account.keepMine')}
           </button>
         </div>
@@ -130,7 +142,7 @@ export default function AccountNoteStatus({
       </span>
       <span className="min-w-0">{text}</span>
       {action && (
-        <button type="button" onClick={action.onClick} className={ACTION}>
+        <button type="button" onClick={press(action.onClick)} className={ACTION}>
           {action.label}
         </button>
       )}
