@@ -206,13 +206,22 @@ export const CommunityTile = memo(function CommunityTile({
 }: CommunityTileProps): React.JSX.Element {
   const pictureRef = useRef<HTMLDivElement>(null)
   // Wide tiles are world pictures: ask for the sharp copy. Square ones stay small.
-  const image = useAvatar(imageUrl, pictureRef, shape === 'wide' ? 'picture' : 'original')
+  // The icon URL whose first download attempt has finished, shown or not.
+  const [settledIcon, setSettledIcon] = useState<string | null>(null)
+  const image = useAvatar(
+    imageUrl,
+    pictureRef,
+    shape === 'wide' ? 'picture' : 'original',
+    shape === 'icon' ? (url) => setSettledIcon(url) : undefined
+  )
   const [failedImage, setFailedImage] = useState<string | null>(null)
-  const iconShown = image !== null && failedImage !== image
-  // The banner is asked for only once the icon has shown (or has none, or
-  // failed), so a page of groups fills in with icons first and the banners
-  // follow, instead of every tile waiting on two pictures at once.
-  const bannerWanted = shape === 'icon' && (imageUrl === null || iconShown || failedImage !== null)
+  // The banner is asked for only once the icon has an answer (shown, failed
+  // to download or draw, or there is none), so a page of groups fills in with
+  // icons first and the banners follow, instead of every tile waiting on two
+  // pictures at once.
+  const bannerWanted =
+    shape === 'icon' &&
+    (imageUrl === null || image !== null || failedImage !== null || settledIcon === imageUrl)
   const bannerRef = useRef<HTMLDivElement>(null)
   // Banners show wide: the sharp, card-sized copy, shared with the group sheet.
   const banner = useAvatar(bannerWanted ? bannerUrl : null, bannerRef, 'picture')

@@ -847,11 +847,15 @@ shows no loading line until the check answers.
   When friend details close on their own (the friend left the list), an open
   dialog closes with them and sends nothing.
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
-  are wider than tall: the group's square icon centered on top over a blurred
-  copy of itself (never cropped), then the name, and the VRC/CVR badge with
+  are wider than tall (owner, 2026-11-04): the group's wide banner fills the
+  top with its square icon (never cropped) in the bottom-left corner, then the
+  name, and the VRC/CVR badge with
   the group code (or member count), led by "Owner ·" on a group you own. No
   picture, or one that fails, shows the name's first letter on the platform
-  color instead of an empty box. A group opens the bottom sheet
+  color instead of an empty box. The banner is asked for once the icon has
+  shown or failed, so icons fill in first; a group without a banner, or one
+  that fails, keeps the same layout over a blurred copy of its icon. A group
+  opens the bottom sheet
   with its banner, platform pill and role pill, description, and Details
   (Code, Members, Your role). View only.
 - **Explore** has a segmented Popular now · New · Recently updated ·

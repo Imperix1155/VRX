@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 
 export const AVATAR_RENDERER_CACHE_MAX_ENTRIES = 200
 /** Aggregate data-URL budget for the renderer copy (#370); mirrors main's. */
@@ -95,13 +95,22 @@ function requestAvatar(url: string, rendition: AvatarRendition): Promise<string 
   return request
 }
 
-/** Load an avatar only when its observed element enters the near viewport. */
+/**
+ * Load an avatar only when its observed element enters the near viewport.
+ * `onSettled` hears every finished attempt for `url`, a failure (null)
+ * included, which the returned value alone can't tell from "still loading".
+ */
 export function useAvatar(
   url: string | null,
   targetRef: RefObject<Element | null>,
-  rendition: AvatarRendition = 'original'
+  rendition: AvatarRendition = 'original',
+  onSettled?: (url: string, dataUrl: string | null) => void
 ): string | null {
   const [loaded, setLoaded] = useState<{ url: string; dataUrl: string | null } | null>(null)
+  const onSettledRef = useRef(onSettled)
+  useEffect(() => {
+    onSettledRef.current = onSettled
+  })
 
   useEffect(() => {
     const target = targetRef.current
@@ -117,6 +126,7 @@ export function useAvatar(
         void requestAvatar(url, rendition).then((result) => {
           if (!active) return
           setLoaded({ url, dataUrl: result })
+          onSettledRef.current?.(url, result)
           // A transient failure (network, rate limit, negative cache) resolves to
           // null. Re-arm visibility after the negative-cache window so an avatar
           // that is still on screen gets another chance; off-screen rows wait
