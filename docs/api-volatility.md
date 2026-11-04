@@ -120,25 +120,25 @@ only note where they differ.
 REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 `wss://pipeline.vrchat.cloud/` (`VRC_PIPELINE_URL`).
 
-| Surface                                  | Used for                                   | Evidence                          | When it breaks                          |
-| ---------------------------------------- | ------------------------------------------ | --------------------------------- | --------------------------------------- |
-| Session cookies and headers              | Every authenticated call                   | Live                              | Sign-in fails closed                    |
-| `GET /auth/user` (Basic auth)            | Sign-in                                    | Live                              | Error result, tentative session cleared |
-| `POST /auth/twofactorauth/{type}/verify` | Second factor                              | Live; email route Live 2026-07-28 | Retryable invalid-code result           |
-| `GET /auth/user` (cookie)                | Session status, identity, presence buckets | Live                              | `error` state, session kept             |
-| `GET /auth`                              | Pipeline token                             | Source-derived                    | Raw cookie value used instead           |
-| `GET /auth/user/friends`                 | Friend roster                              | Live                              | Partial roster                          |
-| `GET /worlds/{worldId}` (friends)        | World name and thumbnail                   | Live                              | No world metadata                       |
-| `GET /groups/{groupId}`                  | Group name and icon                        | Source-derived                    | No group metadata                       |
-| Explore routes                           | Public-world discovery                     | Synthetic                         | Explore problem state                   |
-| `POST /invite/myself/to/{location}`      | Self-invite                                | Source-derived                    | `invite-failed`                         |
-| `GET`/`PUT /users/{me}`                  | Own profile editor                         | Source-derived                    | Editor shows a retry; text kept         |
-| Image endpoint and hosts                 | Pictures                                   | Live                              | Placeholder                             |
-| Pipeline WebSocket                       | Live presence                              | Source-derived                    | REST reconcile only                     |
-| `vrchat://launch` link                   | Join                                       | Source-derived                    | Join denied before launch               |
-| `VRChatURLLaunchPipe` (Windows)          | Join while VRChat is open                  | Source-derived                    | One self-invite instead                 |
-| Game process names                       | Is the game open?                          | Source-derived                    | Join launches as before                 |
-| VRCX sign-in file                        | Sign-in from this PC (button)              | Source-derived                    | No import, password sign-in             |
+| Surface                                      | Used for                                   | Evidence                          | When it breaks                          |
+| -------------------------------------------- | ------------------------------------------ | --------------------------------- | --------------------------------------- |
+| Session cookies and headers                  | Every authenticated call                   | Live                              | Sign-in fails closed                    |
+| `GET /auth/user` (Basic auth)                | Sign-in                                    | Live                              | Error result, tentative session cleared |
+| `POST /auth/twofactorauth/{type}/verify`     | Second factor                              | Live; email route Live 2026-07-28 | Retryable invalid-code result           |
+| `GET /auth/user` (cookie)                    | Session status, identity, presence buckets | Live                              | `error` state, session kept             |
+| `GET /auth`                                  | Pipeline token                             | Source-derived                    | Raw cookie value used instead           |
+| `GET /auth/user/friends`                     | Friend roster                              | Live                              | Partial roster                          |
+| `GET /worlds/{worldId}` (friends)            | World name and thumbnail                   | Live                              | No world metadata                       |
+| `GET /groups/{groupId}`                      | Group name and icon                        | Source-derived                    | No group metadata                       |
+| Explore routes                               | Public-world discovery                     | Synthetic                         | Explore problem state                   |
+| `POST /invite/myself/to/{location}`          | Self-invite                                | Source-derived                    | `invite-failed`                         |
+| `GET`/`PUT /profile/{me}`, `PUT /users/{me}` | Own profile editor                         | Source-derived                    | Editor shows a retry; text kept         |
+| Image endpoint and hosts                     | Pictures                                   | Live                              | Placeholder                             |
+| Pipeline WebSocket                           | Live presence                              | Source-derived                    | REST reconcile only                     |
+| `vrchat://launch` link                       | Join                                       | Source-derived                    | Join denied before launch               |
+| `VRChatURLLaunchPipe` (Windows)              | Join while VRChat is open                  | Source-derived                    | One self-invite instead                 |
+| Game process names                           | Is the game open?                          | Source-derived                    | Join launches as before                 |
+| VRCX sign-in file                            | Sign-in from this PC (button)              | Source-derived                    | No import, password sign-in             |
 
 ### Session cookies and headers
 
@@ -554,30 +554,39 @@ against a real account.
 - **Uncertain:** whether VRChat also ends a friendship when the user blocks a
   friend. VRX does not assume it either way; the roster follows the Pipeline.
 
-### Own profile: `GET` and `PUT /users/{me}`
+### Own profile: `GET`/`PUT /profile/{me}` and `PUT /users/{me}`
 
 Settings → Accounts → Edit profile
 ([parseOwnProfile.ts](../src/main/services/adapters/vrchat/parseOwnProfile.ts)).
 Source-derived from the community
-[specification](https://github.com/vrchatapi/specification) (`updateUser`) and
-VRCX; no real response or write has been captured yet.
+[specification](https://github.com/vrchatapi/specification) (`getPublicProfile`,
+`updateProfile`, `updateUser`) and VRCX's own profile editor; no real response
+or write has been captured yet.
 
-- **Assumes:** `GET /users/{me}` returns the user with string `bio`,
-  `pronouns`, `status` and `statusDescription`. `PUT /users/{me}` takes a JSON
-  body with only the changed fields among `bio`, `pronouns`, `status` and
-  `statusDescription`, leaves the rest as they are, and answers with the
-  updated user. Status words are `join me`, `active` (Online), `ask me` and
-  `busy` (Do Not Disturb). Limits follow VRChat's own editor: bio 512,
-  pronouns 32, status text 32.
-- **Parses:** the reply's `id` must be the signed-in account. A missing or
-  `null` text field reads as empty; any other type makes the reply unreadable,
-  so a changed format never shows as an empty bio the user might save over. An
-  unknown status word reads as no status picked, and nothing is sent for it
-  unless the user picks one. A PUT reply that cannot be read keeps the last
-  read plus what was sent.
+- **Changed 2026:** VRChat's profile update moved the bio (and bio links,
+  banner and theme) from the user onto a separate profile. `/users/{me}` no
+  longer carries `bio`, and `PUT /users/{me}` no longer takes it, so VRX's
+  editor showed an empty bio.
+- **Assumes:** `GET /profile/{me}?asSelf=true` returns the profile with string
+  `bio`, `pronouns`, `status` and `statusDescription` (VRCX fills its editor
+  from this one read). `PUT /profile/{me}` takes `{ bio }`. `PUT /users/{me}`
+  takes a JSON body with only the changed fields among `pronouns`, `status`
+  and `statusDescription` and leaves the rest as they are. Status words are
+  `join me`, `active` (Online), `ask me` and `busy` (Do Not Disturb). Limits
+  follow VRChat's own editor: bio 512, pronouns 32, status text 32.
+- **Parses:** the reply's `id` must be the signed-in account and it must have a
+  `bio` field. A `null` text field reads as empty; a missing `bio`, or any
+  other type, makes the reply unreadable, so a changed format never shows as
+  an empty bio the user might save over. An unknown status word reads as no
+  status picked, and nothing is sent for it unless the user picks one. Neither
+  PUT reply is read; main keeps the last read plus what was sent.
+- **Writes:** a Save sends `PUT /users/{me}` only when the pronouns, status or
+  status text changed, then `PUT /profile/{me}` only when the bio changed: at
+  most two requests, one after the other, never resent.
 - **When it breaks:** a 401 emits `auth-invalidated`; a 429 is rate-limited
   and never retried; anything else is unavailable and the editor keeps the
-  user's text.
+  user's text. A failure after the first PUT may leave part saved, so the next
+  open and the next Save read the profile again.
 
 ### Self-invite: `POST /invite/myself/to/{location}`
 

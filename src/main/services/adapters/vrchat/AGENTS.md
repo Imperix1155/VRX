@@ -15,7 +15,7 @@ transport, and published adapter events.
   events), the world and group resolvers and batch fetchers, the `parse*.ts`
   converters, `buildJoinUrl.ts`, `parseExplore.ts`, `parseAvatars.ts`, and
   `parseCommunity.ts`, and `parseOwnProfile.ts` (the own-profile editor's
-  fields and the `PUT /users/{me}` body).
+  fields, and the `PUT /users/{me}` and `PUT /profile/{me}` bodies).
 - Symbols and the adapter contract: [`docs/INTERNAL-API.md`](../../../../../docs/INTERNAL-API.md).
 
 ## Local Contracts

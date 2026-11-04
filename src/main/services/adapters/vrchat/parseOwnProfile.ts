@@ -24,13 +24,15 @@ function ownStatus(value: unknown): OwnStatus | null {
 }
 
 /**
- * `GET /users/{me}` or the `PUT /users/{me}` reply: the four fields the editor
- * shows, only for the signed-in account. Null when the reply is for someone
- * else or a field has an unexpected type.
+ * `GET /profile/{me}?asSelf=true`: the four fields the editor shows, only for
+ * the signed-in account. VRChat's 2026 profile update moved the bio off
+ * `/users/{me}` onto the profile, so a reply with no `bio` at all is not read
+ * as an empty bio the user might then save over. Null when the reply is for
+ * someone else, has no bio field, or a field has an unexpected type.
  */
 export function parseVrcOwnProfile(value: unknown, accountId: string): OwnProfile | null {
   const raw = record(value)
-  if (!raw || raw.id !== accountId) return null
+  if (!raw || raw.id !== accountId || !Object.hasOwn(raw, 'bio')) return null
   const bio = ownText(raw.bio)
   const pronouns = ownText(raw.pronouns)
   const statusText = ownText(raw.statusDescription)
@@ -38,12 +40,19 @@ export function parseVrcOwnProfile(value: unknown, accountId: string): OwnProfil
   return { platform: 'vrchat', bio, pronouns, status: ownStatus(raw.status), statusText }
 }
 
-/** The `PUT /users/{me}` body: only the changed fields, in VRChat's words. */
-export function vrcOwnProfileBody(changes: OwnProfileChanges): Record<string, string> {
+/**
+ * The `PUT /users/{me}` body: the changed pronouns, status and status text,
+ * in VRChat's words. Null when none of them changed.
+ */
+export function vrcOwnUserBody(changes: OwnProfileChanges): Record<string, string> | null {
   const body: Record<string, string> = {}
-  if (changes.bio !== undefined) body.bio = changes.bio
   if (changes.pronouns !== undefined) body.pronouns = changes.pronouns
   if (changes.status !== undefined) body.status = TO_VRC_STATUS[changes.status]
   if (changes.statusText !== undefined) body.statusDescription = changes.statusText
-  return body
+  return Object.keys(body).length > 0 ? body : null
+}
+
+/** The `PUT /profile/{me}` body: the changed bio. Null when it did not change. */
+export function vrcOwnProfileBody(changes: OwnProfileChanges): Record<string, string> | null {
+  return changes.bio !== undefined ? { bio: changes.bio } : null
 }
