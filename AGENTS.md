@@ -71,9 +71,11 @@ those components with sample data. A known defect is never a design rule.
 - Simple by default, more on demand: show what most people need in few words,
   and put longer explanations, fine print and power-user options behind a Show
   more or ? control, Settings, or About. Required notices stay reachable.
-- Background color must not change information-bearing cards or panels.
-  Neutral sheen can vary; decorative chrome such as the sidebar may take on
-  ambient color.
+- Layered glass (owner, 2026-11-04): panels, cards and rows are frosted
+  panes stacked on each other, so the background shows through them as
+  blurred color. Words stay readable and platform color stays the strongest
+  tint on a platform card; menus and dialogs keep the opaque backing (see
+  DESIGN.md §3).
 - Presence state and VRChat status are separate inputs. Show them with the
   avatar ring and the written status in the friend details panel.
 - App icon sources and exports follow [App icon](docs/APP-ICON.md). Keep the

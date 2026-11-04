@@ -328,10 +328,10 @@ export default function Guide(): React.JSX.Element {
             scanlines make the shared space feel like VRX without competing with the information.
           </p>
           <p>
-            Information cards and panels keep an opaque neutral backing beneath their existing
-            gradients, so the background glow cannot change their intended colors. Platform tints,
-            artwork, and neutral sheen remain. Decorative chrome such as the sidebar may pick up
-            ambient color. These examples import the production material directly.
+            Panels, cards and rows are frosted glass stacked on each other, so the background shows
+            through every pane as blurred color while words stay readable. Platform tints, artwork,
+            and neutral sheen remain. Menus and dialogs keep an opaque neutral backing. These
+            examples import the production material directly.
           </p>
           <div className="design-guide__swatches" aria-label="Token swatches">
             {[

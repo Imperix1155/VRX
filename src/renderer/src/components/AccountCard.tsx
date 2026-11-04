@@ -197,7 +197,7 @@ export default function AccountCard({
     <div
       role="group"
       aria-labelledby={nameId}
-      className={`glass glass-information ${config.tintClass} relative overflow-hidden p-[var(--space-6)]`}
+      className={`glass glass-layer ${config.tintClass} relative overflow-hidden p-[var(--space-6)]`}
     >
       {/* The name lines up with the status and buttons below it. A future
           platform logo would go in front of it; do not restore PlatformGlyph. */}

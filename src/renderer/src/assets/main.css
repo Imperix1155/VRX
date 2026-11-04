@@ -33,7 +33,12 @@
   flex-shrink: 0;
   border-radius: 6px;
   border: 1px solid var(--linked-badge-border);
-  background: var(--linked-badge-bg);
+  background:
+    var(--glass-chip-sheen), linear-gradient(var(--linked-badge-bg), var(--linked-badge-bg));
+  /* Glass chip (see .glass-chip). */
+  box-shadow: var(--glass-chip-depth);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   color: var(--linked-badge-text);
   padding-inline: var(--space-1);
   font-size: 10px;
@@ -132,22 +137,24 @@
   align-items: center;
   gap: var(--space-1);
 }
-/* Over a picture the platform tag keeps its own tint on the card's color, as
-   it looks on the card itself; the picture never shows through, so its word
-   keeps 4.5:1 on bright art too. */
+/* Over a picture the platform tag keeps its own tint on a heavy card-color
+   frost, so its word stays readable on bright art while the art glows
+   through the glass. */
 .linked-world-tags .linked-world-platform {
   background:
-    linear-gradient(var(--linked-badge-bg), var(--linked-badge-bg)), var(--glass-information);
+    var(--glass-chip-sheen), linear-gradient(var(--linked-badge-bg), var(--linked-badge-bg)),
+    color-mix(in srgb, var(--glass-information) 74%, transparent);
 }
 .linked-world-pill {
   display: inline-flex;
   border-radius: 10px;
-  /* The opaque card color, as the VRC and CVR tags beside it have, in both
-     themes: the picture never shows through, so every access word keeps 4.5:1
-     on any art (dark 6.4:1 or more on a white picture, light 5.6:1 or more on
-     a black one). */
-  background: var(--glass-information);
-  backdrop-filter: blur(10px);
+  /* A glass chip on a heavy card-color frost, as the VRC and CVR tags beside
+     it: the art glows through, blurred, and the access word stays readable. */
+  background:
+    var(--glass-chip-sheen), color-mix(in srgb, var(--glass-information) 74%, transparent);
+  box-shadow: var(--glass-chip-depth);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
 /* The backing already carries the word; a pale glow would only blur it. */
 [data-theme='light'] .linked-world-pill {
@@ -370,16 +377,17 @@
      friends-list rail, the short badge on a picture). Dark keeps the quiet
      outline: the word and edge already glow against the dark glass. Light
      swaps in a solid brand fill (see the light block). */
-  --plat-vrc-badge-bg: transparent;
-  --plat-cvr-badge-bg: transparent;
+  --plat-vrc-badge-bg: color-mix(in srgb, var(--vrc) 10%, transparent);
+  --plat-cvr-badge-bg: color-mix(in srgb, var(--cvr) 10%, transparent);
   --plat-vrc-badge-text: var(--plat-vrc-ghost-text);
   --plat-cvr-badge-text: var(--plat-cvr-ghost-text);
   --plat-vrc-badge-border: var(--plat-vrc-ghost-border);
   --plat-cvr-badge-border: var(--plat-cvr-ghost-border);
-  /* Badges over a picture keep a small, opaque card-color backing, so the
-     brand-tinted word keeps 4.5:1 even on white art. */
-  --plat-vrc-picture-badge-bg: var(--glass-information);
-  --plat-cvr-picture-badge-bg: var(--glass-information);
+  /* Badges over a picture are glass chips (.glass-chip): a heavy card-color
+     frost over the blurred art, so the brand-tinted word stays readable on
+     bright pictures while the art still glows through. */
+  --plat-vrc-picture-badge-bg: color-mix(in srgb, var(--glass-information) 74%, transparent);
+  --plat-cvr-picture-badge-bg: color-mix(in srgb, var(--glass-information) 74%, transparent);
   /* Friends-list rail: it sits on a row already washed in the same hue, so it
      takes a stronger tint and edge than the other pills to stand out from it. */
   --plat-vrc-rail-bg: color-mix(in srgb, var(--vrc) 30%, transparent);
@@ -438,6 +446,27 @@
   /* Heavy translucent frost for TRUE modals (VRX-245) — behind content must never be legible;
      the drawer keeps the lighter --glass-frost. */
   --glass-frost-heavy: rgba(13, 15, 22, 0.94);
+  /* BACK PANEL (owner, 2026-11-04): the panel a page's cards sit on (the
+     Friends list, Settings) shows the background through the sidebar's blur.
+     Thinner than the frost so the picture reads as soft color; the cards and
+     rows on it keep the opaque information backing. */
+  --glass-panel: rgba(13, 15, 22, 0.5);
+  /* Drawers and sheets float over live cards: a heavier frost, still lighter
+     than --glass-frost, so the background reads as glow and never as words. */
+  --glass-sheet: rgba(13, 15, 22, 0.66);
+  /* LAYERED GLASS (owner, 2026-11-04): cards and rows are their own frosted
+     pane with the sidebar's blur, stacked on the frosted panel below them, so
+     the stack reads glass over glass. A lit top edge and a soft drop shadow
+     lift each pane off the one under it. */
+  --glass-layer: rgba(13, 15, 22, 0.44);
+  --glass-layer-depth: 0 6px 18px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  /* Glass chips (owner, 2026-11-04): pills, badges and the friends-list rail
+     are the top pane of the stack, glass on a card on a panel. A brighter lit
+     edge and a short, tight shadow make them pop off the card. */
+  --glass-chip-depth:
+    0 3px 8px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  --glass-chip-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 60%);
   --tint-vrc-bg: linear-gradient(135deg, rgba(43, 124, 232, 0.22), rgba(43, 124, 232, 0.05));
   --tint-vrc-border: rgba(43, 124, 232, 0.34);
   --tint-cvr-bg: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
@@ -642,6 +671,12 @@
   --glass-information: rgb(255, 255, 255);
   --glass-blur-frosted: blur(30px) saturate(175%);
   --glass-frost-heavy: rgba(250, 251, 253, 0.96);
+  --glass-panel: rgba(250, 251, 253, 0.56);
+  --glass-sheet: rgba(250, 251, 253, 0.76);
+  --glass-layer: rgba(255, 255, 255, 0.6);
+  --glass-layer-depth: 0 4px 14px rgba(31, 38, 56, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-chip-depth: 0 2px 6px rgba(31, 38, 56, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --glass-chip-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 60%);
   --tint-vrc-bg: linear-gradient(135deg, rgba(23, 105, 232, 0.24), rgba(23, 105, 232, 0.1));
   --tint-vrc-border: rgba(23, 105, 232, 0.72);
   --tint-cvr-bg: linear-gradient(135deg, rgba(236, 98, 16, 0.24), rgba(236, 98, 16, 0.1));
@@ -1040,6 +1075,84 @@ body::after {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+
+  /* Back panels and side sheets (owner, 2026-11-04): the sidebar's blur
+     carried onto the panel a page's cards sit on (.glass-panel: the Friends
+     list, Settings) and onto drawers and sheets (.glass-sheet: the friend
+     details drawer, the world, hot instance, avatar and group sheets).
+     The background shows through as soft color; the cards and rows on it are
+     layered glass (.glass-layer) or keep an opaque .glass-information backing.
+     The blur lives on a layer UNDER the content instead of on the element:
+     a backdrop-filter makes its element the containing block for fixed
+     descendants, which would pin the friend drawer inside the list panel.
+     z-index -2 puts it under the .glass sheen (-1) and above the element's own
+     background. Composes with or without .glass; follows .glass-information so
+     its transparent backing wins. */
+  .glass-panel,
+  .glass-sheet {
+    position: relative;
+    isolation: isolate;
+    background-color: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-panel::after,
+  .glass-sheet::after {
+    content: '';
+    position: absolute;
+    z-index: -2;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background-color: var(--glass-panel);
+    -webkit-backdrop-filter: var(--glass-blur-frosted);
+    backdrop-filter: var(--glass-blur-frosted);
+  }
+  /* Layered glass: a card, row, header or field that is its own frosted pane
+     (the sidebar's blur, a thinner fill) lifted by --glass-layer-depth. On a
+     .glass-panel it blurs the already frosted panel, so it reads more frosted
+     than the panel; on the bare background it is as frosted as the sidebar.
+     No fixed-position children may live inside one (see .glass-panel). */
+  .glass-layer {
+    background-color: var(--glass-layer);
+    box-shadow: var(--glass-layer-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+
+  /* Glass chip: the top pane of the stack (pills, platform badges, the
+     friends-list rail, small counts). The sidebar's blur under the chip's own
+     tinted fill, with a lit edge and a tight lift. Words, names, pictures and
+     status dots never get one. */
+  .glass-chip {
+    /* Positioning utilities (absolute) still win: this is the components layer. */
+    position: relative;
+    isolation: isolate;
+    box-shadow: var(--glass-chip-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  /* A glossy top light on the chip's own fill, under its word (z-index -1 in
+     the chip's stacking context), so it never washes out the text. */
+  .glass-chip::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--glass-chip-sheen);
+  }
+  /* Presence dots on avatars: opaque color, so only the chip's lift, no blur. */
+  .status-badge {
+    box-shadow: var(--glass-chip-depth);
+  }
+
+  /* Sheets float over live cards, so they take the heavier sheet frost:
+     what is behind reads as glow, never as text. */
+  .glass-sheet::after {
+    background-color: var(--glass-sheet);
+  }
 }
 
 .tint-vrc {
@@ -1241,7 +1354,11 @@ body::after {
     overflow: hidden;
     border: 1px solid var(--platform-row-border);
     border-radius: var(--radius-control);
-    background-color: var(--glass-information);
+    /* Layered glass (see .glass-layer): its own frosted pane, tinted. */
+    background-color: var(--glass-layer);
+    box-shadow: var(--glass-layer-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     background-image: linear-gradient(
       90deg,
       color-mix(in srgb, var(--platform-row-from) var(--platform-row-tint-strong), transparent),
@@ -1288,8 +1405,12 @@ body::after {
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-control);
-    background: var(--glass-information);
+    /* Layered glass (see .glass-layer) on the frosted Settings panel. */
+    background-color: var(--glass-layer);
     background-image: var(--glass-sheen);
+    box-shadow: var(--glass-layer-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
   }
   .setting-row {
     display: flex;

@@ -60,7 +60,7 @@ const HotInstancesHeader = forwardRef<HTMLElement, HotInstancesHeaderProps>(
         <div
           id={helpId}
           hidden={!helpOpen}
-          className="glass glass-information mb-[var(--space-3)] p-[var(--space-4)] text-sm leading-relaxed text-[var(--text-dim)]"
+          className="glass glass-layer mb-[var(--space-3)] p-[var(--space-4)] text-sm leading-relaxed text-[var(--text-dim)]"
         >
           <p>{t('dashboard.hotHelp.description')}</p>
           <p className="mt-[var(--space-2)]">
@@ -81,7 +81,7 @@ export default HotInstancesHeader
 export function HotInstancesEmpty({ threshold }: { threshold: number }): React.JSX.Element {
   const { t } = useTranslation()
   return (
-    <div className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
+    <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
       <p className="text-[var(--text-dim)] text-sm font-semibold">{t('dashboard.emptyHeading')}</p>
       <p className="text-[var(--text-dim)] text-xs mt-[var(--space-1)]">
         {/* `threshold` (not `count`) — interpolation only, no plural-suffix lookup. */}

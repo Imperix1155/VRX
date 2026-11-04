@@ -46,7 +46,7 @@ export const OPENNESS_TIER: Record<InstanceType, OpennessTier | null> = {
  * Width floor + grid placement stay with consumers (VRX-198).
  */
 export const PILL_BASE =
-  'inline-flex h-[28px] shrink-0 items-center justify-center ' +
+  'glass-chip inline-flex h-[28px] shrink-0 items-center justify-center ' +
   'rounded-[10px] border px-[12px] text-[12px] font-semibold whitespace-nowrap'
 
 /**

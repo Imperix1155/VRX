@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The sidebar's frosted blur now also sits behind the Friends list, the
+  Settings panel, friend details, and the world, hot instance, avatar and
+  group sheets, so your background shows through as soft color.
+- Cards and rows across the app (friends, activity, inbox, settings,
+  statistics, hot instances, Popular now, Explore, avatars, groups and
+  accounts) are now frosted glass of their own, stacked on the frosted
+  panels with a soft shadow, for a layered look.
+- Pills, platform badges, the friends list's platform stripe and other small
+  labels are now glossy frosted glass on top of the cards, so the whole app
+  reads as stacked layers. Names, custom status messages and other details
+  stay plain and easy to read.
+
 ## [1.4.0-dev.12] - 2026-11-04
 
 ### Added

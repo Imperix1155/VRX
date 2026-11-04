@@ -232,7 +232,7 @@ export default function Sidebar(): React.JSX.Element {
               {id === 'inbox' && !isActive && newInboxCount > 0 ? (
                 <span
                   data-inbox-new=""
-                  className="ml-auto min-w-[20px] rounded-full border border-[var(--border)] bg-[var(--control-fill)] px-[6px] text-center text-[11px] font-semibold leading-[18px] text-[var(--text)]"
+                  className="glass-chip ml-auto min-w-[20px] rounded-full border border-[var(--border)] bg-[var(--control-fill)] px-[6px] text-center text-[11px] font-semibold leading-[18px] text-[var(--text)]"
                 >
                   <span aria-hidden="true">{newInboxCount > 99 ? '99+' : newInboxCount}</span>
                   <span className="sr-only">

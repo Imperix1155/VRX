@@ -191,7 +191,7 @@ export default function ExploreRoute(): React.JSX.Element {
   if (notConnectedPlatform !== null) {
     // The same Connect gate as the Dashboard and Hot Instances pages.
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
+      <div className="glass glass-layer flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
         <p className="text-sm font-semibold text-[var(--text-dim)]">
           {t(NOT_CONNECTED_KEY.explore[notConnectedPlatform])}
         </p>

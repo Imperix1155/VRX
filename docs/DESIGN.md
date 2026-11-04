@@ -36,9 +36,11 @@ These decisions are settled. Changing one needs the owner's explicit approval.
 5. **Missing is red, stale is dim.** A source that never loaded uses the
    error color (`--error`). A source showing older data uses `--text-dim`
    (§9.4).
-6. **Background never tints information.** The aurora may color decorative
-   chrome such as the sidebar, but never a card or panel that carries
-   information (§3).
+6. **Layered glass.** The UI is panes of frosted glass stacked on each
+   other (owner, 2026-11-04): the background, then the sidebar and back
+   panels, then the cards and rows on them. The background shows through
+   every pane as blurred color; words stay readable and platform color
+   stays the strongest tint on a platform card (§3).
 7. **Dashboard layout.** Under the numbers the Dashboard has four sections:
    Wearing now (the worn avatar per signed-in platform), Latest invites (the
    newest invite per platform), Popular now and Hot Instances, in that order
@@ -146,22 +148,52 @@ dark values into a fixed palette.
 
 ## §3 Material and overlays
 
-Information panels over the canvas use `.glass glass-information`. Add
-`.glass-frosted` for a sheet or drawer and `.glass-frosted-heavy` for a true
-confirmation modal. The information modifier puts an opaque neutral backing
+Menus, dialogs and other surfaces that must stay opaque use
+`.glass glass-information`. Add
+`.glass-frosted` for a frosted dialog and `.glass-frosted-heavy` for a true
+confirmation modal.
+
+The sidebar's blur also carries onto two other surfaces (owner, 2026-11-04).
+`.glass-panel` is the back panel a page's cards and rows sit on: the Friends
+list and Settings. `.glass-sheet` is the frost of the friend details drawer
+and the world, hot instance, avatar and group sheets. Both show the
+background as blurred, softly colored light (`--glass-panel`, and the heavier
+`--glass-sheet` because sheets float over live cards).
+
+Cards and rows are layered glass, `.glass-layer`: their own frosted pane with
+the sidebar's blur and a thinner fill (`--glass-layer`), lifted by a lit top
+edge and a soft shadow (`--glass-layer-depth`). On a back panel a card blurs
+the already frosted panel, so the stack reads glass over glass; on the bare
+background it is as frosted as the sidebar. This covers platform rows, setting
+cards, the Friends section headers and search field, statistics, Hot
+Instances, Popular now, Explore, avatar, group and account cards, notices and
+empty states. Menus, dialogs, the welcome setup and the error screen keep the
+opaque `.glass-information` backing.
+
+Small parts are the top pane, `.glass-chip` (owner, 2026-11-04): instance,
+platform and rule pills, platform badges on pictures and in friend details,
+the friends-list platform stripe, the linked VRC and CVR tags, the friend
+details status band, alert kinds and the sidebar count. A chip keeps its own
+tinted fill under the sidebar's blur, with a glossy top light under its word
+(`--glass-chip-sheen`) and a tight lift (`--glass-chip-depth`). Chips over a
+picture sit on a heavy card-color frost (74%), so the art glows through but
+never sits bare under the word. Words that must be read, such as names,
+custom status messages, world names and other details, stay plain text on
+their card. Presence dots keep their solid color and only take the lift. The blur is drawn on a layer under the content, never as a
+`backdrop-filter` on the element itself, which would make the panel the
+containing block for fixed children such as the drawer. The information modifier puts an opaque neutral backing
 under the existing gradients; decorative chrome may keep translucent `.glass`.
 The sheen lights the pane behind its content, never over text or logos.
 
-Information-bearing cards and panels keep their intended colors no matter
-what the background does. That covers statistics, Popular now, Explore, Hot
+Opaque information surfaces keep their intended colors no matter what the
+background does. That covers statistics, Popular now, Explore, Hot
 Instances, and every other informational surface. Blue or orange background
 light must never tint them, especially platform-specific ones. Neutral sheen
 and highlights may vary, and intentional platform styling stays.
 
 `--glass-information` is the backing in both themes. Tint classes set
 `background-image`, never a `background` shorthand that would clear the
-backing. The Friends list uses the same backing without a `.glass` frame, and
-hand-styled room sheets use the token directly. Pictures, semantic colors,
+backing. Pictures, semantic colors,
 geometry, and platform gradients stay unchanged.
 
 Keep these classes in `@layer components` so utility positioning still wins

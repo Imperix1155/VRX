@@ -254,7 +254,7 @@ export default function HotInstanceCard({
     return (
       <div
         {...cardProps}
-        className={`glass glass-information ${tintClass} relative flex h-full w-full min-w-0 cursor-pointer flex-col overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
+        className={`glass glass-layer ${tintClass} relative flex h-full w-full min-w-0 cursor-pointer flex-col overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
       >
         {description}
         <div aria-hidden="true" className="h-[4px] w-full" style={topEdgeStyle} />
@@ -269,7 +269,7 @@ export default function HotInstanceCard({
             />
           ) : null}
           <span
-            className="absolute left-[var(--space-2)] top-[var(--space-2)] rounded-[9px] border px-[var(--space-2)] py-[var(--space-0-5)] text-[10px] font-bold"
+            className="glass-chip absolute left-[var(--space-2)] top-[var(--space-2)] rounded-[9px] border px-[var(--space-2)] py-[var(--space-0-5)] text-[10px] font-bold"
             style={{
               color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
               borderColor: isVrc ? 'var(--plat-vrc-badge-border)' : 'var(--plat-cvr-badge-border)',
@@ -303,7 +303,7 @@ export default function HotInstanceCard({
   return (
     <div
       {...cardProps}
-      className={`glass glass-information ${tintClass} relative cursor-pointer overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
+      className={`glass glass-layer ${tintClass} relative cursor-pointer overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
     >
       {description}
       <CardPictureBackdrop image={image} platform={instance.platform} onError={markImageFailed} />

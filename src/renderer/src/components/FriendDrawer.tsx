@@ -1,14 +1,15 @@
 /**
  * FriendDrawer: account and linked-person details (VRX-69/143).
  *
- * A floating `.glass glass-frosted` card pinned to the right edge (14px
+ * A floating `.glass glass-sheet` card pinned to the right edge (14px
  * top/right/bottom inset, 372px wide, panel-scale 20px radius from `.glass`
  * itself) over a
  * `--scrim` backdrop; slides in/out over 260ms cubic-bezier(.32,.72,.29,1),
  * `motion-safe:` guarded. Stays mounted while closed (translated off-screen,
- * `inert` + aria-hidden) so the exit transition can play. The `glass-frosted`
- * variant (VRX-226) adds an opaque underlay + stronger blur: the panel floats
- * OVER the live friend list, so base glass let row text read through it.
+ * `inert` + aria-hidden) so the exit transition can play. The `glass-sheet`
+ * frost (VRX-226, blurred background since 2026-11-04) adds a heavy underlay
+ * + stronger blur: the panel floats OVER the live friend list, so row text
+ * reads as glow, never as words.
  *
  * Content uses the selected person or explicitly selected account:
  *   1. Header: 64px ringed avatar, name, attributed status and platform identity.
@@ -320,7 +321,7 @@ export default function FriendDrawer({
         data-friend-drawer
         role="dialog"
         aria-label={profileName || t('linking.unknownName')}
-        className={`glass glass-frosted glass-information fixed top-[14px] right-[14px] bottom-[14px] z-50 flex w-[372px] flex-col motion-safe:transition-transform motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
+        className={`glass glass-sheet fixed top-[14px] right-[14px] bottom-[14px] z-50 flex w-[372px] flex-col motion-safe:transition-transform motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-x-0' : 'translate-x-[calc(100%+14px)]'
         }`}
       >
@@ -443,7 +444,7 @@ export default function FriendDrawer({
                   </div>
                 ) : (
                   <span
-                    className="mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border px-[var(--space-2-5)] text-[11px] font-semibold"
+                    className="glass-chip mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border px-[var(--space-2-5)] text-[11px] font-semibold"
                     style={{
                       color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
                       borderColor: isVrc
@@ -460,7 +461,7 @@ export default function FriendDrawer({
 
             {/* 2 · Status band — the privacy tier in WORDS (the headline). */}
             <div
-              className="flex items-center gap-[var(--space-2)] rounded-[10px] border px-[var(--space-3)] py-[var(--space-2)]"
+              className="glass-chip flex items-center gap-[var(--space-2)] rounded-[10px] border px-[var(--space-3)] py-[var(--space-2)]"
               style={{
                 borderColor: `color-mix(in srgb, var(${sc}) 30%, transparent)`,
                 background: `color-mix(in srgb, var(${sc}) 10%, transparent)`

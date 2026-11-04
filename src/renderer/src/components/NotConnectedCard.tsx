@@ -11,7 +11,7 @@ export default function NotConnectedCard({
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
-    <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
+    <div className="glass glass-layer flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
       <p className="text-sm font-semibold text-[var(--text-dim)]">{message}</p>
       <button
         type="button"

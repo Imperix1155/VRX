@@ -154,7 +154,7 @@ export function PictureBadge({
       aria-hidden="true"
       className={`${
         inline ? 'inline-block shrink-0' : 'absolute left-[var(--space-2)] top-[var(--space-2)]'
-      } rounded-[9px] border px-[var(--space-2)] py-[var(--space-0-5)] text-[10px] font-bold`}
+      } glass-chip rounded-[9px] border px-[var(--space-2)] py-[var(--space-0-5)] text-[10px] font-bold`}
       style={{
         color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
         borderColor: isVrc ? 'var(--plat-vrc-badge-border)' : 'var(--plat-cvr-badge-border)',
@@ -394,7 +394,7 @@ export const CommunityTile = memo(function CommunityTile({
         </div>
       </>
     )
-  const className = `glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left`
+  const className = `glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left`
   if (!onOpen) {
     return (
       <div className={className} data-community-tile="">

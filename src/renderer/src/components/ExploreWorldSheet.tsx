@@ -308,10 +308,8 @@ export default function ExploreWorldSheet({
           platform: t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
         })}
         data-sheet-expanded={expansion.expanded ? '' : undefined}
-        className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${open ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`glass-sheet fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${open ? 'translate-y-0' : 'translate-y-full'}`}
         style={{
-          // Opaque backing: a backdrop blur would never show (main.css .glass-information).
-          backgroundColor: 'var(--glass-information)',
           backgroundImage: 'var(--glass-bg)',
           ...expansion.panelStyle
         }}
