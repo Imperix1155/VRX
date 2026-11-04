@@ -1325,7 +1325,7 @@ export default function FriendsList(): React.JSX.Element {
           event.stopPropagation()
         }
       }}
-      className="glass-information rounded-panel border border-[var(--border)] p-[var(--space-4)]"
+      className="glass-panel rounded-panel border border-[var(--glass-border)] p-[var(--space-4)]"
     >
       <div className="mb-[var(--space-3)] flex items-center justify-end gap-[var(--space-2)]">
         {/* Names the section for assistive tech; the top bar already shows the

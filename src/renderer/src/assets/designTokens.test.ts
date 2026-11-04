@@ -541,6 +541,40 @@ describe('compiled glass material', () => {
     }
   )
 
+  it('blurs back panels and sheets on a layer under their content, after the information backing', () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const spans = componentsLayerSpans(code)
+    // The element itself never takes a backdrop-filter: that would make it the
+    // containing block for fixed descendants (the friend drawer sits inside the
+    // Friends list panel).
+    const base = /\.glass-panel,\s*\.glass-sheet\s*\{([^{}]*)\}/.exec(code)
+    expect(base).not.toBeNull()
+    expect(base![1]).toMatch(/(?<!-webkit-)backdrop-filter:\s*none\s*;/)
+    expect(base![1]).toMatch(/background-color:\s*transparent\s*;/)
+    const layer = /\.glass-panel::after,\s*\.glass-sheet::after\s*\{[^{}]*\}/.exec(code)
+    expect(layer).not.toBeNull()
+    const emitted = optimize(layer![0], { minify: true }).code
+    expect(emitted).toMatch(/(?<!-webkit-)backdrop-filter:var\(--glass-blur-frosted\)/)
+    expect(emitted).toMatch(/background-color:var\(--glass-panel\)/)
+    expect(emitted).toMatch(/z-index:-2/)
+    expect(code).toMatch(
+      /\.glass-sheet::after\s*\{\s*background-color:\s*var\(--glass-sheet\)\s*;\s*\}/
+    )
+    for (const match of [base!, layer!]) {
+      expect(spans.some(([start, end]) => match.index > start && match.index < end)).toBe(true)
+    }
+    // Same specificity as .glass-information, so it must follow it to win.
+    const information = code.search(/\.glass-information\s*\{/)
+    expect(base!.index).toBeGreaterThan(information)
+
+    const root = css.match(/:root\s*{[\s\S]*?\n}/)?.[0] ?? ''
+    const light = css.match(/\[data-theme=['"]light['"]\]\s*{[\s\S]*?\n}/)?.[0] ?? ''
+    for (const block of [root, light]) {
+      expect(block).toMatch(/--glass-panel:\s*rgba\(/)
+      expect(block).toMatch(/--glass-sheet:\s*rgba\(/)
+    }
+  })
+
   it('skips the hidden backdrop blur under the opaque information backing', () => {
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const rules = [...code.matchAll(/\.glass-information\s*\{[^{}]*\}/g)]

@@ -111,11 +111,10 @@ export default function CommunitySheet<T>({
         aria-label={head.ariaLabel}
         data-community-sheet=""
         data-sheet-expanded={expansion.expanded ? '' : undefined}
-        className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
+        className={`glass-sheet fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
-          backgroundColor: 'var(--glass-information)',
           backgroundImage: 'var(--glass-bg)',
           borderTopLeftRadius: 'var(--radius-panel)',
           borderTopRightRadius: 'var(--radius-panel)',

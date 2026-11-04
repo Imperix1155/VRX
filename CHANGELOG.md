@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The sidebar's frosted blur now also sits behind the Friends list, the
+  Settings panel, friend details, and the world, hot instance, avatar and
+  group sheets, so your background shows through as soft color. Friend rows
+  and cards keep their solid backing and stay as easy to read.
+
 ## [1.4.0-dev.11] - 2026-11-04
 
 ### Changed

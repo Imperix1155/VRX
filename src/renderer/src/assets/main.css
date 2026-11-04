@@ -434,6 +434,14 @@
   /* Heavy translucent frost for TRUE modals (VRX-245) — behind content must never be legible;
      the drawer keeps the lighter --glass-frost. */
   --glass-frost-heavy: rgba(13, 15, 22, 0.94);
+  /* BACK PANEL (owner, 2026-11-04): the panel a page's cards sit on (the
+     Friends list, Settings) shows the background through the sidebar's blur.
+     Thinner than the frost so the picture reads as soft color; the cards and
+     rows on it keep the opaque information backing. */
+  --glass-panel: rgba(13, 15, 22, 0.5);
+  /* Drawers and sheets float over live cards: a heavier frost, still lighter
+     than --glass-frost, so the background reads as glow and never as words. */
+  --glass-sheet: rgba(13, 15, 22, 0.66);
   --tint-vrc-bg: linear-gradient(135deg, rgba(43, 124, 232, 0.22), rgba(43, 124, 232, 0.05));
   --tint-vrc-border: rgba(43, 124, 232, 0.34);
   --tint-cvr-bg: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
@@ -638,6 +646,8 @@
   --glass-information: rgb(255, 255, 255);
   --glass-blur-frosted: blur(30px) saturate(175%);
   --glass-frost-heavy: rgba(250, 251, 253, 0.96);
+  --glass-panel: rgba(250, 251, 253, 0.56);
+  --glass-sheet: rgba(250, 251, 253, 0.76);
   --tint-vrc-bg: linear-gradient(135deg, rgba(23, 105, 232, 0.24), rgba(23, 105, 232, 0.1));
   --tint-vrc-border: rgba(23, 105, 232, 0.72);
   --tint-cvr-bg: linear-gradient(135deg, rgba(236, 98, 16, 0.24), rgba(236, 98, 16, 0.1));
@@ -1033,6 +1043,44 @@ body::after {
     background-color: var(--glass-information);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+
+  /* Back panels and side sheets (owner, 2026-11-04): the sidebar's blur
+     carried onto the panel a page's cards sit on (.glass-panel: the Friends
+     list, Settings) and onto drawers and sheets (.glass-sheet: the friend
+     details drawer, the world, hot instance, avatar and group sheets).
+     The background shows through as soft color; every card and row that
+     informs keeps its own opaque .glass-information or .platform-row backing.
+     The blur lives on a layer UNDER the content instead of on the element:
+     a backdrop-filter makes its element the containing block for fixed
+     descendants, which would pin the friend drawer inside the list panel.
+     z-index -2 puts it under the .glass sheen (-1) and above the element's own
+     background. Composes with or without .glass; follows .glass-information so
+     its transparent backing wins. */
+  .glass-panel,
+  .glass-sheet {
+    position: relative;
+    isolation: isolate;
+    background-color: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-panel::after,
+  .glass-sheet::after {
+    content: '';
+    position: absolute;
+    z-index: -2;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background-color: var(--glass-panel);
+    -webkit-backdrop-filter: var(--glass-blur-frosted);
+    backdrop-filter: var(--glass-blur-frosted);
+  }
+  /* Sheets float over live cards, so they take the heavier sheet frost:
+     what is behind reads as glow, never as text. */
+  .glass-sheet::after {
+    background-color: var(--glass-sheet);
   }
 }
 

@@ -808,7 +808,7 @@ export default function SettingsView(): React.JSX.Element {
   const category = useUiStore((s) => s.settingsCategory)
 
   return (
-    <div className="glass glass-information settings-panel p-[var(--space-2)]">
+    <div className="glass glass-panel settings-panel p-[var(--space-2)]">
       <div className="relative">
         {/* ── Appearance page ── */}
         {category === 'appearance' && (

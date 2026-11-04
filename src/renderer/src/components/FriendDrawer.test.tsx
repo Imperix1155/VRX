@@ -248,15 +248,18 @@ describe('FriendDrawer (VRX-69)', () => {
     render(<FriendsList />)
     openDrawerFor('Alex')
     const panel = screen.getByRole('dialog', { name: 'Alex' })
-    // Base .glass for the material; .glass-frosted for the opaque underlay +
+    // Base .glass for the material; .glass-sheet for the heavy underlay +
     // stronger blur — the drawer floats OVER the live list, so row text must
     // not read through it (base .glass is only correct on the background).
-    // Token-exact check: `/\bglass\b/` also matches inside "glass-frosted"
+    // Token-exact check: `/\bglass\b/` also matches inside "glass-sheet"
     // (the hyphen is a word boundary), so split the class list instead
     // (Codex review, VRX-226).
     const classes = panel.className.split(/\s+/)
     expect(classes).toContain('glass')
-    expect(classes).toContain('glass-frosted')
+    expect(classes).toContain('glass-sheet')
+    // The blur lives on the sheet's own layer; an opaque information backing
+    // would hide it.
+    expect(classes).not.toContain('glass-information')
   })
 
   it('the opener is a native button distinct from Join, with a composed accessible name', () => {
