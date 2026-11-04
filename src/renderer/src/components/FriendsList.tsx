@@ -654,10 +654,9 @@ function SectionHeader({
       // list as its controlled object. aria-expanded carries disclosure state.
       className={[
         'flex w-full items-center gap-[var(--space-2)]',
-        'rounded-control px-[var(--space-2)] py-[var(--space-1)]',
-        'bg-[color-mix(in_srgb,var(--bg-base)_92%,transparent)] backdrop-blur-md',
+        'glass-layer rounded-control px-[var(--space-2)] py-[var(--space-1)]',
         'text-xs font-semibold tracking-widest text-[var(--text-dim)] uppercase',
-        'hover:bg-[var(--surface-hover)] disabled:cursor-default disabled:hover:bg-[color-mix(in_srgb,var(--bg-base)_92%,transparent)] motion-safe:transition-colors'
+        'hover:bg-[color-mix(in_srgb,var(--glass-layer),var(--text)_8%)] disabled:cursor-default disabled:hover:bg-[var(--glass-layer)] motion-safe:transition-colors'
       ].join(' ')}
     >
       <ChevronGlyph collapsed={collapsed} />
@@ -1367,7 +1366,7 @@ export default function FriendsList(): React.JSX.Element {
           onChange={(event) => updateSearch(event.target.value)}
           aria-label={t('friends.searchPlaceholder')}
           placeholder={t('friends.searchPlaceholder')}
-          className="w-full rounded-control border border-[var(--border)] bg-[var(--control-fill)] py-[var(--space-2)] pr-[var(--space-10)] pl-[var(--space-3)] text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
+          className="glass-layer w-full rounded-control border border-[var(--border)] py-[var(--space-2)] pr-[var(--space-10)] pl-[var(--space-3)] text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] hover:bg-[color-mix(in_srgb,var(--glass-layer),var(--text)_8%)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
         />
         {search.length > 0 && (
           <button
@@ -1387,7 +1386,7 @@ export default function FriendsList(): React.JSX.Element {
       {isAuthStatusPending ? (
         <p className="text-sm text-[var(--text-dim)]">{t('friends.loading')}</p>
       ) : isNotConnected ? (
-        <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
+        <div className="glass glass-layer flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
           <p className="text-sm font-semibold text-[var(--text-dim)]">
             {notConnectedKey === null ? null : t(notConnectedKey)}
           </p>

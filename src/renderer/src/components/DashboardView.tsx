@@ -55,7 +55,7 @@ interface StatCardProps {
 function StatCard({ value, labelKey }: StatCardProps): React.JSX.Element {
   const { t, i18n } = useTranslation()
   return (
-    <div className="glass glass-information min-w-0 p-[16px_18px]">
+    <div className="glass glass-layer min-w-0 p-[16px_18px]">
       <div className="font-[family-name:var(--font-mono)] text-[38px] leading-none tabular-nums text-[var(--text)]">
         {new Intl.NumberFormat(i18n.language).format(value)}
       </div>

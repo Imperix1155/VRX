@@ -254,7 +254,7 @@ export default function HotInstanceCard({
     return (
       <div
         {...cardProps}
-        className={`glass glass-information ${tintClass} relative flex h-full w-full min-w-0 cursor-pointer flex-col overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
+        className={`glass glass-layer ${tintClass} relative flex h-full w-full min-w-0 cursor-pointer flex-col overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
       >
         {description}
         <div aria-hidden="true" className="h-[4px] w-full" style={topEdgeStyle} />
@@ -303,7 +303,7 @@ export default function HotInstanceCard({
   return (
     <div
       {...cardProps}
-      className={`glass glass-information ${tintClass} relative cursor-pointer overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
+      className={`glass glass-layer ${tintClass} relative cursor-pointer overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
     >
       {description}
       <CardPictureBackdrop image={image} platform={instance.platform} onError={markImageFailed} />

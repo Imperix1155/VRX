@@ -348,7 +348,7 @@ export const CommunityTile = memo(function CommunityTile({
         </div>
       </>
     )
-  const className = `glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left`
+  const className = `glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left`
   if (!onOpen) {
     return (
       <div className={className} data-community-tile="">

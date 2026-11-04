@@ -11,8 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The sidebar's frosted blur now also sits behind the Friends list, the
   Settings panel, friend details, and the world, hot instance, avatar and
-  group sheets, so your background shows through as soft color. Friend rows
-  and cards keep their solid backing and stay as easy to read.
+  group sheets, so your background shows through as soft color.
+- Cards and rows across the app (friends, activity, inbox, settings,
+  statistics, hot instances, Popular now, Explore, avatars, groups and
+  accounts) are now frosted glass of their own, stacked on the frosted
+  panels with a soft shadow, for a layered look.
 
 ## [1.4.0-dev.11] - 2026-11-04
 

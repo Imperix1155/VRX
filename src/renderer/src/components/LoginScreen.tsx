@@ -204,7 +204,7 @@ export default function LoginScreen({
         parity is automatic.
       */}
       <div
-        className={`glass glass-information ${config.tintClass} relative m-auto w-full max-w-sm shrink-0 overflow-hidden p-[var(--space-8)]`}
+        className={`glass glass-layer ${config.tintClass} relative m-auto w-full max-w-sm shrink-0 overflow-hidden p-[var(--space-8)]`}
       >
         {/*
           The .glass::before sheen is defined in CSS.

@@ -43,7 +43,7 @@ function AvatarCard({ avatar, worn, onOpen, layout = 'card' }: AvatarCardProps):
       onClick={(event) => onOpen(avatar, event.currentTarget)}
       aria-label={t('avatars.openAria', { name: avatar.name, platform: platformLabel })}
       aria-describedby={wornLine ? wornId : undefined}
-      className={`glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex w-full min-w-0 flex-col overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] ${bar ? '' : 'h-full'}`}
+      className={`glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex w-full min-w-0 flex-col overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] ${bar ? '' : 'h-full'}`}
     >
       <div
         aria-hidden="true"

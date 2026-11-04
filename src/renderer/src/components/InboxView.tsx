@@ -357,7 +357,7 @@ export default function InboxView(): React.JSX.Element {
       <div
         id={helpId}
         hidden={!helpOpen}
-        className="glass glass-information p-[var(--space-4)] text-sm leading-relaxed text-[var(--text-dim)]"
+        className="glass glass-layer p-[var(--space-4)] text-sm leading-relaxed text-[var(--text-dim)]"
       >
         <p>{t('inbox.help.answer')}</p>
         <p className="mt-[var(--space-2)]">{t('inbox.help.live')}</p>
@@ -376,7 +376,7 @@ export default function InboxView(): React.JSX.Element {
         {notice?.text}
       </p>
       {items.length === 0 ? (
-        <div className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
+        <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
           <p className="text-sm font-semibold text-[var(--text-dim)]">{t('inbox.emptyHeading')}</p>
           <p className="mt-[var(--space-1)] max-w-[52ch] text-balance text-xs text-[var(--text-dim)]">
             {t('inbox.emptyHint')}

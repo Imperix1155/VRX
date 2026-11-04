@@ -221,7 +221,7 @@ export default function ActivityView(): React.JSX.Element {
   }
   if (isNotConnected) {
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
+      <div className="glass glass-layer flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
         <p className="text-sm font-semibold text-[var(--text-dim)]">
           {selectedPlatform === null ? null : t(NOT_CONNECTED_KEY.activity[selectedPlatform])}
         </p>
@@ -254,7 +254,7 @@ export default function ActivityView(): React.JSX.Element {
     )
   } else if (entries.length === 0) {
     content = (
-      <div className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
+      <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
         {hasAnyInScope ? (
           <p className="text-sm font-semibold text-[var(--text-dim)]">
             {t('activity.filteredEmpty')}
