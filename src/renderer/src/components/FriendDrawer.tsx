@@ -444,7 +444,7 @@ export default function FriendDrawer({
                   </div>
                 ) : (
                   <span
-                    className="mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border px-[var(--space-2-5)] text-[11px] font-semibold"
+                    className="glass-chip mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border px-[var(--space-2-5)] text-[11px] font-semibold"
                     style={{
                       color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
                       borderColor: isVrc
@@ -461,7 +461,7 @@ export default function FriendDrawer({
 
             {/* 2 · Status band — the privacy tier in WORDS (the headline). */}
             <div
-              className="flex items-center gap-[var(--space-2)] rounded-[10px] border px-[var(--space-3)] py-[var(--space-2)]"
+              className="glass-chip flex items-center gap-[var(--space-2)] rounded-[10px] border px-[var(--space-3)] py-[var(--space-2)]"
               style={{
                 borderColor: `color-mix(in srgb, var(${sc}) 30%, transparent)`,
                 background: `color-mix(in srgb, var(${sc}) 10%, transparent)`

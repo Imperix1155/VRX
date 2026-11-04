@@ -149,7 +149,7 @@ function PlatformTab({
             ? t('friends.platform.vrchat')
             : t('friends.platform.chilloutvr')
       }
-      className={`grid place-items-center self-stretch -mt-[5px] -mb-[5px] -ml-[7px] w-[calc(100%+7px)] rounded-[9px] border text-[10.5px] font-semibold tracking-[0.09em] [writing-mode:vertical-rl] rotate-180 ${platform === 'vrx' ? 'linked-platform-rail' : ''}`}
+      className={`glass-chip grid place-items-center self-stretch -mt-[5px] -mb-[5px] -ml-[7px] w-[calc(100%+7px)] rounded-[9px] border text-[10.5px] font-semibold tracking-[0.09em] [writing-mode:vertical-rl] rotate-180 ${platform === 'vrx' ? 'linked-platform-rail' : ''}`}
       style={{
         background:
           platform === 'vrx'

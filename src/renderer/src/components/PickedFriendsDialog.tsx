@@ -17,7 +17,7 @@ function PlatformHeading({ platform }: { platform: Platform }): React.JSX.Elemen
   return (
     <h3>
       <span
-        className="inline-flex h-[22px] items-center rounded-[9px] border px-[var(--space-2)] text-[11px] font-semibold"
+        className="glass-chip inline-flex h-[22px] items-center rounded-[9px] border px-[var(--space-2)] text-[11px] font-semibold"
         style={{
           color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
           borderColor: isVrc ? 'var(--plat-vrc-badge-border)' : 'var(--plat-cvr-badge-border)',

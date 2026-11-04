@@ -216,7 +216,7 @@ function BellView({
                   <li
                     key={kind.setting}
                     data-kind-on={kindOn}
-                    className="alert-bell-kind inline-flex h-[24px] items-center gap-[5px] rounded-[9px] border px-[var(--space-2)] text-[11px] font-semibold"
+                    className="alert-bell-kind glass-chip inline-flex h-[24px] items-center gap-[5px] rounded-[9px] border px-[var(--space-2)] text-[11px] font-semibold"
                   >
                     <span aria-hidden="true">{kindOn ? '✓' : '–'}</span>
                     {t(kind.key)}

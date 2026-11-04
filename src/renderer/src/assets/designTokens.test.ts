@@ -495,10 +495,15 @@ describe('renderer design token contract', () => {
     }
   })
 
-  it('backs the Where access pill with the opaque card color in both themes, so art never shows through its word', () => {
+  // Owner, 2026-11-04: small parts over pictures are glass chips. Their word
+  // sits on a heavy card-color frost over the blurred art, never on bare art.
+  const chipFrost = /color-mix\(in srgb, var\(--glass-information\) 74%, transparent\)/
+
+  it('backs the Where access pill with a heavy card-color frost, so art glows through but never sits bare under its word', () => {
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const rule = /(?:^|\n)\.linked-world-pill\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
-    expect(rule).toMatch(/background:\s*var\(--glass-information\)\s*;/)
+    expect(rule).toMatch(chipFrost)
+    expect(rule).toMatch(/(?<!-webkit-)backdrop-filter:\s*var\(--glass-blur\)\s*;/)
     // No theme or state swaps it for a see-through backing.
     const rules = [...code.matchAll(/([^{}]*\.linked-world-pill[^{}]*){([^{}]*)}/g)]
     expect(rules.map(([, selector]) => selector!.trim())).toContain('.linked-world-pill')
@@ -508,24 +513,25 @@ describe('renderer design token contract', () => {
     }
   })
 
-  it('gives dark picture badges an opaque card-color backing, so art never shows through their word', () => {
+  it('gives dark picture badges a heavy card-color frost, so art never sits bare under their word', () => {
     const root = css.match(/:root\s*{[\s\S]*?\n}/)?.[0] ?? ''
     for (const platform of ['vrc', 'cvr']) {
-      expect(root).toContain(`--plat-${platform}-picture-badge-bg: var(--glass-information);`)
+      expect(root).toContain(
+        `--plat-${platform}-picture-badge-bg: color-mix(in srgb, var(--glass-information) 74%, transparent);`
+      )
     }
   })
 
-  it('backs the platform tag over a picture with the opaque card color, so art never shows through its word', () => {
+  it('backs the platform tag over a picture with its tint on a heavy card-color frost', () => {
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const rule = /\.linked-world-tags \.linked-world-platform\s*{([^{}]*)}/.exec(code)?.[1] ?? ''
-    expect(rule).toMatch(
-      /background:\s*linear-gradient\(var\(--linked-badge-bg\),\s*var\(--linked-badge-bg\)\),\s*var\(--glass-information\)\s*;/
-    )
+    expect(rule).toMatch(/linear-gradient\(var\(--linked-badge-bg\),\s*var\(--linked-badge-bg\)\)/)
+    expect(rule).toMatch(chipFrost)
   })
 })
 
 describe('compiled glass material', () => {
-  it.each(['glass', 'glass-frosted', 'glass-frosted-heavy'])(
+  it.each(['glass', 'glass-frosted', 'glass-frosted-heavy', 'glass-layer', 'glass-chip'])(
     'preserves the standard backdrop-filter through Tailwind optimization for .%s',
     (className) => {
       const rules = [

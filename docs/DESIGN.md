@@ -168,8 +168,18 @@ background it is as frosted as the sidebar. This covers platform rows, setting
 cards, the Friends section headers and search field, statistics, Hot
 Instances, Popular now, Explore, avatar, group and account cards, notices and
 empty states. Menus, dialogs, the welcome setup and the error screen keep the
-opaque `.glass-information` backing. Small parts on a card (platform pills,
-access pills, the text strip over a picture) keep their own backing. The blur is drawn on a layer under the content, never as a
+opaque `.glass-information` backing.
+
+Small parts are the top pane, `.glass-chip` (owner, 2026-11-04): instance,
+platform and rule pills, platform badges on pictures and in friend details,
+the friends-list platform stripe, the linked VRC and CVR tags, the friend
+details status band, alert kinds and the sidebar count. A chip keeps its own
+tinted fill under the sidebar's blur, with a glossy top light under its word
+(`--glass-chip-sheen`) and a tight lift (`--glass-chip-depth`). Chips over a
+picture sit on a heavy card-color frost (74%), so the art glows through but
+never sits bare under the word. Words that must be read, such as names,
+custom status messages, world names and other details, stay plain text on
+their card. Presence dots keep their solid color and only take the lift. The blur is drawn on a layer under the content, never as a
 `backdrop-filter` on the element itself, which would make the panel the
 containing block for fixed children such as the drawer. The information modifier puts an opaque neutral backing
 under the existing gradients; decorative chrome may keep translucent `.glass`.
