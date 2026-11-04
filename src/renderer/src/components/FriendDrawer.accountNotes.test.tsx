@@ -277,6 +277,49 @@ describe('FriendDrawer account notes', () => {
     await waitFor(() => expect(syncFriendNote).toHaveBeenCalledTimes(2))
   })
 
+  // Each button gives way to the line's next state when pressed; keyboard
+  // focus moves to where that state shows, not into the note, where a held
+  // Enter would type.
+  it.each<[string, AccountNoteSyncResult, string, string]>([
+    [
+      'Save to VRChat',
+      { ok: true, state: 'local-only', note: 'Plays drums' },
+      'save',
+      'Plays drums'
+    ],
+    ['Retry', { ok: false, reason: 'unavailable' }, 'check', 'Plays drums'],
+    [
+      'Keep mine',
+      { ok: true, state: 'conflict', note: 'Plays drums', accountNote: 'In game' },
+      'keep-mine',
+      'Plays drums'
+    ],
+    [
+      'Use the VRChat note',
+      { ok: true, state: 'conflict', note: 'Plays drums', accountNote: 'In game' },
+      'use-account',
+      'In game'
+    ]
+  ])('moves keyboard focus to the account line after %s', async (label, first, mode, kept) => {
+    syncFriendNote
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce({ ok: true, state: 'saved', note: kept })
+    render(<FriendsList />)
+    const scoped = within(open())
+    const button = await scoped.findByRole('button', { name: label }, slow)
+    const line = document.getElementById('friend-notes-counter')?.parentElement
+    button.focus()
+    fireEvent.click(button)
+
+    expect(scoped.queryByRole('button', { name: label })).toBeNull()
+    expect(document.activeElement).toBe(line)
+    await waitFor(() => expect(syncFriendNote).toHaveBeenCalledTimes(2))
+    expect(syncFriendNote.mock.calls[1]?.[0]).toMatchObject({ mode })
+    await waitFor(() => expect(scoped.getByText('Also saved to your VRChat account')).toBeTruthy())
+    expect(scoped.getByDisplayValue(kept)).toBeTruthy()
+    expect(document.activeElement).toBe(line)
+  })
+
   it('never asks the account when the setting is off', async () => {
     useSettingsStore.setState({
       settings: { ...DEFAULT_SETTINGS, saveNotesToAccounts: false },

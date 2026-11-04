@@ -173,6 +173,26 @@ function PlatformTab({
 // Avatar moved to components/Avatar.tsx (VRX-69) — shared with FriendDrawer
 // without a FriendsList ⇄ FriendDrawer import cycle.
 
+/** `text` with the parts the search matched marked. */
+function SearchHighlight({ text, query }: { text: string; query: string }): React.JSX.Element {
+  return (
+    <>
+      {splitByMatch(text, query).map((segment, index) =>
+        segment.isMatch ? (
+          <span
+            key={index}
+            className="bg-[color-mix(in_srgb,var(--text)_16%,transparent)] text-[var(--text)]"
+          >
+            {segment.text}
+          </span>
+        ) : (
+          segment.text
+        )
+      )}
+    </>
+  )
+}
+
 // The virtual window keeps only a small row set mounted. memo still avoids
 // re-rendering an unchanged visible row when unrelated list state changes.
 const FriendRow = memo(function FriendRow({
@@ -455,7 +475,7 @@ const FriendRow = memo(function FriendRow({
         onFocus={() => onRovingFocus(key)}
         onKeyDown={navigateFromAvatar}
         tabIndex={isRovingStop ? 0 : -1}
-        aria-labelledby={`${rowId}-name ${favorite ? `${rowId}-favorite ` : ''}${rowId}-avatar ${rowId}-world ${rowId}-platform`}
+        aria-labelledby={`${rowId}-name ${projection.matchedName ? `${rowId}-match ` : ''}${favorite ? `${rowId}-favorite ` : ''}${rowId}-avatar ${rowId}-world ${rowId}-platform`}
         className="cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] focus:ring-offset-2 focus:ring-offset-transparent"
       >
         <Avatar
@@ -475,19 +495,10 @@ const FriendRow = memo(function FriendRow({
             id={`${rowId}-name`}
             className="max-w-[68%] shrink-0 truncate text-sm font-semibold text-[var(--text)]"
           >
-            {splitByMatch(projection.name || t('linking.unknownName'), searchQuery).map(
-              (segment, index) =>
-                segment.isMatch ? (
-                  <span
-                    key={index}
-                    className="bg-[color-mix(in_srgb,var(--text)_16%,transparent)] text-[var(--text)]"
-                  >
-                    {segment.text}
-                  </span>
-                ) : (
-                  segment.text
-                )
-            )}
+            <SearchHighlight
+              text={projection.name || t('linking.unknownName')}
+              query={searchQuery}
+            />
           </span>
           {favorite && (
             <span
@@ -499,8 +510,18 @@ const FriendRow = memo(function FriendRow({
               <span className="sr-only">{t('favorites.rowLabel')}</span>
             </span>
           )}
-          {customStatus && (
-            <span className="min-w-0 truncate text-xs text-[var(--text-dim)]">{customStatus}</span>
+          {/* A linked person found by another of their names shows that name
+              here while the search lasts, so the row says why it is listed. */}
+          {projection.matchedName ? (
+            <span id={`${rowId}-match`} className="min-w-0 truncate text-xs text-[var(--text-dim)]">
+              <SearchHighlight text={projection.matchedName} query={searchQuery} />
+            </span>
+          ) : (
+            customStatus && (
+              <span className="min-w-0 truncate text-xs text-[var(--text-dim)]">
+                {customStatus}
+              </span>
+            )
           )}
         </div>
         {/* World subline — fixed height keeps every row the same height (§9.1). */}
@@ -532,6 +553,11 @@ const FriendRow = memo(function FriendRow({
             }}
             aria-disabled={isJoining || undefined}
             tabIndex={isFullyVisible ? undefined : -1}
+            // Starts with the pill's own words, like the one-location pill.
+            aria-label={t('linking.locationsJoinAria', {
+              locations: t('linking.locations', { count: 2 }),
+              name: projection.name
+            })}
             // The diagonal halves carry each location's access tier in color;
             // the world subline names each one beside its platform tag, and
             // the tooltip spells both out.
@@ -561,9 +587,11 @@ const FriendRow = memo(function FriendRow({
               onJoin={joinFriend}
               disabled={isJoining}
               tabIndex={isFullyVisible ? undefined : -1}
-              aria-label={t('friends.joinAria', {
+              // Starts with the pill's own words, so the name holds what it shows.
+              aria-label={t('friends.joinPillAria', {
+                access: instancePill,
                 name: combined ? projection.name : friend.displayName,
-                world: instance?.worldName ?? instancePill
+                world: instance?.worldName ?? t('friends.instance.unknownWorld')
               })}
             />
           </span>
@@ -870,7 +898,8 @@ export default function FriendsList(): React.JSX.Element {
   ])
   const stableRows = useStableLinkedRows(
     filteredFriends ?? EMPTY_LINKED_ROWS,
-    interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null
+    interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null,
+    searchQuery
   )
   // Favorites (owner, 2026-11-02, replacing 2026-11-01): the group answers
   // "which of my favorites can I jump in with right now", so it lists only

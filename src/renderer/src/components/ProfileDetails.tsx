@@ -10,9 +10,11 @@
  *
  * Someone who is not a friend yet gets one friend action on top (owner,
  * 2026-11-01): Accept and Decline when their request is waiting in the Inbox,
- * otherwise Add friend. Main sends it only to someone a search listed.
+ * otherwise Add friend. Main sends it only to someone a search listed. Friend
+ * details leave it out: everyone there is on the friends list, and a friend
+ * unfriended there stays shown only until the platform's own message.
  */
-import { useId, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CommunityGroup, PersonProfile, ProfileBadge, ProfileResult } from '@shared/community'
 import type { FriendActionResult, FriendRequestAnswer } from '@shared/friendActions'
@@ -25,6 +27,7 @@ import { useInbox } from '../queries/inbox'
 import { platformName } from '../utils/community'
 import { FRIEND_ACTION_BUTTON, FRIEND_ACTION_ERROR_KEYS } from '../utils/friendActions'
 import { CommunityTile, TileGrid } from './CommunityParts'
+import GoToAccountsButton from './GoToAccountsButton'
 import ProfileActions from './ProfileActions'
 
 /** Quoted literals keep the locale parity scan aware of these keys. */
@@ -45,51 +48,151 @@ const PROFILE_ERROR_KEYS: Record<ProfileFailure, string> = {
   'not-found': 'profile.error.not-found'
 }
 
+/** Failures that leave the profile unloaded (red); the rest are answers (dim). */
+const NEVER_LOADED: ReadonlySet<ProfileFailure> = new Set([
+  'unavailable',
+  'rate-limited',
+  'not-authenticated'
+])
+
 const SMALL_HEADING =
   'mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]'
 
 export default function ProfileDetails({
   platform,
   userId,
-  showTrust = true
+  showTrust = true,
+  showFriendAction = true,
+  panelOpen = true
 }: {
   platform: Platform
   userId: string
   /** False where the VRChat trust rank already shows just above (the friend
    *  card), so the profile does not repeat it. */
   showTrust?: boolean
+  /** False in friend details, where the person is on the friends list. */
+  showFriendAction?: boolean
+  /** False while the drawer or sheet holding the profile is closed. */
+  panelOpen?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const profile = useProfile(platform, userId)
   const result = profile.data
+  const lineRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const lineLeftFocused = useFocusLanding(bodyRef)
 
-  if (result === undefined) {
-    const failed = profile.isError
+  if (result === undefined || !result.ok) {
+    // Retry shows the loading words until the platform answers again.
+    const loading = profile.isFetching || (result === undefined && !profile.isError)
+    // A read that failed outright reads like the platform's "unavailable".
+    const reason: ProfileFailure = result === undefined ? 'unavailable' : result.reason
+    let action: React.JSX.Element | null = null
+    if (loading) {
+      // Nothing to press until the platform answers.
+    } else if (reason === 'not-authenticated') {
+      // Signing in happens in Settings → Accounts, as on the pages.
+      action = <GoToAccountsButton label={t('community.openAccounts')} />
+    } else if (reason === 'unavailable' || reason === 'rate-limited') {
+      action = (
+        <RetryButton
+          onRetry={() => {
+            void profile.refetch()
+            focusLine(lineRef)
+          }}
+        />
+      )
+    }
     return (
-      <div className="flex flex-wrap items-center gap-[var(--space-2)]">
-        <p
-          role={failed ? 'alert' : 'status'}
-          className={`text-[13px] ${failed ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'}`}
-        >
-          {failed ? t('profile.error.unavailable') : t('profile.loading')}
-        </p>
-        {failed ? <RetryButton onRetry={() => void profile.refetch()} /> : null}
-      </div>
+      <StateLine
+        lineRef={lineRef}
+        leftFocused={lineLeftFocused}
+        loading={loading}
+        text={loading ? t('profile.loading') : t(PROFILE_ERROR_KEYS[reason])}
+        missing={!loading && NEVER_LOADED.has(reason)}
+      >
+        {action}
+      </StateLine>
     )
   }
-  if (!result.ok) {
-    return (
-      <div className="flex flex-wrap items-center gap-[var(--space-2)]">
-        <p role="alert" className="text-[13px] text-[var(--text-dim)]">
-          {t(PROFILE_ERROR_KEYS[result.reason])}
-        </p>
-        {result.reason === 'unavailable' || result.reason === 'rate-limited' ? (
-          <RetryButton onRetry={() => void profile.refetch()} />
-        ) : null}
-      </div>
-    )
-  }
-  return <ProfileBody profile={result.profile} showTrust={showTrust} />
+  return (
+    <ProfileBody
+      bodyRef={bodyRef}
+      profile={result.profile}
+      showTrust={showTrust}
+      showFriendAction={showFriendAction}
+      panelOpen={panelOpen}
+    />
+  )
+}
+
+/**
+ * One loading or failure line. Retry moves keyboard focus to the line, so it
+ * isn't lost when Retry leaves; the line stays the same element, with no role
+ * of its own, while its words switch between loading and the answer. When the
+ * answer replaces it, `leftFocused` tells its owner to move focus on (see
+ * useFocusLanding). Something that never loaded is red, as on the pages
+ * (DESIGN.md, Locked rule 5).
+ */
+function StateLine({
+  lineRef,
+  leftFocused,
+  loading,
+  text,
+  missing,
+  children
+}: {
+  lineRef: React.RefObject<HTMLDivElement | null>
+  leftFocused: React.RefObject<boolean>
+  loading: boolean
+  text: string
+  missing: boolean
+  children?: React.ReactNode
+}): React.JSX.Element {
+  // The cleanup runs while the line is still on the page.
+  useLayoutEffect(() => {
+    const line = lineRef.current
+    return () => {
+      if (line?.contains(document.activeElement)) leftFocused.current = true
+    }
+  }, [lineRef, leftFocused])
+  return (
+    <div
+      ref={lineRef}
+      data-profile-line=""
+      tabIndex={-1}
+      className="flex flex-wrap items-center gap-[var(--space-2)] outline-none"
+    >
+      <p
+        role={loading ? 'status' : 'alert'}
+        className={`text-[13px] ${missing ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'}`}
+      >
+        {text}
+      </p>
+      {children}
+    </div>
+  )
+}
+
+function focusLine(lineRef: React.RefObject<HTMLDivElement | null>): void {
+  lineRef.current?.focus({ preventScroll: true })
+}
+
+/**
+ * Where keyboard focus goes when a line that held it gives way to what loaded:
+ * `landing`, instead of the page. Returns the flag StateLine sets.
+ */
+function useFocusLanding(landing: React.RefObject<HTMLElement | null>): React.RefObject<boolean> {
+  const leftFocused = useRef(false)
+  useLayoutEffect(() => {
+    if (!leftFocused.current) return
+    leftFocused.current = false
+    const active = document.activeElement
+    if (active === null || active === document.body) {
+      landing.current?.focus({ preventScroll: true })
+    }
+  })
+  return leftFocused
 }
 
 function RetryButton({ onRetry }: { onRetry: () => void }): React.JSX.Element {
@@ -123,17 +226,28 @@ function profileFacts(
 }
 
 function ProfileBody({
+  bodyRef,
   profile,
-  showTrust
+  showTrust,
+  showFriendAction,
+  panelOpen
 }: {
+  bodyRef: React.RefObject<HTMLDivElement | null>
   profile: PersonProfile
   showTrust: boolean
+  showFriendAction: boolean
+  panelOpen: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const facts = profileFacts(profile, showTrust, t)
   return (
-    <div className="flex flex-col gap-[var(--space-4)]" data-profile-details={profile.platform}>
-      {profile.isFriend === false ? (
+    <div
+      ref={bodyRef}
+      tabIndex={-1}
+      className="flex flex-col gap-[var(--space-4)] outline-none"
+      data-profile-details={profile.platform}
+    >
+      {showFriendAction && profile.isFriend === false ? (
         <FriendAction
           platform={profile.platform}
           userId={profile.userId}
@@ -175,6 +289,7 @@ function ProfileBody({
         userId={profile.userId}
         name={profile.displayName}
         notFriend={profile.isFriend === false}
+        panelOpen={panelOpen}
       />
     </div>
   )
@@ -205,6 +320,19 @@ function FriendAction({
   const inbox = useInbox()
   const answerFriendRequest = useAnswerFriendRequest()
   const [state, setState] = useState<FriendActionState>({ kind: 'idle' })
+  // When the buttons give way to the result, focus that was on them moves to
+  // the result line instead of falling to the page, in the same commit, as
+  // useFocusLanding does.
+  const rowRef = useRef<HTMLDivElement>(null)
+  const statusRef = useRef<HTMLParagraphElement>(null)
+  const returnFocus = useRef(false)
+  useLayoutEffect(() => {
+    if (state.kind !== 'done' || !returnFocus.current) return
+    returnFocus.current = false
+    const active = document.activeElement
+    if (active === null || active === document.body || rowRef.current?.contains(active))
+      statusRef.current?.focus({ preventScroll: true })
+  }, [state.kind])
   const sameId = (a: string, b: string): boolean =>
     platform === 'chilloutvr' ? a.toLowerCase() === b.toLowerCase() : a === b
   if (self !== null && sameId(self, userId)) return null
@@ -217,6 +345,8 @@ function FriendAction({
     action: FriendRequestAnswer | 'add',
     send: () => Promise<FriendActionResult>
   ): Promise<void> => {
+    if (state.kind === 'sending') return
+    returnFocus.current = rowRef.current?.contains(document.activeElement) ?? false
     setState({ kind: 'sending', action })
     const result = await send()
     setState(result.ok ? { kind: 'done', action } : { kind: 'failed', result })
@@ -238,6 +368,7 @@ function FriendAction({
           })
         : null
 
+  // Not `disabled` while sending: a disabled button drops keyboard focus.
   let buttons: React.JSX.Element | null = null
   if (state.kind !== 'done' && request) {
     buttons = (
@@ -247,7 +378,7 @@ function FriendAction({
           onClick={() =>
             void run('accept', () => answerFriendRequest(platform, request.id, 'accept'))
           }
-          disabled={sending !== null}
+          aria-disabled={sending !== null}
           aria-label={t('friendActions.acceptAria', { name })}
           className={FRIEND_ACTION_BUTTON}
         >
@@ -258,9 +389,9 @@ function FriendAction({
           onClick={() =>
             void run('decline', () => answerFriendRequest(platform, request.id, 'decline'))
           }
-          disabled={sending !== null}
+          aria-disabled={sending !== null}
           aria-label={t('friendActions.declineAria', { name })}
-          className="shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-colors cursor-pointer"
+          className="shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-50 motion-safe:transition-colors cursor-pointer"
         >
           {sending === 'decline' ? t('friendActions.declining') : t('friendActions.decline')}
         </button>
@@ -271,7 +402,7 @@ function FriendAction({
       <button
         type="button"
         onClick={() => void run('add', () => sendFriendRequest(platform, userId))}
-        disabled={sending !== null}
+        aria-disabled={sending !== null}
         aria-label={t('friendActions.addAria', { name, platform: platformName(t, platform) })}
         className={FRIEND_ACTION_BUTTON}
       >
@@ -282,14 +413,19 @@ function FriendAction({
 
   return (
     // The row keeps a button's height once the button gives way to words.
-    <div className="flex min-h-[28px] flex-wrap items-center gap-x-[var(--space-2)] gap-y-[var(--space-1)]">
+    <div
+      ref={rowRef}
+      className="flex min-h-[28px] flex-wrap items-center gap-x-[var(--space-2)] gap-y-[var(--space-1)]"
+    >
       {request && state.kind !== 'done' ? (
         <p className="text-[13px] text-[var(--text)]">{t('friendActions.incoming')}</p>
       ) : null}
       {buttons}
       <p
+        ref={statusRef}
         role="status"
-        className={`min-w-0 text-[13px] empty:hidden ${
+        tabIndex={-1}
+        className={`min-w-0 text-[13px] outline-none empty:hidden ${
           state.kind === 'failed' ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'
         }`}
       >
@@ -345,6 +481,8 @@ function ProfileLists({
   const [groupsOpen, setGroupsOpen] = useState(false)
   const worldsId = useId()
   const groupsId = useId()
+  const worldsRef = useRef<HTMLDivElement>(null)
+  const groupsRef = useRef<HTMLDivElement>(null)
   const button = (
     open: boolean,
     toggle: () => void,
@@ -380,19 +518,31 @@ function ProfileLists({
           'profile.hideGroups'
         )}
       </div>
-      <div id={worldsId} hidden={!worldsOpen}>
+      <div
+        ref={worldsRef}
+        id={worldsId}
+        hidden={!worldsOpen}
+        tabIndex={-1}
+        className="outline-none"
+      >
         {worldsOpen ? (
           <>
             <h3 className={SMALL_HEADING}>{t('profile.worlds')}</h3>
-            <ProfileWorldsList platform={platform} userId={userId} />
+            <ProfileWorldsList platform={platform} userId={userId} landing={worldsRef} />
           </>
         ) : null}
       </div>
-      <div id={groupsId} hidden={!groupsOpen}>
+      <div
+        ref={groupsRef}
+        id={groupsId}
+        hidden={!groupsOpen}
+        tabIndex={-1}
+        className="outline-none"
+      >
         {groupsOpen ? (
           <>
             <h3 className={SMALL_HEADING}>{t('profile.groups')}</h3>
-            <ProfileGroupsList platform={platform} userId={userId} />
+            <ProfileGroupsList platform={platform} userId={userId} landing={groupsRef} />
           </>
         ) : null}
       </div>
@@ -402,18 +552,22 @@ function ProfileLists({
 
 function ProfileWorldsList({
   platform,
-  userId
+  userId,
+  landing
 }: {
   platform: Platform
   userId: string
+  landing: React.RefObject<HTMLDivElement | null>
 }): React.JSX.Element {
   const { t } = useTranslation()
   const worlds = useProfileWorlds(platform, userId, true)
   const result = worlds.data
+  const lineLeftFocused = useFocusLanding(landing)
   if (result === undefined || !result.ok) {
     return (
       <ListState
-        loading={result === undefined && !worlds.isError}
+        leftFocused={lineLeftFocused}
+        loading={worlds.isFetching || (result === undefined && !worlds.isError)}
         onRetry={() => void worlds.refetch()}
       />
     )
@@ -443,18 +597,22 @@ function ProfileWorldsList({
 
 function ProfileGroupsList({
   platform,
-  userId
+  userId,
+  landing
 }: {
   platform: Platform
   userId: string
+  landing: React.RefObject<HTMLDivElement | null>
 }): React.JSX.Element {
   const { t } = useTranslation()
   const groups = useProfileGroups(platform, userId, true)
   const result = groups.data
+  const lineLeftFocused = useFocusLanding(landing)
   if (result === undefined || !result.ok) {
     return (
       <ListState
-        loading={result === undefined && !groups.isError}
+        leftFocused={lineLeftFocused}
+        loading={groups.isFetching || (result === undefined && !groups.isError)}
         onRetry={() => void groups.refetch()}
       />
     )
@@ -500,26 +658,32 @@ function GroupLine({ group }: { group: CommunityGroup }): React.JSX.Element {
 }
 
 function ListState({
+  leftFocused,
   loading,
   onRetry
 }: {
+  leftFocused: React.RefObject<boolean>
   loading: boolean
   onRetry: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  if (loading) {
-    return (
-      <p role="status" className="text-[13px] text-[var(--text-dim)]">
-        {t('profile.listLoading')}
-      </p>
-    )
-  }
+  const lineRef = useRef<HTMLDivElement>(null)
   return (
-    <div className="flex flex-wrap items-center gap-[var(--space-2)]">
-      <p role="alert" className="text-[13px] text-[var(--text-dim)]">
-        {t('profile.listError')}
-      </p>
-      <RetryButton onRetry={onRetry} />
-    </div>
+    <StateLine
+      lineRef={lineRef}
+      leftFocused={leftFocused}
+      loading={loading}
+      text={t(loading ? 'profile.listLoading' : 'profile.listError')}
+      missing={!loading}
+    >
+      {loading ? null : (
+        <RetryButton
+          onRetry={() => {
+            onRetry()
+            focusLine(lineRef)
+          }}
+        />
+      )}
+    </StateLine>
   )
 }

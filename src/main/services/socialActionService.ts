@@ -32,6 +32,12 @@ export interface SocialActionServiceOptions {
   isFriend: (platform: Platform, userId: string) => boolean
   /** Whether a search listed the person this session. */
   isKnownPerson: (platform: Platform, userId: string) => boolean
+  /**
+   * An Unfriend VRX sent went through. Main takes the person off its roster at
+   * once, as the platform's own message does a moment later, so Add friend can
+   * follow in the same profile.
+   */
+  unfriended?: (platform: Platform, userId: string) => void
   clock?: () => number
   log?: SocialLog
 }
@@ -39,8 +45,6 @@ export interface SocialActionServiceOptions {
 interface Remembered {
   /** null when the platform did not say. */
   blocked: boolean | null
-  /** Set after an unfriend VRX sent, until the roster catches up or the entry ages out. */
-  unfriended: boolean
   at: number
 }
 
@@ -80,7 +84,7 @@ export class SocialActionService {
     const { adapter, state, id } = target
     try {
       const blocked = await this.readBlocked(adapter, state, id)
-      return { ok: true, relationship: this.relationship(platform, state, id, blocked) }
+      return { ok: true, relationship: this.relationship(platform, id, blocked) }
     } catch (error) {
       return { ok: false, reason: this.failure(platform, 'relationship', error) }
     }
@@ -90,7 +94,7 @@ export class SocialActionService {
     const target = this.person(platform, userId)
     if (!target.ok) return target
     const { adapter, state, id } = target
-    if (action === 'unfriend' && !this.isFriendNow(platform, state, id)) {
+    if (action === 'unfriend' && !this.options.isFriend(platform, id)) {
       return { ok: false, reason: 'not-friend' }
     }
     const now = this.clock()
@@ -112,13 +116,13 @@ export class SocialActionService {
       const remembered: Remembered = {
         blocked:
           action === 'block' ? true : action === 'unblock' ? false : (previous?.blocked ?? null),
-        unfriended: action === 'unfriend' || (previous?.unfriended ?? false),
         at: this.clock()
       }
       this.remember(state, id, remembered)
+      if (action === 'unfriend') this.options.unfriended?.(platform, id)
       return {
         ok: true,
-        relationship: this.relationship(platform, state, id, remembered.blocked)
+        relationship: this.relationship(platform, id, remembered.blocked)
       }
     } catch (error) {
       if (error instanceof SocialNotSentError) {
@@ -138,21 +142,8 @@ export class SocialActionService {
     this.states.delete(platform)
   }
 
-  private relationship(
-    platform: Platform,
-    state: PlatformState,
-    id: string,
-    blocked: boolean | null
-  ): Relationship {
-    return { platform, userId: id, isFriend: this.isFriendNow(platform, state, id), blocked }
-  }
-
-  private isFriendNow(platform: Platform, state: PlatformState, id: string): boolean {
-    const remembered = this.fresh(state.people.get(id))
-    // The roster catches up from the platform's own socket message; until then
-    // an unfriend VRX just sent still counts.
-    if (remembered?.unfriended) return false
-    return this.options.isFriend(platform, id)
+  private relationship(platform: Platform, id: string, blocked: boolean | null): Relationship {
+    return { platform, userId: id, isFriend: this.options.isFriend(platform, id), blocked }
   }
 
   private async readBlocked(
@@ -174,7 +165,7 @@ export class SocialActionService {
         if (written) return written.blocked
       }
       if (this.states.get(adapter.platform) === state) {
-        this.remember(state, id, { blocked, unfriended: false, at: this.clock() })
+        this.remember(state, id, { blocked, at: this.clock() })
       }
       return blocked
     })().finally(() => {

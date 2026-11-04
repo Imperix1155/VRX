@@ -10,6 +10,7 @@
  * section; this page is always available.
  */
 import { useTranslation } from 'react-i18next'
+import { useHotGridFocus } from '../hooks/useFocusFollowsList'
 import { useFriendSummary } from '../hooks/useFriendSummary'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
 import { useSettingsStore } from '../stores/settings'
@@ -18,6 +19,7 @@ import FriendsSourceNotice from './FriendsSourceNotice'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstanceSheet from './HotInstanceSheet'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
+import NotConnectedCard from './NotConnectedCard'
 
 export default function HotInstancesView(): React.JSX.Element {
   const { t } = useTranslation()
@@ -37,24 +39,23 @@ export default function HotInstancesView(): React.JSX.Element {
   const hotInstances = getHotInstances(friends, threshold, Infinity)
   const { selectedInstance, openSheet, closeSheet, fallbackFocusRef } =
     useHotInstanceSheet(hotInstances)
+  // A card that leaves by itself (its friends moved on) hands keyboard focus
+  // to the card in its place, not the page.
+  const {
+    attach: attachHotGrid,
+    onFocus: onHotGridFocus,
+    onBlur: onHotGridBlur
+  } = useHotGridFocus(hotInstances, fallbackFocusRef)
 
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
   }
   if (isNotConnected) {
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
-        <p className="text-sm font-semibold text-[var(--text-dim)]">
-          {notConnectedKey === null ? null : t(notConnectedKey)}
-        </p>
-        <button
-          type="button"
-          onClick={openAccounts}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-        >
-          {t('dashboard.notConnected.openAccounts')}
-        </button>
-      </div>
+      <NotConnectedCard
+        message={notConnectedKey === null ? null : t(notConnectedKey)}
+        onOpenAccounts={openAccounts}
+      />
     )
   }
   // Same gate as the Dashboard: a sign-in's empty placeholder is not a roster.
@@ -79,7 +80,12 @@ export default function HotInstancesView(): React.JSX.Element {
   return (
     <div>
       <FriendsSourceNotice failures={sourceFailures} wording="summary" />
-      <section aria-label={t('dashboard.sectionHotInstances')}>
+      {/* The top bar holds the page's heading; this one, for screen readers
+          only, puts the cards' headings under it in order (§8). */}
+      <section aria-labelledby="hot-instances-heading">
+        <h2 id="hot-instances-heading" className="sr-only">
+          {t('dashboard.sectionHotInstances')}
+        </h2>
         <div className="mb-[12px]">
           <HotInstancesHeader ref={fallbackFocusRef} />
         </div>
@@ -87,7 +93,12 @@ export default function HotInstancesView(): React.JSX.Element {
           <HotInstancesEmpty threshold={threshold} />
         ) : (
           <div className="hotwrap">
-            <div className="hot-grid hot-grid--picture">
+            <div
+              ref={attachHotGrid}
+              className="hot-grid hot-grid--picture"
+              onFocus={onHotGridFocus}
+              onBlur={onHotGridBlur}
+            >
               {hotInstances.map((inst) => (
                 <HotInstanceCard
                   key={inst.groupKey}

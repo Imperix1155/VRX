@@ -261,6 +261,111 @@ describe('favorite friends', () => {
     expect(screen.getByText('Showing your game favorites is off.')).toBeTruthy()
     expect(window.vrx!.getGameFavorites).not.toHaveBeenCalled()
   })
+
+  // Friend details stay open while the user picks the next friend in the list.
+  it("keeps a failed VRX star out of the next friend's panel", async () => {
+    signIn('vrchat')
+    const bridge = window.vrx as unknown as Record<string, ReturnType<typeof vi.fn>>
+    bridge.setFavoriteFriend!.mockResolvedValue({ ok: false, reason: 'invalid' })
+    const view = render(
+      <FriendFavoriteStar accounts={[friend('vrchat', 'usr_alex')]} name="Alex" />
+    )
+    await openMenu('Alex')
+    const alex = choice('Star in VRX (this PC only)')
+    await waitFor(() => expect(alex.disabled).toBe(false))
+    await act(async () => fireEvent.click(alex))
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      "Couldn't save. Try again."
+    )
+
+    fireEvent.pointerDown(document.body)
+    view.rerender(<FriendFavoriteStar accounts={[friend('vrchat', 'usr_bea')]} name="Bea" />)
+    await openMenu('Bea')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('keeps a linked person’s open panel and focus when their accounts change', async () => {
+    signIn('vrchat')
+    const view = render(
+      <FriendFavoriteStar
+        owner="person:alex"
+        accounts={[friend('vrchat', 'usr_alex')]}
+        name="Alex"
+      />
+    )
+    await openMenu('Alex')
+    const star = choice('Star in VRX (this PC only)')
+    // A choice takes focus once the favorites it needs have loaded.
+    await waitFor(() => expect(star.disabled).toBe(false))
+    star.focus()
+    expect(document.activeElement).toBe(star)
+    // Their ChilloutVR account joins the view once its roster arrives.
+    view.rerender(
+      <FriendFavoriteStar
+        owner="person:alex"
+        accounts={[friend('vrchat', 'usr_alex'), friend('chilloutvr', 'cvr_alex')]}
+        name="Alex"
+      />
+    )
+    expect(choice('Star in VRX (this PC only)')).toBe(star)
+    expect(document.activeElement).toBe(star)
+  })
+
+  it("lets the next friend be starred while the last friend's save is still running", async () => {
+    signIn('vrchat')
+    const bridge = window.vrx as unknown as Record<string, ReturnType<typeof vi.fn>>
+    let finish: (result: { ok: true }) => void = () => undefined
+    bridge.setFavoriteFriend!.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    const view = render(
+      <FriendFavoriteStar accounts={[friend('vrchat', 'usr_alex')]} name="Alex" />
+    )
+    await openMenu('Alex')
+    const alex = choice('Star in VRX (this PC only)')
+    await waitFor(() => expect(alex.disabled).toBe(false))
+    await act(async () => fireEvent.click(alex))
+    expect(alex.getAttribute('aria-disabled')).toBe('true')
+
+    fireEvent.pointerDown(document.body)
+    view.rerender(<FriendFavoriteStar accounts={[friend('vrchat', 'usr_bea')]} name="Bea" />)
+    await openMenu('Bea')
+    expect(choice('Star in VRX (this PC only)').disabled).toBe(false)
+    await act(async () => finish({ ok: true }))
+  })
+})
+
+describe('favorites menu while a save runs', () => {
+  it('keeps keyboard focus on the pressed choice, ignores presses, and Escape still folds the panel', async () => {
+    signIn('vrchat')
+    game.vrchat = vrchatGame()
+    const bridge = window.vrx as unknown as Record<string, ReturnType<typeof vi.fn>>
+    let finish: (result: { ok: true; groups: string[] }) => void = () => undefined
+    bridge.setGameFavorite!.mockImplementationOnce(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    render(<FriendFavoriteStar accounts={[friend('vrchat', 'usr_alex')]} name="Alex" />)
+    const star = await openMenu('Alex')
+    const besties = await waitFor(() => choice(/Besties/))
+    besties.focus()
+    await act(async () => fireEvent.click(besties))
+    try {
+      // A disabled button would drop focus to the page.
+      expect(besties.getAttribute('aria-disabled')).toBe('true')
+      expect(besties.disabled).toBe(false)
+      expect(document.activeElement).toBe(besties)
+      await act(async () => fireEvent.click(besties))
+      expect(window.vrx!.setGameFavorite).toHaveBeenCalledOnce()
+    } finally {
+      await act(async () => finish({ ok: true, groups: ['friend:group_0'] }))
+    }
+    await waitFor(() => expect(besties.getAttribute('aria-disabled')).toBeNull())
+    expect(document.activeElement).toBe(besties)
+    fireEvent.keyDown(besties, { key: 'Escape' })
+    expect(star.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(star)
+  })
 })
 
 describe('favorite worlds', () => {
@@ -342,6 +447,18 @@ describe('favorite worlds', () => {
         'No favorite worlds yet. Open a world and press the star to keep it here.'
       )
     ).toBeTruthy()
+  })
+
+  it("says in the error color when the account's favorites never loaded, not that there are none", async () => {
+    signIn('vrchat')
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    game.vrchat = { state: 'unavailable' }
+    render(<ExploreFavorites />)
+    const failed = await screen.findByText("Couldn't load your VRChat favorites.")
+    expect(failed.className).toContain('text-[var(--error)]')
+    expect(
+      screen.queryByText('No favorite worlds yet. Open a world and press the star to keep it here.')
+    ).toBeNull()
   })
 
   it("adds the account's own favorite worlds after VRX's stars, once each", async () => {

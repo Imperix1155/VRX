@@ -163,9 +163,10 @@ what each counts.
 - Every attempt, including every retry, re-enters admission and waits for the
   latest cooldown before it can send.
 - **Batch work stops at the first 429.** Roster pages, world, group, and
-  instance enrichment, background CVR instance lookups, and Explore reads use
-  no-retry admission. A 429 ends the batch, rejects its queued requests, and
-  stops later pages. A cooldown expiring never resumes the old batch.
+  instance enrichment, background CVR instance lookups, Explore reads, and
+  avatar reads use no-retry admission. A 429 ends the batch, rejects its
+  queued requests, and stops later pages. A cooldown expiring never resumes
+  the old batch.
   Completed data still publishes. An interrupted roster is marked partial, and
   friends it missed stay from the cache.
 - **A sign-in is never sent again on its own.** A password sign-in, a 2FA
@@ -210,21 +211,40 @@ Both pipelines share [`ReconnectingPipeline`](../src/main/services/adapters/Reco
 | On connect        | One REST roster read to catch up                                              | One REST roster read to catch up; a roster-changed message also triggers one |
 
 Full REST rosters run on first load, on manual refresh, after a socket
-reconnects, and on the background reconcile timer. The timer defaults to 1
+reconnects, once after a Join that main turned down because the friend's
+place had changed (`target-changed`), and on the background reconcile timer.
+After a direct Join, that read runs only while the friend list still shows
+the old place (so the next Join sends the current place; when the friend's
+live update has already landed, nothing is read). After Confirm in the Join
+dialog, it runs unless the list already shows the friend at a new place the
+dialog can offer for review. The timer defaults to 1
 hour, the cadence VRCX uses for its full friend list. It can be set to 5, 10
 or 30 minutes or manual, and varies ±10% per run. Settings files from before
 schema v14 that held the old 5-minute default move to 1 hour. It is a safety
 net, not a presence poll. A VRChat reconcile re-reads every online and offline
-roster page, so a short cadence costs the most for large friend lists.
+roster page, so a short cadence costs the most for large friend lists. The
+timer skips its read while the window is hidden or minimized; live events and
+the read after a reconnect still arrive.
 Concurrent roster requests in one session share a single run. Events that
-arrive during that run add at most one final read.
+arrive during that run add at most one final read. An event that arrives once
+that final read is out makes the next roster request wait for it and read once
+more, so the change is not missed; a 429 or cooldown during the run skips
+that read. The open window runs the reconnect read. With no window open
+(macOS keeps VRX running after its window closes), main runs that one read
+itself, except for a platform whose session failed a check, until a read
+works again. The timer and manual refresh still need the window.
 
 Sign-in status is checked on demand, never on a timer and never because a page
 opened: the renderer keeps a settled status until a sign-in, sign-out or
 `auth-invalidated` event replaces it. The one exception: a status of `error`
-(the check could not reach the platform, for example when VRX starts offline)
-is checked again once a minute (`AUTH_ERROR_RECHECK_MS`) until a check
-succeeds. Each check is one request through the admission queue.
+is checked again once a minute (`AUTH_ERROR_RECHECK_MS`) while the window
+shows, until a check succeeds. While the window is hidden in the tray, only a
+check that got no answer at all (`unreachable`: offline, a name that didn't
+resolve, or no reply within 15 seconds) repeats, once a minute; a platform
+that answered and refused (429, 403, 5xx, an unreadable reply) is not asked
+again until the window shows. Only a successful check starts a restored
+session's live connection. Each check goes through the admission queue and
+waits out a cooldown; a 429 gets the bounded session-check retries above.
 
 ## Explore limits
 
@@ -282,10 +302,12 @@ default; Off always launches).
 The Avatars page reads only when it opens with a platform in view and when the
 user presses Refresh. The Dashboard's Wearing now reads only the worn avatar,
 when the Dashboard opens with no answer from the last 5 minutes. There is no timer and no read on window focus. Reads use
-the platform's admission queue at interactive priority, and the renderer keeps
-a result fresh for 5 minutes per account. It keeps the last result in memory
-for the rest of the session, so reopening the page shows it at once and reads
-again only once it is older than 5 minutes.
+the platform's admission queue at interactive priority with no automatic
+retry: a 429 ends the read and its later list pages, and VRX says to try
+again in a minute. The renderer keeps a result fresh for 5 minutes per
+account. It keeps the last result in memory for the rest of the session, so
+reopening the page shows it at once and reads again only once it is older
+than 5 minutes.
 
 | Limit                 | Value                                                                                   |
 | --------------------- | --------------------------------------------------------------------------------------- |
@@ -313,10 +335,16 @@ player counts read once when VRX opens and again on a page switch once the
 last answer is 5 minutes old. Nothing runs on a timer, on window focus or on
 reconnect. Every answer
 is cached in main for 5 minutes per account, and concurrent asks share one
-read. Refresh re-reads only once the answer is at least 30 seconds old. All
-reads use the platform's admission queue at interactive priority with no
-automatic retry, and all state is cleared at every sign-out, account change and
-invalidated session.
+read. Refresh re-reads only once the answer is at least 30 seconds old. A
+person's full profile and, on ChilloutVR, their block check read the same
+`GET /users/{id}` as their note check, so they use an answer under 30 seconds
+old, or one still on its way, instead of reading again. The note check itself
+always reads, because a note save must see what the account holds now. A
+second Search press for the same text reuses a good answer; only a refused one
+(searches too close together, rate limited, unreachable) is asked again, once
+per press. All reads use the platform's admission queue at interactive
+priority with no automatic retry, and all state is cleared at every sign-out,
+account change and invalidated session.
 
 | Limit             | Value                                                                      |
 | ----------------- | -------------------------------------------------------------------------- |
@@ -402,7 +430,8 @@ behind a confirmation. VRX keeps them to the same shape:
 - **Read on a press.** The options read nothing until the user opens them.
   Then one request asks whether the user blocks that person: VRChat
   `GET /auth/user/playermoderations?type=block&targetUserId=<id>` (filtered to
-  that one person), ChilloutVR `GET /users/<id>` (its `isBlocked` field). The
+  that one person), ChilloutVR `GET /users/<id>` (its `isBlocked` field; a
+  profile or note read of that person under 30 seconds old serves it). The
   answer is kept for 5 minutes per account. Whether they are a friend comes
   from the roster VRX already has.
 - **One confirmed change for one person.** Each action needs its own
@@ -460,9 +489,11 @@ goes out:
   accept with its usual friend-added push; ChilloutVR with its roster-changed
   push and one roster read, as for any new friend.
 - **Add friend** goes only to someone a search listed in the current session
-  who is not already a friend and is not the signed-in user. A second press
-  for the same person in the same session reports "sent" again without a
-  request.
+  who is not already a friend and is not the signed-in user. When an Unfriend
+  VRX sent goes through, main takes that person off its friends list at once,
+  as the platform's own message does a moment later, so Add friend can follow
+  it. A second press for the same person in the same session reports "sent"
+  again without a request, until VRX unfriends them.
 - **Pacing:** one action at a time per platform, at least 2 seconds after the
   last attempt (`FRIEND_ACTION_SPACING_MS`), failed ones included. Up to 5
   presses wait their turn (`FRIEND_ACTION_MAX_WAITING`); more are refused as

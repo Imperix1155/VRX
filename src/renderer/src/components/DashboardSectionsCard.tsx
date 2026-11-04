@@ -11,28 +11,10 @@
  */
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Settings } from '@shared/settings'
 import { dashboardSectionOrderOf, type DashboardSection } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
+import { SECTION_SETTINGS } from '../utils/dashboardSections'
 import Toggle from './Toggle'
-
-type ShowSetting = keyof Pick<
-  Settings,
-  'dashboardWearingNow' | 'dashboardInvites' | 'dashboardPopularNow' | 'hotInstancesEnabled'
->
-
-/** Each section's name and the setting that shows it. */
-const SECTION_SETTINGS: Readonly<
-  Record<DashboardSection, { labelKey: string; setting: ShowSetting }>
-> = {
-  'wearing-now': {
-    labelKey: 'settings.dashboard.wearingNow.label',
-    setting: 'dashboardWearingNow'
-  },
-  invites: { labelKey: 'settings.dashboard.invites.label', setting: 'dashboardInvites' },
-  popular: { labelKey: 'settings.dashboard.popular.label', setting: 'dashboardPopularNow' },
-  hot: { labelKey: 'settings.dashboard.hot.label', setting: 'hotInstancesEnabled' }
-}
 
 export default function DashboardSectionsCard(): React.JSX.Element {
   const { t } = useTranslation()

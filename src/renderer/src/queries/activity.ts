@@ -5,7 +5,8 @@ import {
   type QueryClient,
   type UseQueryResult
 } from '@tanstack/react-query'
-import type { ActivityEntry } from '@shared/activity'
+import type { ActivityEntry, ActivityFilter } from '@shared/activity'
+import type { Platform } from '@shared/types'
 import { queryClient } from './queryClient'
 
 /** Not persisted: only the `friends` namespace survives a restart (cache.ts). */
@@ -77,9 +78,22 @@ export function useActivityEvents(): void {
   useEffect(() => subscribeActivity(client), [client])
 }
 
-/** Clear the list in main; the change push refreshes every view. */
-export async function clearActivity(client: QueryClient): Promise<void> {
+/** What Clear takes away: the platforms in the filter and the shown kind. */
+export interface ActivityClearScope {
+  platforms: Platform[]
+  filter: ActivityFilter
+}
+
+/** Clear what the page shows in main, and drop it here at once; the change
+ *  push refreshes every view. Entries outside the scope stay. */
+export async function clearActivity(client: QueryClient, scope: ActivityClearScope): Promise<void> {
   if (typeof window.vrx?.clearActivity !== 'function') return
-  await window.vrx.clearActivity()
-  client.setQueryData<ActivityEntry[]>(activityKey, [])
+  await window.vrx.clearActivity({ platforms: scope.platforms, filter: scope.filter })
+  client.setQueryData<ActivityEntry[]>(activityKey, (entries) =>
+    entries?.filter(
+      (entry) =>
+        !scope.platforms.includes(entry.platform) ||
+        (scope.filter !== 'all' && entry.kind !== scope.filter)
+    )
+  )
 }

@@ -1,4 +1,5 @@
 import { RosterRefresh } from './RosterRefresh'
+import { UserReadShare } from './UserReadShare'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
@@ -317,6 +318,8 @@ export class VrcAdapter
     () => this.live?.captureRosterRevision?.(),
     () => this.admission.rateLimitRevision
   )
+  /** One person's `/users/{id}` answer for the profile and the note check. */
+  private readonly userReads = new UserReadShare()
   private sessionAbort = new AbortController()
   private authOperationAbort = new AbortController()
   private cookie: string | null = null
@@ -790,7 +793,7 @@ export class VrcAdapter
             lease: this.captureSessionLease()
           }
         )
-      } catch {
+      } catch (error) {
         if (this.authPersistencePending) {
           const tentative = await this.awaitTentativeAuthStatus()
           if (tentative !== null) return tentative
@@ -802,7 +805,11 @@ export class VrcAdapter
           if (this.cookie) continue
           return this.status('unauthenticated')
         }
-        return this.status('error')
+        // No answer at all (offline, timeout) is the one error a hidden window
+        // may re-check; a 429 that outlasted its retries is a refusal.
+        return error instanceof NetworkError
+          ? { ...this.status('error'), unreachable: true }
+          : this.status('error')
       }
       // Fence every response outcome before it can describe or mutate the current
       // session. In particular, an old 401 must never clear a newly logged-in user.
@@ -1074,8 +1081,8 @@ export class VrcAdapter
         n: String(VRC_AVATAR_PAGE_SIZE),
         offset: String(offset)
       })
-      const raw = await this.runAvatarRequest(lease, () =>
-        this.get(`/avatars?${query.toString()}`, z.unknown(), this.avatarRequestOptions(lease))
+      const raw = await this.runCommunityRequest(lease, () =>
+        this.get(`/avatars?${query.toString()}`, z.unknown(), this.communityOptions(lease))
       )
       const page = parseVrcAvatarPage(raw)
       if (!page) throw new AvatarDataError('VRChat avatar list response was malformed')
@@ -1093,11 +1100,11 @@ export class VrcAdapter
   async getCurrentAvatar(lease: RequestLease): Promise<AvatarItem | null> {
     const accountId = this.accountId
     if (accountId === null) return null
-    const raw = await this.runAvatarRequest(lease, () =>
+    const raw = await this.runCommunityRequest(lease, () =>
       this.get(
         `/users/${encodeURIComponent(accountId)}/avatar`,
         z.unknown(),
-        this.avatarRequestOptions(lease)
+        this.communityOptions(lease)
       )
     )
     return parseVrcAvatar(raw)
@@ -1105,11 +1112,11 @@ export class VrcAdapter
 
   async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
     if (!isAvatarId('vrchat', avatarId)) throw new AvatarDataError('Invalid VRChat avatar id')
-    const raw = await this.runAvatarRequest(lease, () =>
+    const raw = await this.runCommunityRequest(lease, () =>
       this.get(
         `/avatars/${encodeURIComponent(avatarId)}`,
         z.unknown(),
-        this.avatarRequestOptions(lease)
+        this.communityOptions(lease)
       )
     )
     const avatar = parseVrcAvatar(raw)
@@ -1118,9 +1125,9 @@ export class VrcAdapter
 
   async switchAvatar(avatarId: string, lease: RequestLease): Promise<void> {
     if (!isAvatarId('vrchat', avatarId)) throw new AvatarDataError('Invalid VRChat avatar id')
-    await this.runAvatarRequest(lease, () =>
+    await this.runCommunityRequest(lease, () =>
       this.put(`/avatars/${encodeURIComponent(avatarId)}/select`, z.unknown(), {
-        ...this.avatarRequestOptions(lease),
+        ...this.communityOptions(lease),
         // A write is never sent twice on its own; the user can press again.
         retry: 'none'
       })
@@ -1225,7 +1232,7 @@ export class VrcAdapter
   async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
     if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
     const raw = await this.runCommunityRequest(lease, () =>
-      this.get(`/users/${encodeURIComponent(userId)}`, z.unknown(), this.communityOptions(lease))
+      this.userReads.shared(lease.generation, userId, () => this.readUser(userId, lease))
     )
     const profile = parseVrcProfile(raw)
     return profile?.userId === userId ? profile : null
@@ -1543,8 +1550,10 @@ export class VrcAdapter
 
   async readAccountNote(userId: string, lease: RequestLease): Promise<string | null> {
     if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    // Always a new read, since a save must see what the account holds now; the
+    // full profile that follows may use the same answer.
     const raw = await this.runCommunityRequest(lease, () =>
-      this.get(`/users/${encodeURIComponent(userId)}`, z.unknown(), this.communityOptions(lease))
+      this.userReads.fresh(lease.generation, userId, () => this.readUser(userId, lease))
     )
     return parseAccountNoteReply(raw, userId, (left, right) => left === right)
   }
@@ -1565,36 +1574,24 @@ export class VrcAdapter
     return {
       lease,
       priority: 'interactive',
-      // A read is never resent on its own; the user can press again.
+      // A read is never resent on its own, and a 429 stops a list's paging;
+      // the user can press again.
       retry: 'none',
-      // A missing person or world is an ordinary answer; only sign-in failures count.
+      // A missing person, world or avatar is an ordinary answer; only sign-in
+      // failures count.
       recordCircuitFailure: 'auth'
     }
+  }
+
+  private readUser(userId: string, lease: RequestLease): Promise<unknown> {
+    return this.get(
+      `/users/${encodeURIComponent(userId)}`,
+      z.unknown(),
+      this.communityOptions(lease)
+    )
   }
 
   private async runCommunityRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
-    try {
-      const value = await request()
-      assertRequestLease(lease)
-      return value
-    } catch (error) {
-      if (lease.isCurrent() && error instanceof AuthError && error.status === 401) {
-        this.invalidateDataPathSession()
-      }
-      throw error
-    }
-  }
-
-  private avatarRequestOptions(lease: RequestLease): AdapterRequestOptions {
-    return {
-      lease,
-      priority: 'interactive',
-      // A deleted avatar is an ordinary answer; only sign-in failures count.
-      recordCircuitFailure: 'auth'
-    }
-  }
-
-  private async runAvatarRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
     try {
       const value = await request()
       assertRequestLease(lease)
@@ -2346,6 +2343,7 @@ export class VrcAdapter
     this.authBucketRevision += 1
     this.freshAuthBuckets = null
     this.rosterRefresh.clear()
+    this.userReads.clear()
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.worldResolver.clear()

@@ -28,7 +28,7 @@ type SaveFailure = Exclude<SaveOwnProfileResult, { ok: true }>['reason']
 
 const FAILURE_KEY: Record<SaveFailure, string> = {
   'not-authenticated': 'settings.accounts.profile.error.signedOut',
-  'rate-limited': 'settings.accounts.profile.error.wait',
+  'rate-limited': 'settings.accounts.profile.error.slowDown',
   cooldown: 'settings.accounts.profile.error.wait',
   invalid: 'settings.accounts.profile.error.invalid',
   unavailable: 'settings.accounts.profile.error.unavailable'
@@ -148,16 +148,35 @@ function StatusPicker({
   )
 }
 
+/** A failed save the platform may have taken in part (not a refusal of the
+ *  text, nor a wait), so Save stays available afterwards. */
+function mayHoldPart(reason: SaveFailure): boolean {
+  return reason !== 'invalid' && reason !== 'cooldown'
+}
+
+/** A field over its platform's limit: Save waits until it fits. */
+function isTooLong(draft: Draft): boolean {
+  return (
+    draft.bio.length > OWN_BIO_MAX_LENGTH ||
+    draft.pronouns.length > OWN_PRONOUNS_MAX_LENGTH ||
+    draft.statusText.length > OWN_STATUS_TEXT_MAX_LENGTH
+  )
+}
+
 function ProfileForm({
   profile,
   saving,
   onSaving,
+  onDirtyChange,
   onCancel,
   onSaved
 }: {
   profile: OwnProfile
   saving: boolean
   onSaving: (saving: boolean) => void
+  /** Whether what was typed differs from what loaded, so a stray press
+   *  can't drop it. */
+  onDirtyChange: (dirty: boolean) => void
   onCancel: () => void
   onSaved: () => void
 }): React.JSX.Element {
@@ -175,15 +194,14 @@ function ProfileForm({
   // After a failed Save the platform may hold part of it, so Save stays
   // available even when the text matches what the editor first loaded.
   const [failedOnce, setFailedOnce] = useState(false)
-  const tooLong =
-    draft.bio.length > OWN_BIO_MAX_LENGTH ||
-    draft.pronouns.length > OWN_PRONOUNS_MAX_LENGTH ||
-    draft.statusText.length > OWN_STATUS_TEXT_MAX_LENGTH
-  const canSave = !saving && !tooLong && (failedOnce || hasChanges(draft, profile))
+  const canSave = !saving && !isTooLong(draft) && (failedOnce || hasChanges(draft, profile))
 
+  // One field changes per event, so the draft on screen is the one to patch.
   const update = (patch: Partial<Draft>): void => {
+    const next = { ...draft, ...patch }
     setFailure(null)
-    setDraft((current) => ({ ...current, ...patch }))
+    setDraft(next)
+    onDirtyChange(hasChanges(next, profile))
   }
 
   async function handleSave(event: React.FormEvent): Promise<void> {
@@ -196,7 +214,7 @@ function ProfileForm({
     if (result.ok) onSaved()
     else {
       setFailure(result.reason)
-      if (result.reason !== 'invalid' && result.reason !== 'cooldown') setFailedOnce(true)
+      if (mayHoldPart(result.reason)) setFailedOnce(true)
     }
   }
 
@@ -335,6 +353,9 @@ export default function OwnProfileDialog({
   const { t } = useTranslation()
   const query = useOwnProfile(platform)
   const [saving, setSaving] = useState(false)
+  // Typed changes are only dropped on purpose: ✕ or Cancel, never a stray
+  // press outside the dialog or Escape.
+  const [dirty, setDirty] = useState(false)
   const label = t(ACCOUNT_CARD_CONFIG[platform].labelKey)
   const result = query.data
 
@@ -342,6 +363,7 @@ export default function OwnProfileDialog({
     <LinkedDialog
       title={t('settings.accounts.profile.title', { platform: label })}
       busy={saving}
+      dismissible={!(result?.ok === true && dirty)}
       onClose={onClose}
     >
       {result?.ok ? (
@@ -349,6 +371,7 @@ export default function OwnProfileDialog({
           profile={result.profile}
           saving={saving}
           onSaving={setSaving}
+          onDirtyChange={setDirty}
           onCancel={onClose}
           onSaved={onSaved}
         />
@@ -366,7 +389,7 @@ export default function OwnProfileDialog({
               result?.ok === false && result.reason === 'not-authenticated'
                 ? 'settings.accounts.profile.error.signedOut'
                 : result?.ok === false && result.reason === 'rate-limited'
-                  ? 'settings.accounts.profile.error.wait'
+                  ? 'settings.accounts.profile.error.slowDown'
                   : 'settings.accounts.profile.error.load',
               { platform: label }
             )}

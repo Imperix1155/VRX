@@ -204,6 +204,30 @@ describe('DashboardGlance: Wearing now', () => {
   })
 })
 
+describe('DashboardGlance: Wearing now sign-in', () => {
+  it('offers Accounts, not Try again, when a platform asks to sign in again', async () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false } })
+    bridge.getCurrentAvatar.mockImplementation(({ platform }) =>
+      Promise.resolve(
+        platform === 'vrchat'
+          ? { ok: true, platform, current: null }
+          : { ok: false, reason: 'not-authenticated' }
+      )
+    )
+    renderGlance()
+    const failure = await screen.findByRole('alert')
+    expect(failure.textContent).toContain(
+      msg('avatars.error.not-authenticated', { platform: platformName('chilloutvr') })
+    )
+    expect(within(failure).queryByRole('button', { name: msg('avatars.retry') })).toBeNull()
+    fireEvent.click(
+      within(failure).getByRole('button', { name: msg('avatars.notConnected.openAccounts') })
+    )
+    expect(useUiStore.getState().activeTab).toBe('settings')
+    expect(useUiStore.getState().settingsCategory).toBe('accounts')
+  })
+})
+
 describe('DashboardGlance: Latest invites', () => {
   it('shows the newest invite per platform, skips friend requests, and links to the Inbox', async () => {
     inboxItems = [
@@ -244,6 +268,19 @@ describe('DashboardGlance: Latest invites', () => {
     expect(within(region).queryByRole('button')).toBeNull()
   })
 
+  it('keeps when it came outside the words that give way in a narrow window', async () => {
+    inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]
+    renderGlance()
+    const region = await screen.findByRole('region', { name: msg('dashboard.glance.invites') })
+    await within(region).findByText('Aria')
+    const time = region.querySelector('time')
+    expect(time).not.toBeNull()
+    // Only the invite's words truncate; the time never sits inside them.
+    expect(time!.closest('.truncate')).toBeNull()
+    expect(time!.className).toContain('shrink-0')
+    expect(region.querySelector('[title*="Moonlit Observatory"]')?.className).toContain('truncate')
+  })
+
   it('keeps rows but drops the Inbox links while the Inbox page is hidden', async () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, showInboxPage: false } })
     inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]
@@ -251,6 +288,18 @@ describe('DashboardGlance: Latest invites', () => {
     const region = await screen.findByRole('region', { name: msg('dashboard.glance.invites') })
     await within(region).findByText('Aria')
     expect(within(region).queryByRole('button')).toBeNull()
+  })
+})
+
+describe('DashboardGlance: headings', () => {
+  it('shows both headings in the dim gray of other labels (owner, 2026-11-04)', async () => {
+    inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]
+    renderGlance()
+    for (const name of [msg('avatars.wearingNow'), msg('dashboard.glance.invites')]) {
+      const heading = await screen.findByRole('heading', { level: 2, name })
+      expect(heading.className).toContain('text-[var(--text-dim)]')
+      expect(heading.className).not.toContain('text-[var(--text-faint)]')
+    }
   })
 })
 

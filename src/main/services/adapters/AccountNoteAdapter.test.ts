@@ -179,3 +179,111 @@ describe('CvrAdapter account notes', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+describe("one read of a person's record for their details", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('VRChat: the full profile after the note check uses the same answer', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ id: VRC_FRIEND, displayName: 'Friend', note: 'Met at a meetup' })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = vrcSignedIn()
+
+    await expect(adapter.readAccountNote(VRC_FRIEND, adapter.captureNoteLease())).resolves.toBe(
+      'Met at a meetup'
+    )
+    await expect(
+      adapter.getProfile(VRC_FRIEND, adapter.captureCommunityLease())
+    ).resolves.toMatchObject({ userId: VRC_FRIEND, displayName: 'Friend' })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('ChilloutVR: the full profile and block check after the note check use the same answer', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        message: 'ok',
+        data: { id: CVR_FRIEND, name: 'Friend', note: 'Builder', isBlocked: false }
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = cvrSignedIn()
+
+    await expect(adapter.readAccountNote(CVR_FRIEND, adapter.captureNoteLease())).resolves.toBe(
+      'Builder'
+    )
+    await expect(
+      adapter.getProfile(CVR_FRIEND, adapter.captureCommunityLease())
+    ).resolves.toMatchObject({ userId: CVR_FRIEND, displayName: 'Friend' })
+    await expect(adapter.getBlocked(CVR_FRIEND, adapter.captureSocialLease())).resolves.toBe(false)
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('joins a read that is still out', async () => {
+    let answer!: () => void
+    const held = new Promise<void>((resolve) => {
+      answer = resolve
+    })
+    const fetchMock = vi.fn(async () => {
+      await held
+      return jsonResponse({ message: 'ok', data: { id: CVR_FRIEND, name: 'Friend', note: '' } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = cvrSignedIn()
+
+    const note = adapter.readAccountNote(CVR_FRIEND, adapter.captureNoteLease())
+    const profile = adapter.getProfile(CVR_FRIEND, adapter.captureCommunityLease())
+    answer()
+    await expect(note).resolves.toBe('')
+    await expect(profile).resolves.toMatchObject({ userId: CVR_FRIEND })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('a note read always asks again, so a save sees what the account holds now', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ id: VRC_FRIEND, displayName: 'Friend', note: 'Met at a meetup' })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = vrcSignedIn()
+
+    await adapter.getProfile(VRC_FRIEND, adapter.captureCommunityLease())
+    await adapter.readAccountNote(VRC_FRIEND, adapter.captureNoteLease())
+    await adapter.readAccountNote(VRC_FRIEND, adapter.captureNoteLease())
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('reads the person again once the shared answer is 30 seconds old', async () => {
+    const now = vi.spyOn(performance, 'now').mockReturnValue(1_000)
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ message: 'ok', data: { id: CVR_FRIEND, name: 'Friend', isBlocked: true } })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = cvrSignedIn()
+
+    await adapter.getProfile(CVR_FRIEND, adapter.captureCommunityLease())
+    now.mockReturnValue(30_999)
+    await adapter.getBlocked(CVR_FRIEND, adapter.captureSocialLease())
+    expect(fetchMock).toHaveBeenCalledOnce()
+    now.mockReturnValue(31_000)
+    await adapter.getBlocked(CVR_FRIEND, adapter.captureSocialLease())
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('never shares a failed read', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValue(jsonResponse({ id: VRC_FRIEND, displayName: 'Friend', note: '' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = vrcSignedIn()
+
+    await expect(adapter.readAccountNote(VRC_FRIEND, adapter.captureNoteLease())).rejects.toThrow()
+    await expect(
+      adapter.getProfile(VRC_FRIEND, adapter.captureCommunityLease())
+    ).resolves.toMatchObject({ userId: VRC_FRIEND })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})

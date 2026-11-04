@@ -237,12 +237,14 @@ export default function IdentitiesDialog({
   const customName = nameDraft ?? profile?.customName ?? automaticName ?? selection.name
   const pickerCandidates =
     flow.kind === 'picker'
-      ? friends.filter(
-          (friend) =>
-            friend.platform !== flow.source.platform &&
-            (!search.trim() ||
-              splitByMatch(friend.displayName, search.trim()).some((part) => part.isMatch))
-        )
+      ? friends
+          .filter(
+            (friend) =>
+              friend.platform !== flow.source.platform &&
+              (!search.trim() ||
+                splitByMatch(friend.displayName, search.trim()).some((part) => part.isMatch))
+          )
+          .sort(byName)
       : []
   const linkedCandidateKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -365,6 +367,12 @@ export default function IdentitiesDialog({
                   member.platformAccountId === accountIds[member.platform]
                 const friend = scoped ? findFriend(member) : undefined
                 const keep = profile?.members.find((other) => other.platform !== member.platform)
+                // Friend details show this account already: View would only close.
+                const showing =
+                  scoped &&
+                  selection.target.kind === 'account' &&
+                  selection.target.account.platform === member.platform &&
+                  selection.target.account.friendId === member.friendId
                 return (
                   <div
                     key={member.platform}
@@ -382,28 +390,32 @@ export default function IdentitiesDialog({
                         {t('linking.manage.stillLinked')}
                       </p>
                     )}
-                    <div className="flex flex-wrap gap-[var(--space-2)]">
-                      <button
-                        type="button"
-                        className={buttonClass}
-                        disabled={!friend || busy}
-                        onClick={() => openAccount(member)}
-                      >
-                        {t('linking.manage.view', { platform: platformName(member.platform) })}
-                      </button>
-                      {profile && (
-                        <button
-                          type="button"
-                          className={buttonClass}
-                          disabled={!bothReady || !canWrite || busy || !keep || !findFriend(keep)}
-                          onClick={() => {
-                            if (keep) startPicker(keep)
-                          }}
-                        >
-                          {t('linking.manage.replace')}
-                        </button>
-                      )}
-                    </div>
+                    {(!showing || profile) && (
+                      <div className="flex flex-wrap gap-[var(--space-2)]">
+                        {!showing && (
+                          <button
+                            type="button"
+                            className={buttonClass}
+                            disabled={!friend || busy}
+                            onClick={() => openAccount(member)}
+                          >
+                            {t('linking.manage.view', { platform: platformName(member.platform) })}
+                          </button>
+                        )}
+                        {profile && (
+                          <button
+                            type="button"
+                            className={buttonClass}
+                            disabled={!bothReady || !canWrite || busy || !keep || !findFriend(keep)}
+                            onClick={() => {
+                              if (keep) startPicker(keep)
+                            }}
+                          >
+                            {t('linking.manage.replace')}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -544,6 +556,17 @@ const PICKER_INITIAL_VIEWPORT = { width: 0, height: 420 }
 
 function candidateKey(platform: Platform, friendId: string): string {
   return `${platform}:${friendId}`
+}
+
+// The friends list's name order (projectLinkedFriends); one name goes by id.
+const nameCollator = new Intl.Collator(undefined, { sensitivity: 'base' })
+const idCollator = new Intl.Collator()
+
+function byName(left: Friend, right: Friend): number {
+  return (
+    nameCollator.compare(left.displayName, right.displayName) ||
+    idCollator.compare(left.platformUserId, right.platformUserId)
+  )
 }
 
 /**

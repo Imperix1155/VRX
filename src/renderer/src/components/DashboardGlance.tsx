@@ -27,6 +27,7 @@ import { useFriends } from '../queries/friends'
 import { useAvatar } from '../hooks/useAvatar'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
+import GoToAccountsButton from './GoToAccountsButton'
 import { inboxActionText, latestInvitePerPlatform, relativeInboxTime } from '../utils/inbox'
 import { InboxAvatar } from './InboxView'
 import PlatformPill from './PlatformPill'
@@ -128,7 +129,7 @@ function GlanceHeading({
     <div className="mx-[2px] mb-[10px] flex min-h-[28px] items-center justify-between gap-[var(--space-3)]">
       <h2
         id={id}
-        className="canvas-text truncate font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-faint)]"
+        className="canvas-text truncate font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-dim)]"
       >
         {label}
       </h2>
@@ -192,24 +193,28 @@ function WornRow({
 
   let text: string
   let tone = 'text-[var(--text-dim)]'
-  let retry = false
+  let action: 'retry' | 'accounts' | null = null
   if (result === undefined && !state.isError) {
     text = t('avatars.loadingPlatform', { platform: name })
   } else if (result?.ok === true) {
     text = t(NO_CURRENT_KEYS[platform])
   } else {
-    text = t(ERROR_KEYS[result?.ok === false ? result.reason : 'unavailable'], { platform: name })
+    const reason = result?.ok === false ? result.reason : 'unavailable'
+    text = t(ERROR_KEYS[reason], { platform: name })
     tone = 'text-[var(--error)]'
-    retry = true
+    // "Sign in again" happens in Accounts; another try would only fail the same way.
+    action = reason === 'not-authenticated' ? 'accounts' : 'retry'
   }
   return (
-    <div className={ROW} role={retry ? 'alert' : 'status'}>
+    <div className={ROW} role={action !== null ? 'alert' : 'status'}>
       <WornPicture url={null} />
       <div className="flex min-w-0 flex-1 flex-col items-start gap-[var(--space-1)]">
         <p className={`text-sm ${tone}`}>{text}</p>
         <PlatformPill platform={platform} />
       </div>
-      {retry ? (
+      {action === 'accounts' ? (
+        <GoToAccountsButton className="shrink-0" label={t('avatars.notConnected.openAccounts')} />
+      ) : action === 'retry' ? (
         <button
           type="button"
           onClick={state.refetch}
@@ -347,10 +352,20 @@ function LatestInvites({
                     </span>
                     <PlatformPill platform={item.platform} className="shrink-0" />
                   </span>
-                  <span className="truncate text-xs text-[var(--text-dim)]" title={action}>
-                    {action}
-                    <span aria-hidden="true"> · </span>
-                    <time dateTime={new Date(item.receivedAt).toISOString()}>{age}</time>
+                  {/* The words give way first, so a narrow window still shows when. */}
+                  <span className="flex min-w-0 text-xs text-[var(--text-dim)]">
+                    <span className="truncate" title={action}>
+                      {action}
+                    </span>
+                    <span aria-hidden="true" className="shrink-0 whitespace-pre">
+                      {' · '}
+                    </span>
+                    <time
+                      className="shrink-0 whitespace-nowrap"
+                      dateTime={new Date(item.receivedAt).toISOString()}
+                    >
+                      {age}
+                    </time>
                   </span>
                 </span>
               </>

@@ -36,7 +36,7 @@ describe('selectable guide scenarios', () => {
       // Later than module evaluation: successful fixture reads must timestamp the read itself.
       vi.setSystemTime(Date.now() + 61_000)
       render(createElement(CatalogScene, { scene, variant: 'ready' }))
-      fireEvent.click(screen.getAllByRole('button', { name: /Open visible rooms for/ })[0]!)
+      fireEvent.click(screen.getAllByRole('button', { name: /\. View rooms$/ })[0]!)
       expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Join' }).disabled).toBe(false)
       await act(async () => {
         vi.advanceTimersByTime(61_000)

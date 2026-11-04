@@ -159,13 +159,22 @@ function SwitchRow({
   checked: boolean
   onChange: (checked: boolean) => void
 }): React.JSX.Element {
+  const descriptionId = useId()
   return (
     <div className="setting-row">
       <div>
         <p className="text-sm font-medium text-[var(--text)]">{label}</p>
-        <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">{description}</p>
+        <p id={descriptionId} className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+          {description}
+        </p>
       </div>
-      <Toggle checked={checked} ariaLabel={ariaLabel} onChange={onChange} />
+      {/* The note is read with the switch, not only seen beside it. */}
+      <Toggle
+        checked={checked}
+        ariaLabel={ariaLabel}
+        ariaDescribedBy={descriptionId}
+        onChange={onChange}
+      />
     </div>
   )
 }
@@ -307,6 +316,7 @@ const VR_ALERT_TEST_KEYS: Record<Exclude<VrAlertTest, 'idle'>, string> = {
  *  them to this computer only. Time on screen and a test sit under the switch. */
 function VrAlertsCard(): React.JSX.Element {
   const { t } = useTranslation()
+  const noteId = useId()
   const on = useSettingsStore((s) => s.settings.vrOverlayAlerts)
   const duration = useSettingsStore((s) => s.settings.vrOverlayAlertDuration)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -346,13 +356,14 @@ function VrAlertsCard(): React.JSX.Element {
         <div className="setting-row">
           <div>
             <p className="text-sm font-medium text-[var(--text)]">{t('settings.vrAlerts.label')}</p>
-            <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+            <p id={noteId} className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
               {t('settings.vrAlerts.description')}
             </p>
           </div>
           <Toggle
             checked={on}
             ariaLabel={t('settings.vrAlerts.aria')}
+            ariaDescribedBy={noteId}
             onChange={(checked) => updateSettings({ vrOverlayAlerts: checked })}
           />
         </div>
@@ -401,13 +412,17 @@ const UPDATE_CHANNEL_LABEL_KEYS: Record<UpdateChannel, string> = {
 
 function UpdaterSettingsRow(): React.JSX.Element {
   const { t } = useTranslation()
+  const noteId = useId()
   const { state, check, download, install, actionFailed } = useUpdater()
   const autoUpdate = useSettingsStore((s) => s.settings.autoUpdate)
   const updateChannel = useSettingsStore((s) => s.settings.updateChannel)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
+  // Set once a check pressed here has answered, until the next press.
+  const [checkedHere, setCheckedHere] = useState(false)
 
   const handleButtonClick = (): void => {
     if (state.state === 'checking' || state.state === 'downloading') return
+    setCheckedHere(false)
     if (state.state === 'unsupported') {
       void window.vrx?.openUrl({ url: releasesUrlFor(__APP_VERSION__) })
       return
@@ -420,7 +435,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
       void install()
       return
     }
-    void check()
+    void check().then(() => setCheckedHere(true))
   }
 
   const isChecking = state.state === 'checking'
@@ -429,6 +444,8 @@ function UpdaterSettingsRow(): React.JSX.Element {
   const isUnsupported = state.state === 'unsupported'
   const isUpdateAvailable = state.state === 'update-available'
   const buttonDisabled = isChecking || isDownloading
+  // The check found nothing newer: say so, or the press looks like it did nothing.
+  const upToDate = checkedHere && state.state === 'idle' && state.failure == null && !actionFailed
 
   const buttonLabel = isUnsupported
     ? t('updater.settings.releases')
@@ -458,7 +475,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
     <div className="setting-card grid gap-[var(--space-2)]">
       <div>
         <p className="text-sm font-medium text-[var(--text)]">{t('updater.settings.label')}</p>
-        <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+        <p id={noteId} className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
           {t('updater.settings.description')}
         </p>
         {isUnsupported && (
@@ -472,26 +489,32 @@ function UpdaterSettingsRow(): React.JSX.Element {
           </p>
         )}
         {state.failure != null && (
-          <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+          <p role="alert" className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
             {t(UPDATER_FAILURE_KEYS[state.failure])}
           </p>
         )}
-        <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-          {t('updater.settings.currentVersion', { version: state.currentVersion })}
+        <p role="status" className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+          {t(upToDate ? 'updater.settings.upToDate' : 'updater.settings.currentVersion', {
+            version: state.currentVersion
+          })}
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-[var(--space-2)]">
+        {/* A build that cannot update itself has nothing for these to change. */}
         <SegmentedControl
           values={UPDATE_CHANNELS}
           active={updateChannel}
           labelKeys={UPDATE_CHANNEL_LABEL_KEYS}
           ariaLabel={t('updater.settings.channel.aria')}
           onChange={(value) => updateSettings({ updateChannel: value })}
+          disabled={isUnsupported}
         />
         <Toggle
           checked={autoUpdate}
           ariaLabel={t('updater.settings.label')}
+          ariaDescribedBy={noteId}
           onChange={(checked) => updateSettings({ autoUpdate: checked })}
+          disabled={isUnsupported}
         />
         <button
           type="button"
@@ -748,6 +771,8 @@ function BackgroundPictureCard(): React.JSX.Element {
 /** Category pages with compact cards and retained dependent preferences. */
 export default function SettingsView(): React.JSX.Element {
   const { t } = useTranslation()
+  // Each switch below reads its note with it, as SwitchRow's do.
+  const noteId = useId()
   const theme = useSettingsStore((s) => s.settings.theme)
   const backgroundGlow = useSettingsStore((s) => s.settings.backgroundGlow)
   const reconcileInterval = useSettingsStore((s) => s.settings.reconcileInterval)
@@ -920,13 +945,14 @@ export default function SettingsView(): React.JSX.Element {
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.dashboard.hideEmpty.label')}
                 </p>
-                <p className="text-xs text-[var(--text-dim)]">
+                <p id={`${noteId}-hide-empty`} className="text-xs text-[var(--text-dim)]">
                   {t('settings.dashboard.hideEmpty.description')}
                 </p>
               </div>
               <Toggle
                 checked={hideEmpty}
                 ariaLabel={t('settings.dashboard.hideEmpty.label')}
+                ariaDescribedBy={`${noteId}-hide-empty`}
                 onChange={(checked) => updateSettings({ dashboardHideEmpty: checked })}
               />
             </div>
@@ -936,13 +962,14 @@ export default function SettingsView(): React.JSX.Element {
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.dashboard.playersOnline.label')}
                 </p>
-                <p className="text-xs text-[var(--text-dim)]">
+                <p id={`${noteId}-players`} className="text-xs text-[var(--text-dim)]">
                   {t('settings.dashboard.playersOnline.description')}
                 </p>
               </div>
               <Toggle
                 checked={playersOnline}
                 ariaLabel={t('settings.dashboard.playersOnline.label')}
+                ariaDescribedBy={`${noteId}-players`}
                 onChange={(checked) => updateSettings({ dashboardPlayersOnline: checked })}
               />
             </div>
@@ -1053,13 +1080,17 @@ export default function SettingsView(): React.JSX.Element {
                     <p className="text-sm font-medium text-[var(--text)]">
                       {t('settings.allowJoinInstances.label')}
                     </p>
-                    <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                    <p
+                      id={`${noteId}-join`}
+                      className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]"
+                    >
                       {t('settings.allowJoinInstances.description')}
                     </p>
                   </div>
                   <Toggle
                     checked={allowJoinInstances}
                     ariaLabel={t('settings.allowJoinInstances.aria')}
+                    ariaDescribedBy={`${noteId}-join`}
                     onChange={(checked) => updateSettings({ allowJoinInstances: checked })}
                   />
                 </div>
@@ -1070,13 +1101,17 @@ export default function SettingsView(): React.JSX.Element {
                   <p className="text-sm font-medium text-[var(--text)]">
                     {t('settings.confirmJoin.label')}
                   </p>
-                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  <p
+                    id={`${noteId}-confirm-join`}
+                    className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]"
+                  >
                     {t('settings.confirmJoin.description')}
                   </p>
                 </div>
                 <Toggle
                   checked={confirmJoin}
                   ariaLabel={t('settings.confirmJoin.aria')}
+                  ariaDescribedBy={`${noteId}-confirm-join`}
                   onChange={(checked) => updateSettings({ confirmJoin: checked })}
                 />
               </div>

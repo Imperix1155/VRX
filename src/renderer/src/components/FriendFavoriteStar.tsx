@@ -14,11 +14,16 @@ import FavoriteMenu from './FavoriteMenu'
  */
 export default function FriendFavoriteStar({
   accounts,
+  owner,
   name,
   drawerOpen = true,
   onLeave
 }: {
   accounts: readonly Friend[]
+  /** Who the panel belongs to (a linked person, or one account), so a linked
+   *  person whose shown accounts change keeps it open. Without it the panel
+   *  belongs to the accounts and starts over when they change. */
+  owner?: string
   name: string
   drawerOpen?: boolean
   onLeave?: () => void
@@ -34,6 +39,9 @@ export default function FriendFavoriteStar({
 
   return (
     <FavoriteMenu
+      // Friend details stay open while another friend is picked: a different
+      // person starts with a folded panel and no earlier save or failure.
+      key={owner ?? accounts.map((a) => `${a.platform}:${a.platformUserId}`).join('|')}
       name={name}
       shape="round"
       placement="above"

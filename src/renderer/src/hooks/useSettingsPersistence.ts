@@ -47,8 +47,9 @@ async function loadSettingsWithRetry(
  * Change: whenever the store turns dirty, hands the current full snapshot to
  * main immediately; main owns disk-write coalescing and quit-time flushing.
  * When the load was main's `fallback` (defaults standing in for an unreadable
- * file), saves carry only the edits since that load until one succeeds; then
- * the store adopts the settings main saved over the real file.
+ * file), the store's `loadFallback` shows a notice, and saves carry only the
+ * edits since that load until one succeeds; then the store adopts the settings
+ * main saved over the real file and the notice goes.
  * Saves are GATED until the boot load has landed — saving earlier would patch
  * the default-seeded object over the on-disk file and wipe unrelated persisted
  * fields (Codex [high], PR #116).
@@ -114,6 +115,8 @@ export function useSettingsPersistence(): void {
           setSettings(persisted)
         }
         if (unsaved) useSettingsStore.setState({ dirty: true, saveError: true })
+        // The shell says so, or defaults would look like forgotten choices.
+        useSettingsStore.setState({ loadFallback: fallback === true })
         setLoaded(true)
         hydrate()
       })
@@ -149,6 +152,7 @@ export function useSettingsPersistence(): void {
           fallbackBase.current = null
           fallbackSent.current = new Set()
           useSettingsStore.getState().setSettings(saved)
+          useSettingsStore.setState({ loadFallback: false })
         } else {
           useSettingsStore.getState().markSaved()
         }

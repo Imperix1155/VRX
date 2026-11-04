@@ -39,7 +39,10 @@ function SidebarUpdateButton(): React.JSX.Element | null {
       ? t('updater.sidebar.restart')
       : t('updater.sidebar.update')
 
-  const suffix = state.failure ? ` ${t('updater.sidebar.retrySuffix')}` : ''
+  // Only a download or install that failed asks to try again; a background
+  // re-check that failed leaves the offer as it was.
+  const retry = state.failure === 'download-write' || state.failure === 'staged-install'
+  const suffix = retry ? ` ${t('updater.sidebar.retrySuffix')}` : ''
 
   const ariaLabel = isDownloading
     ? t('updater.sidebar.downloadingAria', { percent: state.progressPercent })

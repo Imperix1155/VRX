@@ -245,4 +245,23 @@ describe('LinkedDestinationChooser', () => {
     )
     expect(screen.getByRole<HTMLButtonElement>('button', { name: /Join on/i }).disabled).toBe(true)
   })
+
+  it("dresses each Join like friend details' Join, and Cancel like the linking dialogs' buttons", () => {
+    const onClose = vi.fn()
+    render(
+      <LinkedDestinationChooser accounts={[friend('vrchat', 'vrc', 'VRC')]} onClose={onClose} />
+    )
+    const choice = screen.getByRole('button', { name: 'Join on VRChat' })
+    expect(choice.getAttribute('style')).toContain('var(--op-public)')
+    expect(choice.style.color).toBe('var(--op-public-text)')
+    expect(choice.className).toContain('font-semibold')
+    expect(choice.className).toContain('focus:ring-1 focus:ring-[var(--text-dim)]')
+
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancel.className).toContain('hover:bg-[var(--surface-hover)]')
+    expect(cancel.className).toContain('focus:ring-1 focus:ring-[var(--text-dim)]')
+    fireEvent.click(cancel)
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(join).not.toHaveBeenCalled()
+  })
 })

@@ -87,14 +87,15 @@
       "rateLimited": "Too many local changes. Wait a moment, then try again.",
       "linkNeedsBoth": "Both platforms must be signed in and available to link."
     },
-    "people_one": "{{count}} person",
-    "people_other": "{{count}} people",
+    "people_one": "{{count, number}} person",
+    "people_other": "{{count, number}} people",
     "unknownName": "Unknown friend",
     "sharedNotes": "Shared notes",
     "back": "Back to combined profile",
     "identities": "Identities",
     "unavailable": "Unavailable",
     "locations": "2 locations",
+    "locationsJoinAria": "{{locations}}: Choose a destination to join {{name}}",
     "chooseDestination": "Choose a destination",
     "joinOn": "Join on {{platform}}",
     "activityChanged": "Activity changed. Review the current location.",
@@ -128,12 +129,12 @@
       "allShort": "ALL",
       "aria": "Platform filter"
     },
-    "friendCount_one": "<b>{{count}}</b> friend",
-    "friendCount_other": "<b>{{count}}</b> friends",
+    "friendCount_one": "<b>{{count, number}}</b> friend",
+    "friendCount_other": "<b>{{count, number}}</b> friends",
     "counts": {
       "aria": "Friends and players online",
-      "friendsOnline_one": "{{count}} friend online",
-      "friendsOnline_other": "{{count}} friends online",
+      "friendsOnline_one": "{{count, number}} friend online",
+      "friendsOnline_other": "{{count, number}} friends online",
       "playingNow": "Playing right now",
       "note": "As each platform reports it. Checked at most every 5 minutes."
     },
@@ -155,7 +156,7 @@
     "theme": {
       "label": "Theme",
       "description": "Choose how VRX looks on this device.",
-      "aria": "Theme selector",
+      "aria": "Theme",
       "dark": "Dark",
       "light": "Light",
       "system": "System"
@@ -163,7 +164,7 @@
     "backgroundGlow": {
       "label": "Background glow",
       "description": "How strong the background aurora appears.",
-      "aria": "Background glow selector",
+      "aria": "Background glow",
       "off": "Off",
       "muted": "Muted",
       "standard": "Standard",
@@ -178,7 +179,7 @@
       "fade": {
         "label": "Picture fade",
         "description": "Fades the picture so text stays easy to read.",
-        "aria": "Picture fade selector",
+        "aria": "Picture fade",
         "low": "Low",
         "medium": "Medium",
         "high": "High"
@@ -202,7 +203,7 @@
     "reconcileInterval": {
       "label": "Friends background re-sync",
       "note": "How often all friends re-sync.",
-      "aria": "Friends background re-sync cadence",
+      "aria": "Friends background re-sync",
       "5m": "5m",
       "10m": "10m",
       "30m": "30m",
@@ -211,8 +212,8 @@
     },
     "labelScheme": {
       "label": "Instance labels",
-      "description": "Which words the instance pills use.",
-      "aria": "Instance label scheme selector",
+      "description": "Which words the instance labels use.",
+      "aria": "Instance labels",
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
       "platformNative": "Per platform"
@@ -220,19 +221,19 @@
     "drawerOpener": {
       "label": "Friend details open from",
       "description": "What you click to open a friend's details.",
-      "aria": "Friend details opener selector",
+      "aria": "Friend details open from",
       "card": "Whole card",
       "avatar": "Avatar only"
     },
     "saveNotesToAccounts": {
       "label": "Save notes to my accounts",
       "description": "Notes also go to your game accounts. Off keeps them on this PC.",
-      "aria": "Save friend notes to my VRChat and ChilloutVR accounts"
+      "aria": "Save notes to my accounts on VRChat and ChilloutVR"
     },
     "useGameFavorites": {
       "label": "Use my game favorites",
       "description": "The star also uses your game accounts' favorites. Off keeps stars in VRX.",
-      "aria": "Use the favorites in my VRChat and ChilloutVR accounts"
+      "aria": "Use my game favorites from VRChat and ChilloutVR"
     },
     "behavior": {
       "heading": "Behavior"
@@ -257,7 +258,7 @@
     "joinMode": {
       "label": "Join in",
       "description": "How ChilloutVR starts. VRChat uses its own launch settings.",
-      "aria": "Join launch mode",
+      "aria": "Join in",
       "ask": "Always ask",
       "vr": "VR",
       "desktop": "Desktop"
@@ -265,7 +266,7 @@
     "openGameJoin": {
       "label": "When the game is already open",
       "description": "Join goes into the game you have open. Send invite is VRChat only.",
-      "aria": "How Join works when the game is already open",
+      "aria": "When the game is already open",
       "go": "Go there",
       "invite": "Send invite",
       "off": "Off"
@@ -280,7 +281,7 @@
         "description": "Everyone, or only friends you pick. Hot instance alerts don't change.",
         "everyone": "Everyone",
         "picked": "Picked friends",
-        "aria": "Which friends can send you alerts"
+        "aria": "Who alerts you"
       },
       "picked": {
         "label": "Picked friends",
@@ -314,17 +315,17 @@
       "hotInstance": {
         "label": "Hot instance",
         "description": "Alert when enough friends gather in the same instance.",
-        "aria": "Notify when an instance becomes hot"
+        "aria": "Hot instance: notify when one forms"
       },
       "invites": {
         "label": "Invite received",
         "description": "Alert when someone invites you or asks for an invite.",
-        "aria": "Notify when you get an invite"
+        "aria": "Invite received: notify me"
       },
       "friendRequests": {
         "label": "Friend request received",
         "description": "Alert when someone sends you a friend request.",
-        "aria": "Notify when you get a friend request"
+        "aria": "Friend request received: notify me"
       }
     },
     "vrAlerts": {
@@ -337,7 +338,7 @@
         "short": "Short",
         "medium": "Medium",
         "long": "Long",
-        "aria": "How long VR alerts stay in view"
+        "aria": "Time on screen for VR alerts"
       },
       "test": {
         "send": "Send a test",
@@ -354,6 +355,8 @@
       "retry": "Retry",
       "retrying": "Retrying…",
       "signOut": "Sign out",
+      "signOutConfirm": "Sign out of {{platform}}?",
+      "cancel": "Cancel",
       "username": "Username or email",
       "email": "Email address",
       "usernamePlaceholder": "you@example.com",
@@ -419,6 +422,7 @@
           "load": "Couldn't load your {{platform}} profile. Check your connection and try again.",
           "unavailable": "Couldn't save to {{platform}}. Check your connection and try again.",
           "wait": "Saving too often. Wait a few seconds, then try again.",
+          "slowDown": "{{platform}} asked VRX to slow down. Try again in a minute.",
           "invalid": "Some text is too long to save.",
           "signedOut": "{{platform}} signed you out. Sign in again, then try again."
         }
@@ -443,10 +447,9 @@
         "description": "Their order on the Dashboard. The first of Popular now and Hot Instances shows pictures. Hiding one keeps its page.",
         "moveUp": "Move {{name}} up",
         "moveDown": "Move {{name}} down",
-        "moved": "{{name}} is now {{position}} of {{count}}"
+        "moved": "{{name}}: {{position}} of {{count}}"
       },
       "order": {
-        "aria": "Dashboard section order",
         "popularFirst": "Popular now first",
         "hotFirst": "Hot Instances first"
       },
@@ -471,7 +474,8 @@
       "error": "Settings could not be saved. Your changes are still applied here, but may be lost on restart.",
       "unsaved": "Settings have unsaved changes.",
       "retry": "Retry saving settings",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "loadFallback": "VRX couldn't read your saved settings, so it's showing the defaults for now. Your saved settings are kept."
     },
     "bugReport": {
       "label": "Found a bug?",
@@ -544,7 +548,9 @@
     "heading": "Something went wrong",
     "hint": "An unexpected error occurred. You can try reloading the app.",
     "reload": "Reload",
-    "copyDiagnostics": "Copy diagnostics"
+    "copyDiagnostics": "Copy diagnostics",
+    "copied": "Copied",
+    "copyFailed": "Couldn't copy the diagnostics. Try again."
   },
   "greeting": "Welcome to VRX",
   "friends": {
@@ -570,6 +576,7 @@
       "retrying": "Retrying {{platform}}…"
     },
     "joinAria": "Join {{name}} in {{world}}",
+    "joinPillAria": "{{access}}: Join {{name}} in {{world}}",
     "joinFailed": "Couldn't join. Check the game and connection, then use Join to try again.",
     "joinFailure": {
       "stale": "Live connection not ready — joins resume when the live feed reconnects",
@@ -578,7 +585,8 @@
       "targetChanged": "Location changed — try Join again",
       "joiningDisabled": "Joining is disabled in Settings",
       "notJoinable": "No longer joinable — they may have moved or gone offline",
-      "inviteFailed": "Couldn't send the VRChat invite. Use Join to try again."
+      "inviteFailed": "Couldn't send the VRChat invite. Use Join to try again.",
+      "launchFailed": "Couldn't start the game. Check that it is installed."
     },
     "joinNotice": {
       "inGame": "Sent to your open game",
@@ -601,10 +609,10 @@
       "offline": "Offline"
     },
     "section": {
-      "inGame": "In-Game ({{count}})",
-      "online": "Online ({{count}})",
-      "offline": "Offline ({{count}})",
-      "favorites": "Favorites ({{count}})"
+      "inGame": "In-Game ({{count, number}})",
+      "online": "Online ({{count, number}})",
+      "offline": "Offline ({{count, number}})",
+      "favorites": "Favorites ({{count, number}})"
     },
     "instance": {
       "unknownWorld": "Unknown World",
@@ -647,9 +655,9 @@
     "joined": "Joined {{world}}",
     "joinedUnknown": "Joined a world",
     "offline": "Went offline",
-    "openFriend": "Open {{name}} in Friends",
+    "rowAria": "{{name}}, {{platform}}: {{description}}, {{time}}. Open {{name}} in Friends",
     "clear": "Clear",
-    "clearAria": "Clear all activity",
+    "clearAria": "Clear the activity shown",
     "emptyHeading": "No activity yet",
     "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open.",
     "filteredEmpty": "Nothing to show with these filters.",
@@ -824,7 +832,7 @@
     "hotThresholdLabel": "Min. friends",
     "hotHelp": {
       "label": "About Hot Instances",
-      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows two: the top one from each platform when both have one, otherwise the top two. The Hot Instances page shows all of them, with the most friends first.",
+      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows the busiest few, starting with the top one from each platform. The Hot Instances page shows all of them, with the most friends first.",
       "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you turn them on in Settings → Notifications."
     },
     "seeAll_one": "See {{count}}",
@@ -885,10 +893,11 @@
     "popularNow": "Popular now",
     "worldsShown": "Worlds shown",
     "worldsShownAria": "Worlds shown",
-    "openWorldAria": "Open visible rooms for {{world}} on {{platform}}",
+    "openWorldAria": "{{world}} on {{platform}}. View rooms",
     "viewRooms": "View rooms",
     "confirmAria": "Confirm joining {{world}}",
     "refresh": "Refresh",
+    "refreshing": "Refreshing…",
     "joinFailed": "Couldn’t join this room. Try again after refreshing.",
     "visiblePublicRooms": "Visible public rooms",
     "unknownCount": "Unknown",
@@ -951,7 +960,7 @@
     },
     "home": {
       "set": "Set as home world",
-      "setAria": "Set {{world}} as your {{platform}} home world",
+      "setAria": "Set as home world: {{world}} on {{platform}}",
       "confirm": "Make this your {{platform}} home world? It replaces the one you have now.",
       "confirmAria": "Confirm setting {{world}} as your home world",
       "makeHome": "Make home",
@@ -974,9 +983,11 @@
     "refreshing": "Refreshing…",
     "wearingNow": "Wearing now",
     "yourUploads": "Your uploads",
-    "uploadCount_one": "{{count}} avatar",
-    "uploadCount_other": "{{count}} avatars",
+    "uploadCount_one": "{{count, number}} avatar",
+    "uploadCount_other": "{{count, number}} avatars",
     "loadingPlatform": "Loading your {{platform}} avatars…",
+    "stale": "Couldn't refresh your {{platform}} avatars. Showing what loaded last.",
+    "staleRateLimited": "{{platform}} asked VRX to slow down. Showing what loaded last; try again in a minute.",
     "empty": "You haven't uploaded any avatars yet.",
     "noCurrent": {
       "vrchat": "VRX couldn't tell which VRChat avatar you're wearing.",
@@ -998,7 +1009,7 @@
     "sheet": {
       "aria": "{{name}}, {{platform}} avatar",
       "wear": "Wear this avatar",
-      "wearAria": "Wear {{name}} in {{platform}}",
+      "wearAria": "Wear this avatar: {{name}} in {{platform}}",
       "switching": "Switching…",
       "wornNow": "You're wearing this",
       "wearHint": "Changes the avatar on your {{platform}} account.",
@@ -1041,7 +1052,7 @@
     },
     "settings": {
       "label": "Automatic updates",
-      "description": "Download new versions in the background and apply them when the app closes.",
+      "description": "Download new versions in the background and install them when you quit VRX.",
       "channel": {
         "aria": "Update channel",
         "stable": "Stable",
@@ -1057,6 +1068,7 @@
       "releases": "Open releases page",
       "unsupportedNote": "This portable build cannot update itself automatically.",
       "currentVersion": "VRX v{{version}}",
+      "upToDate": "VRX v{{version}} is up to date.",
       "failure": {
         "checkNetwork": "Couldn't check for updates. Check your connection and try again.",
         "downloadWrite": "Couldn't download the update. Check your connection and available storage, then try again. If it keeps failing, install the latest release manually.",
@@ -1147,7 +1159,7 @@
     "look": {
       "title": "Pick a look",
       "lead": "It changes as you pick, so you can see it right away.",
-      "labelsDescription": "The words on instance tags, like Friends+ (VRChat) or Friends of Friends (ChilloutVR).",
+      "labelsDescription": "The words on instance labels, like Friends+ (VRChat) or Friends of Friends (ChilloutVR).",
       "aria": "Theme",
       "system": "Match my PC"
     },
@@ -1163,11 +1175,12 @@
       "notConnected": "{{platform}} not connected",
       "unreachable": "{{platform}} can’t be reached right now",
       "dashboardNone": "Friend counts only",
-      "dashboardBoth": "{{first}}, then {{second}}",
       "alertsOff": "All off",
       "alertsSome": "{{count}} of {{total}} on",
       "lookValue": "{{theme}}, {{glow}} glow",
-      "lookValuePicture": "{{theme}}, {{glow}} glow, your own picture"
+      "lookValuePicture": "{{theme}}, {{glow}} glow, your own picture",
+      "lookValueNoGlow": "{{theme}}, no glow",
+      "lookValuePictureNoGlow": "{{theme}}, no glow, your own picture"
     }
   },
   "inbox": {
@@ -1195,19 +1208,21 @@
       "live": "The inbox lists what arrives while VRX is open and forgets it when VRX closes."
     },
     "notConnected": {
-      "vrchat": "Connect VRChat to see your invites here",
-      "chilloutvr": "Connect ChilloutVR to see your invites here"
+      "vrchat": "Connect VRChat to see your invites and friend requests here",
+      "chilloutvr": "Connect ChilloutVR to see your invites and friend requests here"
     },
     "loadError": "Could not load your inbox right now"
   },
   "community": {
     "loading": "Loading {{platform}}…",
     "retry": "Try again",
-    "openAccounts": "Open Accounts",
+    "openAccounts": "Go to Accounts",
     "notConnected": {
       "vrchat": "Connect VRChat to see it here",
       "chilloutvr": "Connect ChilloutVR to see it here"
     },
+    "stale": "Couldn't get the latest from {{platform}}. Showing what loaded last.",
+    "staleRateLimited": "{{platform}} asked VRX to slow down. Showing what loaded last; try again in a minute.",
     "error": {
       "unavailable": "Couldn't reach {{platform}}. Try again in a moment.",
       "rate-limited": "{{platform}} asked VRX to slow down. Try again in a minute.",
@@ -1220,7 +1235,7 @@
     "placeholder": "Search people and worlds",
     "aria": "Search people and worlds",
     "submit": "Search",
-    "hint": "Press Enter to search VRChat and ChilloutVR by name.",
+    "hint": "Press Enter to search people and worlds by name.",
     "people": "People",
     "worlds": "Worlds",
     "noPeople": "No people found.",
@@ -1336,7 +1351,7 @@
     "declined": "Declined {{name}}'s friend request.",
     "add": "Add friend",
     "adding": "Sending…",
-    "addAria": "Send {{name}} a friend request on {{platform}}",
+    "addAria": "Add friend: {{name}} on {{platform}}",
     "sent": "Friend request sent.",
     "incoming": "Sent you a friend request.",
     "error": {

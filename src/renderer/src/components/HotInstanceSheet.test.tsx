@@ -3,12 +3,22 @@
  * HotInstanceSheet (VRX-250 / VRX-260) — bottom-sheet rendering for a hot
  * instance, including the group card in the meta stack.
  */
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useSettingsStore } from '../stores/settings'
+import { useJoinInstance } from '../hooks/useJoinInstance'
 import HotInstanceSheet from './HotInstanceSheet'
 import { getHotInstances, type HotInstance } from '../utils/dashboardAggregations'
 
@@ -333,6 +343,43 @@ describe('HotInstanceSheet', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('opens another instance, or the same one again, at the top of the sheet', () => {
+    stubIntersectionObserver()
+    const first = makeHotInstance()
+    const second = makeCvrHotInstance()
+    const { rerender } = render(<HotInstanceSheet instance={first} onClose={vi.fn()} />)
+    const scroller = (): HTMLElement =>
+      screen.getByRole('dialog').querySelector<HTMLElement>('.overflow-y-auto')!
+    scroller().scrollTop = 240
+    rerender(<HotInstanceSheet instance={second} onClose={vi.fn()} />)
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe(second.worldName)
+    expect(scroller().scrollTop).toBe(0)
+    scroller().scrollTop = 120
+    // A roster refresh hands the sheet a new object for the same instance: no jump.
+    rerender(<HotInstanceSheet instance={{ ...second }} onClose={vi.fn()} />)
+    expect(scroller().scrollTop).toBe(120)
+    rerender(<HotInstanceSheet instance={null} onClose={vi.fn()} />)
+    rerender(<HotInstanceSheet instance={second} onClose={vi.fn()} />)
+    expect(scroller().scrollTop).toBe(0)
+  })
+
+  it('opens a VRChat instance in another world at the top, though the instance number matches', () => {
+    stubIntersectionObserver()
+    const first = makeHotInstance()
+    const second = makeHotInstance({
+      worldId: 'wrld_other',
+      worldName: 'Other World',
+      groupKey: 'vrchat other key'
+    })
+    const { rerender } = render(<HotInstanceSheet instance={first} onClose={vi.fn()} />)
+    const scroller = (): HTMLElement =>
+      screen.getByRole('dialog').querySelector<HTMLElement>('.overflow-y-auto')!
+    scroller().scrollTop = 240
+    rerender(<HotInstanceSheet instance={second} onClose={vi.fn()} />)
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Other World')
+    expect(scroller().scrollTop).toBe(0)
+  })
+
   it('names each member chip once, by its visible name', () => {
     stubIntersectionObserver()
     render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
@@ -410,5 +457,46 @@ describe('HotInstanceSheet', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(groupValue()).toBe('None')
+  })
+
+  it('keeps keyboard focus on Join while its join runs, and ignores presses until it ends', async () => {
+    stubIntersectionObserver()
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: false },
+      dirty: false
+    })
+    let finish!: (result: { ok: true }) => void
+    const joinInstance = vi.fn(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          finish = resolve
+        })
+    )
+    window.vrx = { ...window.vrx, joinInstance } as unknown as Window['vrx']
+    try {
+      render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
+      const join = screen.getByRole('button', { name: 'Join Alex in Group Hangout' })
+      join.focus()
+
+      fireEvent.click(join)
+      expect(joinInstance).toHaveBeenCalledOnce()
+      // The disabled attribute would drop focus to the page (focus fixup);
+      // aria-disabled keeps the button focused and announced as unavailable.
+      expect(join.hasAttribute('disabled')).toBe(false)
+      expect(join.getAttribute('aria-disabled')).toBe('true')
+      expect(document.activeElement).toBe(join)
+
+      fireEvent.click(join)
+      expect(joinInstance).toHaveBeenCalledOnce()
+
+      await act(async () => {
+        finish({ ok: true })
+        await Promise.resolve()
+      })
+      expect(join.getAttribute('aria-disabled')).toBeNull()
+      expect(document.activeElement).toBe(join)
+    } finally {
+      renderHook(() => useJoinInstance()).result.current.invalidatePending()
+    }
   })
 })

@@ -98,7 +98,10 @@ type VrxBridge = {
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   /** The in-memory activity list; reading it makes no platform request. */
   getActivity: () => Promise<IpcInvoke['get-activity']['res']>
-  clearActivity: () => Promise<IpcInvoke['clear-activity']['res']>
+  /** Forget only what the Activity page shows: its platforms and kind. */
+  clearActivity: (
+    req: IpcInvoke['clear-activity']['req']
+  ) => Promise<IpcInvoke['clear-activity']['res']>
   /** The activity list changed (coalesced). Returns an unsubscribe. */
   onActivityChanged: (callback: () => void) => () => void
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>

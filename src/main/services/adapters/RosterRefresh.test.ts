@@ -48,10 +48,7 @@ describe('RosterRefresh', () => {
     }
     first.resolve(roster('First'))
     await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2))
-    for (let i = 0; i < 100; i++) {
-      refresh.invalidate()
-      expect(refresh.get(owner)).toBe(request)
-    }
+    for (let i = 0; i < 100; i++) expect(refresh.get(owner)).toBe(request)
     const final = roster('Last')
     last.resolve(final)
     await expect(request).resolves.toBe(final)
@@ -60,6 +57,68 @@ describe('RosterRefresh', () => {
     await expect(refresh.get(owner)).resolves.toEqual(roster('Later'))
     expect(read).toHaveBeenCalledTimes(3)
   })
+
+  it('reads once more for callers after a change that lands during the final read', async () => {
+    const first = deferred<FriendRoster>()
+    const last = deferred<FriendRoster>()
+    const read = vi
+      .fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(last.promise)
+      .mockResolvedValue(roster('Fresh'))
+    const refresh = new RosterRefresh(read, () => 0)
+    const owner = lease()
+    const request = refresh.get(owner)
+    refresh.invalidate()
+    first.resolve(roster('First'))
+    await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2))
+    // With no newer change, callers still share the final read.
+    expect(refresh.get(owner)).toBe(request)
+    refresh.invalidate()
+    const later = refresh.get(owner)
+    expect(later).not.toBe(request)
+    for (let i = 0; i < 100; i++) {
+      refresh.invalidate()
+      expect(refresh.get(owner)).toBe(later)
+    }
+    // Nothing more goes out while the final read is still open.
+    expect(read).toHaveBeenCalledTimes(2)
+    last.resolve(roster('Last'))
+    await expect(request).resolves.toEqual(roster('Last'))
+    await expect(later).resolves.toEqual(roster('Fresh'))
+    expect(read).toHaveBeenCalledTimes(3)
+  })
+
+  it.each(['rate-limited', 'cooldown', 'failed'] as const)(
+    'does not read again after a %s final read',
+    async (mode) => {
+      const first = deferred<FriendRoster>()
+      const last = deferred<FriendRoster>()
+      const read = vi
+        .fn()
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(last.promise)
+        .mockResolvedValue(roster('Fresh'))
+      let cooldown = 0
+      const refresh = new RosterRefresh(read, () => cooldown)
+      const owner = lease()
+      const request = refresh.get(owner).catch((error: unknown) => error)
+      refresh.invalidate()
+      first.resolve(roster('First'))
+      await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2))
+      refresh.invalidate()
+      const later = refresh.get(owner).catch((error: unknown) => error)
+      if (mode === 'rate-limited') last.reject(new RateLimitError(60_000))
+      else if (mode === 'failed') last.reject(new Error('network'))
+      else {
+        cooldown = 60_000
+        last.resolve(roster('Last'))
+      }
+      // The caller gets the run it waited on, never a resend after a 429 or failure.
+      expect(await later).toEqual(await request)
+      expect(read).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it.each(['partial', 'throw', 'cooldown'] as const)(
     'does not replay after primary %s rate limiting',

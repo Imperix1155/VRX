@@ -9,6 +9,7 @@ import {
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
 import { useSettingsStore } from '../../stores/settings'
+import { SECTION_SETTINGS } from '../../utils/dashboardSections'
 import { focusRadioSibling, segArrowTarget } from '../../utils/segmented'
 import AccountCard from '../AccountCard'
 import SegmentedControl from '../SegmentedControl'
@@ -63,15 +64,16 @@ export const StepHeading = forwardRef<
 >(function StepHeading({ title, lead, centered = false, leadLive = false }, ref) {
   return (
     <div className={centered ? 'text-center' : undefined}>
-      {/* Focus lands here on every step change so screen readers announce it. */}
-      <h2
+      {/* Focus lands here on every step change so screen readers announce it.
+          The setup has no top bar, so each step's title is the page's heading. */}
+      <h1
         ref={ref}
         id="setup-step-title"
         tabIndex={-1}
         className="text-[22px] font-semibold leading-tight text-[var(--text)] text-balance focus:outline-none"
       >
         {title}
-      </h2>
+      </h1>
       {lead && (
         <p
           role={leadLive ? 'status' : undefined}
@@ -334,7 +336,8 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
               values={DASHBOARD_SECTION_ORDERS}
               active={order}
               labelKeys={ORDER_LABEL_KEYS}
-              ariaLabel={t('settings.dashboard.order.aria')}
+              // Named with the question it shows, so voice control can say it.
+              ariaLabel={t('setup.dashboard.order.label')}
               // The full section list owns the order; swap the two in it too.
               onChange={(value) =>
                 update({
@@ -550,18 +553,13 @@ export const DoneStep = forwardRef<
     .map(([key]) => t(key))
     .join(t('listSeparator'))
 
-  const sections = [
-    s.dashboardPopularNow && t('settings.dashboard.popular.label'),
-    s.hotInstancesEnabled && t('settings.dashboard.hot.label')
-  ].filter((name): name is string => typeof name === 'string')
-  if (sections.length === 2 && s.dashboardSectionOrder === 'hot-first') sections.reverse()
-  const [first, second] = sections
+  // Every section that's on, in its Dashboard order, named as Settings →
+  // Dashboard names it.
+  const sections = s.dashboardSections
+    .filter((section) => s[SECTION_SETTINGS[section].setting])
+    .map((section) => t(SECTION_SETTINGS[section].labelKey))
   const dashboard =
-    first === undefined
-      ? t('setup.done.dashboardNone')
-      : second === undefined
-        ? first
-        : t('setup.done.dashboardBoth', { first, second })
+    sections.length === 0 ? t('setup.done.dashboardNone') : sections.join(t('listSeparator'))
 
   const alertsOn = SETUP_ALERTS.filter((alert) => s[alert.key]).length
   const alerts =
@@ -569,10 +567,21 @@ export const DoneStep = forwardRef<
       ? t('setup.done.alertsOff')
       : t('setup.done.alertsSome', { count: alertsOn, total: SETUP_ALERTS.length })
 
-  const look = t(picture ? 'setup.done.lookValuePicture' : 'setup.done.lookValue', {
-    theme: t(THEME_CHOICES.find(([value]) => value === s.theme)?.[1] ?? 'setup.look.system'),
-    glow: t(GLOW_LABEL_KEYS[s.backgroundGlow])
-  })
+  // "Dark, no glow" rather than "Dark, Off glow".
+  const noGlow = s.backgroundGlow === 'off'
+  const look = t(
+    picture
+      ? noGlow
+        ? 'setup.done.lookValuePictureNoGlow'
+        : 'setup.done.lookValuePicture'
+      : noGlow
+        ? 'setup.done.lookValueNoGlow'
+        : 'setup.done.lookValue',
+    {
+      theme: t(THEME_CHOICES.find(([value]) => value === s.theme)?.[1] ?? 'setup.look.system'),
+      glow: t(GLOW_LABEL_KEYS[s.backgroundGlow])
+    }
+  )
 
   const rows: Array<[string, string]> = [
     ['setup.done.accounts', accounts],

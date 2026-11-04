@@ -4,16 +4,20 @@ import {
   FRIEND_ACTION_SPACING_MS,
   type FriendRequestAnswer
 } from '@shared/friendActions'
-import type { Platform } from '@shared/types'
+import type { AdapterEvent, Platform } from '@shared/types'
 import {
   FriendActionRefusedError,
   FriendActionUnavailableError,
   type FriendActionsAdapter,
   type FriendRequestRecord
 } from './adapters/FriendActionsAdapter'
+import { SOCIAL_ACTION_COOLDOWN_MS } from '@shared/socialActions'
+import type { SocialActionAdapter } from './adapters/SocialActionAdapter'
 import { AuthError, NetworkError, RateLimitError } from './adapters/errors'
 import type { RequestLease } from './adapters/RequestLease'
 import { FriendActionsService, MAX_SENT_FRIEND_REQUESTS } from './friendActions'
+import { InboxService } from './inbox'
+import { SocialActionService } from './socialActionService'
 
 const VRC_USER = 'usr_5a3c1e2d-0000-4000-8000-000000000001'
 const CVR_USER = 'B81D5892-5119-4F44-B473-7BF4FFDA0458'
@@ -60,7 +64,7 @@ function setup(): {
   cvr: FakeAdapter
   service: FriendActionsService
   rows: Map<string, FriendRequestRecord>
-  dismiss: ReturnType<typeof vi.fn>
+  answered: ReturnType<typeof vi.fn>
   listed: Set<string>
   friends: Set<string>
   now: { value: number }
@@ -77,7 +81,7 @@ function setup(): {
   const now = { value: 10_000 }
   const sleeps: number[] = []
   const log = vi.fn()
-  const dismiss = vi.fn((platform: Platform, id: string) => rows.delete(`${platform}|${id}`))
+  const answered = vi.fn((platform: Platform, id: string) => rows.delete(`${platform}|${id}`))
   const service = new FriendActionsService({
     adapters: new Map<Platform, FriendActionsAdapter>([
       ['vrchat', vrc],
@@ -85,7 +89,7 @@ function setup(): {
     ]),
     inbox: {
       friendRequest: (platform, id) => rows.get(`${platform}|${id}`) ?? null,
-      dismiss
+      answered
     },
     wasListed: (platform, userId) => listed.has(`${platform}|${userId}`),
     isFriend: (platform, userId) => friends.has(`${platform}|${userId}`),
@@ -97,12 +101,12 @@ function setup(): {
     },
     log
   })
-  return { vrc, cvr, service, rows, dismiss, listed, friends, now, sleeps, log }
+  return { vrc, cvr, service, rows, answered, listed, friends, now, sleeps, log }
 }
 
 describe('FriendActionsService answers', () => {
   it('sends one answer for a row main holds and hides the row once it went out', async () => {
-    const { vrc, service, dismiss } = setup()
+    const { vrc, service, answered } = setup()
     await expect(service.answer('vrchat', ROW, 'accept')).resolves.toEqual({ ok: true })
     expect(vrc.answerFriendRequest).toHaveBeenCalledTimes(1)
     expect(vrc.answerFriendRequest.mock.calls[0]![0]).toEqual({
@@ -110,7 +114,7 @@ describe('FriendActionsService answers', () => {
       senderId: VRC_USER
     })
     expect(vrc.answerFriendRequest.mock.calls[0]![1]).toBe('accept')
-    expect(dismiss).toHaveBeenCalledWith('vrchat', ROW)
+    expect(answered).toHaveBeenCalledWith('vrchat', ROW)
   })
 
   it('refuses a row main does not hold without any request', async () => {
@@ -129,7 +133,7 @@ describe('FriendActionsService answers', () => {
   })
 
   it('keeps the row when the platform refuses or cannot be reached', async () => {
-    const { vrc, service, dismiss, log } = setup()
+    const { vrc, service, answered, log } = setup()
     vrc.error = new FriendActionRefusedError('no')
     await expect(service.answer('vrchat', ROW, 'accept')).resolves.toEqual({
       ok: false,
@@ -155,7 +159,7 @@ describe('FriendActionsService answers', () => {
       ok: false,
       reason: 'not-authenticated'
     })
-    expect(dismiss).not.toHaveBeenCalled()
+    expect(answered).not.toHaveBeenCalled()
     // Logs carry no row or person.
     for (const [, meta] of log.mock.calls) {
       expect(JSON.stringify(meta)).not.toContain('usr_')
@@ -290,6 +294,97 @@ describe('FriendActionsService friend requests', () => {
     expect(vrc.sendFriendRequest).not.toHaveBeenCalled()
   })
 
+  it('follows an Unfriend VRX sent, and refuses someone who is a friend again', async () => {
+    // Wired as main wires them (app.ts): an unfriend that went through takes
+    // the person off main's roster and forgets the request sent to them.
+    const vrc = new FakeAdapter('vrchat')
+    const roster = new Set([VRC_USER])
+    let now = 0
+    const lease = (): RequestLease => ({
+      generation: 1,
+      signal: new AbortController().signal,
+      isCurrent: () => true
+    })
+    const service = new FriendActionsService({
+      adapters: new Map<Platform, FriendActionsAdapter>([['vrchat', vrc]]),
+      inbox: { friendRequest: () => null, answered: vi.fn() },
+      wasListed: () => true,
+      isFriend: (_platform, userId) => roster.has(userId),
+      sleep: () => Promise.resolve()
+    })
+    const social = new SocialActionService({
+      adapters: new Map<Platform, SocialActionAdapter>([
+        [
+          'vrchat',
+          {
+            platform: 'vrchat',
+            captureSocialLease: lease,
+            getBlocked: vi.fn(() => Promise.resolve(false)),
+            unfriend: vi.fn(() => Promise.resolve()),
+            block: vi.fn(() => Promise.resolve()),
+            unblock: vi.fn(() => Promise.resolve())
+          }
+        ]
+      ]),
+      isFriend: (_platform, userId) => roster.has(userId),
+      isKnownPerson: () => true,
+      unfriended: (platform, userId) => {
+        roster.delete(userId)
+        service.forgetRequest(platform, userId)
+      },
+      clock: () => now
+    })
+
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({
+      ok: false,
+      reason: 'already-friends'
+    })
+    await expect(social.act('vrchat', VRC_USER, 'unfriend')).resolves.toMatchObject({ ok: true })
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({ ok: true })
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
+
+    // They accept: a friend again, so Add friend sends nothing.
+    roster.add(VRC_USER)
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({
+      ok: false,
+      reason: 'already-friends'
+    })
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
+
+    // Unfriended again later in the same session: a new request goes out.
+    now += SOCIAL_ACTION_COOLDOWN_MS
+    await expect(social.act('vrchat', VRC_USER, 'unfriend')).resolves.toMatchObject({ ok: true })
+    await expect(service.send('vrchat', VRC_USER)).resolves.toEqual({ ok: true })
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(2)
+  })
+
+  it('forgets a request it sent only for that person and platform', async () => {
+    const { cvr, vrc, service, listed } = setup()
+    const otherCvrUser = '22222222-2222-4222-8222-222222222222'
+    listed.add(`chilloutvr|${CVR_USER.toLowerCase()}`)
+    listed.add(`chilloutvr|${otherCvrUser}`)
+    listed.add(`vrchat|${VRC_USER}`)
+    await service.send('chilloutvr', CVR_USER)
+    await service.send('chilloutvr', otherCvrUser)
+    await service.send('vrchat', VRC_USER)
+    expect(cvr.sendFriendRequest).toHaveBeenCalledTimes(2)
+
+    // ChilloutVR IDs compare without case.
+    service.forgetRequest('chilloutvr', CVR_USER.toUpperCase())
+    service.forgetRequest('chilloutvr', VRC_USER)
+    await service.send('chilloutvr', CVR_USER)
+    await service.send('chilloutvr', otherCvrUser)
+    await service.send('vrchat', VRC_USER)
+    // Only the forgotten person is asked again.
+    expect(cvr.sendFriendRequest).toHaveBeenCalledTimes(3)
+    expect(cvr.sendFriendRequest.mock.calls.map(([id]) => id)).toEqual([
+      CVR_USER.toLowerCase(),
+      otherCvrUser,
+      CVR_USER.toLowerCase()
+    ])
+    expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(1)
+  })
+
   it('sends once per person per session; a second press says sent again without a request', async () => {
     const { vrc, service, listed } = setup()
     listed.add(`vrchat|${VRC_USER}`)
@@ -327,5 +422,94 @@ describe('FriendActionsService friend requests', () => {
     expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(ids.length)
     await service.send('vrchat', ids[0]!)
     expect(vrc.sendFriendRequest).toHaveBeenCalledTimes(ids.length + 1)
+  })
+})
+
+describe('FriendActionsService with the real inbox', () => {
+  // ChilloutVR names a friend request by its sender, so every request from one
+  // person has the same row ID.
+  const sender = CVR_USER.toLowerCase()
+  const rowId = `friend-request:${sender}`
+  const request: AdapterEvent = {
+    type: 'inbox',
+    platform: 'chilloutvr',
+    change: {
+      op: 'add',
+      entries: [
+        {
+          sourceId: sender,
+          kind: 'friend-request',
+          senderId: sender,
+          senderName: 'Kai',
+          worldName: null
+        }
+      ]
+    }
+  }
+
+  function wired(): {
+    inbox: InboxService
+    service: FriendActionsService
+    notify: ReturnType<typeof vi.fn>
+    advance: (ms: number) => void
+  } {
+    let mono = 0
+    const notify = vi.fn()
+    const inbox = new InboxService({
+      now: () => 1_000_000 + mono,
+      clock: () => mono,
+      onChanged: () => undefined,
+      notify,
+      isAlertEnabled: () => true
+    })
+    const service = new FriendActionsService({
+      adapters: new Map<Platform, FriendActionsAdapter>([
+        ['chilloutvr', new FakeAdapter('chilloutvr')]
+      ]),
+      inbox,
+      wasListed: () => false,
+      isFriend: () => false,
+      clock: () => mono,
+      sleep: () => Promise.resolve()
+    })
+    return {
+      inbox,
+      service,
+      notify,
+      advance: (ms) => {
+        mono += ms
+      }
+    }
+  }
+
+  it.each<FriendRequestAnswer>(['decline', 'accept'])(
+    'after %s, the same person can ask again and is shown and alerted',
+    async (answer) => {
+      const { inbox, service, notify, advance } = wired()
+      inbox.consume(request)
+      await expect(service.answer('chilloutvr', rowId, answer)).resolves.toEqual({ ok: true })
+      expect(inbox.snapshot().items).toEqual([])
+
+      // The socket repeating its list right after the answer changes nothing.
+      advance(1_000)
+      inbox.consume(request)
+      expect(inbox.snapshot().items).toEqual([])
+
+      // Minutes later they send a new request.
+      advance(5 * 60_000)
+      notify.mockClear()
+      inbox.consume(request)
+      expect(inbox.snapshot().items.map((item) => item.id)).toEqual([rowId])
+      expect(notify).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('a hidden request stays hidden for the session', () => {
+    const { inbox, advance } = wired()
+    inbox.consume(request)
+    expect(inbox.dismiss('chilloutvr', rowId)).toBe(true)
+    advance(5 * 60_000)
+    inbox.consume(request)
+    expect(inbox.snapshot().items).toEqual([])
   })
 })

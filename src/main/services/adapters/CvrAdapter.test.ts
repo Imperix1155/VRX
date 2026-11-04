@@ -3120,6 +3120,33 @@ describe('CvrAdapter validation failures do not poison login (Codex, 2026-07-06)
     expect(loginFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('marks only a validation that got no answer as unreachable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('offline')))
+    )
+    expect(
+      await new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'key-1' }),
+        instantAdmission()
+      ).getAuthStatus()
+    ).toMatchObject({ state: 'error', unreachable: true })
+
+    // ChilloutVR answered and refused: never re-checked from the tray.
+    for (const status of [500, 429]) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ message: 'no' }, { status })))
+      )
+      const result = await new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'key-1' }),
+        instantAdmission()
+      ).getAuthStatus()
+      expect(result.state).toBe('error')
+      expect(result.unreachable).toBeUndefined()
+    }
+  })
+
   it('schema-drifted validation reports error without clearing or poisoning login', async () => {
     const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
     const adapter = new CvrAdapter(store, instantAdmission())

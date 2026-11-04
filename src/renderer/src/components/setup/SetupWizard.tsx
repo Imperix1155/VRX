@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStatus } from '../../queries/auth'
 import { useSettingsStore } from '../../stores/settings'
 import { useUiStore } from '../../stores/ui'
+import { SettingsPersistenceNotice } from '../RecoveryNotices'
 import {
   AlertsStep,
   DashboardStep,
@@ -177,12 +178,15 @@ export default function SetupWizard(): React.JSX.Element {
   const showSkip = step !== 'done' && !skipping
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-[var(--space-4)]">
+    <main className="flex min-h-screen items-center justify-center p-[var(--space-4)]">
       <section
         aria-labelledby="setup-step-title"
         className="glass glass-information relative flex h-[min(660px,calc(100vh-32px))] w-full max-w-[640px] flex-col overflow-hidden px-[30px] pb-[22px] pt-[26px]"
       >
         <div className="relative flex min-h-0 flex-1 flex-col">
+          {/* Every step saves real settings, so a failed save shows here as it
+              does above the app's pages. */}
+          <SettingsPersistenceNotice />
           {!skipping && <Progress step={step} onJump={setStep} />}
           {/* Keyed so each step enters fresh (and replays the enter motion). */}
           <div key={step} className={stepClassName(step)}>
@@ -222,6 +226,6 @@ export default function SetupWizard(): React.JSX.Element {
           </div>
         </div>
       </section>
-    </div>
+    </main>
   )
 }

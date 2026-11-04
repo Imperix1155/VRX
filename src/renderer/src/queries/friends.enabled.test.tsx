@@ -8,7 +8,7 @@
  * is isPending forever (no auth polling), hanging social views on "Loading…".
  */
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthState, AuthStatus, Friend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -88,6 +88,54 @@ describe('useFriends enabled gate', () => {
     await waitFor(() => expect(result.current.fetchStatus).toBe('idle'))
     expect(getFriends).not.toHaveBeenCalled()
     expect(result.current.isPending).toBe(true)
+  })
+})
+
+describe('useFriends while the OS reports offline', () => {
+  // The read is local IPC and main decides reachability, so a pause here would
+  // hide the failure: an old roster looked current, or Loading never ended.
+  function renderOffline(cached?: Friend[]): {
+    result: { current: ReturnType<typeof useFriends> }
+    getFriends: ReturnType<typeof vi.fn>
+  } {
+    const getFriends = vi.fn().mockRejectedValue(new Error('network_error'))
+    Object.assign(window, { vrx: { getFriends } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    if (cached) {
+      queryClient.setQueryData(friendsQueryKey('vrchat'), cached, {
+        updatedAt: Date.now() - 3 * 3_600_000
+      })
+    }
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(() => useFriends('vrchat'), { wrapper })
+    return { result, getFriends }
+  }
+
+  afterEach(() => {
+    onlineManager.setOnline(true)
+  })
+
+  it('still asks main, so a first read that fails ends Loading with an error', async () => {
+    mockAuthState('error')
+    onlineManager.setOnline(false)
+    const { result, getFriends } = renderOffline()
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    expect(result.current.isPending).toBe(false)
+  })
+
+  it('revalidates a restored roster, so a failure shows beside the old list', async () => {
+    mockAuthState('authenticated')
+    onlineManager.setOnline(false)
+    const old = { ...fullFriend('Old', 'vrchat'), presence: { state: 'in-game' as const } }
+    const { result, getFriends } = renderOffline([old])
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    expect(result.current.data).toEqual([old])
   })
 })
 

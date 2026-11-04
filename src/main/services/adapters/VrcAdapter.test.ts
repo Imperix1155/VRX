@@ -3031,6 +3031,24 @@ describe('VrcAdapter', () => {
       })
     })
 
+    it('marks only a check that got no answer as unreachable', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+      expect(
+        await new VrcAdapter(fakeStore('auth=x'), instantAdmission()).getAuthStatus()
+      ).toMatchObject({ state: 'error', unreachable: true })
+
+      // VRChat answered and refused: never re-checked from the tray.
+      for (const status of [403, 500, 429]) {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(() => Promise.resolve(jsonResponse({}, { status })))
+        )
+        const result = await new VrcAdapter(fakeStore('auth=x'), instantAdmission()).getAuthStatus()
+        expect(result.state).toBe('error')
+        expect(result.unreachable).toBeUndefined()
+      }
+    })
+
     it('repeated network validation failures do not block a subsequent correct login', async () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission())
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))

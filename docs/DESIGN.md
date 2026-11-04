@@ -112,8 +112,8 @@ for an approved need that existing ones can't meet.
 - Text: `--text`, `--text-dim`, `--text-faint`. Don't use faint text for
   anything a person must read: notices, fine print, labels, counters, versions
   and loading lines use `--text-dim`. Faint is left for the wordmark subtitle,
-  the Dashboard section headings (§7), placeholders, disabled controls, and
-  technical identifiers such as the Hot Instance ID.
+  placeholders, disabled controls, and technical identifiers such as the Hot
+  Instance ID.
 - Errors: `--error` for missing data and failures.
 - Platforms: `--vrc`, `--cvr`, and their companion and ghost tokens.
 - Friend state: `--ingame`, `--active`, `--offline`; VRChat status: `--st-*`;
@@ -174,10 +174,20 @@ Use the existing overlay components instead of building a new scrim or focus
 pattern. A non-modal sheet never claims `aria-modal` or traps focus. A true
 modal keeps keyboard focus inside, even when its actions are disabled.
 
+Outside a modal dialog, a button that is busy, or has nothing left to do,
+stays focusable with `aria-disabled` rather than `disabled`, which drops
+keyboard focus to the page. A dialog that disables its controls while saving
+puts focus back on the control last used, or ✕, when the save settles. When a
+button gives way to a result, or its item leaves a list, focus moves to the
+result or the item in its place; focus the user moved elsewhere stays put.
+A held Enter presses a button, or sends a form, once, so a button that stays
+focusable while it works doesn't run again each time it finishes.
+
 Sources: [`main.css`](../src/renderer/src/assets/main.css),
 [`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),
 [`ExploreWorldSheet.tsx`](../src/renderer/src/components/ExploreWorldSheet.tsx),
-[`JoinConfirmDialog.tsx`](../src/renderer/src/components/JoinConfirmDialog.tsx).
+[`JoinConfirmDialog.tsx`](../src/renderer/src/components/JoinConfirmDialog.tsx),
+[`installHeldEnterGuard.ts`](../src/renderer/src/installHeldEnterGuard.ts).
 
 ## §4 Canvas and glow
 
@@ -249,7 +259,10 @@ copy, the same way on both platforms: the join dialog shows one quiet note in
 place of the mode picker or launch note ("VRChat is open, so Join takes you
 there in the game.", "ChilloutVR is open, …"), and afterwards the status line
 under Join says "Sent to your open game" or, for a VRChat invite, "Invite
-sent. Accept it in VRChat." for 8 seconds.
+sent. Accept it in VRChat." for 8 seconds. While VRX checks whether the game
+is open, that line keeps its place but stays blank, so the dialog never shows
+the picker and then swaps it for the note; when the picker would show, Join
+waits for it.
 
 **Trust.** Names stay neutral. When VRChat provides a trust rank, it appears
 as quiet 12 px plain text below Notes in the drawer; a combined linked
@@ -299,9 +312,10 @@ and help. VT323 accents the VRX mark, section kickers, and prominent
 statistics. Technical identifiers may use a readable monospace; the Hot
 Instance ID uses `ui-monospace`, not VT323.
 
-Dashboard section headings use `--text-faint` at weight 400 in both themes.
+Dashboard section headings use `--text-dim` at weight 400 in both themes, like
+other labels (owner decision, 2026-11-04: faint fell below 4.5:1 at their size).
 Hot Instances keeps its 18 px uppercase kicker; Popular now keeps its 20 px
-heading and tracking. Both stay semantic `h2` elements, and page headings stay
+heading and tracking. All four stay semantic `h2` elements, and page headings stay
 as they are.
 
 Fonts load from the licensed local WOFF2 files through `main.css`, with their
@@ -326,6 +340,15 @@ Don't design a mobile layout from a narrow documentation viewport.
 **Scrollbars.** Every scroll area, the main page included, uses one slim
 9 px rounded bar in `--scrollbar-thumb` on a clear track, set once in
 `main.css`; High Contrast draws the thumb in the text color.
+
+**High Contrast.** Windows High Contrast removes shadows and the app's own
+colors, so `main.css` redraws, in High Contrast only and in system colors,
+what VRX draws with them: the keyboard focus ring becomes a `Highlight`
+outline; the chosen side of a switch (On and Off included), the current page
+and the chosen status in Edit profile use `Highlight` with `HighlightText`;
+and the welcome setup's chosen theme, choice dots and progress bars use
+`Highlight`. The presence ring and the status dot on a picture keep their own
+colors there, as the friends list's color-only exception needs.
 
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
 Explore, Search, Groups, Avatars, Settings. Hot Instances, Activity, Inbox,
@@ -414,23 +437,31 @@ Accounts, and About. Each setting sits on a compact neutral card.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line. A signed-in card has Edit profile and Sign out on their
   own row, sharing it (each its own full-width line when the words are long,
-  as in Japanese). Edit profile opens a dialog with the bio and pronouns on
-  both platforms in the same order, then, on VRChat only, the four statuses
-  (the friends-list dot beside each word) and the status text. ChilloutVR has
-  no status, so nothing stands in for it. Each label carries its character
-  count; Save stays off until something changes, and a failure keeps the text
-  with a reason beside the buttons. The welcome setup's account cards keep to
-  signing in, with no Edit profile.
+  as in Japanese). Every Sign out on a card asks once, in place of its row
+  ("Sign out of VRChat?" or ChilloutVR, with Sign out and Cancel, starting on
+  Cancel), since signing back in needs the password again; a change in the
+  sign-in state closes the question. Edit profile opens a dialog with the bio
+  and pronouns on both platforms in the same order, then, on VRChat only, the
+  four statuses (the friends-list dot beside each word) and the status text.
+  ChilloutVR has no status, so nothing stands in for it. Each label carries
+  its character count; Save stays off until something changes, and a failure
+  keeps the text with a reason beside the buttons. A stray press outside the
+  dialog, or Escape, never throws typed text away; ✕ and Cancel close it. The
+  welcome setup's account cards keep to signing in, with no Edit profile.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
   in that same card beside the on/off control and the check button, plus the
   installed version, Welcome setup (Run setup again), Found a bug? (Report a
   bug opens GitHub's bug report form in the browser), Open logs folder, and
-  Legal.
+  Legal. When a check pressed there finds nothing newer, the version line
+  says VRX is up to date. The portable build can't update itself, so its
+  channel and on/off control stay inactive under that note.
 
-Saving is reported once, in the shell, failures first. A failed save shows an
-alert at once, keeps the latest edits, offers Retry, and stays until a save
-succeeds. Shell notices are compact one-row strips with the action beside the
-text; the failure leads with a warning glyph as its non-color cue. A normal save is silent; a notice appears only if the latest change
+Saving is reported once, in the shell (or the welcome setup, which replaces
+it), failures first. A failed save shows an alert at once, keeps the latest
+edits, offers Retry, and stays until a save succeeds. Settings VRX couldn't
+read show the defaults under an alert that says so, until a save reaches the
+saved file. Shell notices are compact one-row strips with the action beside
+the text; a failure leads with a warning glyph as its non-color cue. A normal save is silent; a notice appears only if the latest change
 is still unsaved about two seconds later, and the timer restarts on every
 change. If the first sign-in check fails, VRX shows a platform-specific
 recovery message with Retry, never a signed-out form. A saved VRChat session
@@ -462,11 +493,12 @@ state, and card style follows the section order only.
 
 **Updater.** The update control is the sidebar footer button. When there is
 nothing to do it is absent; available, downloading, and downloaded each have
-their own action and label. The collapsed icon never shrinks, its hidden label
-has zero width, and hover or focus may reveal the label without clipping the
-icon. While the button shows, the footer text stays clear of it, and a long
-pre-release version moves to its own line. The guide's updater actions do
-nothing.
+their own action and label. Its label adds "try again" only after a download
+or install failed, never after a background check. The collapsed icon never
+shrinks, its hidden label has zero width, and hover or focus may reveal the
+label without clipping the icon. While the button shows, the footer text
+stays clear of it, and a long pre-release version moves to its own line. The
+guide's updater actions do nothing.
 
 ## §9 Component behavior
 
@@ -503,7 +535,11 @@ The avatar opens friend details. By default the whole card opens them too,
 except the Join control and text selection; the "Avatar only" choice in
 Settings → Behavior → Friend details open from keeps the row body inert.
 The instance pill's Join stays a separate control with the normal
-confirmation and denial behavior.
+confirmation and denial behavior. Its spoken name starts with the access words
+it shows ("Public: Join Amy in SunDown"), as the hot cards' pills do, so speech
+users can say what they see. Add friend's spoken name holds its visible words
+too: first in English ("Add friend: Amy on VRChat"), last in Japanese, as its
+word order puts the verb.
 
 Dashboard statistic cards are one set (owner, 2026-11-01): each card has the
 same layout, a VT323 number in `--text` and its label in `--text-dim`, with no
@@ -527,7 +563,8 @@ for the Inbox, "See 1" when there is one) over one glass list, and every row is 
 picture, the name, and the platform as a word (PlatformPill), so VRChat and
 ChilloutVR read alike. Wearing now has one row per signed-in platform in the
 filter: the 4:3 avatar picture and name, or a one-line loading, not-reported,
-or failed state with Try again. A row opens the Avatars page. Latest invites
+or failed state with Try again (Go to Accounts when the platform asks to sign
+in again). A row opens the Avatars page. Latest invites
 shows the newest invite or invite request per platform, VRChat's first, in
 the Inbox row's words and age; a row opens the Inbox, and with the Inbox page
 hidden the rows are plain text. With nothing waiting it shows one quiet line,
@@ -554,8 +591,11 @@ section adds a quiet "See all N" button ("See 1" for one), shown only while
 the page is, that opens the Hot Instances page,
 which lists every hot instance as a picture card, most friends first, with the
 same header, empty state, and sheet. The access pill on a hot card is a
-discreet Join shortcut; don't turn it into a prominent Join button. The Hot
-Instance sheet supplies the details; no placeholder actions.
+discreet Join shortcut; don't turn it into a prominent Join button. The world
+name is the card's button for the keyboard and screen readers, beside the Join
+pill and never around it; a click elsewhere on the card, except Join and text
+selection, opens the sheet too. The Hot Instance sheet supplies the details;
+no placeholder actions.
 
 ### §9.2 Friend details
 
@@ -587,8 +627,8 @@ panel holds Alert me about this friend while alerts are limited to picked
 friends (otherwise one line says every friend can alert you), the three
 friend alert kinds with a check or dash beside each, and Alert settings, which
 opens Settings → Notifications. Escape or a press outside folds the panel
-before the drawer itself closes. A long name wraps to two lines before it is cut, and its tooltip
-shows it in full. Where cards keep privacy rules, show neutral art when a picture is
+before the drawer itself closes. A long name, and a long custom status, wrap to two lines
+before they are cut, and their tooltips show them in full. Where cards keep privacy rules, show neutral art when a picture is
 missing, use instance labels, and never show raw IDs or policy pills; a split
 card names each platform. If notes load without a valid account revision,
 they stay read-only with Retry. A failed save keeps the draft and a warning;
@@ -599,16 +639,25 @@ a successful save is quiet. A presence change never retargets a draft.
 Join confirmation is a true heavy-frosted modal. It keeps focus inside, offers
 Cancel, respects permission denials, reviews the live target, and handles
 session changes and in-flight states. The main process has the final say, and
-confirmation preferences never bypass permission or target checks.
+confirmation preferences never bypass permission or target checks. A Join
+from a hot card or its sheet is for the instance: if the friend it went
+through leaves, the dialog joins through another friend still there, and
+shows the move or "no longer available" only once nobody is left.
 
 Explore and Hot Instance sheets are contained and non-modal and share one
 layout: platform stripe, grab bar, then the picture starting below Close.
+The Explore sheet holds the picture's place with the cards' neutral fill until
+it arrives, or when it fails, so nothing below it moves.
 Close stays reachable outside the scrolling area. In the light theme a sheet
 banner keeps the photo at full brightness and lays a soft card-colored scrim
 under the title instead of darkening it. The banner's pills and Join sit on
 the same small card-colored backing as other pills over a picture. Escape, a click outside, and Close
-return focus to the opener or a stable fallback. A confirmation modal owns
-dismissal while open, and the Dashboard never shows both sheet types at once.
+return focus to the opener or a stable fallback. Picking another world while
+an Explore sheet is open switches it in place: it keeps its height, starts at
+the top, and focus stays on the picked card. A Hot Instance, Explore world,
+person or group sheet always opens at its top, also for the one shown last. A
+confirmation modal owns dismissal while open, and the Dashboard never shows
+both sheet types at once.
 
 Every bottom sheet (Hot Instance, Explore world, Avatar, person, group) opens
 collapsed, and its grab bar is a real control (`SheetGrabBar`): drag up to
@@ -634,6 +683,12 @@ results, and verified empty states stay visible. Unknown or partial counts
 stay unknown, never zero. Nothing here may add polling. Under All, a platform
 the user isn't signed in to adds no line; filtered to that platform, Explore
 shows the same Connect gate with Go to Accounts as the Dashboard.
+
+A failed Refresh or re-read never clears a list that loaded. New, Recently
+updated, Groups and Avatars keep that platform's cards and add a dim line
+naming it (after a 429 it also says to try again in a minute); the error color
+is for a platform with nothing loaded. Try again on a red line shows that
+platform's loading line until it answers.
 
 When one platform's roster fails, Friends keeps the usable list and shows a
 line under the header naming that platform, with a Retry for that platform
@@ -707,16 +762,19 @@ names the world; a ChilloutVR world name that resolves a moment later fills
 in, and its `(#…)` instance tag is trimmed. Ask Me and Do Not Disturb friends
 never show a world, and their moves are not recorded. The top-bar filter
 scopes the list; the page's Show control (All, Online, Worlds, Offline) is a
-saved setting. Clear empties the list. A row opens that friend's details on
-the Friends page, as a linked person under All; a friend no longer on the
-list is plain text.
+saved setting. Clear empties the list as shown, like the Inbox's Hide all:
+the platforms in the top-bar filter and the kind Show picks. What the filters
+hide stays, and Clear is off while nothing shows. A row opens that friend's
+details on the Friends page, as a linked person under All; a friend no longer
+on the list is plain text.
 
 ### §9.6 Inbox
 
 The Inbox page lists invites, invite requests and friend requests that the two
 platform sockets deliver while VRX is open. Friend requests can be answered
 here (owner, 2026-11-01): Accept and Decline each send one answer to that
-platform, and the row leaves once the platform took it. Invites and invite
+platform, and the row leaves once the platform took it; a later request from
+the same person shows again. Invites and invite
 requests stay view-only, and the "?" help says to answer those in the game.
 Hide removes a row inside VRX only; Hide all hides every row in the current
 platform filter. Nothing is stored, so the list starts empty each launch.
@@ -739,20 +797,32 @@ platform filter. Nothing is stored, so the list starts empty each launch.
 - The sidebar shows a neutral count badge (text, never color alone) of rows
   newer than the last ones shown, per platform; opening the page clears it.
 - Invite and friend-request alerts are separate switches in Settings →
-  Notifications, both off by default, and limited to a few a minute.
+  Notifications, both off by default, and limited to a few a minute. Rows
+  ChilloutVR sends in the first seconds after connecting show without an
+  alert, since they may be ones still waiting from before.
 
 ### §9.7 Search, profiles, Groups and world lists
 
 Community views (owner, 2026-10-31). They only read, except the profile's
 friend action and Unfriend or block (owner, 2026-11-01). Every one follows the platform
-filter, offers Accounts when the filtered platform is not connected, and adds
-no line under ALL for a platform the user isn't signed in to.
+filter, offers Go to Accounts when the filtered platform is not connected, and
+adds no line under ALL for a platform the user isn't signed in to. A notice
+asking to sign in to a platform again, on a page or in a full profile, offers
+Go to Accounts too, never Try again. A list says it is empty ("You aren't in any groups yet.") only once
+every shown platform has answered with a list; until then an empty section
+stays out, heading and count included, and next to a platform that failed with
+nothing loaded its red line stands alone, as on Popular now. The Avatars page's notices and uploads work the
+same way. A platform whose sign-in check couldn't reach it reads nothing and
+shows no loading line until the check answers.
 
 - **Search** sends only on Enter or the Search button, never while typing.
-  People and Worlds are two sections; each alternates the platforms' results
+  Pressing it again for the same text reuses a good answer and asks again
+  only after a refusal such as "One moment". People and Worlds are two sections; each alternates the platforms' results
   (first of each, then second of each) so neither platform leads. People are
   square picture tiles with the platform stripe, tint and VRC/CVR badge, and a
-  quiet "Friend" line. Worlds use the Explore world card and sheet with Join.
+  quiet "Friend" line; with no picture, or one that fails, the tile shows the
+  name's first letter, as friend pictures do, never an empty box. Worlds use
+  the Explore world card and sheet with Join.
 - **Full profile** opens in the non-modal bottom sheet (Search) or behind
   "Show full profile" in friend details (collapsed by default). Fields come in
   one order on both platforms: Pronouns, Rank, Bio, Badges, then Show worlds
@@ -767,7 +837,9 @@ no line under ALL for a platform the user isn't signed in to.
   button; after the press it reads "Sending…", then a check mark and "Friend
   request sent." in place of the button. A refusal says why in the error color
   and keeps the button. Friends and the signed-in user's own profile show no
-  friend action.
+  friend action, and friend details never do: everyone there is on the
+  friends list, even just after an Unfriend there, until the platform drops
+  them and the details close.
 - **Unfriend or block** (owner, 2026-11-01) closes every full profile, below
   a thin rule: one quiet button that reads nothing until pressed. Open, it
   says which platform account changes, then shows only what applies, in one
@@ -780,6 +852,8 @@ no line under ALL for a platform the user isn't signed in to.
   the drawer or sheet behind stays open. A failure stays in the dialog; a
   success closes it and leaves a "✓ Unblocked on VRChat."-style line above
   the buttons, which switch at once (Block becomes Unblock; Unfriend goes).
+  When friend details close on their own (the friend left the list), an open
+  dialog closes with them and sends nothing.
 - **Groups** is one name-sorted grid (neutral across platforms) of cards that
   are wider than tall: the group's square icon centered on top over a blurred
   copy of itself (never cropped), then the name, and the VRC/CVR badge with
@@ -792,9 +866,13 @@ no line under ALL for a platform the user isn't signed in to.
   Favorites control. The lists alternate platforms like Search and open the
   same world sheet. Favorites (owner, 2026-11-01) lists the worlds starred in
   VRX, newest first, then the account's own favorite worlds. Its Refresh reads
-  the account's favorites again (hidden while game favorites are off). The
+  the account's favorites again (hidden while game favorites are off). When
+  the account's favorites never loaded, a red line says so instead of the
+  empty-list line. The
   world sheet's star follows the world name and opens the same favorite panel
-  as a friend's, below the title.
+  as a friend's, below the title. Like Groups and Avatars, Refresh reads
+  "Refreshing…" and stays off until its reads answer; on Popular now, until
+  no shown platform is still finding worlds.
 - **Set as home world** sits beside the platform pill on every world sheet,
   the same small house-and-label button on both platforms. A press asks once in
   an inline panel (Make home, Cancel), because it replaces the user's current
@@ -819,7 +897,10 @@ breaking ties. A merged picture changes artwork only, never the status source.
 Two locations use a hard, centered 45-degree split, VRChat upper-right and
 ChilloutVR lower-left. In the row, two joinable locations share one
 "2 locations" pill whose halves carry each access tier by color, so the world
-line names each tier in words after its platform tag.
+line names each tier in words after its platform tag. Search finds a person
+by any of their names; when the row's own name has no match, the name that
+matched takes the custom status's place beside it, dim, with the match
+marked.
 
 Combined Join always opens the destination chooser, even with one eligible
 choice, and never picks for the user. Single-platform views use the normal

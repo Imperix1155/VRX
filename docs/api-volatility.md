@@ -465,6 +465,9 @@ cached in main for 5 minutes; nothing runs on a timer.
   `tags` like the friends list. Hidden badges are skipped and showcased ones
   come first, at most 8. Text is cut at 2,048 characters; image URLs must be
   `https`.
+- **Search text** (both platforms) is 2 to 64 characters after trimming, or
+  one kanji, which is often a whole word. A reply to a one-character search
+  has not been captured yet.
 - **Group pictures:** a group's `iconUrl` and `bannerUrl` point at the full
   uploaded file (`/api/1/file/<file_id>/<version>[/file]`), which can be over
   the 3 MiB image limit; the most likely reason some icons never showed (not
@@ -973,6 +976,8 @@ and 5-minute cache rules apply.
 
 - **Fields:** user, world and group ids must be GUIDs (stored lower case). A
   featured badge named `No badge featured` is skipped.
+- **Search text** is one path step, URL-encoded. Text that is only `.` or `..`
+  can't be one, so it finds nothing and sends nothing.
 - **When it breaks:** a reply of the wrong shape is unavailable. Auth errors
   follow the data-path rules above; a 429 surfaces as rate-limited.
 
@@ -1058,8 +1063,10 @@ response or write has been captured yet.
   a one-item list, and at most 50 records are read per frame. An invite with no
   world name falls back to `InstanceName` without its ` (#n)` suffix. Bad
   records are skipped. A frame never removes rows, because it is unconfirmed
-  whether a frame lists everything still open. A friend request clears when that
-  person shows up on the roster.
+  whether a frame lists everything still open. For the same reason, rows that
+  arrive in the first 10 s after a connect show without an alert
+  (`INBOX_CONNECT_QUIET_MS`): if the server lists open records on connect, they
+  are not news. A friend request clears when that person shows up on the roster.
 - **Friend action frames (🟡 Source-derived from CVRX, not yet seen live):**
   VRX sends `{ RequestType: 6, Data: { id } }` to accept, `7` to decline and
   `5` to add, where `id` is the other user's GUID in lower case. The socket

@@ -2,7 +2,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Friend } from '@shared/types'
-import type { LinkedRow } from '../utils/projectLinkedFriends'
+import type { LinkedProfile } from '@shared/linkedProfiles'
+import { projectLinkedFriends, type LinkedRow } from '../utils/projectLinkedFriends'
 import { useStableLinkedRows } from './useStableLinkedRows'
 
 function friend(
@@ -162,6 +163,139 @@ describe('useStableLinkedRows', () => {
 
     hook.rerender({ rows: updated, heldKey: initial[0]?.key ?? null })
     expect(hook.result.current).toBe(updated)
+  })
+
+  it('shows the name a new search matched on a held row at once', () => {
+    const initial = [accountRow()]
+    const searched = [accountRow({ matchedName: 'VRC old alt' })]
+    const hook = renderHook(({ rows, heldKey }) => useStableLinkedRows(rows, heldKey), {
+      initialProps: { rows: initial, heldKey: initial[0]?.key ?? null }
+    })
+
+    hook.rerender({ rows: searched, heldKey: initial[0]?.key ?? null })
+    expect(hook.result.current).toBe(searched)
+    expect(hook.result.current[0]?.matchedName).toBe('VRC old alt')
+  })
+
+  it('gives a held row that moved the current search’s matched name, not the last one', () => {
+    const initial = [accountRow({ matchedName: 'Old match' })]
+    const moved = [
+      accountRow(
+        { accounts: [vrcNew], name: vrcNew.displayName, section: 'in-game', matchedName: 'New' },
+        vrcNew
+      )
+    ]
+    const hook = renderHook(({ rows, heldKey }) => useStableLinkedRows(rows, heldKey), {
+      initialProps: { rows: initial, heldKey: initial[0]?.key ?? null }
+    })
+
+    hook.rerender({ rows: moved, heldKey: initial[0]?.key ?? null })
+    // Still held in its old section, with the matched name the search now gives.
+    expect(hook.result.current[0]).toMatchObject({ section: 'online', matchedName: 'New' })
+  })
+
+  describe('a held row whose person splits or merges while searching', () => {
+    function profile(customName: string | null): LinkedProfile {
+      return {
+        id: 'one',
+        members: [
+          { platform: 'vrchat', platformAccountId: 'me-v', friendId: 'vrc-friend' },
+          { platform: 'chilloutvr', platformAccountId: 'me-c', friendId: 'cvr-friend' }
+        ],
+        customName,
+        defaultName: 'Default',
+        preferredPlatform: 'vrchat',
+        pictureMode: 'preferred',
+        sharedNote: '',
+        revision: 1
+      }
+    }
+    function project(friends: Friend[], customName: string | null, search: string): LinkedRow[] {
+      return projectLinkedFriends({
+        friends,
+        profiles: [profile(customName)],
+        accountIds: { vrchat: 'me-v', chilloutvr: 'me-c' },
+        filter: 'all',
+        search
+      }).rows
+    }
+    /** Holds the row named `heldName`, applies `after`, and returns what the
+     *  held row shows. */
+    function held(
+      before: LinkedRow[],
+      after: LinkedRow[],
+      heldName: string,
+      search: string
+    ): LinkedRow | undefined {
+      const key = before.find((row) => row.name === heldName)?.key ?? null
+      const hook = renderHook(({ rows }) => useStableLinkedRows(rows, key, search), {
+        initialProps: { rows: before }
+      })
+      hook.rerender({ rows: after })
+      return hook.result.current.find((row) => row.key === key)
+    }
+    const vrc = (name: string, state: Friend['presence']['state']): Friend =>
+      friend('vrchat', 'vrc-friend', name, state)
+    const cvrAt = (name: string, state: Friend['presence']['state']): Friend =>
+      friend('chilloutvr', 'cvr-friend', name, state)
+
+    it('names the account that matched on a merge, with no custom name', () => {
+      const before = project([vrc('Bob', 'active'), cvrAt('Carl', 'in-game')], null, 'bob')
+      const after = project([vrc('Bob', 'active'), cvrAt('Carl', 'offline')], null, 'bob')
+      expect(after).toHaveLength(1)
+      expect(held(before, after, 'Carl', 'bob')).toMatchObject({
+        name: 'Carl',
+        matchedName: 'Bob'
+      })
+    })
+
+    it('names the custom name that matched on a merge', () => {
+      const before = project([vrc('Bob', 'active'), cvrAt('Carl', 'in-game')], 'Alice', 'ali')
+      const after = project([vrc('Bob', 'in-game'), cvrAt('Carl', 'in-game')], 'Alice', 'ali')
+      expect(held(before, after, 'Bob', 'ali')).toMatchObject({ name: 'Bob', matchedName: 'Alice' })
+    })
+
+    it('names an account that matched on a split when the combined name did not', () => {
+      const before = project([vrc('Alice', 'in-game'), cvrAt('Alicia', 'in-game')], 'Zed', 'ali')
+      const after = project([vrc('Alice', 'active'), cvrAt('Alicia', 'in-game')], 'Zed', 'ali')
+      expect(held(before, after, 'Zed', 'ali')).toMatchObject({ name: 'Zed', matchedName: 'Alice' })
+    })
+
+    it('shows no other name when the held row’s own name matches', () => {
+      const split = [vrc('Bob', 'active'), cvrAt('Carla', 'in-game')]
+      expect(
+        held(
+          project([vrc('Bob', 'in-game'), cvrAt('Carla', 'in-game')], 'Alice', 'a'),
+          project(split, 'Alice', 'a'),
+          'Alice',
+          'a'
+        )?.matchedName
+      ).toBeUndefined()
+      const merged = [vrc('Alice', 'in-game'), cvrAt('Alicia', 'in-game')]
+      expect(
+        held(
+          project([vrc('Alice', 'active'), cvrAt('Alicia', 'in-game')], 'Zed', 'ali'),
+          project(merged, 'Zed', 'ali'),
+          'Alicia',
+          'ali'
+        )?.matchedName
+      ).toBeUndefined()
+    })
+
+    it('follows a new search while the row is held', () => {
+      const friends = [vrc('Bob', 'in-game'), cvrAt('Carl', 'in-game')]
+      const before = project([vrc('Bob', 'active'), cvrAt('Carl', 'in-game')], 'Alice', 'ali')
+      const key = before.find((row) => row.name === 'Bob')?.key ?? null
+      const hook = renderHook(({ rows, search }) => useStableLinkedRows(rows, key, search), {
+        initialProps: { rows: before, search: 'ali' }
+      })
+      hook.rerender({ rows: project(friends, 'Alice', 'ali'), search: 'ali' })
+      hook.rerender({ rows: project(friends, 'Alice', 'car'), search: 'car' })
+      expect(hook.result.current.find((row) => row.key === key)?.matchedName).toBe('Carl')
+      // The rows stay the same while only the text changes: still asked again.
+      hook.rerender({ rows: project(friends, 'Alice', 'car'), search: 'bo' })
+      expect(hook.result.current.find((row) => row.key === key)?.matchedName).toBeUndefined()
+    })
   })
 
   it('passes through unchanged mixed rows with live payloads without hiding the sibling', () => {

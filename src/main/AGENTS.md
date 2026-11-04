@@ -23,8 +23,9 @@ etiquette rules apply in full; this file adds local detail.
 - Top-level modules own cross-cutting concerns: event fan-out
   (`adapterWiring.ts`), navigation guards, native notifications, tray, updater,
   logging and redaction, main-process copy (`i18n.ts`), sockets, live-socket
-  reconnect after wake (`wakeReconnect.ts`), window reveal (`showGate.ts`), and
-  the error box shown before a fatal exit (`fatalErrorBox.ts`).
+  reconnect after wake (`wakeReconnect.ts`), the reconnect roster read with no
+  window open (`rosterCatchUp.ts`), window reveal (`showGate.ts`), and the
+  error box shown before a fatal exit (`fatalErrorBox.ts`).
 - [`../preload`](../preload/index.ts) belongs to this contract. `index.ts`
   exposes `window.vrx`; `index.d.ts` types it. Bridge rules are in the IPC
   child contract.
@@ -48,9 +49,12 @@ etiquette rules apply in full; this file adds local detail.
   notification activation focus the current window, recreating it if
   destroyed; tray actions resolve the window at click time, and tray Show goes
   through the same focus path, as does a single tray click on Windows. The tray
-  menu treats a minimized window as hidden. One recovery dialog
+  menu treats a minimized window as hidden. Focusing leaves a window its show
+  gate has not revealed to the gate. One recovery dialog
   per window handles crashes and hangs; a renderer killed from outside the app
-  counts as a crash unless the app is quitting.
+  counts as a crash unless the app is quitting. A hang dialog closes once the
+  window answers again, and focusing reloads a renderer whose crash dialog was
+  dismissed.
 - On Windows and Linux, close hides to the tray until `before-quit` sets the
   single `quitting` flag; macOS keeps native close. `before-quit` disposes
   Explore, flushes settings, and tears down adapter wiring; a throwing teardown
@@ -135,7 +139,10 @@ etiquette rules apply in full; this file adds local detail.
 - `adapterWiring.ts` feeds each event to app status, `LocationAuthority`,
   `FriendAlerts`, `ActivityFeed`, `InboxService`, then the broadcast, isolating
   each consumer. `inbox` events go to `InboxService` only and are never
-  broadcast. The broadcast
+  broadcast. On `live` with no window open (macOS after its window closes),
+  `RosterCatchUp` runs the `get-friends` roster read, the one reconnect read an
+  open window would make. With a window open it reads nothing, and after
+  `auth-invalidated` it waits for a roster read that works. The broadcast
   stamps `rosterRevision` from the same monotonic counter as roster seeds;
   event revisions never move per-friend location fences.
 - A session boundary clears that platform's alerts, location authority, inbox
@@ -184,8 +191,12 @@ etiquette rules apply in full; this file adds local detail.
 - `InboxService` is main-memory only: it never calls a platform, never
   persists, and Hide is local. Keep its per-platform row cap, bounded
   hidden-ID memory, and alert limits (`isInboxAlertEnabled`: `notifyInvites`,
-  `notifyFriendRequests`). An invite may name its world because the sender
-  shared it; nothing else in the inbox reads presence.
+  `notifyFriendRequests`). An answered request's ID is held back only
+  briefly, since a ChilloutVR request's ID is its sender. Rows ChilloutVR
+  sends just after its socket connects show without an alert, since they may
+  be ones still open from before. An invite may name
+  its world because the sender shared it; nothing else in the inbox reads
+  presence.
 - `FriendActionsService` owns the only friend writes: Accept or Decline on an
   inbox friend-request row main holds, and Add friend for someone a search
   listed this session who is not a friend. One press sends once, never

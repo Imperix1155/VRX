@@ -51,7 +51,8 @@ VRX checks for updates when it starts and every few hours while it runs. When
 one is available, an **Update** button appears at the bottom of the sidebar,
 and Settings → About shows the same choice. Nothing downloads or installs
 until you say so, unless you turn on **Automatic updates**. Automatic updates
-download in the background and install when VRX closes.
+download in the background and install when you quit VRX (closing the window
+only hides it in the tray).
 
 The portable Windows build can't update itself. Settings → About links to
 the releases page instead.

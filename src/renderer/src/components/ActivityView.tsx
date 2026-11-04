@@ -8,7 +8,8 @@
  * platform's color (owner, 2026-10-27); the platform pill carries the platform
  * in words, never color alone. The TopBar's platform filter scopes the list;
  * the Show control here picks a kind and is saved like any other setting.
- * A row opens that friend's details on the Friends page.
+ * Clear forgets only what that scope shows. A row opens that friend's details
+ * on the Friends page.
  */
 import { useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -113,6 +114,8 @@ function ActivityRow({
         <span className="block truncate text-sm font-medium text-[var(--text)]" title={name}>
           {name}
         </span>
+        {/* The full world name on hover, a "(#…)" tag included, like the hot
+            cards (owner rule VRX-199). */}
         <span
           className="block truncate text-xs text-[var(--text-dim)]"
           title={entry.worldName ?? undefined}
@@ -143,7 +146,14 @@ function ActivityRow({
     <button
       type="button"
       className={`${rowClass} cursor-pointer rounded-control hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors`}
-      aria-label={`${name}, ${description}, ${time}. ${t('activity.openFriend', { name })}`}
+      aria-label={t('activity.rowAria', {
+        name,
+        platform: t(
+          entry.platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr'
+        ),
+        description,
+        time
+      })}
       onClick={() => onOpen(entry)}
     >
       {body}
@@ -254,7 +264,7 @@ export default function ActivityView(): React.JSX.Element {
             <p className="text-sm font-semibold text-[var(--text-dim)]">
               {t('activity.emptyHeading')}
             </p>
-            <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
+            <p className="mt-[var(--space-1)] max-w-[52ch] text-balance text-xs text-[var(--text-dim)]">
               {t('activity.emptyHint')}
             </p>
           </>
@@ -295,13 +305,21 @@ export default function ActivityView(): React.JSX.Element {
         />
         <button
           type="button"
-          disabled={(activity.data ?? []).length === 0}
+          // Not `disabled`: once the list it cleared is empty, a disabled
+          // button would drop keyboard focus to the page.
+          aria-disabled={entries.length === 0}
           onClick={() => {
-            // A failed clear keeps the list as it is; the next push refreshes it.
-            clearActivity(client).catch(() => undefined)
+            if (entries.length === 0) return
+            // Clear takes only what is on screen, like the Inbox's Hide all:
+            // the filtered platforms and the shown kind. A failed clear keeps
+            // the list as it is; the next push refreshes it.
+            clearActivity(client, {
+              platforms: platformFilter === 'all' ? ['vrchat', 'chilloutvr'] : [platformFilter],
+              filter
+            }).catch(() => undefined)
           }}
           aria-label={t('activity.clearAria')}
-          className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent motion-safe:transition-colors"
+          className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent motion-safe:transition-colors"
         >
           {t('activity.clear')}
         </button>

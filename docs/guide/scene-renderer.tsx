@@ -255,8 +255,12 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     ...guideDashboardSections(name === 'dashboard' ? variant : null)
   })
   useSettingsStore.getState().hydrate()
-  if (name === 'settings' && variant === 'save-error') {
+  if ((name === 'settings' || name === 'setup') && variant === 'save-error') {
     useSettingsStore.setState({ dirty: true, saveError: true })
+  }
+  // `read-error`: main answered with defaults because the settings file was unreadable.
+  if (name === 'settings' && variant === 'read-error') {
+    useSettingsStore.setState({ loadFallback: true })
   }
   useUiStore
     .getState()

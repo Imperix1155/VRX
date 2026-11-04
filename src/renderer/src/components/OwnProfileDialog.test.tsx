@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OwnProfile } from '@shared/ownProfile'
 import type { Platform } from '@shared/types'
 import i18n from '../i18n'
+import { authStatusQueryKey } from '../queries/auth'
 import AccountCard from './AccountCard'
 
 const msg = (key: string, options?: Record<string, string | number>): string => i18n.t(key, options)
@@ -18,6 +19,7 @@ function stored(platform: Platform): OwnProfile {
 function setup(platform: Platform): {
   getOwnProfile: ReturnType<typeof vi.fn>
   saveOwnProfile: ReturnType<typeof vi.fn>
+  client: QueryClient
 } {
   const getOwnProfile = vi.fn().mockResolvedValue({ ok: true, profile: stored(platform) })
   const saveOwnProfile = vi.fn(async ({ changes }: { changes: Partial<OwnProfile> }) => ({
@@ -40,7 +42,7 @@ function setup(platform: Platform): {
       <AccountCard platform={platform} profileEditing />
     </QueryClientProvider>
   )
-  return { getOwnProfile, saveOwnProfile }
+  return { getOwnProfile, saveOwnProfile, client }
 }
 
 async function openEditor(): Promise<HTMLElement> {
@@ -111,6 +113,93 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
     ).toBeTruthy()
   })
 
+  it('keeps typed changes through a press outside or Escape; Cancel still closes', async () => {
+    const { saveOwnProfile } = setup(platform)
+    let dialog = await openEditor()
+    // Nothing typed yet: a press outside closes, as before.
+    fireEvent.pointerDown(dialog)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    dialog = await openEditor()
+    const bio = within(dialog).getByLabelText(msg('settings.accounts.profile.bio'))
+    fireEvent.change(bio, { target: { value: 'A long bio I spent a while writing' } })
+    fireEvent.pointerDown(dialog)
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    expect(screen.getByRole('dialog')).toBe(dialog)
+    expect((bio as HTMLTextAreaElement).value).toBe('A long bio I spent a while writing')
+    expect(saveOwnProfile).not.toHaveBeenCalled()
+
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: msg('settings.accounts.profile.cancel') })
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(saveOwnProfile).not.toHaveBeenCalled()
+  })
+
+  it('closes Edit profile when the sign-in ends, so it never opens by itself at the next one', async () => {
+    const { client, getOwnProfile } = setup(platform)
+    await openEditor()
+    act(() => {
+      client.setQueryData(authStatusQueryKey(platform), {
+        platform,
+        state: 'unauthenticated',
+        accountId: null,
+        displayName: null
+      })
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    act(() => {
+      client.setQueryData(authStatusQueryKey(platform), {
+        platform,
+        state: 'authenticated',
+        accountId: 'another-account',
+        displayName: 'Trinity'
+      })
+    })
+    expect(
+      await screen.findByRole('button', { name: msg('settings.accounts.profile.edit') })
+    ).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(getOwnProfile).toHaveBeenCalledTimes(1)
+  })
+
+  it('forgets the saved line when you sign out, so the next sign-in never shows it', async () => {
+    const { client } = setup(platform)
+    const dialog = await openEditor()
+    fireEvent.change(within(dialog).getByLabelText(msg('settings.accounts.profile.bio')), {
+      target: { value: 'New bio' }
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: msg('settings.accounts.profile.save') })
+    )
+    const saved = msg('settings.accounts.profile.saved', {
+      platform: msg(`settings.accounts.${platform}.label`)
+    })
+    expect(await screen.findByText(saved)).toBeTruthy()
+
+    act(() => {
+      client.setQueryData(authStatusQueryKey(platform), {
+        platform,
+        state: 'unauthenticated',
+        accountId: null,
+        displayName: null
+      })
+    })
+    expect(await screen.findByLabelText(msg('settings.accounts.password'))).toBeTruthy()
+    act(() => {
+      client.setQueryData(authStatusQueryKey(platform), {
+        platform,
+        state: 'authenticated',
+        accountId: 'another-account',
+        displayName: 'Trinity'
+      })
+    })
+    expect(
+      await screen.findByRole('button', { name: msg('settings.accounts.profile.edit') })
+    ).toBeTruthy()
+    expect(screen.queryByText(saved)).toBeNull()
+  })
+
   it('keeps the edits and explains a failed Save', async () => {
     const { saveOwnProfile } = setup(platform)
     saveOwnProfile.mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
@@ -128,6 +217,27 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
       'value',
       'she/her'
     )
+  })
+
+  it('says the platform asked to slow down when it refuses a Save, not that you saved too often', async () => {
+    const { saveOwnProfile } = setup(platform)
+    saveOwnProfile.mockResolvedValueOnce({ ok: false, reason: 'rate-limited' })
+    const dialog = await openEditor()
+    fireEvent.change(within(dialog).getByLabelText(msg('settings.accounts.profile.bio')), {
+      target: { value: 'New bio' }
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: msg('settings.accounts.profile.save') })
+    )
+    expect(
+      await within(dialog).findByText(
+        msg('settings.accounts.profile.error.slowDown', {
+          platform: msg(`settings.accounts.${platform}.label`)
+        })
+      )
+    ).toBeTruthy()
+    expect(within(dialog).queryByText(msg('settings.accounts.profile.error.wait'))).toBeNull()
+    expect(saveOwnProfile).toHaveBeenCalledTimes(1)
   })
 
   it('keeps Save available after a failed Save, even with the text put back', async () => {
@@ -165,6 +275,24 @@ describe.each(['vrchat', 'chilloutvr'] as const)('Edit profile — %s', (platfor
     )
     expect(await within(dialog).findByLabelText(msg('settings.accounts.profile.bio'))).toBeTruthy()
     expect(getOwnProfile).toHaveBeenCalledTimes(2)
+  })
+
+  it('says the platform asked to slow down when a read is refused, not that you saved', async () => {
+    const { getOwnProfile } = setup(platform)
+    getOwnProfile.mockResolvedValueOnce({ ok: false, reason: 'rate-limited' })
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.accounts.profile.edit') })
+    )
+    const dialog = await screen.findByRole('dialog')
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert.textContent).toContain(
+      msg('settings.accounts.profile.error.slowDown', {
+        platform: platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
+      })
+    )
+    expect(alert.textContent).not.toContain(msg('settings.accounts.profile.error.wait'))
+    // Nothing is asked again until Retry is pressed.
+    expect(getOwnProfile).toHaveBeenCalledTimes(1)
   })
 })
 

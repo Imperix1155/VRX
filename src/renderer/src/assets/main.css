@@ -127,17 +127,30 @@
     0 0 3px var(--bg-base),
     0 1px 6px var(--bg-base);
 }
+.linked-world-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+/* Over a picture the platform tag keeps its own tint on the card's color, as
+   it looks on the card itself; the picture never shows through, so its word
+   keeps 4.5:1 on bright art too. */
+.linked-world-tags .linked-world-platform {
+  background:
+    linear-gradient(var(--linked-badge-bg), var(--linked-badge-bg)), var(--glass-information);
+}
 .linked-world-pill {
   display: inline-flex;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-base) 42%, transparent);
+  /* The opaque card color, as the VRC and CVR tags beside it have, in both
+     themes: the picture never shows through, so every access word keeps 4.5:1
+     on any art (dark 6.4:1 or more on a white picture, light 5.6:1 or more on
+     a black one). */
+  background: var(--glass-information);
   backdrop-filter: blur(10px);
 }
-/* Light pictures stay bright, so the light pill takes the card-color backing
-   other pills over a picture use (PictureBackedPill) and its word keeps 4.5:1. */
+/* The backing already carries the word; a pale glow would only blur it. */
 [data-theme='light'] .linked-world-pill {
-  background: color-mix(in srgb, var(--glass-information) 78%, transparent);
-  /* The backing already carries the word; a pale glow would only blur it. */
   text-shadow: none;
 }
 .linked-identities,
@@ -363,10 +376,10 @@
   --plat-cvr-badge-text: var(--plat-cvr-ghost-text);
   --plat-vrc-badge-border: var(--plat-vrc-ghost-border);
   --plat-cvr-badge-border: var(--plat-cvr-ghost-border);
-  /* Badges over a picture keep a small card-color backing so the word reads
-     on bright art. */
-  --plat-vrc-picture-badge-bg: color-mix(in srgb, var(--glass-information) 78%, transparent);
-  --plat-cvr-picture-badge-bg: color-mix(in srgb, var(--glass-information) 78%, transparent);
+  /* Badges over a picture keep a small, opaque card-color backing, so the
+     brand-tinted word keeps 4.5:1 even on white art. */
+  --plat-vrc-picture-badge-bg: var(--glass-information);
+  --plat-cvr-picture-badge-bg: var(--glass-information);
   /* Friends-list rail: it sits on a row already washed in the same hue, so it
      takes a stronger tint and edge than the other pills to stand out from it. */
   --plat-vrc-rail-bg: color-mix(in srgb, var(--vrc) 30%, transparent);
@@ -734,6 +747,56 @@ body {
 @media (forced-colors: active) {
   ::-webkit-scrollbar-thumb {
     background: CanvasText;
+  }
+}
+
+/* High Contrast also drops box shadows and author colors, and VRX draws its
+   focus rings, the chosen option and the status dot with them, so all three
+   vanished there. System colors bring them back in High Contrast only. */
+@media (forced-colors: active) {
+  /* Keyboard focus. Spots that take focus only from code (tabindex -1: the
+     main region, notice lines, dialog panels) stay unmarked, as elsewhere. */
+  :focus-visible:not([tabindex='-1']),
+  .peer:focus-visible + * {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px;
+  }
+  /* Rows whose own ring is inset keep the outline inside, unclipped. */
+  [class~='focus-visible:ring-inset']:focus-visible {
+    outline-offset: -2px;
+  }
+  /* The chosen option: a segmented control's bubble, the current sidebar page
+     and its spine, a chosen status, a setup choice's dot and progress bars. */
+  .segmented-bubble,
+  [aria-current='page'] > [data-platform-filter] {
+    background: Highlight !important;
+  }
+  /* Chosen words are painted by hand: High Contrast's own plate behind text
+     would hide HighlightText on Highlight. */
+  .segmented-bubble ~ [aria-checked='true'] {
+    forced-color-adjust: none;
+    color: HighlightText !important;
+  }
+  [aria-current='page'],
+  .peer:checked + * {
+    forced-color-adjust: none;
+    border-color: Highlight !important;
+    background: Highlight !important;
+    color: HighlightText !important;
+  }
+  .setup-theme-choice[aria-checked='true'] {
+    border-color: Highlight;
+  }
+  [aria-checked='true'] .setup-radio::after,
+  .setup-progress-step[data-state='done'] .setup-progress-bar,
+  .setup-progress-step[data-state='current'] .setup-progress-bar {
+    background: Highlight;
+  }
+  /* A friend's presence and status live in the ring's and the dot's hues
+     (DESIGN.md §9.1), so they keep them. */
+  .presence-ring,
+  .status-badge {
+    forced-color-adjust: none;
   }
 }
 

@@ -1,4 +1,4 @@
-import { createRendererRecovery } from './services/rendererRecovery'
+import { createRendererRecovery, type RendererRecovery } from './services/rendererRecovery'
 import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
 import { ExploreService } from './services/exploreService'
 import { AvatarLibraryService } from './services/avatarLibraryService'
@@ -53,7 +53,7 @@ import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdap
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { BroadcastAdapterEvent } from '@shared/ipc'
-import type { Platform } from '@shared/types'
+import type { Friend, Platform } from '@shared/types'
 import { ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
@@ -87,6 +87,7 @@ import { LinkGraphStore } from './services/linkGraphStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
+import { createFriendRosterReader } from './services/friendRoster'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import {
   createFriendNotificationNotifier,
@@ -98,6 +99,7 @@ import {
 import { createVrOverlayAlerts } from './vrOverlayAlerts'
 import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
+import { RosterCatchUp } from './rosterCatchUp'
 import { importCvrSession } from './services/cvrSessionImport'
 import { importVrcxSession } from './services/vrcxSessionImport'
 import { createSessionImporter } from './services/sessionImport'
@@ -131,6 +133,7 @@ const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
   }
 })
 const rendererHydrationGates = new WeakMap<WebContents, ShowGate>()
+const rendererRecoveries = new WeakMap<WebContents, RendererRecovery>()
 
 const onRendererHydrated = (event: IpcMainEvent): void => {
   if (!isTrustedIpcSender(event.senderFrame)) return
@@ -238,6 +241,7 @@ function createWindow(): BrowserWindow {
     onError: (error) => log.warn('renderer recovery dialog rejected', { message: String(error) }),
     isQuitting: () => quitting
   })
+  rendererRecoveries.set(mainWindow.webContents, recovery)
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     exploreWindowService?.setActive([])
     if (details.reason !== 'clean-exit' && details.reason !== 'killed') {
@@ -249,6 +253,7 @@ function createWindow(): BrowserWindow {
     log.warn('window-unresponsive')
     recovery.unresponsive()
   })
+  mainWindow.on('responsive', () => recovery.responsive())
 
   keepMinimumSizeOnScreen(mainWindow)
 
@@ -293,6 +298,17 @@ function getOrCreateMainWindow(): BrowserWindow {
 
 function focusMainWindow(): BrowserWindow {
   const window = getOrCreateMainWindow()
+  // A crash box answered with Dismiss leaves the window empty; asking for VRX
+  // again (tray, second launch, alert click) brings it back.
+  rendererRecoveries.get(window.webContents)?.revive()
+  // A window that is new, or still starting, shows itself once it has painted.
+  // The request starts the gate's fallback, so one that never says it can
+  // paint still shows within it (VRX-185).
+  const gate = rendererHydrationGates.get(window.webContents)
+  if (gate?.isShown() === false) {
+    gate.requested()
+    return window
+  }
   if (window.isMinimized()) window.restore()
   window.show()
   window.focus()
@@ -803,6 +819,12 @@ app
       ]),
       isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
       isKnownPerson: (platform, userId) => community.knowsPerson(platform, userId),
+      // The platform's own message confirms an unfriend a moment later. Main's
+      // roster follows VRX's own at once, and a request to them may go again.
+      unfriended: (platform, userId) => {
+        locationAuthority.consume({ type: 'friend-removed', platform, platformUserId: userId })
+        friendActionsBoundary.current?.forgetRequest(platform, userId)
+      },
       log: (message, meta) => log.warn(message, meta)
     })
     socialBoundary.current = social
@@ -818,6 +840,28 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     friendActionsBoundary.current = friendActions
+
+    // With no window open (macOS after closing it), main runs the reconnect
+    // roster read itself (rosterCatchUp.ts), the same read `get-friends` serves.
+    const rosterCatchUp = new RosterCatchUp({
+      hasWindow: () => BrowserWindow.getAllWindows().some((window) => !window.isDestroyed()),
+      readRoster: (platform) => readFriendRoster(platform),
+      logFailure: (platform) => log.warn('roster catch-up failed', { platform })
+    })
+    // Each roster read, after the location authority is seeded.
+    const onFriendRoster = (platform: Platform, friends: Friend[]): void => {
+      // Settle requests first: it cannot throw, and an alert failure must not skip it.
+      inbox.settleRoster(platform, friends)
+      rosterCatchUp.rosterRead(platform)
+      friendAlerts.seedRoster(platform, friends)
+      activityFeed.seedRoster(platform, friends)
+    }
+    const readFriendRoster = createFriendRosterReader(
+      adapters,
+      locationAuthority,
+      appStatus,
+      onFriendRoster
+    )
 
     registerIpcHandlers(adapters, {
       explore,
@@ -911,12 +955,7 @@ app
       },
       locationAuthority,
       onRendererHydrated,
-      onFriendRoster: (platform, friends) => {
-        // Settle requests first: it cannot throw, and an alert failure must not skip it.
-        inbox.settleRoster(platform, friends)
-        friendAlerts.seedRoster(platform, friends)
-        activityFeed.seedRoster(platform, friends)
-      },
+      onFriendRoster,
       instance: {
         joinCoordinator,
         gameHandoff,
@@ -955,6 +994,7 @@ app
       friendAlerts,
       activityFeed,
       inbox,
+      rosterCatchUp,
       broadcast
     })
     // A socket can look open after sleep while its connection is gone.

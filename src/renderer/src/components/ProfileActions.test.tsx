@@ -6,7 +6,7 @@
  * person, and both platforms get the same buttons in the same order.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type {
   Relationship,
@@ -162,6 +162,27 @@ describe('ProfileActions', () => {
     expect(bridge.socialAction).not.toHaveBeenCalled()
   })
 
+  it('closes an open question, sending nothing, when the drawer or sheet around it closes', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const actions = (panelOpen: boolean): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <ProfileActions platform="vrchat" userId={IDS.vrchat} name="Lumen" panelOpen={panelOpen} />
+      </QueryClientProvider>
+    )
+    const view = render(actions(true))
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.unfriend') }))
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+
+    // Friend details close on their own when the friend leaves the list.
+    view.rerender(actions(false))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    // Opening the same friend again does not bring the old question back.
+    view.rerender(actions(true))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(bridge.socialAction).not.toHaveBeenCalled()
+  })
+
   it('keeps Escape and outside presses from reaching the drawer or sheet behind it', async () => {
     const documentKeys = vi.fn()
     const documentPointers = vi.fn()
@@ -226,6 +247,157 @@ describe('ProfileActions', () => {
     expect(actionButtons()).toEqual(['unfriend', 'block'])
   })
 
+  it('keeps focus on the pressed button while it sends and after a refusal', async () => {
+    let answer: (result: SocialActionResult) => void = () => undefined
+    bridge.socialAction.mockImplementationOnce(
+      () => new Promise<SocialActionResult>((resolve) => (answer = resolve))
+    )
+    renderActions()
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.block') }))
+    const dialog = screen.getByRole('alertdialog')
+    const confirm = within(dialog).getByRole('button', { name: msg('profile.actions.block') })
+    const cancel = within(dialog).getByRole('button', {
+      name: msg('profile.actions.confirm.cancel')
+    })
+    confirm.focus()
+    fireEvent.click(confirm)
+
+    // aria-disabled, not disabled: Chromium drops focus from a disabled
+    // button to the page behind the dialog; jsdom doesn't.
+    await screen.findByRole('button', { name: msg('profile.actions.confirm.sending') })
+    expect(confirm.hasAttribute('disabled')).toBe(false)
+    expect(confirm.getAttribute('aria-disabled')).toBe('true')
+    expect(cancel.hasAttribute('disabled')).toBe(false)
+    expect(cancel.getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(confirm)
+    // Another press, such as a double-click's second, lands on the button and
+    // not on the panel under it, which would take focus. jsdom doesn't
+    // hit-test, so check that the dimmed buttons keep pointer events.
+    for (const button of [confirm, cancel]) {
+      expect(button.className).not.toContain('pointer-events-none')
+    }
+    // Presses while it sends do nothing.
+    fireEvent.click(cancel)
+    fireEvent.click(confirm)
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+    expect(bridge.socialAction).toHaveBeenCalledTimes(1)
+
+    answer({ ok: false, reason: 'unavailable' })
+    await screen.findByRole('alert')
+    expect(document.activeElement).toBe(confirm)
+    expect(confirm.hasAttribute('aria-disabled')).toBe(false)
+    expect(cancel.hasAttribute('aria-disabled')).toBe(false)
+  })
+
+  it('sends a change once when pressed again as its answer arrives, before the dialog closes', async () => {
+    let answer: (result: SocialActionResult) => void = () => undefined
+    bridge.socialAction.mockImplementationOnce(
+      () => new Promise<SocialActionResult>((resolve) => (answer = resolve))
+    )
+    renderActions()
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.block') }))
+    const confirm = within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: msg('profile.actions.block')
+    })
+    fireEvent.click(confirm)
+    await screen.findByRole('button', { name: msg('profile.actions.confirm.sending') })
+
+    await act(async () => {
+      answer({
+        ok: true,
+        relationship: { platform: 'vrchat', userId: IDS.vrchat, isFriend: true, blocked: true }
+      })
+      // The answer is handled, but the dialog's closing render hasn't run.
+      for (let tick = 0; tick < 50; tick++) await Promise.resolve()
+      expect(confirm.isConnected).toBe(true)
+      fireEvent.click(confirm)
+    })
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(bridge.socialAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a newer question open when an answer lands after the friend details closed the old one', async () => {
+    let answer: (result: SocialActionResult) => void = () => undefined
+    bridge.socialAction.mockImplementationOnce(
+      () => new Promise<SocialActionResult>((resolve) => (answer = resolve))
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const actions = (panelOpen: boolean): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <ProfileActions platform="vrchat" userId={IDS.vrchat} name="Lumen" panelOpen={panelOpen} />
+      </QueryClientProvider>
+    )
+    const view = render(actions(true))
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.block') }))
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: msg('profile.actions.block')
+      })
+    )
+    await screen.findByRole('button', { name: msg('profile.actions.confirm.sending') })
+
+    // Friend details close while it sends, as when a refetch briefly leaves the
+    // friend out, and the same friend opens again with another question.
+    view.rerender(actions(false))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    view.rerender(actions(true))
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.unfriend') }))
+    const dialog = screen.getByRole('alertdialog', {
+      name: msg('profile.actions.confirm.title.unfriend', { name: 'Lumen' })
+    })
+
+    await act(async () => {
+      answer({
+        ok: true,
+        relationship: { platform: 'vrchat', userId: IDS.vrchat, isFriend: true, blocked: true }
+      })
+    })
+    // The answer has landed: the buttons behind the dialog follow it.
+    await waitFor(() => expect(actionButtons()).toEqual(['unfriend', 'unblock']))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+
+    expect(screen.getByRole('alertdialog')).toBe(dialog)
+    expect(screen.queryByText(msg('profile.actions.done.block', { platform: 'VRChat' }))).toBeNull()
+    expect(bridge.socialAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps Tab in the dialog when focus is on the dialog itself, as after a press on its text', async () => {
+    renderActions()
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.unfriend') }))
+    const dialog = screen.getByRole('alertdialog')
+    const cancel = within(dialog).getByRole('button', {
+      name: msg('profile.actions.confirm.cancel')
+    })
+    for (const shiftKey of [true, false]) {
+      dialog.focus()
+      expect(fireEvent.keyDown(dialog, { key: 'Tab', shiftKey })).toBe(false)
+      expect(document.activeElement).toBe(cancel)
+    }
+  })
+
+  it.each(['touch', 'pen'])(
+    'closes on a %s tap’s click, not its press, so the tap stays on the scrim',
+    async (pointerType) => {
+      renderActions()
+      await openOptions()
+      fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.unfriend') }))
+      const scrim = screen.getByTestId('social-confirm-scrim')
+      fireEvent.pointerDown(scrim, { pointerType })
+      // Still there for the tap's click, which would otherwise land behind it.
+      expect(screen.getByRole('alertdialog')).toBeTruthy()
+      fireEvent.pointerUp(scrim, { pointerType })
+      fireEvent.click(scrim)
+
+      expect(screen.queryByRole('alertdialog')).toBeNull()
+      expect(bridge.socialAction).not.toHaveBeenCalled()
+    }
+  )
+
   it('offers Retry when the check fails', async () => {
     bridge.getRelationship.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
     renderActions()
@@ -235,6 +407,20 @@ describe('ProfileActions', () => {
     await screen.findByRole('button', { name: msg('profile.actions.block') })
     expect(bridge.getRelationship).toHaveBeenCalledTimes(2)
   })
+  it('offers Accounts, not Retry, when the check asks to sign in again', async () => {
+    bridge.getRelationship.mockResolvedValueOnce({ ok: false, reason: 'not-authenticated' })
+    renderActions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.show') }))
+    expect(
+      await screen.findByText(
+        msg('profile.actions.error.not-authenticated', { platform: 'VRChat' })
+      )
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
+    expect(screen.getByRole('button', { name: msg('community.openAccounts') })).toBeTruthy()
+    expect(bridge.getRelationship).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the new state when an older check answers after the change', async () => {
     const client = renderActions('chilloutvr')
     await openOptions()

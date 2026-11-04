@@ -1,16 +1,33 @@
 import { useEffect, useLayoutEffect, useId, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+/** A press on the backdrop: on the dialog element, outside its own box. Its
+ *  scrollbar, and the corners beside its rounded panel, are part of it. */
+function onBackdrop(event: React.MouseEvent<HTMLDialogElement>): boolean {
+  if (event.target !== event.currentTarget) return false
+  const box = event.currentTarget.getBoundingClientRect()
+  return !(
+    event.clientX >= box.left &&
+    event.clientX < box.right &&
+    event.clientY >= box.top &&
+    event.clientY < box.bottom
+  )
+}
+
 /** Native modality owns keyboard trapping and background inertness. */
 export default function LinkedDialog({
   title,
   children,
   busy = false,
+  dismissible = true,
   onClose
 }: {
   title: string
   children: ReactNode
   busy?: boolean
+  /** False keeps a stray press outside and Escape from closing it, as while
+   *  typed changes would be lost; ✕ and the dialog's own Cancel still close it. */
+  dismissible?: boolean
   onClose: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -34,10 +51,20 @@ export default function LinkedDialog({
       closeRequest.current()
     })
     const panel = dialog.current
+    // While a dialog holds Escape back, `closedby="none"` keeps the browser
+    // from closing it after a few Escapes in a row. Should the browser close
+    // it anyway, follow, so the app never keeps a hidden dialog open. A late
+    // close event from an earlier close finds the dialog open again and
+    // changes nothing.
+    const followClose = (): void => {
+      if (panel?.open === false) closeRequest.current()
+    }
+    panel?.addEventListener('close', followClose)
     panel?.showModal()
     closeButton.current?.focus()
     return () => {
       unsubscribe?.()
+      panel?.removeEventListener('close', followClose)
       panel?.close()
       const search = document.querySelector<HTMLInputElement>('#friends-search')
       if (boundary) {
@@ -81,6 +108,12 @@ export default function LinkedDialog({
         : closeButton.current
     target?.focus({ preventScroll: true })
   }, [busy])
+  const holdsBack = busy || !dismissible
+  // The pointer of a middle press that began outside: its release is
+  // cancelled wherever it ends, or Linux pastes the selection into the field
+  // that kept focus.
+  const middlePress = useRef<number | null>(null)
+  const closeOnClick = useRef(false)
   return (
     <dialog
       ref={dialog}
@@ -88,6 +121,7 @@ export default function LinkedDialog({
       aria-labelledby={headingId}
       aria-modal="true"
       aria-busy={busy}
+      closedby={holdsBack ? 'none' : 'closerequest'}
       className="fixed m-auto max-h-[calc(100vh-var(--space-6)*2)] w-[min(440px,calc(100vw-var(--space-8)))] overflow-y-auto border-0 bg-transparent p-0 text-[var(--text)] [&::backdrop]:bg-[var(--scrim-soft)]"
       onKeyDown={(event) => event.stopPropagation()}
       onFocus={(event) => {
@@ -95,11 +129,38 @@ export default function LinkedDialog({
       }}
       onPointerDown={(event) => {
         event.stopPropagation()
-        if (!busy && event.target === event.currentTarget) onClose()
+        middlePress.current = null
+        closeOnClick.current = false
+        if (!onBackdrop(event)) return
+        // Cancelled either way: a press held back leaves focus in the field,
+        // so typing goes on there, and one that closes leaves focus on the
+        // button the dialog hands it back to. Only the main button closes.
+        event.preventDefault()
+        if (event.button === 1) middlePress.current = event.pointerId
+        if (holdsBack || event.button !== 0) return
+        // A tap closes on its click instead: once the dialog is gone, that
+        // click would land on whatever was under the finger.
+        if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+          closeOnClick.current = true
+        } else onClose()
+      }}
+      onClick={(event) => {
+        if (!closeOnClick.current) return
+        closeOnClick.current = false
+        if (onBackdrop(event) && !holdsBack) onClose()
+      }}
+      onPointerUp={(event) => {
+        if (event.button !== 1) return
+        // A middle release outside, or the release of a middle press that
+        // began outside and ends over the panel, would paste the selection
+        // (Linux) into the field that kept focus.
+        if (event.target === event.currentTarget || event.pointerId === middlePress.current)
+          event.preventDefault()
+        middlePress.current = null
       }}
       onCancel={(event) => {
         event.preventDefault()
-        if (!busy) onClose()
+        if (!holdsBack) onClose()
       }}
     >
       <div className="glass glass-frosted glass-information p-[calc(var(--space-4)+var(--space-1))]">
@@ -113,9 +174,9 @@ export default function LinkedDialog({
             disabled={busy}
             aria-label={t('drawer.close')}
             onClick={onClose}
-            className="rounded-control px-[var(--space-2)] text-[var(--text-dim)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
+            className="grid h-[28px] w-[28px] shrink-0 place-items-center rounded-[9px] text-base leading-none text-[var(--text-dim)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:opacity-50 motion-safe:transition-colors"
           >
-            ×
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
         {children}

@@ -49,7 +49,7 @@ describe('HomeWorldControl', () => {
   it('asks once, then sends one write by reference and says it is home', async () => {
     render(control())
     fireEvent.click(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
     expect(setHomeWorld).not.toHaveBeenCalled()
     expect(
@@ -77,7 +77,7 @@ describe('HomeWorldControl', () => {
   it('Cancel sends nothing and returns focus to the button', async () => {
     render(control())
     fireEvent.click(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -85,7 +85,7 @@ describe('HomeWorldControl', () => {
     })
     expect(setHomeWorld).not.toHaveBeenCalled()
     expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
   })
 
@@ -93,7 +93,7 @@ describe('HomeWorldControl', () => {
     setHomeWorld.mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
     render(control())
     fireEvent.click(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Make home' }))
@@ -103,7 +103,7 @@ describe('HomeWorldControl', () => {
       'Wait a few seconds before changing your home world again.'
     )
     expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
   })
 
@@ -112,7 +112,7 @@ describe('HomeWorldControl', () => {
     setHomeWorld.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
     render(control())
     fireEvent.click(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
     const confirm = screen.getByRole('button', { name: 'Make home' })
     fireEvent.click(confirm)
@@ -134,7 +134,7 @@ describe('HomeWorldControl', () => {
     setHomeWorld.mockResolvedValueOnce({ ok: false, reason: 'failed' })
     render(control())
     fireEvent.click(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Make home' }))
@@ -150,7 +150,7 @@ describe('HomeWorldControl', () => {
     setHomeWorld.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
     render(control())
     fireEvent.click(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Make home' }))
     act(() => signIn('usr_someone_else'))
@@ -160,7 +160,7 @@ describe('HomeWorldControl', () => {
     })
     expect(screen.getByRole('status').textContent).toBe('')
     expect(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     ).toBeTruthy()
   })
 
@@ -174,7 +174,7 @@ describe('HomeWorldControl', () => {
       </>
     )
     fireEvent.click(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Make home' }))
     const elsewhere = screen.getByLabelText('Elsewhere')
@@ -189,7 +189,7 @@ describe('HomeWorldControl', () => {
   it('remembers the home per account, and another world still offers the button', async () => {
     render(control())
     fireEvent.click(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     )
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Make home' }))
@@ -203,7 +203,7 @@ describe('HomeWorldControl', () => {
 
     render(control(OTHER, 'ref-b'))
     expect(
-      screen.getByRole('button', { name: 'Set Sunset Lounge as your VRChat home world' })
+      screen.getByRole('button', { name: 'Set as home world: Sunset Lounge on VRChat' })
     ).toBeTruthy()
     cleanup()
 
