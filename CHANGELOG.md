@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0-dev.15] - 2026-11-05
+
 ### Changed
 
 - The welcome setup now uses the same stacked frosted glass as the rest of
