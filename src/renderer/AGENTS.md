@@ -85,7 +85,8 @@ or launch authority.
 
 **Account-bound data**
 
-- Friend, linked-profile, Explore, note, alert-pick, avatar, community and own-profile queries cancel
+- Friend, linked-profile, Explore, note, note-sync, alert-pick, favorite,
+  game-favorite, avatar, community and own-profile queries cancel
   old work and clear data and fences at identity or auth boundaries. Community
   answers kept through a data-path 401 reset when the same account returns. Avatar
   libraries otherwise stay in memory for the session, keyed by account. An old reply never publishes
@@ -122,8 +123,13 @@ or launch authority.
 **Design and accessibility**
 
 - Follow [`docs/DESIGN.md`](../../docs/DESIGN.md): tokens only, dark and light
-  parity, information panels independent of ambient glow, platform text or
-  glyphs beside color, and separate presence state and VRChat status. Ask Me
+  parity, the layered glass classes in `main.css` (`.glass` with
+  `.glass-panel`, `.glass-sheet`, `.glass-layer`, `.platform-row`,
+  `.setting-card`, `.glass-chip`; menus and dialogs `.glass-information`),
+  platform text or glyphs beside color, and separate presence state and
+  VRChat status. Never put a `backdrop-filter` on an element that contains a
+  fixed overlay; panels and sheets blur on `::after` for that reason. A new or
+  changed token in `main.css` runs `npm run design:tokens`. Ask Me
   and DND locations never reach labels, images, accessible names, or actions.
   Use the shared `isWorldHidden`, `isHotInstanceMember`, `hotInstanceKey`, and
   `isFriendJoinable`; no local copies.
@@ -144,7 +150,8 @@ or launch authority.
 
 ## Work Guidance
 
-Read the three design documents before UI work and the relevant catalog
+Read `docs/DESIGN.md` and look at the design guide (`npm run guide:dev`)
+before UI work, and read the relevant catalog
 entries before changing a query, hook, store, utility, bridge call, or shared
 type. Current source is the implementation record; examples and old notes do
 not authorize behavior changes.

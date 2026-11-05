@@ -28,9 +28,25 @@ Builds the design guide (`docs/design.html`) and isolated scenes
   `picked-alerts` settings and drawer variant turns on the picked-friends
   alert controls, with the online and joins-a-world alerts on so the bell
   can show both states.
+- `catalog-scenes.tsx` holds the static and interactive catalog scenes,
+  including `layers` (the five glass layers over a picture, each pane labeled
+  with its production class) and `controls` (every shared control, named).
+- `guide.tsx` is the design guide page. It shows each scene beside the real
+  code: CSS rules read from the shipped `main.css` at build time
+  (`main.css?raw`), usage snippets from `codeSamples.ts`, and token tables
+  parsed live from `main.css`.
+- `cssTokens.ts` reads tokens and rules out of `main.css` (no imports, so the
+  guide, its tests and `design-tokens.mjs` all use it). `design-tokens.mjs`
+  (`npm run design:tokens`, `--check`) rewrites DESIGN.md Appendix A between
+  its markers. `design-doc.test.ts` keeps DESIGN.md and `codeSamples.ts` in
+  step with the app: generated tokens current, every named token, class,
+  copied Appendix B.1 rule, guide CSS selector and sample component real.
 
 ## Local Contracts
 
+- Show production code, never a hand-written copy of it: CSS through
+  `extractCssRule` on `main.css`, components by import. A code sample in
+  `codeSamples.ts` names only real components, classes and keys.
 - Label each example as a static sample, an interactive fixture, or a
   proposal. Keep guide controls outside app examples. Do not redesign
   production UI to make a scene easier to build, and do not turn a known defect
@@ -65,7 +81,8 @@ a private child cannot stand alone. Update the fixture bridge whenever
 
 ## Verification
 
-Run `npm run guide:typecheck`, the `docs/guide` tests, and
+Run `npm run guide:typecheck`, the `docs/guide` tests
+(`npx vitest run docs/guide`), `npm run design:tokens:check` and
 `npm run guide:build`. Inspect changed scenes in both themes. Run the root gate
 when production code or build configuration changes.
 
