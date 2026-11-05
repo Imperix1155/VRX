@@ -60,8 +60,8 @@ describe('Sidebar destinations (VRX-281)', () => {
     const nav = screen.getByRole('navigation', { name: i18n.t('shell.nav.aria') })
     const tabs = [
       'dashboard',
-      'hot',
       'friends',
+      'hot',
       'activity',
       'inbox',
       'explore',

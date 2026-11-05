@@ -132,8 +132,8 @@ function useNewInboxCount(): number {
 
 const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'dashboard', icon: IconDashboard },
-  { id: 'hot', icon: IconHot },
   { id: 'friends', icon: IconFriends },
+  { id: 'hot', icon: IconHot },
   { id: 'activity', icon: IconActivity },
   { id: 'inbox', icon: IconInbox },
   { id: 'explore', icon: IconExplore },

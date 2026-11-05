@@ -19,14 +19,14 @@ Pages, top to bottom in the sidebar:
   then the avatar you're wearing, your latest invites, Popular now worlds and
   Hot Instances. Sections with nothing to show step aside. Move or hide any
   section in Settings → Dashboard.
-- **Hot Instances**: every instance where at least two of your friends are
-  together (you can change the number), most friends first.
 - **Friends**: one list for both platforms, grouped into Favorites, In-Game,
   Online and Offline, with search and an **Order** control (Name, Recent, World
   or Joinable). Favorites lists the starred friends who are in a game right
   now. Friend details show where someone is, their notes, and a Join button
   when you can join them. If VRChat or ChilloutVR is already open, Join takes
   you there in that game instead of starting it again.
+- **Hot Instances**: every instance where at least two of your friends are
+  together (you can change the number), most friends first.
 - **Activity**: friends coming online, joining worlds and going offline on
   both platforms, newest first. It comes from the live connection VRX already
   has, so it adds no requests, and it is kept only while VRX is open.

@@ -537,7 +537,7 @@ window frame; on a smaller screen the minimum shrinks so the app stays usable.
 Every workflow must fit and stay reachable at that size. Don't design a mobile
 layout from a narrow documentation viewport.
 
-**Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
+**Navigation**, in order: Dashboard, Friends, Hot Instances, Activity, Inbox,
 Explore, Search, Groups, Avatars, Settings. Each item is a 13.5 px semibold
 label with an icon, 12 px radius. The current page has a raised selected
 surface (`--control-active-*`) and a 3 px spine at the sidebar's left edge in
