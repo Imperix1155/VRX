@@ -438,3 +438,139 @@ body[data-guide='true'] {
   margin-block: var(--space-2);
   font-size: 0.8rem;
 }
+
+/* Code shown beside the examples: real rules from main.css and usage snippets. */
+.design-guide__rule {
+  margin-left: var(--space-2);
+  padding: 1px var(--space-2);
+  color: var(--text-dim);
+  border: 1px solid var(--guide-outline);
+  border-radius: 999px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+}
+.design-guide__rules--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.design-guide__codegroup {
+  margin-top: var(--space-6);
+}
+.design-guide__codegroup > summary {
+  cursor: pointer;
+  width: fit-content;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.design-guide__codegrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.design-guide__code {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  margin: 0;
+  background: var(--guide-panel);
+  border: 1px solid var(--guide-outline);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+.design-guide__code figcaption {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--guide-outline);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.design-guide__code figcaption .design-guide__source {
+  color: var(--text);
+}
+.design-guide__code pre {
+  max-height: 420px;
+  margin: 0;
+  padding: var(--space-3);
+  overflow: auto;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.design-guide__tokens {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+.design-guide__tokens > details {
+  background: var(--guide-panel);
+  border: 1px solid var(--guide-outline);
+  border-radius: var(--radius-control);
+}
+.design-guide__tokens summary {
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.design-guide__tokens summary span {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.design-guide__token-scroll {
+  max-height: 520px;
+  overflow: auto;
+  border-top: 1px solid var(--guide-outline);
+}
+.design-guide__tokens table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.design-guide__tokens th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-dim);
+  background: var(--bg-base);
+  font-weight: 600;
+  text-align: left;
+}
+.design-guide__tokens td {
+  padding: 6px var(--space-3);
+  vertical-align: top;
+  border-top: 1px solid var(--guide-outline);
+}
+.design-guide__tokens td:first-child {
+  width: 56px;
+}
+.design-guide__swatch {
+  display: block;
+  width: 40px;
+  height: 20px;
+  border: 1px solid var(--guide-outline);
+  border-radius: 6px;
+}
+
+@media (max-width: 1180px) {
+  .design-guide__rules--four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .design-guide__rules--four {
+    grid-template-columns: 1fr;
+  }
+}
+.design-guide__code pre code {
+  font: inherit;
+}

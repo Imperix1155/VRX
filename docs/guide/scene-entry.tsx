@@ -10,6 +10,7 @@ import {
   drawerScenarios,
   exploreScenarios,
   joinScenarios,
+  friendsScenarios,
   sourceScenarios
 } from './scenarios'
 
@@ -21,6 +22,9 @@ const root = document.getElementById('root')
 if (root === null) throw new Error('Missing scene root')
 
 const SCENE_VARIANTS: Record<string, string[]> = {
+  dashboard: ['ready', 'hot-first', 'reordered', 'needs-code'],
+  activity: ['ready', 'empty'],
+  friends: friendsScenarios.map(({ value }) => value),
   updater: ['available', 'downloading', 'downloaded', 'idle'],
   settings: ['ready', 'save-error', 'read-error', 'picked-alerts'],
   setup: ['ready', 'signed-out', 'save-error'],
