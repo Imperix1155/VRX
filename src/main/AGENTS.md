@@ -2,34 +2,33 @@
 
 ## Purpose
 
-Electron's privileged process: startup, windows, tray, updater, IPC
-registration, main-only services, credentials, platform adapters, and external
-launches. Node and Electron access and all privileged state stay on this side
-of the process boundary. The [root contract](../../AGENTS.md) security and API
-etiquette rules apply in full; this file adds local detail.
+Electron's privileged process: startup, windows, tray, updater, IPC, main-only
+services, credentials, platform adapters and game launches. Node and Electron
+access and all privileged state stay on this side of the process boundary. The
+[root contract](../../AGENTS.md) security and API etiquette rules apply in
+full; this file adds local rules. Exact limits, cooldowns and caps for each
+service are in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md); keep them
+there, not here.
 
 ## Ownership
 
-- `index.ts` takes the single-instance lock, then dynamically imports `app.ts`.
-  Keep it Electron-only so a losing duplicate exits before logging, keychain
-  reads, sockets, or a window exist.
-- `app.ts` is the composition root. It wires adapters, services, IPC, window,
-  tray, updater, alerts, and quit cleanup. Adapter and IPC policy do not live
-  here.
-- `ipc/` owns renderer-facing handlers (child contract).
-- `services/` owns main-only state, persistence, policy, and coordination.
+- `index.ts` takes the single-instance lock, then imports `app.ts`. Keep it
+  Electron-only so a losing duplicate exits before logging, keychain reads,
+  sockets or a window exist.
+- `app.ts` is the composition root: it wires adapters, services, IPC, window,
+  tray, updater, alerts and quit cleanup. Policy lives elsewhere.
+- `ipc/` owns renderer-facing handlers and the bridge rules (child contract).
+  [`../preload`](../preload/index.ts) belongs to this contract: `index.ts`
+  exposes `window.vrx`, `index.d.ts` types it.
+- `services/` owns main-only state, persistence, policy and coordination.
   `services/adapters/` owns platform HTTP and WebSocket transport, shared
-  request admission, and reconnect logic.
+  request admission and reconnect (VRChat and ChilloutVR child contracts).
 - Top-level modules own cross-cutting concerns: event fan-out
-  (`adapterWiring.ts`), navigation guards, native notifications, tray, updater,
-  logging and redaction, main-process copy (`i18n.ts`), sockets, live-socket
-  reconnect after wake (`wakeReconnect.ts`), the reconnect roster read with no
-  window open (`rosterCatchUp.ts`), window reveal (`showGate.ts`), and the
-  error box shown before a fatal exit (`fatalErrorBox.ts`).
-- [`../preload`](../preload/index.ts) belongs to this contract. `index.ts`
-  exposes `window.vrx`; `index.d.ts` types it. Bridge rules are in the IPC
-  child contract.
-- Look up symbols in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md).
+  (`adapterWiring.ts`), navigation guards, native notifications and XSOverlay
+  (`vrOverlayAlerts.ts`), tray, updater and its feed, logging and redaction,
+  main-process copy (`i18n.ts`), sockets, wake reconnect, the windowless
+  roster catch-up, the window show gate and minimum size, and the fatal error
+  box.
 
 ## Local Contracts
 
@@ -37,256 +36,198 @@ etiquette rules apply in full; this file adds local detail.
 
 - Besides the root window flags, keep `webSecurity: true` and
   `allowRunningInsecureContent: false`. `navigationGuards.ts` denies every
-  `window.open` and every frame navigation away from the renderer entry. Only
+  `window.open` and every navigation away from the renderer entry; only
   `isAllowedUrl` links go to the browser.
 - The shipped CSP lives in `src/renderer/index.html`. The default session
-  grants only `clipboard-sanitized-write`. Do not widen either.
-- The window is sized by its page (`useContentSize`): 900x670 by default and
-  at minimum. `windowMinimumSize.ts` adds the frame back for
-  `setMinimumSize` (which takes the outer size) and clamps to the work area
-  of the display the window is on now, re-applied on move. It reveals
-  after the renderer reports hydration (3 s fallback). Second-instance and
-  notification activation focus the current window, recreating it if
-  destroyed; tray actions resolve the window at click time, and tray Show goes
-  through the same focus path, as does a single tray click on Windows. The tray
-  menu treats a minimized window as hidden. Focusing leaves a window its show
-  gate has not revealed to the gate. One recovery dialog
-  per window handles crashes and hangs; a renderer killed from outside the app
-  counts as a crash unless the app is quitting. A hang dialog closes once the
-  window answers again, and focusing reloads a renderer whose crash dialog was
-  dismissed.
+  grants only `clipboard-sanitized-write`. Widen neither.
+- The window's content is 900×670 by default and at minimum
+  (`windowMinimumSize.ts` adds the frame back and clamps to the current
+  display). It reveals after the renderer reports hydration, with a 3 s
+  fallback. Second-instance, notification and tray actions focus or recreate
+  the current window at click time. One recovery dialog per window handles
+  crashes and hangs.
 - On Windows and Linux, close hides to the tray until `before-quit` sets the
-  single `quitting` flag; macOS keeps native close. `before-quit` disposes
-  Explore, flushes settings, and tears down adapter wiring; a throwing teardown
-  must not skip the flag. Hide, minimize, close, and renderer loss stop Explore
+  single `quitting` flag; a throwing teardown must not skip the flag. macOS
+  keeps native close. Hide, minimize, close and renderer loss stop Explore
   discovery.
-- Windows and Linux have no app menu (`Menu.setApplicationMenu(null)`), so
-  Alt cannot reveal Reload or developer tools; `createWindow` restores Ctrl+Q
-  through `isQuitShortcut`. macOS keeps its default menu.
-- Tray artwork is `resources/icon.ico` on Windows, the 16 px PNG on macOS, and
-  the 24 px PNG on Linux, each with `@2x` files, imported as
-  `?asset&asarUnpack`. Never reduce the 512 px master for tray use.
+- Windows and Linux have no app menu, so Alt can't reveal Reload or developer
+  tools; `isQuitShortcut` restores Ctrl+Q.
+- Tray artwork: `resources/icon.ico` on Windows, 16 px PNG on macOS, 24 px PNG
+  on Linux, each with `@2x`, imported as `?asset&asarUnpack`. Never shrink the
+  512 px master for the tray.
 
 **Authority**
 
-- Main owns account identity, sessions and epochs, `LocationAuthority` friend
-  locations, settings policy, opaque Explore references, launch URLs, and
-  `shell.openExternal`. The renderer submits friend IDs, opaque references, and
-  expected targets for comparison only.
+- Main owns account identity, sessions and epochs, friend locations
+  (`LocationAuthority`), settings policy, opaque Explore world references,
+  launch URLs and `shell.openExternal`. The renderer sends friend IDs, opaque
+  references and expected targets for comparison only, never a world ID or
+  URL to act on.
 - Launch in two steps: resolve current main-owned data, then build the URL and
-  check it with `isAllowedLaunchUrl` immediately before opening it.
-  `JoinCoordinator` allows one launch per platform at a time.
-  `services/gameHandoff.ts` owns the last step: when the game is already open
-  it hands that same URL to it (VRChat's local URL pipe, or the ChilloutVR
-  link) or sends one VRChat self-invite. Its process check reads names only,
-  is cached 2 s, and is never logged.
+  check it with `isAllowedLaunchUrl` immediately before opening it. One launch
+  per platform at a time (`JoinCoordinator`). `gameHandoff.ts` hands the same
+  URL to a game that is already open; its process check reads names only, is
+  cached 2 s and is never logged.
 
 **Credentials**
 
 - `services/credentials.ts` is the only credential store. It accepts only
   `CREDENTIAL_KEYS`, writes an invalidation marker before any replacement or
-  deletion, and writes a signed-out marker on explicit sign-out. A failed write
-  fails closed and cannot revive old auth. A `credentials.json` that is not
-  valid JSON is deleted and the store
-  starts empty, so it restores nothing and the next sign-in can save.
-- OS `safeStorage` comes first; the Linux `basic_text` backend counts as
-  unavailable. The `localCredentialEncryption.ts` fallback is used only when OS
-  encryption is unavailable or fails. An OS-protected credential that cannot be
-  decrypted is never re-encrypted locally.
-- Adapters persist a credential only after validating its authenticated owner.
-  A failed save ends the login with `CREDENTIAL_PERSISTENCE_FAILED` and clears
-  the session. Do not reintroduce a separate owner store.
+  deletion, and a signed-out marker on sign-out. A failed write fails closed
+  and can't revive old auth. An unreadable `credentials.json` is deleted and
+  the store starts empty.
+- OS `safeStorage` first; Linux `basic_text` counts as unavailable. The
+  `localCredentialEncryption.ts` fallback is used only when OS encryption is
+  unavailable or fails. An OS-protected credential that can't be decrypted is
+  never re-encrypted locally.
+- Adapters persist a credential only after validating its owner. A failed save
+  ends the login with `CREDENTIAL_PERSISTENCE_FAILED` and clears the session.
 
 **Sign-in from this PC** (`sessionImport.ts`, `vrcxSessionImport.ts`,
 `cvrSessionImport.ts`)
 
 - Discovery runs only from the `import-session` IPC, which the "Use my sign-in
-  from this PC" button calls; the press is the consent. Startup restores VRX's
-  own stored sessions only and never looks at VRCX, CVRX, or game files.
-- Importers only read and return material; they never persist. The adapter's
-  `importSession` checks it with the platform (VRChat `/auth/user`, CVR
-  `AuthType: 1`) before it replaces anything, binds the owner, then persists.
-  A dead, unreadable, or ownerless import leaves the current session as it was.
-- Discovery is read-only and bounded in time, file size, entry and profile
-  counts. Accept only local absolute paths; reject symlinks, sources that change
-  during the read, XML DTD/CDATA, and ambiguous credential sets. The VRCX reader
-  snapshots the database into private temp files, treats a non-empty `-wal`,
-  `-shm`, or `-journal` file as VRCX running, and never creates or changes files
-  in a VRCX folder.
-- The signed-out marker is still written on ChilloutVR sign-out so an older
-  build that still imports at startup keeps honoring the sign-out.
+  from" button calls; the press is the consent. Startup restores VRX's own
+  sessions only and never looks at VRCX, CVRX or game files.
+- Importers only read and return. The adapter checks the material with the
+  platform before it replaces anything, binds the owner, then persists. A
+  dead, unreadable or ownerless import leaves the current session as it was.
+- Discovery is read-only and bounded (time, file size, entries, profiles).
+  Accept only local absolute paths; reject symlinks, sources that change
+  during the read, XML DTD/CDATA and ambiguous credential sets. The VRCX
+  reader snapshots the database to private temp files, treats a non-empty
+  `-wal`, `-shm` or `-journal` as VRCX running, and never creates or changes a
+  file in a VRCX folder.
 
 **Stores**
 
-- `services/settings.ts` migrates and validates through `@shared/settings`. A
-  failed normalization write keeps the parsed settings as unsaved and
-  retryable, never defaults. Saves apply in memory, coalesce disk writes,
-  refuse to overwrite a newer-version file, and reject failed writes. After an
-  unreadable load, a save re-reads the file first and is refused while it stays
-  unreadable, so defaults never replace the user's file. Read
-  fire-time policy from `getSettingsSnapshot()`. Only an empty store (no
-  settings file yet, and no set-aside `settings.corrupt-*.json`) loads
-  `freshInstallSettings`, which queues the welcome setup; an unreadable,
-  damaged or older file never does. A file that is not valid JSON
-  is renamed to `settings.corrupt-<time>.json`, never deleted.
-- Account registry, social store, and link graph validate bounded data and
-  check account/epoch or reviewed revisions before mutation. They write a
-  cloned snapshot, publish memory only after the write succeeds, and refuse
-  newer-format or unloadable files. Link-graph operations reject reentry.
+- `services/settings.ts` migrates and validates through `@shared/settings`.
+  Saves apply in memory, coalesce disk writes, refuse to overwrite a newer
+  file and reject failed writes. Defaults never replace an unreadable file: a
+  file that isn't valid JSON is renamed to `settings.corrupt-<time>.json`, and
+  saves are refused while it stays unreadable. Only a truly empty store loads
+  `freshInstallSettings` (which queues the welcome setup). Read fire-time
+  policy from `getSettingsSnapshot()`.
+- The account registry, `SocialStore` (notes, alert picks, favorites,
+  `noteSync`), and link graph validate bounded data and check account, epoch
+  or revision before a change. They write a cloned snapshot, publish memory
+  only after the write succeeds, and refuse newer-format or unloadable files.
 
-**Events, alerts, images**
+**Events, alerts and activity**
 
 - `adapterWiring.ts` feeds each event to app status, `LocationAuthority`,
   `FriendAlerts`, `ActivityFeed`, `InboxService`, then the broadcast, isolating
-  each consumer. `inbox` events go to `InboxService` only and are never
-  broadcast. On `live` with no window open (macOS after its window closes),
-  `RosterCatchUp` runs the `get-friends` roster read, the one reconnect read an
-  open window would make. With a window open it reads nothing, and after
-  `auth-invalidated` it waits for a roster read that works. The broadcast
-  stamps `rosterRevision` from the same monotonic counter as roster seeds;
-  event revisions never move per-friend location fences.
-- A session boundary clears that platform's alerts, location authority, inbox
-  (unless `identityRetained`), Explore, community and own-profile state, then sends `identity-boundary`. A VRChat data-path 401 sets
-  `identityRetained`: clear main state but send no identity boundary; the
-  following `auth-invalidated` quarantines the renderer.
-- `CommunityService` (profiles, search, world lists, players online, own
-  groups) is read-only and user-initiated: no timers, 5-minute caches, shared
-  in-flight reads, one uncached search per platform every 2 s, and Refresh
-  re-reads only an answer at least 30 s old. It reads a profile only for a
-  friend or someone a search listed, so the renderer cannot walk profiles.
-  Search and list worlds become Explore references through
-  `ExploreService.adoptWorlds`, which makes no request.
-- `OwnProfileService` edits only the signed-in user's own profile: a read when
-  the editor opens (reused 30 s) and a write only on Save, one per platform at
-  a time and 5 s after any attempt, never retried. Main checks the fields
-  (status on VRChat only), sends only what differs from its last read, and
-  supplies the account itself. Logs never carry profile text.
-- `SocialActionService` owns the profile's Unfriend, Block and Unblock: one
-  confirmed person per call, only a friend, someone a search listed
-  (`CommunityService.knowsPerson`) or someone it already answered for; one
-  action per platform at a time, 3 s after each answer, never retried. Its
-  block-state read follows a press and is cached 5 minutes. VRChat writes go
-  through admission; ChilloutVR writes are one `/users/ws` message on the
-  current account's socket and are never queued. It clears with community.
-- Alerts read settings at dispatch (`isFriendAlertEnabled`; every alert
-  defaults off). Hot alerts gate only on `notifyHotInstance`;
-  `hotInstancesEnabled` hides a Dashboard section only. Alert state is bounded
-  and rate limited. With `friendAlertScope: 'picked'`, friend alerts fire only
-  for friends the current account picked (`FriendAlertPicks`, local
-  SocialStore data); hot alerts are never limited by picks. Ask Me and DND
-  friends never count toward hot alerts, and
-  no alert names their world (`friendNotificationPrivacy.test.ts`). Failure
-  logs carry no names or locations.
-- `vrOverlayAlerts.ts` repeats each alert that fired in the VR headset through
-  XSOverlay while `vrOverlayAlerts` is on (default off), with the same words as
-  the desktop alert and the same treatment for both platforms. It talks only
-  to this computer: a UDP socket bound to `127.0.0.1` sends one datagram to
-  `127.0.0.1:42069` and closes. Never listen, read replies, or widen the host.
-- `ActivityFeed` keeps the Activity page's list: its own `FriendAlerts`
-  engine without the toast rate limit, memory only, bounded per platform,
-  gated by `showActivityPage` at each transition. It never records a world or
-  a move for a hidden location, keeps backfill locations in main, and clears
-  a platform at an account boundary (a same-account 401 keeps entries).
-  Changes reach the renderer as a coalesced `activity-changed` push.
-- `InboxService` is main-memory only: it never calls a platform, never
-  persists, and Hide is local. Keep its per-platform row cap, bounded
-  hidden-ID memory, and alert limits (`isInboxAlertEnabled`: `notifyInvites`,
-  `notifyFriendRequests`). An answered request's ID is held back only
-  briefly, since a ChilloutVR request's ID is its sender. Rows ChilloutVR
-  sends just after its socket connects show without an alert, since they may
-  be ones still open from before. An invite may name
-  its world because the sender shared it; nothing else in the inbox reads
-  presence.
-- `FriendActionsService` owns the only friend writes: Accept or Decline on an
-  inbox friend-request row main holds, and Add friend for someone a search
-  listed this session who is not a friend. One press sends once, never
-  retried; one action at a time per platform, 2 s apart, a few waiting, and
-  none across an account change. Writes go through `FriendActionsAdapter`
-  (never `CommunityAdapter`, which stays read-only); ChilloutVR's are frames
-  on the live socket and are never queued while it is closed. Never add an
-  Accept all or any other bulk friend action.
-- `AvatarCache` is the only image proxy. Keep its HTTPS host allowlist,
-  redirect, MIME, URL-length, body-size, LRU entry and byte, and TTL limits.
-  API hops share platform admission. The VRChat cookie goes only to
-  `api.vrchat.cloud`, under a captured account lease.
-- `ImageDiskStore` is `AvatarCache`'s disk tier for `api.vrchat.cloud` images
-  only, under `app.getPath('userData')/image-cache`. Keep it bounded (entries,
-  bytes, 14-day TTL), validate every read like a network body (exact URL, MIME,
-  size), write only lease-current results, never log URLs or paths, and clear
-  it on an explicit VRChat sign-out. A disk hit never makes a request.
-  `VrcMetadataStore` (`userData/vrchat-metadata`) keeps world and group names
-  the same way: one validated file per account, atomic writes, entries keep
-  their 24-hour expiry, and `clearAll()` on an explicit VRChat sign-out.
-- `AppBackgroundStore` keeps the user's background picture in
-  `userData/app-background`. It reads only the file picked in the native
-  dialog (regular PNG or JPEG, bounded bytes, header pixel count and the
-  shared size and shape refusal checked before decoding), keeps only a freshly encoded, bounded copy written
-  atomically, never changes the picked file, and never logs paths.
-- Round friend pictures ask for `AvatarCache`'s `avatar` rendition: a small
-  copy built locally from already validated bytes (`avatarRendition.ts`). It
-  never changes which URLs are requested or how often; any failure keeps the
-  original.
-- World and avatar pictures on cards, tiles and banners ask for the `picture`
-  rendition (`AvatarCache.getPicture`). It swaps a VRChat sized thumbnail for
-  the same file's full picture, one request either way, and keeps a copy at
-  most 1,440 px wide. Only an outright refusal falls back to the thumbnail;
-  keep that bounded (remembered refusals, the refusal streak pause) so a
-  picture never costs more than two requests.
+  each consumer. `inbox` events go only to `InboxService`. With no window open,
+  `RosterCatchUp` makes the one reconnect roster read an open window would.
+  Broadcasts stamp `rosterRevision`; event revisions never move per-friend
+  location fences.
+- A session boundary clears that platform's alerts, locations, inbox (unless
+  `identityRetained`), Explore, avatars, community, game favorites, note sync,
+  home world, friend actions, social actions and own-profile state, then sends
+  `identity-boundary`. A VRChat data-path 401
+  sets `identityRetained`: clear main state, send no boundary; the following
+  `auth-invalidated` quarantines the renderer.
+- Alerts read settings when they fire, and every alert defaults off. Ask Me
+  and Do Not Disturb friends never count toward hot alerts, and no alert,
+  activity row or XSOverlay message names their world
+  (`friendNotificationPrivacy.test.ts`). Picked-friend scope limits friend
+  alerts only. Failure logs carry no names or locations.
+- `vrOverlayAlerts.ts` talks only to this computer: one UDP datagram from
+  `127.0.0.1` to `127.0.0.1:42069`, then close. Never listen, read replies or
+  widen the host.
+- `ActivityFeed` and `InboxService` are memory only and bounded. Neither calls
+  a platform. Activity never records a world for a hidden location; Hide in
+  the inbox is local.
 
-**Network and logging**
+**Platform writes**
 
-- Requests go through `BaseAdapter` and the shared per-platform
-  `ApiAdmissionController`. Every physical retry reacquires admission and
-  honors the latest 429 cooldown. Cancellation, queue overflow, and a tentative
-  session are control flow: stop later pages or enrichment, and never count or
-  negative-cache them as failures.
-- Updates stay consent-based: no automatic download unless the user enabled
-  `autoUpdate` (default off), install only a `downloaded` update, and send only
-  typed `UpdaterFailure` codes to the renderer. The saved `updateChannel`
-  picks the feed. Stable uses `latest` and never admits a beta or dev build.
-  Beta and dev are opt-in. Dev resolves the release list itself so a newer
-  stable build is found; electron-updater only does that for its beta channel.
-  A channel change cancels an in-flight download before the next check. Set
-  `allowDowngrade` after `channel` and keep it off on every channel. A check
-  never offers a build older than the one running, including after a channel
-  change.
-- Log through `logger.ts` (redaction hook). Never log tokens, friend names,
-  identifier-bearing URLs, raw payloads, or absolute paths. Use `app.getPath()`;
-  `pathConvention.test.ts` rejects hardcoded user paths. Redaction also masks
-  the home folder as `~` (`setRedactedHomeDirectory`). Native copy goes
-  through `mt()` with en and ja strings.
+Every write the user can trigger has its own service and a narrow adapter
+capability that does not extend `IPlatformAdapter`. Common rules: only on a
+press, only for the signed-in account, one action per platform at a time with
+spacing between attempts, sent once and never retried, never across an
+account change, and fenced by the session lease. ChilloutVR writes that use
+the `/users/ws` socket are never queued while it is closed.
+
+- `FriendActionsService`: Accept or Decline an inbox friend request main
+  holds; Add friend for someone a search listed this session. Never add Accept
+  all or any bulk friend action. `CommunityAdapter` stays read-only.
+- `SocialActionService`: Unfriend, Block and Unblock one confirmed person (a
+  friend, or someone a search listed).
+- `OwnProfileService`: the user's own bio, pronouns and VRChat status, only
+  on Save, sending only fields that changed.
+- `HomeWorldService`: resolves the renderer's world reference itself.
+- `AccountNoteService`: friend notes, a three-way compare against the last
+  text both copies agreed on; asks the user when both changed.
+- `Favorites` (local stars) and `GameFavoritesService` (account favorite
+  groups and categories): read once per sign-in; never create or rename a
+  group; check caps and VRChat's one-group rule before sending; re-read a
+  ChilloutVR item's categories before writing so none is dropped.
+- `AvatarLibraryService` and `currentAvatarService.ts`: Wear switches avatars
+  only on a press.
+
+**Reads and images**
+
+- `CommunityService` (profiles, search, world lists, groups, player counts)
+  and `ExploreService` are read-only and user-initiated: no timers, cached
+  answers, shared in-flight reads and spaced searches. A profile is read only
+  for a friend or someone a search listed, so the renderer can't walk
+  profiles.
+- `AvatarCache` is the only image proxy: HTTPS host allowlist, redirect, MIME,
+  URL-length, size, LRU and TTL limits, shared admission, and the VRChat
+  cookie only to `api.vrchat.cloud` under the current account lease. Its disk
+  tier (`ImageDiskStore`) and `VrcMetadataStore` are bounded, validated on
+  read, never log URLs or paths, and are cleared on VRChat sign-out.
+  Renditions (`avatar`, `picture`) never add requests beyond the bounded
+  thumbnail fallback.
+- `AppBackgroundStore` reads only the file picked in the native dialog,
+  checks it before decoding, keeps only a fresh bounded copy, never changes
+  the picked file and never logs paths.
+
+**Network, updates and logging**
+
+- Requests go through `BaseAdapter` and the per-platform
+  `ApiAdmissionController`. Every retry reacquires admission and honors the
+  latest 429 cooldown. Cancellation, queue overflow and a tentative session
+  are control flow: stop later pages, never count them as failures.
+- Updates need consent: no download unless `autoUpdate` is on (default off),
+  install only a `downloaded` update, send only typed `UpdaterFailure` codes.
+  Stable never admits a beta or dev build; a check never offers a build older
+  than the running one; keep `allowDowngrade` off on every channel.
+- Log through `logger.ts`. Never log tokens, friend names, notes, profile
+  text, identifier-bearing URLs, raw payloads or absolute paths. Use
+  `app.getPath()` (`pathConvention.test.ts`). Native copy goes through `mt()`
+  with en and ja strings.
 
 ## Work Guidance
 
-- Check the API catalog before adding a service, event, channel, parser, or
-  constant. Reuse a documented boundary and update its entry in the same change.
+- Check the API catalog before adding a service, event, channel, parser or
+  constant. Reuse a documented boundary and update its entry in the same
+  change.
 - Adapter transport stays Electron-free and dependency-injected. Auth, HTTP
-  retry, admission, and WebSocket reconnect each have one owner.
+  retry, admission and WebSocket reconnect each have one owner.
 - Fence interactive auth at every await: a later login supersedes an earlier
-  one, logout cancels active and queued work, and a tentative credential cannot
-  serve data, persist, or borrow an old account.
+  one, logout cancels active and queued work, and a tentative credential can't
+  serve data, persist or borrow an old account.
 - Treat API data as hostile. Keep usable partial rosters where their
   completeness contract allows; schema drift must not crash or delete friends.
-- Before editing `services/adapters/VrcAdapter.ts` or `VrcApiClient.ts`, read
-  the VRChat contract; for `CvrAdapter.ts` or `CvrApiClient.ts`, read the CVR
-  contract. Their platform rules cover those files.
+- A new platform write follows the "Platform writes" rules above and gets an
+  entry in [API policy](../../docs/api-policy.md).
 
 ## Verification
 
 - Run the root gate and focused tests for the changed boundary. IPC changes
-  need trust, validation, rate-limit, and allowlist cases. Credential changes
-  need persistence, invalidation, and plaintext-absence cases. Lifecycle and
-  event changes need ordering, cleanup, and consumer-isolation cases.
-- Inspect the diff for secrets, raw IPC additions, `console` use, and Electron
-  imports in shared code. Update the API, volatility, policy, or changelog docs
-  the root matrix names.
+  need trust, validation, rate-limit and allowlist cases. Credential changes
+  need persistence, invalidation and plaintext-absence cases. Lifecycle and
+  event changes need ordering, cleanup and consumer-isolation cases. Write
+  features need once-only, spacing and account-change cases.
+- Inspect the diff for secrets, raw IPC additions, `console` use and Electron
+  imports in shared code.
 
 ## Child DOX Index
 
 - [`ipc/AGENTS.md`](ipc/AGENTS.md): typed handlers, sender trust, rate limits,
-  URL policy, and the preload bridge.
+  URL policy and the preload bridge.
 - [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md):
-  VRChat parsers, roster, resolvers, Pipeline, and `VrcAdapter` rules.
+  VRChat parsers, roster, resolvers, Pipeline and `VrcAdapter`.
 - [`services/adapters/cvr/AGENTS.md`](services/adapters/cvr/AGENTS.md):
-  ChilloutVR parsers, roster, instance resolver, `/users/ws`, and `CvrAdapter`
-  rules.
+  ChilloutVR parsers, roster, instance resolver, `/users/ws` and `CvrAdapter`.

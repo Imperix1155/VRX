@@ -33,6 +33,11 @@ through `@shared`.
   hot-membership, and hot-grouping predicates.
 - `backgroundPicture.ts`: which background pictures main refuses and which
   Settings warns about (size and shape against the landscape window).
+- More vocabularies for user actions, with their limits, pacing values and
+  typed results where they have them: `accountNotes.ts` (note sync),
+  `favorites.ts` (local stars),
+  `gameFavorites.ts` (account favorite groups and categories), `homeWorld.ts`,
+  `ownProfile.ts` and `avatarLibrary.ts` (avatar lists and Wear).
 - `constants.ts`: the single source for limits, TTLs, and API endpoints.
 - Look up symbols in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md).
 
@@ -51,26 +56,18 @@ through `@shared`.
 - Every additive persisted setting bumps `SETTINGS_VERSION` and registers an
   identity migration from the previous version, so an older build cannot strip
   it during a downgrade. Keep the full migration chain.
-- `cvrSessionImportChoice` has no reader since the startup import was removed;
-  it stays in the schema so older builds keep their saved answer. Alerts and
-  `autoUpdate` default off. `updateChannel` is `stable`, `beta`, or `dev`
-  (default `stable`); anything else stays `stable`. `SETTINGS_VERSION` 15
-  keeps that choice across a downgrade. `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
-  off. The Dashboard section switches hide sections only and change no other
-  preference. The page switches (`showHotInstancesPage`, `showExplorePage`,
-  `showActivityPage`, `showInboxPage`, `showSearchPage`, `showGroupsPage`)
-  hide sidebar pages only;
-  `showActivityPage` also stops main keeping activity. `SETTINGS_VERSION` 20
-  adds `showInboxPage` (on) and the `notifyInvites` and `notifyFriendRequests`
-  alerts (off). `SETTINGS_VERSION` 21 adds the Dashboard glance switches
-  `dashboardWearingNow` and `dashboardInvites` (on); they hide sections only.
-  `dashboardHideEmpty` (on, same version) hides empty Dashboard sections.
-  `dashboardSections` (same version) owns the Dashboard section order;
-  `parseSettings` derives it from `dashboardSectionOrder` when missing and
-  then rewrites `dashboardSectionOrder` from it, so every order change must
-  write both fields. `SETTINGS_VERSION` 23 adds `showSearchPage`,
-  `showGroupsPage` and `dashboardPlayersOnline` (all on). Missing or invalid `setupPending` is `false`, so
+- Settings rules that must survive future changes: alerts, `autoUpdate` and
+  `vrOverlayAlerts` default off; `updateChannel` is `stable`, `beta` or `dev`
+  (anything else is `stable`). `confirmJoin` and `joinMode` keep their values
+  while `allowJoinInstances` is off. Dashboard section switches and the page
+  switches (`show*Page`) only hide things and change no other preference;
+  `showActivityPage` also stops main keeping activity. `dashboardSections`
+  owns the Dashboard order, and every order change writes both it and
+  `dashboardSectionOrder`. A missing or invalid `setupPending` is `false`, so
   only `freshInstallSettings` (a brand-new install) starts the welcome setup.
+  `cvrSessionImportChoice` has no reader but stays in the schema so older
+  builds keep their saved answer. The migration chain in `settings.ts` is the
+  version history.
 - The renderer sends friend IDs and opaque Explore references, never a launch
   URL or an authoritative location. Typed denials stay structured; never pass
   exception text, tokens, cooldowns, or session data across IPC.

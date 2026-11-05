@@ -1,117 +1,110 @@
 # Review and merge
 
-These requirements apply whatever agent, model, operating system, or local
-skills you use. Your tools can choose how to do the work; the evidence and
-safety requirements stay the same.
+What a change needs before it is merged into `dev`, `beta` or `main`. These
+rules are the same whatever agent, model, operating system or local tools you
+use; your tools choose how, the evidence below is what counts.
 
-## Review the change that will ship
+## 1. Review the change that will ship
 
-1. Record the requirements, base commit, review head, changed files, and the
-   exact diff. A saved patch with its SHA-256 makes a delegated review
-   reproducible.
-2. Run the applicable [development checks](DEVELOPMENT.md#verification). For
-   application JavaScript or TypeScript changes, also run the pinned audit
-   `npx --yes fallow@3.30.0 audit --changed-since BASE_SHA --no-css`, with
-   `BASE_SHA` replaced by the recorded PR base commit. It needs Node 22+,
-   downloads the pinned tool if needed, and adds no project dependency. It
-   checks dead code, complexity, and duplication; by default only findings
-   your change introduces affect its verdict. Pin the base explicitly so a
-   branch's upstream can't make it compare against itself. Read the verdict
-   and findings, and don't use `--brief`, which always exits zero. If the tool
-   can't run where you are, say so and check changed code for unused exports
-   and duplicated logic with TypeScript, ESLint, and reading. Never use an
-   unpinned tool or change dependencies just to satisfy a tool name.
-3. Get a fresh-context general review before opening the PR: a separate agent
-   or session, or a human, given the requirements, the applicable contracts,
-   the exact diff, and the source, without your conclusions. Self-review can
-   prepare a change but can't replace that review; if none is available,
-   record the gap and leave merge readiness pending until a separate reviewer
-   covers it. No specific provider, model, paid bot, or personal skill is
-   required. Scale the review to the change: a purely non-functional
-   documentation PR needs a brief fresh read plus the format and link checks,
-   not an application review. Changes to workflow, security, or release rules
-   are policy changes and need scenario checks. Dependency updates still need
-   compatibility, security, tests, and a fresh review; who opened a PR, or its
-   label, never makes it low risk.
-4. Cover acceptance, correctness, security, session and lifecycle behavior,
-   tests, and documentation sync, using the
-   [root review rules](../AGENTS.md#code-review-rules). Policy-only changes
-   need scenarios that exercise the new wording, not app tests written for
-   prose.
-5. Check each finding against the source or a decisive runtime probe. Fix
-   real defects, or refute findings with evidence. A score or a count of
-   reviewers who agree is not evidence. Report a missing review honestly.
-6. Record in the PR the reviewed revision, what the review covered, findings
-   and what you did about them, test evidence, and remaining limits, so
-   another contributor can judge readiness without the original chat or a
-   private skill.
+1. **Write down what you are reviewing**: the request, the base commit, the
+   head commit, the changed files and the exact diff. A saved patch with its
+   SHA-256 makes a review someone else does reproducible.
+2. **Run the checks** in [Development](DEVELOPMENT.md#verification) that fit
+   the change. For changes to app JavaScript or TypeScript, also run the
+   pinned audit, with `BASE_SHA` set to the PR's base commit:
 
-## Risk
+   ```bash
+   npx --yes fallow@3.30.0 audit --changed-since BASE_SHA --no-css
+   ```
 
-Ordinary changes follow the process above. A critical change has a credible
-path to making VRX unusable or putting a user's platform account at risk: for
-example startup or update failure, an essential workflow becoming
-unreachable, exposed credentials, an action on the wrong account, or request
-amplification that risks a platform ban. Judge by reachable consequences, not
-by which file changed.
+   It needs Node 22+, downloads the pinned tool if needed and adds no
+   dependency. It reports dead code, complexity and duplication; only findings
+   your change adds affect its verdict. Pin the base so a branch can't compare
+   against itself, read the verdict, and never use `--brief` (it always exits
+   zero). If it can't run where you are, say so and look for unused exports
+   and duplicated logic with TypeScript, ESLint and reading. Never swap in an
+   unpinned tool or add a dependency to satisfy a tool.
 
-Critical changes need evidence and probes for those specific consequences,
-explicit disclosure to the owner, and the owner's review and permission for
-that risk before merging. Add targeted review where a concrete gap needs it;
-there is no fixed number of extra reviewers. Get missing evidence before
-repeating reviews. Reviewers on the same model give fresh context, not an
-independent model's confirmation, and neither their agreement nor a missing
-review bot waives these requirements. Security, irreversible-data, and
-account risks need disclosure even when they can't make the whole app
-unusable.
+3. **Get a fresh-context review** before opening the PR: a separate agent or
+   session, or a person, given the request, the contracts that apply, the
+   exact diff and the source, but not your conclusions. Your own review can
+   prepare a change; it can't replace this one. If none is available, record
+   the gap and leave the PR not ready to merge until someone covers it. No
+   specific provider, model, paid bot or personal skill is required.
 
-## Corrections and final-head coverage
+   Scale it to the change. A documentation PR that changes no behavior needs a
+   short fresh read plus the format and link checks. Changes to workflow,
+   security or release rules are policy changes and need scenario checks.
+   Dependency updates still need compatibility, security, tests and a fresh
+   review: who opened a PR, or its label, never makes it low risk.
 
-The general review covers the change at the commit it reviewed. A functional
-fix after that needs a focused review of the exact correction, the behavior it
-affects, its callers, tests, and contracts, with a note on which earlier
-conclusions still hold. Review all corrections together so coverage reaches
-the actual final head.
+4. **Cover** acceptance, correctness, security, session and lifecycle
+   behavior, both platforms, both themes, tests and documentation sync, using
+   the [root review rules](../AGENTS.md#code-review-rules).
+5. **Check every finding** against the source or a decisive runtime probe. Fix
+   real defects; refute the rest with evidence. A score, or how many reviewers
+   agree, is not evidence.
+6. **Record in the PR** the reviewed revision, what the review covered, the
+   findings and what you did about them, test evidence and remaining limits,
+   so someone else can judge readiness without the original chat.
 
-Restart the general review when design or security assumptions change, shared
-behavior is broadly affected, earlier conclusions fail, or the effects can't
-be bounded. A small line count doesn't prove a small impact.
+## 2. Risk
 
-A verified non-functional correction changes no application, build, test,
-release, security, workflow, or policy behavior. It needs focused format,
-link, consistency, and diff checks, and keeps the existing general review.
-Mixed or uncertain corrections follow the functional process. Required CI must
-still pass on the final head.
+Most changes follow section 1. A **critical** change has a believable path to
+making VRX unusable or putting a user's platform account at risk: VRX fails to
+start or update, an essential workflow becomes unreachable, credentials leak,
+an action lands on the wrong account, or requests multiply enough to risk a
+platform ban. Judge by what can actually happen, not by which file changed.
 
-## Automated feedback
+A critical change needs evidence for those specific outcomes, a plain
+explanation to the owner, and the owner's review and permission for that risk
+before merging. Add targeted review where a real gap needs it; there is no set
+number of extra reviewers. Get missing evidence before repeating reviews.
+Reviewers on the same model give fresh context, not independent confirmation.
+Security, data-loss and account risks need to be raised with the owner even
+when they can't make the whole app unusable.
 
-PR bots are advisory at every risk level. Read the substantive reviews, inline
-comments, collapsed summaries, unresolved threads, and which commit each one
-actually reviewed. Resolve or refute real findings, even from an advisory bot.
-A bare green check is not a review.
+## 3. Fixes after the review
 
-Missing, running, skipped, rate-limited, or quota-exhausted bot output needs
-no waiting and no ceremonial re-request; report it as unavailable. The owner
-can waive absent bot review for a scoped change at any risk level, but that
-never waives local review, tests, real findings, or branch protection. Bot and
-account configuration belongs to the maintainer's setup; never change
-repository protection or review settings as part of ordinary delivery.
+A review covers the commit it read. A functional fix after that needs a
+focused review of the fix, the behavior it touches, its callers, tests and
+contracts, with a note on which earlier conclusions still hold. Review all
+fixes together so coverage reaches the final head.
+
+Start the full review again when design or security assumptions change, shared
+behavior is widely affected, earlier conclusions fail, or you can't bound the
+effects. A small line count doesn't prove a small impact.
+
+A non-functional fix (wording, formatting, a link) changes no app, build,
+test, release, security, workflow or policy behavior. It needs format, link,
+consistency and diff checks and keeps the earlier review. When unsure, treat
+it as functional. Required CI must pass on the final head either way.
+
+## 4. Automated reviewers
+
+PR bots are advisory at every risk level. Read their reviews, inline comments,
+collapsed summaries, open threads, and which commit each one reviewed. Fix or
+refute real findings, even from a bot. A green check alone is not a review.
+
+Missing, running, skipped or rate-limited bot output is unavailable evidence:
+don't wait for it and don't re-request it for show. The owner can waive a
+missing bot review for a scoped change, but never local review, tests, real
+findings or branch protection. Bot and repository settings belong to the
+maintainer; never change protection or review settings as part of a change.
 
 ## Merge checklist
 
-- The owner has explicitly allowed merging this PR, including any disclosed
-  material risk. An earlier scoped permission still counts; review feedback
-  alone grants nothing.
-- The exact current head has the required local checks, review coverage,
-  resolved real findings, and green required CI. Check the actual protection
-  settings: a tool timeout, a missing check, or an advisory waiver is not a
-  passing required check.
-- Merge with a head-matching operation so a changed head can't ship on old
-  evidence. Re-check if the head changes.
-- Keep the PR record, and update the linked issue when there is one and you
-  can reach it. Missing optional tracker access is a handoff note, not a merge
-  blocker.
+- The owner has allowed merging this PR, including any risk explained to
+  them. An earlier scoped permission still counts; review feedback alone
+  grants nothing.
+- The exact current head has the local checks, review coverage, resolved
+  findings and a green `ci-success`. A timeout, a missing check or a waiver is
+  not a pass.
+- Merge with a head-matching operation (an expected head SHA) so a changed
+  head can't ship on old evidence. If the head changes, check again.
+- Keep the PR record and update the linked issue when there is one. Missing
+  tracker access is a handoff note, not a blocker.
 
-Never disable branch protection. This repository grants no admin bypass. If
-an authorized maintainer's separate instructions allow an exception, check its
-exact scope and every remaining requirement; otherwise report the blocker.
+Never disable branch protection; there is no admin bypass. If a maintainer's
+separate instructions allow an exception, check its exact scope and every
+remaining requirement, otherwise report the blocker.

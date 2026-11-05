@@ -12,9 +12,18 @@ import ExploreWorldSheet from '@renderer/components/ExploreWorldSheet'
 import InstancePill from '@renderer/components/InstancePill'
 import PolicySpacePill from '@renderer/components/PolicySpacePill'
 import SegmentedControl from '@renderer/components/SegmentedControl'
+import Toggle from '@renderer/components/Toggle'
+import NumberStepper from '@renderer/components/NumberStepper'
+import PlatformPill from '@renderer/components/PlatformPill'
+import NotConnectedCard from '@renderer/components/NotConnectedCard'
+import FinePrint from '@renderer/components/FinePrint'
+import { FavoriteStarButton } from '@renderer/components/FavoriteStar'
 import TopBar from '@renderer/components/TopBar'
 import { instancePillFor } from '@renderer/utils/instancePill'
+import { FRIEND_ACTION_BUTTON } from '@renderer/utils/friendActions'
+import { SECONDARY_BUTTON } from '@renderer/components/setup/setupModel'
 import {
+  backgroundPicture,
   friends,
   getPlatformSnapshot,
   getWorldSnapshot,
@@ -307,15 +316,22 @@ function TypographyScene(): React.JSX.Element {
   )
 }
 
+/** The shared controls, each one the production component or class. */
 function ControlsScene(): React.JSX.Element {
+  const { t } = useTranslation()
   const [scheme, setScheme] = useState<LabelScheme>('vrchat')
+  const [on, setOn] = useState(true)
+  const [threshold, setThreshold] = useState(2)
+  const [starred, setStarred] = useState(false)
+  const [busy, setBusy] = useState(false)
   return (
-    <SceneFrame>
+    <SceneFrame information>
       <FixtureLabel>
-        Interactive fixture · the production radiogroup supports arrow-key selection and roving
-        focus.
+        Interactive fixture · production controls. Segmented controls are radiogroups: one Tab stop,
+        then arrow keys.
       </FixtureLabel>
-      <div className="fixture-controls mt-[var(--space-3)]">
+      <div className="fixture-control-grid mt-[var(--space-3)]">
+        <span className="fixture-control-name">SegmentedControl</span>
         <SegmentedControl
           values={['vrchat', 'platform-native', 'chilloutvr'] as const}
           active={scheme}
@@ -323,8 +339,163 @@ function ControlsScene(): React.JSX.Element {
           ariaLabel="Fixture label scheme"
           onChange={setScheme}
         />
+        <span className="fixture-control-name">Toggle</span>
+        <Toggle checked={on} onChange={setOn} ariaLabel="Fixture toggle" />
+        <span className="fixture-control-name">NumberStepper</span>
+        <NumberStepper
+          value={threshold}
+          min={1}
+          max={10}
+          onChange={setThreshold}
+          ariaLabel="Fixture threshold"
+        />
+        <span className="fixture-control-name">FavoriteStarButton</span>
+        <span className="flex items-center gap-[var(--space-2)]">
+          <FavoriteStarButton
+            on={starred}
+            label={starred ? 'Starred' : 'Not starred'}
+            hint="Star"
+            expanded={false}
+            controls="fixture-favorite"
+            onToggle={() => setStarred((value) => !value)}
+          />
+          <FavoriteStarButton
+            on={starred}
+            shape="round"
+            label={starred ? 'Starred' : 'Not starred'}
+            hint="Star"
+            expanded={false}
+            controls="fixture-favorite"
+            onToggle={() => setStarred((value) => !value)}
+          />
+        </span>
+        <span className="fixture-control-name">Quiet button</span>
+        <span>
+          <button
+            type="button"
+            className="rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
+          >
+            {t('settings.accounts.retry')}
+          </button>
+        </span>
+        <span className="fixture-control-name">FRIEND_ACTION_BUTTON</span>
+        <span className="flex items-center gap-[var(--space-2)]">
+          <button
+            type="button"
+            className={FRIEND_ACTION_BUTTON}
+            aria-disabled={busy || undefined}
+            onClick={() => setBusy((value) => !value)}
+          >
+            {t(busy ? 'friendActions.accepting' : 'friendActions.accept')}
+          </button>
+          <span className="text-[11.5px] text-[var(--text-dim)]">
+            Press: aria-disabled while busy, focus stays.
+          </span>
+        </span>
+        <span className="fixture-control-name">SECONDARY_BUTTON</span>
+        <span>
+          <button type="button" className={SECONDARY_BUTTON}>
+            {t('setup.skip')}
+          </button>
+        </span>
+        <span className="fixture-control-name">FinePrint</span>
+        <FinePrint summary={t('setup.signin.storage')} full={t('setup.signin.storageFull')} />
+      </div>
+      <p className="fixture-control-name mt-[var(--space-4)] mb-[var(--space-2)]">
+        NotConnectedCard
+      </p>
+      <div className="max-w-[420px]">
+        <NotConnectedCard message="ChilloutVR isn't connected." onOpenAccounts={() => undefined} />
       </div>
     </SceneFrame>
+  )
+}
+
+/**
+ * Layered glass (DESIGN.md §3): the five layers over a busy local picture,
+ * each labeled with its production class.
+ */
+function LayersScene(): React.JSX.Element {
+  const { t } = useTranslation()
+  const vrc = friends.vrchat[0]
+  const cvr = friends.chilloutvr[0]
+  const publicPill = instancePillFor({ type: 'public' }, 'vrchat')
+  const groupPill = instancePillFor({ type: 'group-plus' }, 'vrchat')
+  return (
+    <div className="fixture-layers">
+      <img src={backgroundPicture} alt="" className="fixture-layers__picture" />
+      <p className="fixture-layer-tag fixture-layers__canvas-tag">
+        Layer 0 · canvas: picture or aurora
+      </p>
+      <section className="glass glass-panel fixture-layers__panel">
+        <p className="fixture-layer-tag">Layer 2 · .glass .glass-panel</p>
+        <div className="grid grid-cols-2 gap-[var(--space-3)]">
+          <div className="glass glass-layer min-w-0 p-[16px_18px]">
+            <div className="font-[family-name:var(--font-mono)] text-[38px] leading-none tabular-nums text-[var(--text)]">
+              13
+            </div>
+            <div className="mt-[var(--space-1)] text-[12.5px] text-[var(--text-dim)]">
+              {t('dashboard.statOnlineLabel')}
+            </div>
+            <p className="fixture-layer-tag mt-[var(--space-2)]">Layer 3 · .glass .glass-layer</p>
+          </div>
+          <div className="setting-card">
+            <div className="setting-row">
+              <span className="text-[13px] font-semibold text-[var(--text)]">
+                {t('settings.dashboard.popular.label')}
+              </span>
+              <Toggle checked onChange={() => undefined} ariaLabel="Sample switch" />
+            </div>
+            <p className="fixture-layer-tag mt-[var(--space-2)]">Layer 3 · .setting-card</p>
+          </div>
+        </div>
+        <div className="mt-[var(--space-3)] grid gap-[6px]">
+          {(
+            [
+              ['vrchat', vrc, publicPill],
+              ['chilloutvr', cvr, groupPill]
+            ] as const
+          ).map(([platform, friend, pill]) =>
+            friend === undefined ? null : (
+              <div
+                key={platform}
+                className={`platform-row platform-row--${platform} flex items-center gap-[var(--space-3)] py-[var(--space-2)] pr-[var(--space-2)] pl-[var(--space-3)]`}
+              >
+                <Avatar friend={friend} variant="small" ariaLabel={friend.displayName} />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[var(--text)]">
+                  {friend.displayName}
+                </span>
+                <span className="fixture-layer-tag">Layer 4 · .glass-chip</span>
+                <PlatformPill platform={platform} />
+                <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
+              </div>
+            )
+          )}
+          <div className="platform-row platform-row--vrx flex items-center gap-[var(--space-3)] py-[var(--space-2)] pr-[var(--space-2)] pl-[var(--space-3)]">
+            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[var(--text)]">
+              {linkedSnapshot.profiles[0]?.defaultName ?? 'Linked person'}
+            </span>
+            <span className="fixture-layer-tag">.platform-row--vrx</span>
+            <PolicySpacePill space="public" />
+          </div>
+          <div className="platform-row platform-row--none flex items-center p-[var(--space-2)] text-[12.5px] text-[var(--text-dim)]">
+            {t('dashboard.loading')}
+            <span className="fixture-layer-tag ml-auto">.platform-row--none</span>
+          </div>
+        </div>
+      </section>
+      <div className="glass glass-information fixture-layers__menu" role="presentation">
+        <p className="fixture-layer-tag">Opaque · .glass-information</p>
+        <p className="text-[12.5px] text-[var(--text)]">
+          Menus and panels that must keep their colors whatever is behind them.
+        </p>
+      </div>
+      <div className="glass glass-frosted-heavy glass-information fixture-layers__dialog">
+        <p className="fixture-layer-tag">Dialog · .glass-frosted-heavy</p>
+        <p className="fixture-layer-tag">+ .glass-information</p>
+        <p className="text-[13px] font-semibold text-[var(--text)]">A true confirmation modal</p>
+      </div>
+    </div>
   )
 }
 
@@ -377,6 +548,8 @@ export default function CatalogScene({ scene, variant }: CatalogSceneProps): Rea
         return <TypographyScene key={key} />
       case 'controls':
         return <ControlsScene key={key} />
+      case 'layers':
+        return <LayersScene key={key} />
       case 'feedback':
         return <FeedbackScene key={key} variant={variant} />
       default:
