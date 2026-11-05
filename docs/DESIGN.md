@@ -13,7 +13,7 @@ the design.
 - **Agents:** read this file top to bottom before UI work. Start with
   [Quick start](#quick-start-for-agents), follow the Locked rules, and take
   values from [Appendix A](#appendix-a-token-reference). The recipes in
-  [Appendix B](#appendix-b-recipes) are copied from the shipped code.
+  [Appendix B](#appendix-b-recipes) follow the shipped code.
 
 **Source of truth.** The renderer components in
 [`src/renderer/src/components`](../src/renderer/src/components) and the
@@ -1354,8 +1354,10 @@ at runtime in the active theme.
 
 ## Appendix B: Recipes
 
-Each recipe is copied from the shipped code. The visual guide shows each one
-rendered next to its code.
+Each recipe follows the shipped code: B.1 is copied from `main.css` (a test
+checks it), and the others use the real components and class strings, named
+here as constants where the source writes them inline. The visual guide shows
+each one rendered next to its code.
 
 ### B.1 The material classes (`main.css`, `@layer components`)
 
@@ -1501,10 +1503,14 @@ const FRIEND_ACTION_BUTTON =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] ' +
   'aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-[filter]'
 
-// The welcome setup's main button, which favors neither platform.
+// The welcome setup's main button, which favors neither platform
+// (PRIMARY_BUTTON in components/setup/SetupWizard.tsx).
 const SETUP_PRIMARY =
   'rounded-control border border-[var(--text)] bg-[var(--text)] px-[18px] py-[10px] ' +
-  'text-[13px] font-semibold leading-none text-[var(--bg-base)] hover:opacity-90'
+  'text-[13px] font-semibold leading-none text-[var(--bg-base)] hover:opacity-90 ' +
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] ' +
+  'focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-base)] ' +
+  'disabled:cursor-not-allowed disabled:opacity-40 motion-safe:transition-opacity cursor-pointer'
 
 // A platform's own Connect button (LoginScreen.tsx).
 const CONNECT = {

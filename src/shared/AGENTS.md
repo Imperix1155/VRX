@@ -33,8 +33,9 @@ through `@shared`.
   hot-membership, and hot-grouping predicates.
 - `backgroundPicture.ts`: which background pictures main refuses and which
   Settings warns about (size and shape against the landscape window).
-- Write vocabularies, each with its pacing values and typed results:
-  `accountNotes.ts` (note sync), `favorites.ts` (local stars),
+- More vocabularies for user actions, with their limits, pacing values and
+  typed results where they have them: `accountNotes.ts` (note sync),
+  `favorites.ts` (local stars),
   `gameFavorites.ts` (account favorite groups and categories), `homeWorld.ts`,
   `ownProfile.ts` and `avatarLibrary.ts` (avatar lists and Wear).
 - `constants.ts`: the single source for limits, TTLs, and API endpoints.

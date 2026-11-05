@@ -34,9 +34,8 @@ out of scope; report those to the platforms.
 - **Sessions.** Saved sessions are encrypted with Electron `safeStorage`, which
   uses your operating system's secure storage. If that is unavailable or fails,
   VRX encrypts them with authenticated encryption and a random key created for
-  your installation, kept in VRX's private app files. That fallback is weaker:
-  anyone who can read both the key and the encrypted session can reuse the
-  session. VRX never uses Electron's `basic_text` mode and never saves
+  your installation, kept in VRX's private app files. That fallback is weaker
+  than the operating system's storage. VRX never uses Electron's `basic_text` mode and never saves
   passwords. Signing out deletes the saved session.
 - **Isolation.** The app window runs with `contextIsolation`, `sandbox`, and
   no Node integration. The page can reach the main process only through a

@@ -30,11 +30,12 @@ works like `dev` with `X.Y.Z-beta.N` and is rarely used.
 
 ## 1. Prepare a version PR
 
-1. Fetch the branch of the channel you are releasing (`dev`, `beta` or
-   `main`). Check open PRs and the last published release, and settle what the
-   release includes: every user-visible change since the last release in that
+1. Fetch `dev` (for a dev or stable release) or `beta`. A stable release
+   branches from `dev` and targets `main` (see [Branch flow](#branch-flow)).
+   Check open PRs and the last published release, and settle what the release
+   includes: every user-visible change since the last release in that
    channel, not only the latest test build.
-2. On a branch made from that channel's branch, pick a [SemVer](https://semver.org/) version. New
+2. On a branch made from it, pick a [SemVer](https://semver.org/) version. New
    features bump MINOR; compatible fixes bump PATCH; breaking changes bump
    MAJOR. A stable release is `X.Y.Z` and merges to `main`. A beta is
    `X.Y.Z-beta.N` on the `beta` branch. A dev build is `X.Y.Z-dev.N` on the

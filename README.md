@@ -117,8 +117,7 @@ a problem.
 - VRX signs in to each platform on your behalf and never saves your password.
 - Saved sessions are encrypted with your operating system's secure storage
   when it is available. Otherwise VRX uses a weaker local key kept in its
-  private app files, and anyone who can read both that key and the encrypted
-  session could reuse the session.
+  private app files.
 - Signing in with your password is the main way in. Under each sign-in form,
   "Use my sign-in from VRCX" (VRChat) and "Use my sign-in from ChilloutVR" (the
   game's saved sign-in or CVRX) can reuse a sign-in already saved on this PC.

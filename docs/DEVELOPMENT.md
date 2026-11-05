@@ -100,8 +100,9 @@ themes, and once with a Japanese locale to catch overflow.
 
 When you change a token in `main.css`, run `npm run design:tokens` so
 Appendix A of [DESIGN.md](DESIGN.md) matches. `docs/guide/design-doc.test.ts`
-fails when DESIGN.md names a token, class or component that doesn't exist, or
-when its copied CSS drifts from `main.css`.
+fails when DESIGN.md names a token or class that doesn't exist, when its
+copied CSS drifts from `main.css`, or when a guide code sample names a
+component that doesn't exist.
 
 ## Verification
 

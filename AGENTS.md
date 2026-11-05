@@ -105,7 +105,7 @@ never a design rule.
 ## External API etiquette
 
 - Never risk a user's account. Ask each platform for no more than VRCX and
-  CVRX do; where they differ, follow the stricter one.
+  CVRX do.
 - Use VRChat Pipeline and ChilloutVR `/users/ws` for live presence. Never poll
   friend status or add mass invites, bulk friend actions or other bot-like
   behavior.
