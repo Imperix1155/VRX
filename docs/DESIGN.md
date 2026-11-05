@@ -248,14 +248,14 @@ frosted glass that blurs what is under it, so a background picture or the
 aurora glows through as soft color, while each pane keeps enough fill that its
 words stay readable.
 
-| Layer | What it is                                              | Class                                                   | Fill token                       |
-| ----- | ------------------------------------------------------- | ------------------------------------------------------- | -------------------------------- |
-| 0     | Canvas: base, picture, aurora                           | `body`, `.app-backdrop`                                 | `--bg-base`, `--aurora-*`        |
-| 1     | Shell chrome: sidebar, tracks                           | `.glass`                                                | `--glass-bg` (translucent)       |
-| 2     | Back panels and side sheets                             | `.glass .glass-panel`, `.glass .glass-sheet`            | `--glass-panel`, `--glass-sheet` |
-| 3     | Cards, rows, headers, fields                            | `.glass .glass-layer`, `.platform-row`, `.setting-card` | `--glass-layer`                  |
-| 4     | Chips: pills, badges, stripes                           | `.glass-chip`                                           | the chip's own tint              |
-| —     | Opaque information: menus, dialogs, setup, error screen | `.glass .glass-information` (+ frost)                   | `--glass-information`            |
+| Layer | What it is                                       | Class                                                   | Fill token                       |
+| ----- | ------------------------------------------------ | ------------------------------------------------------- | -------------------------------- |
+| 0     | Canvas: base, picture, aurora                    | `body`, `.app-backdrop`                                 | `--bg-base`, `--aurora-*`        |
+| 1     | Shell chrome: sidebar, tracks                    | `.glass`                                                | `--glass-bg` (translucent)       |
+| 2     | Back panels and side sheets                      | `.glass .glass-panel`, `.glass .glass-sheet`            | `--glass-panel`, `--glass-sheet` |
+| 3     | Cards, rows, headers, fields                     | `.glass .glass-layer`, `.platform-row`, `.setting-card` | `--glass-layer`                  |
+| 4     | Chips: pills, badges, stripes                    | `.glass-chip`                                           | the chip's own tint              |
+| —     | Opaque information: menus, dialogs, error screen | `.glass .glass-information` (+ frost)                   | `--glass-information`            |
 
 **`.glass`** is the base skin: a soft diagonal gradient (`--glass-bg`), the
 sidebar's blur (`--glass-blur`), a hairline edge (`--glass-border`), the panel
@@ -280,8 +280,9 @@ a soft shadow (`--glass-layer-depth`). On a back panel it blurs the already
 frosted panel, so the stack reads glass over glass; on the bare canvas it is as
 frosted as the sidebar. It covers platform rows, setting cards, the Friends
 section headers and search field, statistics, Hot Instances, Popular now,
-Explore, avatar, group and account cards, the login card, notices and empty
-states. No fixed-position child may live inside one.
+Explore, avatar, group and account cards, the login card, the sign-in fields,
+the welcome setup's theme choices, notices and empty states. No fixed-position
+child may live inside one. Small icon tiles in setup are `.glass-chip`s.
 
 **`.platform-row`** is a layer-3 row that belongs to one platform: the same
 glass, washed in its platform's hue from the left (`--platform-row-tint-strong`
@@ -920,9 +921,11 @@ plain dim text; Settings → About → Legal holds the full text (see
 [API policy](api-policy.md)). Guide fixtures accept only made-up input and
 never sign in or save it.
 
-**Welcome setup.** A brand-new install opens one centered opaque information
-card before the app: a welcome screen, five labeled steps (Sign in, Pages,
-Dashboard, Alerts, Look), then a summary. Step state reads from position,
+**Welcome setup.** A brand-new install opens one centered card before the
+app. It is layered glass like Settings: the card is a frosted back panel
+(`.glass .glass-panel`), and its cards, theme choices and sign-in fields
+are `.glass-layer` panes on it. It holds a welcome screen, five labeled steps
+(Sign in, Pages, Dashboard, Alerts, Look), then a summary. Step state reads from position,
 weight and a check, not color. Sign-in shows the two account cards side by
 side at equal height, and the line under its title doubles as the live
 sign-in status; one ready account is enough to continue. Every other step

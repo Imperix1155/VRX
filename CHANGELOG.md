@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The welcome setup now uses the same stacked frosted glass as the rest of
+  the app: the setup card is frosted like Settings, with its cards and theme
+  choices as frosted panes on top. Sign-in fields on the sign-in screen and
+  account cards are frosted panes too.
+
 ## [1.4.0-dev.14] - 2026-11-05
 
 ### Changed

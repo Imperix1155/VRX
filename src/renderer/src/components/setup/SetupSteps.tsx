@@ -88,7 +88,7 @@ export const StepHeading = forwardRef<
 
 function RowIcon({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <span className="grid h-[32px] w-[32px] flex-none place-items-center rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] text-[var(--text)]">
+    <span className="glass-chip grid h-[32px] w-[32px] flex-none place-items-center rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] text-[var(--text)]">
       {children}
     </span>
   )
