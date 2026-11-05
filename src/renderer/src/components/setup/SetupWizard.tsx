@@ -179,9 +179,12 @@ export default function SetupWizard(): React.JSX.Element {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-[var(--space-4)]">
+      {/* Layered glass, like Settings: the card is a frosted back panel
+          (.glass-panel), and the cards, choices and fields on it are their
+          own frosted panes. */}
       <section
         aria-labelledby="setup-step-title"
-        className="glass glass-information relative flex h-[min(660px,calc(100vh-32px))] w-full max-w-[640px] flex-col overflow-hidden px-[30px] pb-[22px] pt-[26px]"
+        className="glass glass-panel relative flex h-[min(660px,calc(100vh-32px))] w-full max-w-[640px] flex-col overflow-hidden px-[30px] pb-[22px] pt-[26px]"
       >
         <div className="relative flex min-h-0 flex-1 flex-col">
           {/* Every step saves real settings, so a failed save shows here as it

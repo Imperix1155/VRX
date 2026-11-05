@@ -1515,8 +1515,12 @@ body::after {
     padding: 8px;
     border: 1px solid var(--border);
     border-radius: 14px;
-    background: var(--glass-information);
+    /* Layered glass (see .glass-layer) on the frosted setup panel. */
+    background-color: var(--glass-layer);
     background-image: var(--glass-sheen);
+    box-shadow: var(--glass-layer-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     color: var(--text-dim);
     cursor: pointer;
   }

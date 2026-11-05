@@ -25,7 +25,10 @@ export const CSS_SAMPLES = [
   { selector: '.setting-card', note: 'A Settings row on the frosted Settings panel.' },
   { selector: '.glass-chip', note: 'Layer 4. Pills, badges, rails and counts.' },
   { selector: '.glass-chip::after', note: 'The chip’s glossy top light, under its word.' },
-  { selector: '.glass-information', note: 'Opaque backing for menus, dialogs and setup.' },
+  {
+    selector: '.glass-information',
+    note: 'Opaque backing for menus, dialogs and the error screen.'
+  },
   { selector: '.glass-frosted-heavy', note: 'Add for a true confirmation modal.' },
   { selector: '.tint-vrc', note: 'A platform tint sets the image only.' },
   { selector: 'body::before', note: 'The aurora: blue top-left, orange bottom-right.' },
