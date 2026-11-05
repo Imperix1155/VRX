@@ -13,8 +13,8 @@ import type { Platform } from '@shared/types'
  */
 export type ActiveTab =
   | 'dashboard'
-  | 'hot'
   | 'friends'
+  | 'hot'
   | 'activity'
   | 'inbox'
   | 'explore'

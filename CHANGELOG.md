@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The sidebar now lists Friends right under Dashboard, above Hot Instances,
+  since the Dashboard already shows hot instances at a glance.
+
 ## [1.4.0-dev.13] - 2026-11-04
 
 ### Changed
