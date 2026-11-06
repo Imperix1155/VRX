@@ -328,9 +328,13 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     const vrcSearch = ['community-search', 'vrchat', 'usr_me', 'tea'] as const
     const vrcProfile = ['profile', 'vrchat', 'usr_me', 'usr_x'] as const
     const cvrSearch = ['community-search', 'chilloutvr', 'cvr-me', 'tea'] as const
+    const vrcGameFavorites = ['game-favorites', 'vrchat', 'usr_me'] as const
+    const cvrGameFavorites = ['game-favorites', 'chilloutvr', 'cvr-me'] as const
     client.setQueryData(vrcSearch, { ok: true })
     client.setQueryData(vrcProfile, { ok: true })
     client.setQueryData(cvrSearch, { ok: true })
+    client.setQueryData(vrcGameFavorites, { state: 'ready' })
+    client.setQueryData(cvrGameFavorites, { state: 'ready' })
     mount(client)
 
     act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' }))
@@ -346,6 +350,9 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     expect(client.getQueryData(vrcSearch)).toBeUndefined()
     expect(client.getQueryData(vrcProfile)).toBeUndefined()
     expect(client.getQueryData(cvrSearch)).toEqual({ ok: true })
+    // Main forgot the game favorites at the 401, so they are read again too.
+    expect(client.getQueryData(vrcGameFavorites)).toBeUndefined()
+    expect(client.getQueryData(cvrGameFavorites)).toEqual({ state: 'ready' })
 
     // A later status check does not reset fresh answers again.
     client.setQueryData(vrcSearch, { ok: true })

@@ -7,27 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-06
+
+VRX 1.4 brings VRChat and ChilloutVR closer to what VRCX and CVRX users
+expect: Search, full profiles, Groups, favorites, notes saved to your
+accounts, friend requests, unfriend and block, home worlds, editing your own
+profile and alerts in VR. It also adds a layered frosted glass look across
+the app and a long polish round. It is everything from the 1.4.0 dev builds
+(dev.1 to dev.15) plus a few last fixes. Each dev build's notes in
+CHANGELOG.md list every change in detail.
+
+### Added
+
+- **Search.** Find people and worlds on both platforms by name. A person opens
+  their full profile; a world opens the same panel as Explore, with Join.
+- **Full profiles.** Bio, pronouns, rank and badges, with public worlds and
+  groups a click away, from Search or from a friend's details.
+- **Groups page.** The groups you belong to on both platforms, as banner cards
+  with each group's code, member count, your role and description. View only.
+- **Explore** has New, Recently updated and Favorites tabs beside Popular now.
+- **Favorites.** Star a friend or a world. Starred friends in game get their
+  own Favorites group at the top of Friends, starred worlds are under Explore →
+  Favorites, and the star can also use your VRChat favorite groups and
+  ChilloutVR categories (Settings → Behavior → Use my game favorites).
+- **Friends Order control.** Sort each group by Name, Recent, World or
+  Joinable. It is remembered.
+- **Notes saved to your accounts.** A friend's note also saves to your VRChat
+  or ChilloutVR account, so it matches the game. If both changed, VRX lets you
+  choose which to keep (Settings → Behavior → Save notes to my accounts).
+- **Friend requests.** Accept or decline them in the Inbox, and send Add friend
+  from a profile in Search.
+- **Unfriend or block.** Every full profile ends with an Unfriend or block
+  button, on both platforms. Each change asks first.
+- **Set as home world** on every world panel, after one confirmation.
+- **Edit profile.** Settings → Accounts → Edit profile changes your bio and
+  pronouns on both platforms, and your VRChat status and status text.
+- **Alerts in VR.** Settings → Notifications can show your alerts inside your
+  headset through XSOverlay. It is off until you turn it on.
+- **Live player counts** for VRChat and ChilloutVR sit in the top bar under
+  the friend count (Settings → Dashboard → Player counts).
+- **Bottom panels grow.** Drag a panel's grab bar up for a bigger picture and
+  more details, down to shrink or close it.
+
 ### Changed
 
-- Pictures load faster on Groups, Search and other pages. Pictures for what
-  is on screen now go first, and pictures for a page you already left are
-  skipped instead of holding up the one you're on. VRX still asks VRChat for
-  at most one thing per second.
-- While a group, person or world picture is on its way, its box shows a soft
-  loading look instead of the first letter, and the picture fades in when it
-  arrives. A first letter now always means there is no picture.
-- The welcome setup and sign-in screens now follow the rest of the app's
-  look more closely: step titles match page titles, the step count uses the
-  app's retro heading font, and the sign-in logo matches the sidebar's.
+- **Layered frosted glass.** The sidebar's frosted blur now sits behind the
+  Friends list, Settings, friend details and every bottom panel, with cards,
+  rows, pills and badges stacked on top as frosted layers. The welcome setup
+  and sign-in screens use the same look, with titles, the step count and the
+  logo matching the rest of the app. Names and status text stay plain.
+- **Sidebar order.** Friends now sits right under Dashboard, above Hot
+  Instances.
+- **Sharper pictures.** World and avatar pictures load at full size, and wide
+  windows add more columns instead of stretching cards.
+- **Pictures load faster** on Groups, Search and other pages: pictures for what
+  is on screen go first, and pictures for a page you left are skipped. While a
+  picture is on its way its box shows a soft loading look, then the picture
+  fades in. VRX still asks VRChat for at most one thing per second.
+- **Polish round.** Clearer sign-in errors, steadier keyboard focus in dialogs
+  and sheets, better screen reader names, matching access pills, slimmer
+  scrollbars that follow the theme, Japanese wording fixes and many smaller
+  layout fixes. See the dev build notes below for the full list.
 
 ### Fixed
 
-- Search: world pictures further down the results no longer stay blank after
-  waiting their turn behind the others.
 - Settings → Accounts → Edit profile: your VRChat bio loads into the editor
   again, and saving a new bio reaches VRChat. VRChat moved bios to a separate
   profile, so VRX now reads and saves the bio there; pronouns and status save
   as before.
+- Search: world pictures further down the results no longer stay blank after
+  waiting their turn behind the others.
+- Groups: many VRChat group pictures that never loaded now do.
+- Favorites: when VRChat or ChilloutVR briefly drops your session and you are
+  back on the same account, the star's game favorite groups load again, so
+  adding or removing a favorite there no longer keeps failing until a restart.
+
+### Security
+
+- Security hardening of build and lint tooling dependencies. The running app
+  does not ship these packages.
 
 ## [1.4.0-dev.15] - 2026-11-05
 
