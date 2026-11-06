@@ -45,6 +45,12 @@ const vrx = {
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
   getAvatar: (url: string, rendition?: 'avatar' | 'picture') =>
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
+  // Only a copy main already keeps (memory or disk); never starts a download.
+  getKeptAvatar: (url: string, rendition?: 'avatar' | 'picture') =>
+    invoke(
+      'get-avatar',
+      rendition === undefined ? { url, keptOnly: true } : { url, rendition, keptOnly: true }
+    ),
   getAvatarLibrary: (req: IpcInvoke['get-avatar-library']['req']) =>
     invoke('get-avatar-library', req),
   getCurrentAvatar: (req: IpcInvoke['get-current-avatar']['req']) =>

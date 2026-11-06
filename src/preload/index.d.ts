@@ -32,6 +32,11 @@ type VrxBridge = {
     url: string,
     rendition?: 'avatar' | 'picture'
   ) => Promise<IpcInvoke['get-avatar']['res']>
+  /** A picture main already keeps in memory or on disk; never a download. */
+  getKeptAvatar: (
+    url: string,
+    rendition?: 'avatar' | 'picture'
+  ) => Promise<IpcInvoke['get-avatar']['res']>
   getAvatarLibrary: (
     req: IpcInvoke['get-avatar-library']['req']
   ) => Promise<IpcInvoke['get-avatar-library']['res']>
