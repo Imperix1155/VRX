@@ -18,6 +18,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useAvatar } from '../hooks/useAvatar'
+import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
+import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { useTranslation } from 'react-i18next'
 import { isFriendJoinable } from '@shared/joinability'
 import type { HotInstance } from '../utils/dashboardAggregations'
@@ -29,6 +31,9 @@ import { PictureBackedPill } from './CardPictureBackdrop'
 import InstancePill from './InstancePill'
 import PlatformPill from './PlatformPill'
 import PolicySpacePill from './PolicySpacePill'
+import SheetGrabBar from './SheetGrabBar'
+import { SheetFacts, type SheetFact } from './SheetFacts'
+import { regionLabelKey } from '../utils/exploreFormat'
 
 interface HotInstanceSheetProps {
   instance: HotInstance | null
@@ -39,7 +44,7 @@ export default function HotInstanceSheet({
   instance,
   onClose
 }: HotInstanceSheetProps): React.JSX.Element {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const open = instance !== null
   // Retain the last instance so the panel doesn't empty mid slide-out.
@@ -51,11 +56,21 @@ export default function HotInstanceSheet({
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const bannerRef = useRef<HTMLDivElement>(null)
   const groupCardRef = useRef<HTMLDivElement>(null)
+  const expansion = useSheetExpansion({
+    open,
+    onClose,
+    panelRef,
+    collapsed: { minHeight: '360px', maxHeight: '34vh' }
+  })
 
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
   const joinTarget = shown?.members.find(isFriendJoinable) ?? null
-  const joinFailure = joinTarget !== null && shown !== null ? joinFailureFor(joinTarget) : null
-  const bannerDataUrl = useAvatar(shown?.thumbnailUrl ?? null, bannerRef)
+  // What the last Join through any member said (see HotInstanceCard).
+  const joinFailure =
+    joinTarget !== null && shown !== null
+      ? (shown.members.map(joinFailureFor).find((reason) => reason !== null) ?? null)
+      : null
+  const bannerDataUrl = useAvatar(shown?.thumbnailUrl ?? null, bannerRef, 'picture')
   const [failedBannerKey, setFailedBannerKey] = useState<string | null>(null)
   const bannerImageKey = bannerDataUrl ? `${shown?.thumbnailUrl ?? ''}\u0000${bannerDataUrl}` : null
   const showBannerImage = bannerImageKey !== null && bannerImageKey !== failedBannerKey
@@ -75,6 +90,10 @@ export default function HotInstanceSheet({
     if (!open) return
     closeButtonRef.current?.focus()
   }, [open])
+
+  // Another instance, or the same one reopened, starts at the top. groupKey
+  // names the world too: two VRChat worlds can share an instance number.
+  const scrollRef = useScrollTopOnShow(open, shown === null ? null : shown.groupKey)
 
   // Esc closes while open. NO focus trap (non-modal contract).
   useEffect(() => {
@@ -120,9 +139,43 @@ export default function HotInstanceSheet({
   const tier = resolvedPill.tier
   const policySpace = shown.policySpace
 
+  const notShown = t('sheet.notShown')
+  // Every member provably shares this instance, so the first one that knows
+  // the region or head count speaks for it.
+  const region = shown.members.map((m) => m.instance?.region ?? null).find((r) => r !== null)
+  const regionKey = regionLabelKey(shown.platform, region ?? null)
+  const userCount = shown.members
+    .map((m) => m.instance?.userCount ?? null)
+    .find((n): n is number => n !== null)
+  const moreFacts: SheetFact[] = [
+    {
+      label: t('hotSheet.more.people'),
+      value:
+        userCount === undefined
+          ? notShown
+          : new Intl.NumberFormat(i18n.language).format(Math.max(userCount, shown.friendCount))
+    },
+    {
+      label: t('hotSheet.more.friends'),
+      value: new Intl.NumberFormat(i18n.language).format(shown.friendCount)
+    },
+    { label: t('hotSheet.more.region'), value: regionKey === null ? notShown : t(regionKey) },
+    { label: t('hotSheet.more.access'), value: typeLabel },
+    {
+      label: t('hotSheet.more.group'),
+      // isGroup says whether a group hosts it; the name can still be unknown.
+      value: shown.isGroup ? (shown.groupName ?? notShown) : t('hotSheet.more.noGroup')
+    },
+    { label: t('hotSheet.more.instanceId'), value: shown.instanceId, mono: true }
+  ]
+
   function joinSheetTarget(event: React.MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation()
-    if (joinTarget !== null) void join(joinTarget)
+    // aria-disabled, not disabled, while a join runs (as InstancePill does): a
+    // focused button that disabled itself would drop keyboard focus to the page.
+    if (isJoining) return
+    // For the instance, not this member: the dialog keeps it while anyone is there.
+    if (joinTarget !== null) void join(joinTarget, { fromHotInstance: true })
   }
 
   return (
@@ -141,17 +194,17 @@ export default function HotInstanceSheet({
         ref={panelRef}
         role="dialog"
         aria-label={worldName}
-        className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex max-h-[34vh] min-h-[360px] flex-col motion-safe:transition-transform motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
+        data-sheet-expanded={expansion.expanded ? '' : undefined}
+        className={`glass-sheet fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
-          // Opaque backing: a backdrop blur would never show (main.css .glass-information).
-          backgroundColor: 'var(--glass-information)',
           backgroundImage: 'var(--glass-bg)',
           borderTopLeftRadius: 'var(--radius-panel)',
           borderTopRightRadius: 'var(--radius-panel)',
           borderTop: '1px solid var(--glass-border)',
-          boxShadow: 'var(--hot-sheet-shadow)'
+          boxShadow: 'var(--hot-sheet-shadow)',
+          ...expansion.panelStyle
         }}
       >
         {/* ✕ close — FIRST child of the panel (Tab from initial focus reaches Join
@@ -185,21 +238,20 @@ export default function HotInstanceSheet({
             }}
           />
 
-          {/* Grab bar */}
-          <div className="flex justify-center pt-[var(--space-3)] pb-[var(--space-2)]">
-            <div
-              aria-hidden="true"
-              className="h-[4px] w-[44px] rounded-full"
-              style={{ background: 'var(--border)' }}
-            />
-          </div>
+          {/* Grab bar: drag or click for more about this instance. */}
+          <SheetGrabBar expansion={expansion} />
 
-          <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]">
+          <div
+            ref={scrollRef}
+            className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]"
+          >
             {/* Banner */}
             <div
               ref={bannerRef}
               data-testid="hot-sheet-banner"
-              className="relative h-[150px] w-full shrink-0 overflow-hidden rounded-control"
+              className={`relative w-full shrink-0 overflow-hidden rounded-control motion-safe:transition-[height] motion-safe:duration-[220ms] ${
+                expansion.expanded ? 'h-[240px]' : 'h-[150px]'
+              }`}
               style={{
                 background: showBannerImage
                   ? undefined
@@ -252,12 +304,12 @@ export default function HotInstanceSheet({
                     <button
                       type="button"
                       onClick={joinSheetTarget}
-                      disabled={isJoining}
+                      aria-disabled={isJoining || undefined}
                       aria-label={t('friends.joinAria', {
                         name: joinTarget.displayName,
                         world: worldName
                       })}
-                      className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
+                      className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:brightness-100 motion-safe:transition-[filter]"
                       style={{
                         borderColor:
                           'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
@@ -367,16 +419,23 @@ export default function HotInstanceSheet({
                     </div>
                   </div>
                 )}
-                <code
-                  className="block max-w-[260px] truncate text-[10.5px] text-[var(--text-faint)]"
-                  style={{ fontFamily: 'ui-monospace, monospace' }}
-                  title={shown.instanceId}
-                  data-testid="hot-sheet-instance-id"
-                >
-                  {shown.instanceId}
-                </code>
+                {/* Expanded, the full ID sits in the details below instead. */}
+                {!expansion.expanded && (
+                  <code
+                    className="block max-w-[260px] truncate text-[10.5px] text-[var(--text-faint)]"
+                    style={{ fontFamily: 'ui-monospace, monospace' }}
+                    title={shown.instanceId}
+                    data-testid="hot-sheet-instance-id"
+                  >
+                    {shown.instanceId}
+                  </code>
+                )}
               </div>
             </div>
+
+            {expansion.expanded && (
+              <SheetFacts heading={t('hotSheet.more.heading')} facts={moreFacts} />
+            )}
           </div>
         </div>
       </div>

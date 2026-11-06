@@ -8,6 +8,10 @@
  * from the OS locale); anything unsupported falls back to English. When the IPC
  * layer lands (VRX-18/20), this can move to the main process's `app.getLocale()`
  * for a more authoritative locale.
+ *
+ * `supportedLngs` keeps `i18n.language` itself on English or Japanese. Times and
+ * numbers are formatted with it, so an OS language VRX doesn't ship (German,
+ * Korean, …) must not reach `Intl` while the words fall back to English.
  */
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
@@ -25,6 +29,7 @@ void i18n.use(initReactI18next).init({
     ja: { translation: ja }
   },
   lng: osLanguage,
+  supportedLngs: ['en', 'ja'],
   fallbackLng: 'en',
   interpolation: {
     escapeValue: false // React already escapes interpolated values against XSS

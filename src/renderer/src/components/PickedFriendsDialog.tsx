@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
@@ -17,7 +17,7 @@ function PlatformHeading({ platform }: { platform: Platform }): React.JSX.Elemen
   return (
     <h3>
       <span
-        className="inline-flex h-[22px] items-center rounded-[9px] border px-[var(--space-2)] text-[11px] font-semibold"
+        className="glass-chip inline-flex h-[22px] items-center rounded-[9px] border px-[var(--space-2)] text-[11px] font-semibold"
         style={{
           color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
           borderColor: isVrc ? 'var(--plat-vrc-badge-border)' : 'var(--plat-cvr-badge-border)',
@@ -56,6 +56,7 @@ function PickRow({
       </span>
       <button
         type="button"
+        data-picked-remove=""
         disabled={disabled}
         aria-label={removeLabel}
         className={REMOVE_CLASS}
@@ -94,6 +95,40 @@ function namedPicks(
   return { known, missing }
 }
 
+/**
+ * After a Remove, keyboard focus goes to the row that took its place, or the
+ * one above; with this platform's list empty, to the other platform's first
+ * Remove. With nothing left to remove, the dialog's ✕ takes it.
+ */
+function useFocusAfterRemove(busy: boolean): {
+  sectionRef: React.RefObject<HTMLElement | null>
+  /** Call as a Remove starts: notes which Remove has focus, if any. */
+  noteFocus: () => void
+} {
+  const sectionRef = useRef<HTMLElement>(null)
+  const refocus = useRef<number | null>(null)
+  const removes = (): HTMLButtonElement[] => [
+    ...(sectionRef.current?.querySelectorAll<HTMLButtonElement>('[data-picked-remove]') ?? [])
+  ]
+  useLayoutEffect(() => {
+    const index = refocus.current
+    if (busy || index === null) return
+    refocus.current = null
+    const left = removes()
+    const target =
+      left[Math.min(index, left.length - 1)] ??
+      sectionRef.current
+        ?.closest('dialog')
+        ?.querySelector<HTMLButtonElement>('[data-picked-remove]')
+    target?.focus()
+  }, [busy])
+  const noteFocus = (): void => {
+    const index = removes().findIndex((button) => button === document.activeElement)
+    refocus.current = index < 0 ? null : index
+  }
+  return { sectionRef, noteFocus }
+}
+
 function PlatformPicks({
   platform,
   busy,
@@ -114,7 +149,10 @@ function PlatformPicks({
   const { known, missing } = namedPicks(picked, roster ?? [])
   const disabled = busy || !writable
 
+  const { sectionRef, noteFocus } = useFocusAfterRemove(busy)
+
   const remove = async (ids: string[]): Promise<void> => {
+    noteFocus()
     onBusy(true)
     const failure = await setPicks(platform, accountId, ids, false)
     onBusy(false)
@@ -131,7 +169,11 @@ function PlatformPicks({
           : null
 
   return (
-    <section className="flex flex-col gap-[var(--space-1)]" data-picked-platform={platform}>
+    <section
+      ref={sectionRef}
+      className="flex flex-col gap-[var(--space-1)]"
+      data-picked-platform={platform}
+    >
       <PlatformHeading platform={platform} />
       {emptyKey !== null ? (
         <p className="text-[12.5px] text-[var(--text-dim)]">

@@ -71,6 +71,11 @@ export abstract class ReconnectingPipeline<Prep> {
    * the CLOSING window (send would false-report success).
    */
   protected isOpen = false
+
+  /** True while a socket is open and settled: frames sent now leave at once. */
+  isConnected(): boolean {
+    return this.isOpen
+  }
   private stopped = true
   private consecutiveFailures = 0
   /** Increments per start(); stale async loops from a previous run see it changed and exit. */

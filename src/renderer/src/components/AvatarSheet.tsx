@@ -7,13 +7,15 @@
  * the opener. VRChat and ChilloutVR show the same fields in the same order;
  * only the platform stripe and label differ.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AvatarItem, AvatarSwitchResult } from '@shared/avatarLibrary'
 import { useAvatar } from '../hooks/useAvatar'
+import { useSheetExpansion, type SheetExpansion } from '../hooks/useSheetExpansion'
 import { useAvatarAccount, useAvatarDetails, useSwitchAvatar } from '../queries/avatarLibrary'
 import { PictureBackedPill } from './CardPictureBackdrop'
 import PlatformPill from './PlatformPill'
+import SheetGrabBar from './SheetGrabBar'
 
 type SwitchFailure = Exclude<AvatarSwitchResult, { ok: true }>['reason']
 
@@ -49,6 +51,14 @@ export default function AvatarSheet({
 
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  // Lives here, above the per-avatar panel, so switching avatars in place
+  // keeps the size the user chose.
+  const expansion = useSheetExpansion({
+    open,
+    onClose,
+    panelRef,
+    collapsed: { minHeight: '360px', maxHeight: '34vh' }
+  })
 
   useEffect(() => {
     if (!open) return
@@ -95,6 +105,7 @@ export default function AvatarSheet({
         worn={wornAvatarId === shown.avatarId}
         panelRef={panelRef}
         closeButtonRef={closeButtonRef}
+        expansion={expansion}
         onClose={onClose}
       />
     </div>
@@ -107,6 +118,7 @@ function AvatarSheetPanel({
   worn,
   panelRef,
   closeButtonRef,
+  expansion,
   onClose
 }: {
   avatar: AvatarItem
@@ -114,6 +126,7 @@ function AvatarSheetPanel({
   worn: boolean
   panelRef: React.RefObject<HTMLDivElement | null>
   closeButtonRef: React.RefObject<HTMLButtonElement | null>
+  expansion: SheetExpansion
   onClose: () => void
 }): React.JSX.Element {
   const { t, i18n } = useTranslation()
@@ -125,16 +138,30 @@ function AvatarSheetPanel({
   const detailsFailed = details.isError || (details.data !== undefined && !details.data.ok)
 
   const bannerRef = useRef<HTMLDivElement>(null)
-  const bannerDataUrl = useAvatar(shown.imageUrl, bannerRef)
+  const bannerDataUrl = useAvatar(shown.imageUrl, bannerRef, 'picture')
   const [failedBanner, setFailedBanner] = useState<string | null>(null)
   const showBannerImage = bannerDataUrl !== null && bannerDataUrl !== failedBanner
 
   const switcher = useSwitchAvatar()
   const [status, setStatus] = useState<SwitchStatus>({ state: 'idle' })
   const switching = switcher.isPending
+  // Wear stays focusable while it works (`aria-disabled`, not `disabled`, which
+  // drops keyboard focus). When the switch lands and "You're wearing this"
+  // takes its place, focus that was on it moves there in the same commit,
+  // instead of to the page.
+  const wearRef = useRef<HTMLButtonElement>(null)
+  const wornRef = useRef<HTMLSpanElement>(null)
+  const returnFocus = useRef(false)
+  useLayoutEffect(() => {
+    if (!worn || !returnFocus.current) return
+    returnFocus.current = false
+    const active = document.activeElement
+    if (active === null || active === document.body) wornRef.current?.focus({ preventScroll: true })
+  }, [worn])
 
   function wear(): void {
     if (accountId === null || switching) return
+    returnFocus.current = document.activeElement === wearRef.current
     setStatus({ state: 'idle' })
     switcher.mutate(
       { avatar, accountId },
@@ -180,16 +207,17 @@ function AvatarSheetPanel({
       ref={panelRef}
       role="dialog"
       aria-label={t('avatars.sheet.aria', { name: shown.name, platform: platformName })}
-      className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex max-h-[34vh] min-h-[360px] flex-col motion-safe:transition-transform motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
+      data-sheet-expanded={expansion.expanded ? '' : undefined}
+      className={`glass-sheet fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
         open ? 'translate-y-0' : 'translate-y-full'
       }`}
       style={{
-        backgroundColor: 'var(--glass-information)',
         backgroundImage: 'var(--glass-bg)',
         borderTopLeftRadius: 'var(--radius-panel)',
         borderTopRightRadius: 'var(--radius-panel)',
         borderTop: '1px solid var(--glass-border)',
-        boxShadow: 'var(--hot-sheet-shadow)'
+        boxShadow: 'var(--hot-sheet-shadow)',
+        ...expansion.panelStyle
       }}
     >
       <button
@@ -212,18 +240,14 @@ function AvatarSheetPanel({
               : 'linear-gradient(90deg, var(--cvr), transparent)'
           }}
         />
-        <div className="flex justify-center pt-[var(--space-3)] pb-[var(--space-2)]">
-          <div
-            aria-hidden="true"
-            className="h-[4px] w-[44px] rounded-full"
-            style={{ background: 'var(--border)' }}
-          />
-        </div>
+        <SheetGrabBar expansion={expansion} />
 
         <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]">
           <div
             ref={bannerRef}
-            className="relative h-[150px] w-full shrink-0 overflow-hidden rounded-control"
+            className={`relative w-full shrink-0 overflow-hidden rounded-control motion-safe:transition-[height] motion-safe:duration-[220ms] ${
+              expansion.expanded ? 'h-[300px]' : 'h-[150px]'
+            }`}
             style={{
               background: showBannerImage
                 ? undefined
@@ -273,24 +297,29 @@ function AvatarSheetPanel({
               <span className="flex max-w-[16rem] shrink-0 flex-col items-end">
                 {worn ? (
                   <span
-                    className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)]"
+                    ref={wornRef}
+                    tabIndex={-1}
+                    className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] outline-none"
                     style={{
                       borderColor: 'var(--border)',
                       background: 'color-mix(in srgb, var(--glass-information) 78%, transparent)'
                     }}
                   >
+                    {/* A check, so the state does not read as a button. */}
+                    <span aria-hidden="true">✓ </span>
                     {t('avatars.sheet.wornNow')}
                   </span>
                 ) : (
                   <button
+                    ref={wearRef}
                     type="button"
                     onClick={wear}
-                    disabled={switching || accountId === null}
+                    aria-disabled={switching || accountId === null}
                     aria-label={t('avatars.sheet.wearAria', {
                       name: shown.name,
                       platform: platformName
                     })}
-                    className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-60 motion-safe:transition-[filter]"
+                    className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-[filter]"
                     style={{
                       borderColor: 'var(--control-active-border)',
                       background: showBannerImage
@@ -317,12 +346,20 @@ function AvatarSheetPanel({
               <h3 className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]">
                 {t('avatars.details.description')}
               </h3>
-              <p className="whitespace-pre-line break-words text-[13px] leading-relaxed text-[var(--text)]">
+              {/* A long description stays short until the sheet expands. */}
+              <p
+                className={`whitespace-pre-line break-words text-[13px] leading-relaxed text-[var(--text)] ${
+                  expansion.expanded ? '' : 'line-clamp-4'
+                }`}
+              >
                 {shown.description ?? t('avatars.details.noDescription')}
               </p>
-              <p className="mt-[var(--space-3)] text-[12px] text-[var(--text-dim)]">
-                {t('avatars.sheet.wearHint', { platform: platformName })}
-              </p>
+              {/* Only next to a Wear button: the worn avatar has nothing to change. */}
+              {!worn && (
+                <p className="mt-[var(--space-3)] text-[12px] text-[var(--text-dim)]">
+                  {t('avatars.sheet.wearHint', { platform: platformName })}
+                </p>
+              )}
             </div>
             <div className="shrink-0 sm:w-[240px]">
               <h3 className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]">
@@ -332,11 +369,28 @@ function AvatarSheetPanel({
                 {facts.map(([labelKey, value]) => (
                   <div key={labelKey} className="contents">
                     <dt className="text-[var(--text-dim)]">{t(labelKey)}</dt>
-                    <dd className="min-w-0 truncate text-[var(--text)]" title={value}>
+                    <dd
+                      className={`min-w-0 text-[var(--text)] ${
+                        expansion.expanded ? 'break-words' : 'truncate'
+                      }`}
+                      title={value}
+                    >
                       {value}
                     </dd>
                   </div>
                 ))}
+                {/* Expanded: the ID too, for anyone who shares or looks one up. */}
+                {expansion.expanded ? (
+                  <div className="contents">
+                    <dt className="text-[var(--text-dim)]">{t('avatars.details.avatarId')}</dt>
+                    <dd
+                      className="min-w-0 select-text break-all text-[12px] text-[var(--text-dim)]"
+                      style={{ fontFamily: 'ui-monospace, monospace' }}
+                    >
+                      {shown.avatarId}
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
               {details.isPending && details.fetchStatus === 'fetching' ? (
                 <p className="mt-[var(--space-2)] text-[12px] text-[var(--text-dim)]">

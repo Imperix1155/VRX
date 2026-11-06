@@ -7,6 +7,8 @@ import { AuthError } from './errors'
 import { VrcApiClient } from './VrcApiClient'
 import { jsonResponse, instantAdmission } from './__testutils__/adapterTestKit'
 
+type SentRequest = { method: string; headers: Record<string, string>; body?: string }
+
 const userSchema = z.object({ id: z.string(), displayName: z.string() })
 
 /** Exposes the protected client methods; stubs the IPlatformAdapter contract (VrcAdapter's job, not under test here). */
@@ -19,6 +21,15 @@ class TestClient extends VrcApiClient {
   }
   callPost<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
     return this.post(path, body, schema)
+  }
+  callPut<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+    return this.put(path, schema)
+  }
+  callPutJson<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+    return this.putJson(path, body, schema)
+  }
+  callDelete<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+    return this.delete(path, schema)
   }
   setCookie(cookie: string | null): void {
     this.setAuthCookie(cookie)
@@ -66,6 +77,41 @@ describe('VrcApiClient', () => {
     expect(options.method).toBe('GET')
     expect(options.headers['User-Agent']).toMatch(/^VRX\//)
     expect(options.headers.Cookie).toBeUndefined()
+  })
+
+  it('PUTs without a body, or with a JSON body through putJson', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({ ok: true })))
+    vi.stubGlobal('fetch', fetchMock)
+    const client = new TestClient()
+
+    await client.callPut('/avatars/avtr_1/select', z.unknown())
+    await client.callPutJson(
+      '/auth/user/unplayermoderate',
+      { moderated: 'usr_1', type: 'block' },
+      z.unknown()
+    )
+
+    const [, bare] = fetchMock.mock.calls[0]! as unknown as [string, SentRequest]
+    expect(bare.method).toBe('PUT')
+    expect(bare.body).toBeUndefined()
+    expect(bare.headers['Content-Type']).toBeUndefined()
+    const [url, withBody] = fetchMock.mock.calls[1]! as unknown as [string, SentRequest]
+    expect(url).toBe(`${VRC_API_BASE}/auth/user/unplayermoderate`)
+    expect(withBody.headers['Content-Type']).toBe('application/json')
+    expect(JSON.parse(withBody.body!)).toEqual({ moderated: 'usr_1', type: 'block' })
+  })
+
+  it('DELETEs VRC_API_BASE + path with no body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: { status_code: 200 } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await new TestClient().callDelete('/auth/user/friends/usr_1', z.unknown())
+
+    const [url, options] = fetchMock.mock.calls[0]!
+    expect(url).toBe(`${VRC_API_BASE}/auth/user/friends/usr_1`)
+    expect(options.method).toBe('DELETE')
+    expect(options.body).toBeUndefined()
+    expect(options.headers['User-Agent']).toMatch(/^VRX\//)
   })
 
   it('attaches the auth cookie once set', async () => {

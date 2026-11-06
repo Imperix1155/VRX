@@ -12,6 +12,7 @@ import type {
   AvatarSwitchResult
 } from '@shared/avatarLibrary'
 import type { Platform } from '@shared/types'
+import { keepShown, type Kept } from '../utils/community'
 import { useAuthStatus } from './auth'
 
 /** Account-keyed, so an old account's avatars can never show under a new one. */
@@ -73,16 +74,21 @@ export function useAvatarAccount(platform: Platform): string | null {
  * The user's own avatars and the worn one. Runs only while the Avatars page
  * shows this platform and it is signed in; never on a timer or window focus.
  * A typed failure is data (`ok: false`), not a thrown error, so it does not
- * retry on its own.
+ * retry on its own. A failed Refresh or re-read keeps the library that loaded,
+ * marked `refreshFailed` (`keepShown`).
  */
 export function useAvatarLibrary(
   platform: Platform,
   enabled: boolean
-): UseQueryResult<AvatarLibraryResult, Error> {
+): UseQueryResult<Kept<AvatarLibraryResult>, Error> {
   const accountId = useAvatarAccount(platform)
   return useQuery({
     queryKey: avatarLibraryQueryKey(platform, accountId),
-    queryFn: () => bridge().getAvatarLibrary({ platform }),
+    queryFn: async ({ client, queryKey }) =>
+      keepShown(
+        client.getQueryData<Kept<AvatarLibraryResult>>(queryKey),
+        await bridge().getAvatarLibrary({ platform })
+      ),
     enabled: enabled && accountId !== null,
     staleTime: AVATAR_LIBRARY_STALE_MS,
     gcTime: AVATAR_LIBRARY_GC_MS,
@@ -118,7 +124,8 @@ export interface SwitchAvatarInput {
 
 /**
  * Wear an avatar. On success the cached library shows it as worn right away;
- * the next read confirms what the platform reports.
+ * the next read confirms what the platform reports. The platform just answered,
+ * so a library kept after a failed read no longer counts as stale.
  */
 export function useSwitchAvatar(): UseMutationResult<AvatarSwitchResult, Error, SwitchAvatarInput> {
   const queryClient = useQueryClient()
@@ -128,9 +135,17 @@ export function useSwitchAvatar(): UseMutationResult<AvatarSwitchResult, Error, 
     networkMode: 'always',
     onSuccess: (result, { avatar, accountId }) => {
       if (!result.ok) return
-      queryClient.setQueryData<AvatarLibraryResult>(
+      queryClient.setQueryData<Kept<AvatarLibraryResult>>(
         avatarLibraryQueryKey(avatar.platform, accountId),
-        (previous) => (previous?.ok ? { ...previous, current: avatar } : previous)
+        (previous) =>
+          previous?.ok
+            ? {
+                ...previous,
+                current: avatar,
+                refreshFailed: undefined,
+                refreshRateLimited: undefined
+              }
+            : previous
       )
     }
   })

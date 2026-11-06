@@ -310,7 +310,7 @@ describe('join path interception (confirmJoin on)', () => {
       </>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
     const dialog = confirmDialog()
     expect(joinInstance).not.toHaveBeenCalled()
     // Focus lands on Cancel — the SAFE default; Confirm is never auto-focused.
@@ -417,6 +417,50 @@ describe('join path interception (confirmJoin on)', () => {
     expect(joinInstance).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
   })
+
+  it('keeps a press on the scrim from the page behind, so the drawer or sheet there stays open', () => {
+    // The drawer and the sheets close on a press outside them once no join
+    // waits. In the app the press closes this dialog before it reaches them.
+    const pressBehind = vi.fn()
+    document.addEventListener('pointerdown', pressBehind)
+    try {
+      render(
+        <>
+          <OpenJoin friend={joinableFriend} />
+          <JoinConfirmDialog />
+        </>
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      fireEvent.pointerDown(screen.getByTestId('join-confirm-scrim'), { pointerType: 'mouse' })
+
+      expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+      expect(pressBehind).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('pointerdown', pressBehind)
+    }
+  })
+
+  it.each(['touch', 'pen'])(
+    'closes on a %s tap’s click, not its press, so the tap stays on the scrim',
+    (pointerType) => {
+      render(
+        <>
+          <OpenJoin friend={joinableFriend} />
+          <JoinConfirmDialog />
+        </>
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      const scrim = screen.getByTestId('join-confirm-scrim')
+      fireEvent.pointerDown(scrim, { pointerType })
+      // Still there for the tap's click, which would otherwise land behind it.
+      expect(confirmDialog()).toBeTruthy()
+      fireEvent.pointerUp(scrim, { pointerType })
+      fireEvent.click(scrim)
+
+      expect(joinInstance).not.toHaveBeenCalled()
+      expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+    }
+  )
 })
 
 describe('confirmJoin off (one-click behavior preserved)', () => {
@@ -433,7 +477,7 @@ describe('confirmJoin off (one-click behavior preserved)', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
 
@@ -464,7 +508,7 @@ describe('confirmJoin off (one-click behavior preserved)', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
 
@@ -902,6 +946,149 @@ describe('a game that is already open', () => {
     expect(within(dialog).queryByRole('radiogroup')).toBeNull()
   })
 
+  /** Holds main's answer so a test can look at the dialog while VRX checks. */
+  function withSlowHandoff(): (handoff: 'launch' | 'in-game') => Promise<void> {
+    let answer!: (handoff: 'launch' | 'in-game') => void
+    ;(window.vrx as unknown as { getJoinHandoff: unknown }).getJoinHandoff = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve
+        })
+    )
+    return async (handoff) => {
+      await act(async () => {
+        answer(handoff)
+        await Promise.resolve()
+      })
+    }
+  }
+
+  it.each([
+    ['open', 'in-game'],
+    ['closed', 'launch']
+  ] as const)(
+    'while checking whether ChilloutVR is open (%s), the picker keeps its place hidden',
+    async (_state, handoff) => {
+      const answer = withSlowHandoff()
+      mockFriends([], [cvrFriend])
+      render(<TestSurface friend={cvrFriend} />)
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+
+      // Nothing to pick yet, so no choice can be made and then ignored, but
+      // the space stays taken so the dialog does not jump.
+      expect(within(dialog).queryByRole('radiogroup')).toBeNull()
+      const reserved = within(dialog).getByRole('radiogroup', { hidden: true })
+      expect(reserved.closest('[inert]')).not.toBeNull()
+
+      await answer(handoff)
+      if (handoff === 'in-game') {
+        expect(
+          within(dialog).getByText('ChilloutVR is open, so Join takes you there in the game.')
+        ).toBeTruthy()
+        expect(within(dialog).queryByRole('radiogroup', { hidden: true })).toBeNull()
+      } else {
+        const picker = within(dialog).getByRole('radiogroup', { name: 'Launch mode' })
+        expect(picker).toBe(reserved)
+        expect(picker.closest('[inert]')).toBeNull()
+      }
+    }
+  )
+
+  it.each([
+    ['closed', 'launch'],
+    ['open', 'in-game']
+  ] as const)(
+    'Join waits while the VR or Desktop choice is hidden, then works (ChilloutVR %s)',
+    async (_state, handoff) => {
+      const answer = withSlowHandoff()
+      mockFriends([], [cvrFriend])
+      render(<TestSurface friend={cvrFriend} />)
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+      const join = within(dialog).getByRole('button', { name: 'Join' })
+      const dontAsk = within(dialog).getByRole('button', { name: /Don't ask again/ })
+
+      // No choice is on screen yet, so neither can launch while the check is out.
+      expect((join as HTMLButtonElement).disabled).toBe(true)
+      expect((dontAsk as HTMLButtonElement).disabled).toBe(true)
+      fireEvent.click(join)
+      expect(joinInstance).not.toHaveBeenCalled()
+
+      await answer(handoff)
+      expect((join as HTMLButtonElement).disabled).toBe(false)
+      expect((dontAsk as HTMLButtonElement).disabled).toBe(false)
+      if (handoff === 'launch') {
+        fireEvent.click(within(dialog).getByRole('radio', { name: 'VR' }))
+      }
+      await act(async () => {
+        fireEvent.click(join)
+        await Promise.resolve()
+      })
+      expect(joinInstance).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: handoff === 'launch' ? 'vr' : 'desktop' })
+      )
+    }
+  )
+
+  it('VRChat and a set ChilloutVR mode need no choice, so Join works while VRX checks', async () => {
+    withSlowHandoff()
+    useSettingsStore.setState((state) => ({ settings: { ...state.settings, joinMode: 'vr' } }))
+    mockFriends([], [cvrFriend])
+    render(<TestSurface friend={cvrFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+    expect(joinInstance).toHaveBeenCalledWith(expect.objectContaining({ mode: 'vr' }))
+  })
+
+  it('VRChat needs no choice even when ChilloutVR asks each time, so Join works while VRX checks', async () => {
+    withSlowHandoff()
+    useSettingsStore.setState((state) => ({ settings: { ...state.settings, joinMode: 'ask' } }))
+    mockFriends([joinableFriend])
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this Public instance?' })
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: 'vrchat', mode: 'desktop' })
+    )
+  })
+
+  it('the Explore dialog also keeps the picker hidden until the answer', async () => {
+    const answer = withSlowHandoff()
+    const cvrWorld: ExploreWorld = { ...exploreWorld, platform: 'chilloutvr', worldId: 'cvr_world' }
+    const cvrRoom: ExploreRoom = {
+      ...exploreRoom,
+      platform: 'chilloutvr',
+      worldId: 'cvr_world',
+      roomId: 'cvr_room',
+      action: { state: 'available', selectionRef: 'cvr-selection-ref' }
+    }
+    render(<ExploreTestSurface world={cvrWorld} room={cvrRoom} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+
+    expect(within(dialog).queryByRole('radiogroup')).toBeNull()
+    expect(
+      within(dialog).getByRole('radiogroup', { hidden: true }).closest('[inert]')
+    ).not.toBeNull()
+
+    await answer('in-game')
+    expect(
+      within(dialog).getByText('ChilloutVR is open, so Join takes you there in the game.')
+    ).toBeTruthy()
+    expect(within(dialog).queryByRole('radiogroup', { hidden: true })).toBeNull()
+  })
+
   it('VRChat open → says whether Join goes there or sends an invite', async () => {
     withHandoff({ vrchat: 'in-game', chilloutvr: 'launch' })
     const view = render(<TestSurface friend={joinableFriend} />)
@@ -982,6 +1169,24 @@ describe("who's-there row", () => {
 
     expect(within(dialog).getAllByRole('img')).toHaveLength(4)
     expect(within(dialog).getByText('+1')).toBeTruthy() // 5 same-instance, NOT +2
+  })
+
+  it('shows the faces in name order, each named on hover', () => {
+    const trio = ['Cleo', 'amy', 'Bea'].map((name, i) => ({
+      ...joinableFriend,
+      platformUserId: `usr_${i}`,
+      displayName: name
+    }))
+    mockFriends(trio)
+    render(
+      <>
+        <OpenJoin friend={trio[0]!} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const faces = within(confirmDialog()).getAllByRole('listitem')
+    expect(faces.map((face) => face.getAttribute('title'))).toEqual(['amy', 'Bea', 'Cleo'])
   })
 
   it("lists the friends' names with the UI language's punctuation", async () => {
@@ -1217,6 +1422,33 @@ describe('modal behavior', () => {
     expect(stripe?.className).not.toContain('rounded-t-[20px]')
   })
 
+  it('says Joining… on Join while the launch runs, like the Explore dialog', async () => {
+    let resolveJoin!: (result: { ok: true }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    const busy = within(dialog).getByRole('button', { name: i18n.t('explore.joinDenied.busy') })
+    expect(busy).toHaveProperty('disabled', true)
+    expect(within(dialog).queryByRole('button', { name: 'Join' })).toBeNull()
+
+    await act(async () => {
+      resolveJoin({ ok: true })
+      await Promise.resolve()
+    })
+  })
+
   it('Tab with focus OUTSIDE the panel re-enters the trap', () => {
     render(
       <>
@@ -1245,7 +1477,7 @@ describe('modal behavior', () => {
       </>
     )
     const search = screen.getByPlaceholderText('Search friends')
-    fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
     expect(confirmDialog()).toBeTruthy()
 
     fireEvent.keyDown(document, { key: '/' })
@@ -1459,7 +1691,7 @@ describe('focus management', () => {
         <JoinConfirmDialog />
       </>
     )
-    const pill = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const pill = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
     pill.focus()
     fireEvent.click(pill)
     const dialog = confirmDialog()
@@ -1477,7 +1709,7 @@ describe('focus management', () => {
         <JoinConfirmDialog />
       </>
     )
-    const pill = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const pill = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
     pill.focus()
     fireEvent.click(pill)
     expect(confirmDialog()).toBeTruthy()
@@ -1499,7 +1731,7 @@ describe('focus management', () => {
         <JoinConfirmDialog />
       </>
     )
-    const pill = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const pill = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
     pill.focus()
     fireEvent.click(pill)
 
@@ -2169,9 +2401,13 @@ describe('VRX-239/241 liveness contract', () => {
 
     expect(joinInstance).toHaveBeenCalledOnce()
     expect(within(dialog).getByText(/Waiting for updated location/)).toBeTruthy()
-    // The arm path forces a single refetch so 'manual' reconcile cadences cannot
-    // strand the dialog if no WS event arrives.
-    expect(refetchSpy).toHaveBeenCalledWith({ queryKey: friendsQueryKey('vrchat') })
+    // The arm path asks for one read so 'manual' reconcile cadences cannot
+    // strand the dialog if no WS event arrives; a read already running is
+    // reused, never restarted.
+    expect(refetchSpy).toHaveBeenCalledWith(
+      { queryKey: friendsQueryKey('vrchat') },
+      { cancelRefetch: false }
+    )
 
     // Identical data but a newer dataUpdatedAt watermark: the render-subscribed
     // field advances and lifts the guard even though structural sharing would
@@ -2333,6 +2569,90 @@ describe('VRX-239/241 liveness contract', () => {
     expect(joinInstance).not.toHaveBeenCalled()
     expect(useSettingsStore.getState().settings.confirmJoin).toBe(true)
     expect(saveSettings).not.toHaveBeenCalled()
+  })
+})
+
+describe('a Join from a hot instance follows the instance', () => {
+  const bea: Friend = { ...joinableFriend, platformUserId: 'usr_bea', displayName: 'Bea' }
+  const elsewhere: InstanceInfo = {
+    ...publicInstance,
+    worldId: 'wrld_other',
+    instanceId: 'wrld_other:999~public'
+  }
+
+  /** The hot card and sheet open the dialog through one member, for the instance. */
+  function OpenHotJoin({ friend }: { friend: Friend }): React.JSX.Element {
+    const { join } = useJoinInstance()
+    return (
+      <button type="button" onClick={() => void join(friend, { fromHotInstance: true })}>
+        open hot join
+      </button>
+    )
+  }
+
+  function Surface({ hot }: { hot: boolean }): React.JSX.Element {
+    return (
+      <>
+        {hot ? <OpenHotJoin friend={joinableFriend} /> : <OpenJoin friend={joinableFriend} />}
+        <JoinConfirmDialog />
+      </>
+    )
+  }
+
+  const moved: Friend = { ...joinableFriend, instance: elsewhere }
+  const offline: Friend = { ...joinableFriend, presence: { state: 'offline' }, instance: null }
+
+  async function openThenAlexLeaves(
+    hot: boolean,
+    roster: Friend[],
+    alexNow: Friend = moved
+  ): Promise<HTMLElement> {
+    mockFriends(roster)
+    const { rerender } = render(<Surface hot={hot} />)
+    fireEvent.click(screen.getByRole('button', { name: hot ? 'open hot join' : 'open join' }))
+    const dialog = confirmDialog()
+    updateFriend(alexNow)
+    rerender(<Surface hot={hot} />)
+    await act(async () => await Promise.resolve())
+    return dialog
+  }
+
+  it.each([
+    ['moves on', moved],
+    ['goes offline', offline]
+  ])('joins through a friend still there when the one it went through %s', async (_, alexNow) => {
+    const dialog = await openThenAlexLeaves(true, [joinableFriend, bea], alexNow)
+
+    // Bea is still in the instance the user picked: nothing to review.
+    expect(within(dialog).queryByText(/moved to a different instance/)).toBeNull()
+    expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
+    expect(within(dialog).getByText(/Bea is in The Great Pug/)).toBeTruthy()
+    const confirm = within(dialog).getByRole('button', { name: 'Join' })
+    expect(confirm).toHaveProperty('disabled', false)
+    await act(async () => {
+      fireEvent.click(confirm)
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        friendId: 'usr_bea',
+        expectedTarget: { worldId: publicInstance.worldId, instanceId: publicInstance.instanceId }
+      })
+    )
+  })
+
+  it('shows the move once nobody is left in the instance', async () => {
+    const dialog = await openThenAlexLeaves(true, [joinableFriend])
+    expect(within(dialog).getByText(/Alex moved to a different instance/)).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', true)
+  })
+
+  it('a Join from a friend still follows that friend', async () => {
+    const dialog = await openThenAlexLeaves(false, [joinableFriend, bea])
+    expect(within(dialog).getByText(/Alex moved to a different instance/)).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', true)
   })
 })
 
@@ -2550,6 +2870,39 @@ describe('join() guard', () => {
 })
 
 describe('Explore confirmation source', () => {
+  it("names a room's access with the same words as every other instance", () => {
+    render(<ExploreTestSurface room={{ ...exploreRoom, access: 'group-public' }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+    expect(within(dialog).getByText(i18n.t('friends.instance.type.group-public'))).toBeTruthy()
+  })
+
+  it('shows the access as the shared instance pill under the platform pill', () => {
+    render(<ExploreTestSurface />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+
+    // The same pill (and tier colour) as the friend dialog and the world sheet.
+    const pill = within(dialog).getByText('Public')
+    expect(pill.getAttribute('data-instance-pill')).toBe('')
+    expect(pill.style.color).toBe('var(--op-public-text)')
+    expect(pill.parentElement?.querySelector('[data-platform-pill]')).not.toBeNull()
+  })
+
+  it('says the count is unknown instead of guessing a number', () => {
+    render(
+      <ExploreTestSurface
+        room={{
+          ...exploreRoom,
+          occupancy: { state: 'unknown', value: null, source: 'vrc-room-n-users' }
+        }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+    expect(within(dialog).getByText(i18n.t('explore.countUnknown'))).toBeTruthy()
+  })
+
   it('keeps an opened Explore confirmation mounted, traps focus, and cancels with Escape', () => {
     render(<ExploreTestSurface />)
     fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
@@ -2565,6 +2918,35 @@ describe('Explore confirmation source', () => {
     )
 
     fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Explore World' })).toBeNull()
+  })
+
+  it('closes on a press on its scrim, which stays there, so the Explore sheet behind stays open', () => {
+    const pressBehind = vi.fn()
+    document.addEventListener('pointerdown', pressBehind)
+    try {
+      render(<ExploreTestSurface />)
+      fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+      const pressed = fireEvent.pointerDown(screen.getByTestId('join-confirm-scrim'), {
+        pointerType: 'mouse'
+      })
+
+      expect(pressed).toBe(false)
+      expect(screen.queryByRole('dialog', { name: 'Explore World' })).toBeNull()
+      expect(pressBehind).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('pointerdown', pressBehind)
+    }
+  })
+
+  it('closes on a touch tap’s click on its scrim, not its press', () => {
+    render(<ExploreTestSurface />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const scrim = screen.getByTestId('join-confirm-scrim')
+    fireEvent.pointerDown(scrim, { pointerType: 'touch' })
+    expect(screen.getByRole('dialog', { name: 'Explore World' })).toBeTruthy()
+    fireEvent.click(scrim)
+
     expect(screen.queryByRole('dialog', { name: 'Explore World' })).toBeNull()
   })
 

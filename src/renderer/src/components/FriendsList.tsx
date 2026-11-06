@@ -10,7 +10,14 @@ import type {
   RefCallback
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FRIEND_SECTIONS, type Friend, type FriendSection, type Platform } from '@shared/types'
+import {
+  FRIEND_LIST_SECTIONS,
+  FRIEND_SORTS,
+  type Friend,
+  type FriendListSection,
+  type FriendSort,
+  type Platform
+} from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { isFriendJoinable } from '@shared/joinability'
 import type { LinkedProfile } from '@shared/linkedProfiles'
@@ -25,6 +32,9 @@ import {
   type ProfileTarget
 } from '../utils/projectLinkedFriends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
+import { isFavoriteAccount, useFavoriteFriendKeys } from '../queries/favorites'
+import { useGameFavoriteFriendKeys } from '../queries/gameFavorites'
+import { StarGlyph } from './FavoriteStar'
 import { useProfileSelection } from '../stores/profileSelection'
 import { useStableLinkedRows } from '../hooks/useStableLinkedRows'
 import LinkedWorlds from './LinkedWorlds'
@@ -39,6 +49,9 @@ import { inPlatformOrder } from '../utils/platformOrder'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { readPixelDesignToken, RENDERER_PIXEL_TOKENS } from '../utils/designTokens'
+import { latestActivityByFriend, sortFriendRows } from '../utils/friendSort'
+import { useActivityForFriendsOrder } from '../queries/activity'
+import SegmentedControl from './SegmentedControl'
 
 const INITIAL_VIRTUAL_VIEWPORT = { width: 0, height: 720 }
 const SECTION_ROW_ESTIMATE = 32
@@ -46,6 +59,23 @@ const COMPACT_FRIEND_ROW_ESTIMATE = 60
 const DETAIL_FRIEND_ROW_ESTIMATE = 72
 const VIRTUAL_OVERSCAN = 5
 const EMPTY_LINKED_ROWS: LinkedRow[] = []
+/** A favorite in game shows twice: under Favorites and in its own group. The
+ *  Favorites copy gets its own row key so focus, arrows and the virtual list
+ *  tell the two apart. */
+const FAVORITE_COPY_PREFIX = 'favorite-copy:'
+
+function projectionKeyOf(rowKey: string): string {
+  return rowKey.startsWith(FAVORITE_COPY_PREFIX)
+    ? rowKey.slice(FAVORITE_COPY_PREFIX.length)
+    : rowKey
+}
+
+const SORT_LABEL_KEY: Record<FriendSort, string> = {
+  name: 'friends.sort.name',
+  recent: 'friends.sort.recent',
+  world: 'friends.sort.world',
+  joinable: 'friends.sort.joinable'
+}
 
 function findActiveStickyIndex(
   stickyIndexes: readonly number[],
@@ -88,9 +118,11 @@ function withFriendRowKey(row: LinkedRow): LinkedRow {
  * (13px card − 1px border − 3px gap = 9px), sideways VRC/CVR acronym so the
  * platform survives the §5 black-and-white test.
  *
- * Geometry couples to the row's frame: grid col 14px + row pl-[10px] → -ml-[7px]
- * lands the tab 3px off the card's inner left edge; -mt-[5px]/-mb-[5px] bleed
- * through py-[8px] to the same 3px inset top and bottom. PHYSICAL margins only:
+ * Geometry couples to the row's frame: grid col 14px + row pl-[13px] → -ml-[7px]
+ * lands the tab 6px off the card's inner left edge, a 3px gap clear of the
+ * row's 3px platform bar (.platform-row::before) so the two never touch;
+ * -mt-[5px]/-mb-[5px] bleed through py-[8px] to the same 3px inset top and
+ * bottom. PHYSICAL margins only:
  * -my-* emits logical margin-block, which [writing-mode:vertical-rl] rotates onto
  * the HORIZONTAL axis (review-caught High) — same trap for any future -m*.
  */
@@ -117,14 +149,14 @@ function PlatformTab({
             ? t('friends.platform.vrchat')
             : t('friends.platform.chilloutvr')
       }
-      className={`grid place-items-center self-stretch -mt-[5px] -mb-[5px] -ml-[7px] w-[calc(100%+7px)] rounded-[9px] border text-[10.5px] font-semibold tracking-[0.09em] [writing-mode:vertical-rl] rotate-180 ${platform === 'vrx' ? 'linked-platform-rail' : ''}`}
+      className={`glass-chip grid place-items-center self-stretch -mt-[5px] -mb-[5px] -ml-[7px] w-[calc(100%+7px)] rounded-[9px] border text-[10.5px] font-semibold tracking-[0.09em] [writing-mode:vertical-rl] rotate-180 ${platform === 'vrx' ? 'linked-platform-rail' : ''}`}
       style={{
         background:
           platform === 'vrx'
             ? 'linear-gradient(to top, var(--plat-cvr-rail-bg), var(--plat-vrc-rail-bg))'
             : `var(--plat-${pkey}-rail-bg)`,
         borderColor: platform === 'vrx' ? 'transparent' : `var(--plat-${pkey}-rail-border)`,
-        color: platform === 'vrx' ? 'var(--linked-rail-text)' : `var(--plat-${pkey}-badge-text)`
+        color: platform === 'vrx' ? 'var(--linked-rail-text)' : `var(--plat-${pkey}-rail-text)`
       }}
     >
       {platform === 'vrx' ? (
@@ -141,9 +173,30 @@ function PlatformTab({
 // Avatar moved to components/Avatar.tsx (VRX-69) — shared with FriendDrawer
 // without a FriendsList ⇄ FriendDrawer import cycle.
 
+/** `text` with the parts the search matched marked. */
+function SearchHighlight({ text, query }: { text: string; query: string }): React.JSX.Element {
+  return (
+    <>
+      {splitByMatch(text, query).map((segment, index) =>
+        segment.isMatch ? (
+          <span
+            key={index}
+            className="bg-[color-mix(in_srgb,var(--text)_16%,transparent)] text-[var(--text)]"
+          >
+            {segment.text}
+          </span>
+        ) : (
+          segment.text
+        )
+      )}
+    </>
+  )
+}
+
 // The virtual window keeps only a small row set mounted. memo still avoids
 // re-rendering an unchanged visible row when unrelated list state changes.
 const FriendRow = memo(function FriendRow({
+  rowKey,
   friend,
   projection,
   linkedProfile,
@@ -164,8 +217,11 @@ const FriendRow = memo(function FriendRow({
   virtualIndex,
   offsetY,
   compact,
+  favorite,
   measureElement
 }: {
+  /** The list row's own key; differs from the projection key on a Favorites copy. */
+  rowKey: string
   friend: Friend
   projection: LinkedRow
   linkedProfile: LinkedProfile | undefined
@@ -188,6 +244,8 @@ const FriendRow = memo(function FriendRow({
   /** Primitive position props (not a style object) so the memo comparison holds. */
   offsetY: number
   compact: boolean
+  /** Starred in VRX: a small star follows the name. */
+  favorite: boolean
   measureElement?: RefCallback<HTMLLIElement>
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -212,7 +270,7 @@ const FriendRow = memo(function FriendRow({
   // row clicks delegate to the same open path with THIS element as the opener
   // so focus return still lands on the avatar (VRX-228 contract).
   const avatarButtonRef = useRef<HTMLButtonElement>(null)
-  const key = projection.key
+  const key = rowKey
   const combined = projection.target.kind === 'person'
   const destinations = projection.accounts.filter(isFriendJoinable)
   const destination = destinations[0]
@@ -335,7 +393,7 @@ const FriendRow = memo(function FriendRow({
   }
 
   // Ids for the opener's composed accessible name (aria-labelledby below).
-  const rowId = `friend-row-${friend.platform}-${friend.platformUserId}`
+  const rowId = `friend-row-${key === projection.key ? '' : 'favorite-'}${friend.platform}-${friend.platformUserId}`
 
   return (
     <li
@@ -359,7 +417,9 @@ const FriendRow = memo(function FriendRow({
             : account.instance?.instanceId
         ])
       ])}
-      onPointerEnter={() => onRowHover(key.startsWith('person:') ? key : null)}
+      onPointerEnter={() =>
+        onRowHover(projection.key.startsWith('person:') ? projection.key : null)
+      }
       onPointerLeave={() => onRowHover(null)}
       aria-posinset={positionInSet}
       aria-setsize={setSize}
@@ -386,7 +446,7 @@ const FriendRow = memo(function FriendRow({
         'grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
         // Platform-tinted capsule, like the Activity rows.
         `platform-row platform-row--${projection.platformMark}`,
-        'rounded-[13px] py-[8px] pr-[12px] pl-[10px]',
+        'rounded-[13px] py-[8px] pr-[12px] pl-[13px]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors',
         'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--text-dim)]',
         'has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-transparent',
@@ -415,7 +475,7 @@ const FriendRow = memo(function FriendRow({
         onFocus={() => onRovingFocus(key)}
         onKeyDown={navigateFromAvatar}
         tabIndex={isRovingStop ? 0 : -1}
-        aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world ${rowId}-platform`}
+        aria-labelledby={`${rowId}-name ${projection.matchedName ? `${rowId}-match ` : ''}${favorite ? `${rowId}-favorite ` : ''}${rowId}-avatar ${rowId}-world ${rowId}-platform`}
         className="cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] focus:ring-offset-2 focus:ring-offset-transparent"
       >
         <Avatar
@@ -435,22 +495,33 @@ const FriendRow = memo(function FriendRow({
             id={`${rowId}-name`}
             className="max-w-[68%] shrink-0 truncate text-sm font-semibold text-[var(--text)]"
           >
-            {splitByMatch(projection.name || t('linking.unknownName'), searchQuery).map(
-              (segment, index) =>
-                segment.isMatch ? (
-                  <span
-                    key={index}
-                    className="bg-[color-mix(in_srgb,var(--text)_16%,transparent)] text-[var(--text)]"
-                  >
-                    {segment.text}
-                  </span>
-                ) : (
-                  segment.text
-                )
-            )}
+            <SearchHighlight
+              text={projection.name || t('linking.unknownName')}
+              query={searchQuery}
+            />
           </span>
-          {customStatus && (
-            <span className="min-w-0 truncate text-xs text-[var(--text-dim)]">{customStatus}</span>
+          {favorite && (
+            <span
+              id={`${rowId}-favorite`}
+              className="flex shrink-0 self-center text-[var(--favorite)]"
+              data-favorite-mark=""
+            >
+              <StarGlyph on className="h-[12px] w-[12px]" />
+              <span className="sr-only">{t('favorites.rowLabel')}</span>
+            </span>
+          )}
+          {/* A linked person found by another of their names shows that name
+              here while the search lasts, so the row says why it is listed. */}
+          {projection.matchedName ? (
+            <span id={`${rowId}-match`} className="min-w-0 truncate text-xs text-[var(--text-dim)]">
+              <SearchHighlight text={projection.matchedName} query={searchQuery} />
+            </span>
+          ) : (
+            customStatus && (
+              <span className="min-w-0 truncate text-xs text-[var(--text-dim)]">
+                {customStatus}
+              </span>
+            )
           )}
         </div>
         {/* World subline — fixed height keeps every row the same height (§9.1). */}
@@ -482,6 +553,11 @@ const FriendRow = memo(function FriendRow({
             }}
             aria-disabled={isJoining || undefined}
             tabIndex={isFullyVisible ? undefined : -1}
+            // Starts with the pill's own words, like the one-location pill.
+            aria-label={t('linking.locationsJoinAria', {
+              locations: t('linking.locations', { count: 2 }),
+              name: projection.name
+            })}
             // The diagonal halves carry each location's access tier in color;
             // the world subline names each one beside its platform tag, and
             // the tooltip spells both out.
@@ -511,9 +587,11 @@ const FriendRow = memo(function FriendRow({
               onJoin={joinFriend}
               disabled={isJoining}
               tabIndex={isFullyVisible ? undefined : -1}
-              aria-label={t('friends.joinAria', {
+              // Starts with the pill's own words, so the name holds what it shows.
+              aria-label={t('friends.joinPillAria', {
+                access: instancePill,
                 name: combined ? projection.name : friend.displayName,
-                world: instance?.worldName ?? instancePill
+                world: instance?.worldName ?? t('friends.instance.unknownWorld')
               })}
             />
           </span>
@@ -530,7 +608,8 @@ const FriendRow = memo(function FriendRow({
 
 /** Section header i18n keys (VRX-67) — a lookup map, not template-literal keys,
  *  so the i18n key-existence scan (parity.test.ts) can see them (quoted literals). */
-const SECTION_LABEL_KEY: Record<FriendSection, string> = {
+const SECTION_LABEL_KEY: Record<FriendListSection, string> = {
+  favorites: 'friends.section.favorites',
   'in-game': 'friends.section.inGame',
   online: 'friends.section.online',
   offline: 'friends.section.offline'
@@ -577,15 +656,15 @@ function SectionHeader({
   onFocus,
   onBlur
 }: {
-  section: FriendSection
+  section: FriendListSection
   count: number
   collapsed: boolean
   onToggle: () => void
   collapseIgnored: boolean
   tabIndex: 0 | -1
-  setButtonElement: (section: FriendSection, element: HTMLButtonElement | null) => void
-  onFocus: (section: FriendSection) => void
-  onBlur: (section: FriendSection) => void
+  setButtonElement: (section: FriendListSection, element: HTMLButtonElement | null) => void
+  onFocus: (section: FriendListSection) => void
+  onBlur: (section: FriendListSection) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
@@ -602,10 +681,9 @@ function SectionHeader({
       // list as its controlled object. aria-expanded carries disclosure state.
       className={[
         'flex w-full items-center gap-[var(--space-2)]',
-        'rounded-control px-[var(--space-2)] py-[var(--space-1)]',
-        'bg-[color-mix(in_srgb,var(--bg-base)_92%,transparent)] backdrop-blur-md',
+        'glass-layer rounded-control px-[var(--space-2)] py-[var(--space-1)]',
         'text-xs font-semibold tracking-widest text-[var(--text-dim)] uppercase',
-        'hover:bg-[var(--surface-hover)] disabled:cursor-default disabled:hover:bg-[color-mix(in_srgb,var(--bg-base)_92%,transparent)] motion-safe:transition-colors'
+        'hover:bg-[color-mix(in_srgb,var(--glass-layer),var(--text)_8%)] disabled:cursor-default disabled:hover:bg-[var(--glass-layer)] motion-safe:transition-colors'
       ].join(' ')}
     >
       <ChevronGlyph collapsed={collapsed} />
@@ -617,8 +695,8 @@ function SectionHeader({
 type VirtualFriendRow =
   | {
       kind: 'section'
-      key: `section:${FriendSection}`
-      section: FriendSection
+      key: `section:${FriendListSection}`
+      section: FriendListSection
       count: number
       collapsed: boolean
     }
@@ -773,6 +851,21 @@ export default function FriendsList(): React.JSX.Element {
   const collapsedSections = useSettingsStore((s) => s.settings.collapsedFriendSections)
   const density = useSettingsStore((s) => s.settings.density)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
+  // Recent reads the Activity list VRX already keeps; with that page off it
+  // keeps nothing, so the choice steps aside and the list orders by name.
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
+  const storedSort = useSettingsStore((s) => s.settings.friendSort)
+  const sortChoices = useMemo(
+    () => FRIEND_SORTS.filter((sort) => sort !== 'recent' || showActivityPage),
+    [showActivityPage]
+  )
+  const friendSort: FriendSort = sortChoices.includes(storedSort) ? storedSort : 'name'
+  const activity = useActivityForFriendsOrder(friendSort === 'recent')
+  const latestActivity = useMemo(
+    () =>
+      friendSort === 'recent' ? latestActivityByFriend(activity.data) : new Map<string, number>(),
+    [friendSort, activity.data]
+  )
   // One trimmed query drives filtering, highlighting and the section lock, so
   // "alex " still highlights and a spaces-only query doesn't lock sections open.
   const searchQuery = appliedSearch.trim()
@@ -785,26 +878,55 @@ export default function FriendsList(): React.JSX.Element {
       filter: platformFilter,
       search: searchQuery
     })
-    const rows = projected.rows.map((row) =>
-      row.target.personId === null ? withFriendRowKey(row) : row
+    const rows = sortFriendRows(
+      projected.rows.map((row) => (row.target.personId === null ? withFriendRowKey(row) : row)),
+      friendSort,
+      { latestActivity }
     )
     const filteredFriends = friends === undefined ? undefined : rows
     return { filteredFriends, searchActive, personCount: projected.personCount }
-  }, [friends, allFriends, links.data, accountIds, platformFilter, searchQuery])
+  }, [
+    friends,
+    allFriends,
+    links.data,
+    accountIds,
+    platformFilter,
+    searchQuery,
+    friendSort,
+    latestActivity
+  ])
   const stableRows = useStableLinkedRows(
     filteredFriends ?? EMPTY_LINKED_ROWS,
-    interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null
+    interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null,
+    searchQuery
   )
-  const sections = useMemo(
+  // Favorites (owner, 2026-11-02, replacing 2026-11-01): the group answers
+  // "which of my favorites can I jump in with right now", so it lists only
+  // starred friends who are in game. They also stay in In-Game; online and
+  // offline favorites stay in their own group. Every starred row carries the
+  // star. The group only shows while it has someone in it. A friend in one of
+  // the account's own favorite groups counts the same as VRX's star.
+  const localFavoriteKeys = useFavoriteFriendKeys()
+  const gameFavoriteKeys = useGameFavoriteFriendKeys()
+  const favoriteKeys = useMemo(
     () =>
-      filteredFriends === undefined
-        ? undefined
-        : FRIEND_SECTIONS.map((section) => ({
-            section,
-            friends: stableRows.filter((row) => row.section === section)
-          })),
-    [filteredFriends, stableRows]
+      gameFavoriteKeys.size === 0
+        ? localFavoriteKeys
+        : new Set([...localFavoriteKeys, ...gameFavoriteKeys]),
+    [localFavoriteKeys, gameFavoriteKeys]
   )
+  const sections = useMemo(() => {
+    if (filteredFriends === undefined) return undefined
+    return FRIEND_LIST_SECTIONS.map((section) => ({
+      section,
+      friends:
+        section === 'favorites'
+          ? stableRows.filter(
+              (row) => row.section === 'in-game' && isFavoriteAccount(favoriteKeys, row.accounts)
+            )
+          : stableRows.filter((row) => row.section === section)
+    })).filter(({ section, friends }) => section !== 'favorites' || friends.length > 0)
+  }, [filteredFriends, stableRows, favoriteKeys])
 
   // One flattened stream lets a single virtualizer own headers and friend rows.
   // Keeping headers in the same index space is what makes a section-aware sticky
@@ -839,7 +961,12 @@ export default function FriendsList(): React.JSX.Element {
             })?.header ??
             projection.accounts[0] ??
             null
-          rows.push({ kind: 'friend', key: projection.key, friend, projection })
+          rows.push({
+            kind: 'friend',
+            key: section === 'favorites' ? FAVORITE_COPY_PREFIX + projection.key : projection.key,
+            friend,
+            projection
+          })
         }
       }
     }
@@ -868,12 +995,12 @@ export default function FriendsList(): React.JSX.Element {
 
   const virtualListRef = useRef<HTMLUListElement>(null)
   const avatarElementsRef = useRef(new Map<string, HTMLButtonElement>())
-  const sectionButtonElementsRef = useRef(new Map<FriendSection, HTMLButtonElement>())
+  const sectionButtonElementsRef = useRef(new Map<FriendListSection, HTMLButtonElement>())
   const pendingFocusKeyRef = useRef<string | null>(null)
   const focusedRowKeyRef = useRef<string | null>(null)
   const focusedPersonRef = useRef<string | null>(null)
   const [rovingKey, setRovingKey] = useState<string | null>(null)
-  const [focusedSection, setFocusedSection] = useState<FriendSection | null>(null)
+  const [focusedSection, setFocusedSection] = useState<FriendListSection | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
   const [virtualRowGap, setVirtualRowGap] = useState<number>(
     RENDERER_PIXEL_TOKENS.space1.fallbackPx
@@ -974,7 +1101,7 @@ export default function FriendsList(): React.JSX.Element {
     else avatarElementsRef.current.set(key, element)
   }, [])
   const setSectionButtonElement = useCallback(
-    (section: FriendSection, element: HTMLButtonElement | null): void => {
+    (section: FriendListSection, element: HTMLButtonElement | null): void => {
       if (element === null) sectionButtonElementsRef.current.delete(section)
       else sectionButtonElementsRef.current.set(section, element)
     },
@@ -996,10 +1123,11 @@ export default function FriendsList(): React.JSX.Element {
   }, [stableRows, friendKeys, friendPositionByKey, friendVirtualIndexByKey])
   const onRowFocus = useCallback((key: string): void => {
     focusedRowKeyRef.current = key
-    setFocusedLinkedRowKey(key.startsWith('person:') ? key : null)
+    const projectionKey = projectionKeyOf(key)
+    setFocusedLinkedRowKey(projectionKey.startsWith('person:') ? projectionKey : null)
     focusedPersonRef.current =
       latestRowsRef.current.stableRows.find(
-        (row) => row.key === key && row.target.personId !== null
+        (row) => row.key === projectionKey && row.target.personId !== null
       )?.personKey ?? null
     // Join is a separate native control after the avatar in each row. If Tab
     // reaches it, that row must also own the roving avatar stop so a live
@@ -1008,12 +1136,13 @@ export default function FriendsList(): React.JSX.Element {
   }, [])
   const onRowBlur = useCallback((key: string): void => {
     if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null
-    setFocusedLinkedRowKey((current) => (current === key ? null : current))
+    const projectionKey = projectionKeyOf(key)
+    setFocusedLinkedRowKey((current) => (current === projectionKey ? null : current))
   }, [])
-  const onSectionFocus = useCallback((section: FriendSection): void => {
+  const onSectionFocus = useCallback((section: FriendListSection): void => {
     setFocusedSection(section)
   }, [])
-  const onSectionBlur = useCallback((section: FriendSection): void => {
+  const onSectionBlur = useCallback((section: FriendListSection): void => {
     setFocusedSection((current) => (current === section ? null : current))
   }, [])
   const onArrowNavigate = useCallback(
@@ -1080,8 +1209,9 @@ export default function FriendsList(): React.JSX.Element {
     }
   }, [getScrollElement, virtualRows.length])
 
-  // Look up in the UNFILTERED (but platform-scoped) list so an active search
-  // can't close an open drawer. A friend that leaves the roster closes it.
+  // Look up in the UNFILTERED list of both platforms, so neither an active
+  // search nor the platform filter closes an open drawer. A friend that leaves
+  // the roster closes it.
   const selectedProfile = resolveLinkedProfile(target, {
     friends: allFriends,
     profiles: links.data?.profiles ?? [],
@@ -1103,7 +1233,7 @@ export default function FriendsList(): React.JSX.Element {
     if (target !== null && selectedFriend === null) closeDrawer()
   }, [selectedFriend, target, closeDrawer])
 
-  function toggleSection(section: FriendSection): void {
+  function toggleSection(section: FriendListSection): void {
     const next = collapsedSections.includes(section)
       ? collapsedSections.filter((s) => s !== section)
       : [...collapsedSections, section]
@@ -1255,19 +1385,27 @@ export default function FriendsList(): React.JSX.Element {
           event.stopPropagation()
         }
       }}
-      className="glass-information rounded-panel border border-[var(--border)] p-[var(--space-4)]"
+      className="glass-panel rounded-panel border border-[var(--glass-border)] p-[var(--space-4)]"
     >
-      <div className="mb-[var(--space-3)] flex items-center justify-end gap-[var(--space-2)]">
+      <div className="mb-[var(--space-3)] flex flex-wrap items-center justify-end gap-[var(--space-2)]">
         {/* Names the section for assistive tech; the top bar already shows the
             page's one visible "Friends" heading (DESIGN.md §8). */}
         <h2 id="friends-list-heading" className="sr-only">
           {t('friends.title')}
         </h2>
+        {/* Order inside each group (owner, 2026-11-02): the same control as
+            the platform picker, on the left above Search friends. */}
+        <div className="mr-auto">
+          <SegmentedControl
+            values={sortChoices}
+            active={friendSort}
+            labelKeys={SORT_LABEL_KEY}
+            ariaLabel={t('friends.sort.aria')}
+            onChange={(value) => updateSettings({ friendSort: value })}
+          />
+        </div>
         {links.data?.profiles.length ? (
-          <span
-            data-testid="linked-person-count"
-            className="ml-auto text-xs text-[var(--text-dim)]"
-          >
+          <span data-testid="linked-person-count" className="text-xs text-[var(--text-dim)]">
             {t('linking.people', { count: personCount })}
           </span>
         ) : null}
@@ -1297,7 +1435,7 @@ export default function FriendsList(): React.JSX.Element {
           onChange={(event) => updateSearch(event.target.value)}
           aria-label={t('friends.searchPlaceholder')}
           placeholder={t('friends.searchPlaceholder')}
-          className="w-full rounded-control border border-[var(--border)] bg-[var(--control-fill)] py-[var(--space-2)] pr-[var(--space-10)] pl-[var(--space-3)] text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
+          className="glass-layer w-full rounded-control border border-[var(--border)] py-[var(--space-2)] pr-[var(--space-10)] pl-[var(--space-3)] text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] hover:bg-[color-mix(in_srgb,var(--glass-layer),var(--text)_8%)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
         />
         {search.length > 0 && (
           <button
@@ -1317,7 +1455,7 @@ export default function FriendsList(): React.JSX.Element {
       {isAuthStatusPending ? (
         <p className="text-sm text-[var(--text-dim)]">{t('friends.loading')}</p>
       ) : isNotConnected ? (
-        <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
+        <div className="glass glass-layer flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
           <p className="text-sm font-semibold text-[var(--text-dim)]">
             {notConnectedKey === null ? null : t(notConnectedKey)}
           </p>
@@ -1440,6 +1578,7 @@ export default function FriendsList(): React.JSX.Element {
                 return (
                   <FriendRow
                     key={virtualItem.key}
+                    rowKey={row.key}
                     friend={row.friend}
                     projection={row.projection}
                     linkedProfile={links.data?.profiles.find(
@@ -1462,6 +1601,7 @@ export default function FriendsList(): React.JSX.Element {
                     virtualIndex={virtualItem.index}
                     offsetY={virtualItem.start - scrollMargin}
                     compact={density === 'compact'}
+                    favorite={isFavoriteAccount(favoriteKeys, row.projection.accounts)}
                     measureElement={rowVirtualizer.measureElement}
                   />
                 )

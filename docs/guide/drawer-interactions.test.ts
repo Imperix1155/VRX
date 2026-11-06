@@ -38,11 +38,11 @@ it('keeps the mounted synthetic Dashboard populated beyond the unused-cache life
   await act(async () => {
     mountScene(container, new URLSearchParams({ scene: 'drawer', variant: 'vrchat' }))
   })
-  expect(screen.getAllByRole('button', { name: /Open visible rooms for/ })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: /\. View rooms$/ })).toHaveLength(2)
   await act(async () => {
     await vi.advanceTimersByTimeAsync(5 * 60_000 + 1)
   })
-  expect(screen.getAllByRole('button', { name: /Open visible rooms for/ })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: /\. View rooms$/ })).toHaveLength(2)
 })
 
 describe.each(['VRChat', 'ChilloutVR'])('%s guide drawer', (platform) => {

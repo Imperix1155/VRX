@@ -1,9 +1,8 @@
 import {
-  EXPLORE_WORLD_TOTALS,
+  EXPLORE_MAX_SELECTION,
   type ExploreCount,
   type ExploreFilter,
-  type ExploreWorld,
-  type ExploreWorldTotal
+  type ExploreWorld
 } from './explore'
 import type { Platform } from './types'
 
@@ -90,7 +89,11 @@ export interface ExploreSelection {
   /** Each input is already ranked by its own platform's policy. */
   lists: Readonly<Record<Platform, readonly ExploreWorld[]>>
   filter: ExploreFilter
-  total: ExploreWorldTotal
+  /**
+   * How many worlds: a "Worlds shown" choice, or more when a wide window fills
+   * whole rows. A whole number from 1 to `EXPLORE_MAX_SELECTION`.
+   */
+  total: number
   /** Distinct, neutral session assignments. Carry seeds with list identities when swapping. */
   listSeeds: Readonly<Record<Platform, number>>
 }
@@ -102,7 +105,8 @@ export function selectExploreWorlds({
   total,
   listSeeds
 }: ExploreSelection): ExploreWorld[] {
-  if (!EXPLORE_WORLD_TOTALS.includes(total)) throw new RangeError('Invalid Explore total')
+  if (!Number.isInteger(total) || total < 1 || total > EXPLORE_MAX_SELECTION)
+    throw new RangeError('Invalid Explore total')
   const vrc = uniqueWorlds('vrchat', lists.vrchat)
   const cvr = uniqueWorlds('chilloutvr', lists.chilloutvr)
   if (filter === 'vrchat') return vrc.slice(0, total)
@@ -121,7 +125,8 @@ export function selectExploreWorlds({
   }
   const leader = comparison < 0 ? vrc : cvr
   const follower = comparison < 0 ? cvr : vrc
-  const share = total / 2
+  // An odd total gives the leading list the extra world.
+  const share = Math.ceil(total / 2)
   const selected: ExploreWorld[] = []
   for (let rank = 0; rank < share; rank += 1) {
     const pair = rank % 2 === 0 ? [leader[rank], follower[rank]] : [follower[rank], leader[rank]]

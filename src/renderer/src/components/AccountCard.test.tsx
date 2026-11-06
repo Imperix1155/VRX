@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
@@ -31,15 +31,29 @@ function setBridge(bridge: TestBridge | undefined): void {
   ;(window as unknown as { vrx?: TestBridge }).vrx = bridge
 }
 
-function renderCard(platform: Platform, bridge: TestBridge): QueryClient {
+function renderCard(
+  platform: Platform,
+  bridge: TestBridge,
+  { profileEditing = false }: { profileEditing?: boolean } = {}
+): QueryClient {
   setBridge(bridge)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
-      <AccountCard platform={platform} />
+      <AccountCard platform={platform} profileEditing={profileEditing} />
     </QueryClientProvider>
   )
   return queryClient
+}
+
+const signOutQuestion = (platform: Platform): string =>
+  msg('settings.accounts.signOutConfirm', { platform: msg(`settings.accounts.${platform}.label`) })
+
+/** Sign out asks once, in place; this answers it. */
+async function confirmSignOut(platform: Platform): Promise<void> {
+  fireEvent.click(await screen.findByRole('button', { name: msg('settings.accounts.signOut') }))
+  const question = screen.getByRole('group', { name: signOutQuestion(platform) })
+  fireEvent.click(within(question).getByRole('button', { name: msg('settings.accounts.signOut') }))
 }
 
 function bridgeFor(status: AuthStatus): TestBridge {
@@ -90,6 +104,19 @@ describe.each([
     expect(screen.queryByLabelText(msg('settings.accounts.password'))).toBeNull()
     fireEvent.click(retry)
     expect(await screen.findByLabelText(msg('settings.accounts.password'))).toBeTruthy()
+  })
+
+  it('names the card and its sign-in form by platform, so the two cards never sound alike', async () => {
+    renderCard(
+      platform,
+      bridgeFor({ platform, state: 'unauthenticated', accountId: null, displayName: null })
+    )
+    const platformName = msg(`settings.accounts.${platform}.label`)
+    const card = await screen.findByRole('group', { name: platformName })
+    const form = await within(card).findByRole('form', {
+      name: msg('login.formAria', { platform: platformName })
+    })
+    expect(within(form).getByLabelText(msg('settings.accounts.password'))).toBeTruthy()
   })
 
   it('shows a pending status without inviting a duplicate login while initial auth is unresolved', () => {
@@ -263,7 +290,7 @@ describe.each([
     // Cached social data for this platform must be emptied on logout (a later
     // login may be a different account) without removing the mounted query.
     queryClient.setQueryData(friendsQueryKey(platform), [{ displayName: 'Stale Friend' }])
-    fireEvent.click(disconnect)
+    await confirmSignOut(platform)
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     expect(await screen.findByLabelText(idLabel())).toBeTruthy()
@@ -293,7 +320,7 @@ describe.each([
     const otherFriend = fullFriend('Other Friend', other)
     queryClient.setQueryData(friendsQueryKey(platform), [staleFriend])
     queryClient.setQueryData(friendsQueryKey(other), [otherFriend])
-    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.signOut') }))
+    await confirmSignOut(platform)
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     expect(queryClient.getQueryData(friendsQueryKey(platform))).toEqual([])
@@ -364,7 +391,7 @@ describe.each([
     })
     renderCard(platform, bridge)
 
-    fireEvent.click(await screen.findByRole('button', { name: msg('settings.accounts.signOut') }))
+    await confirmSignOut(platform)
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     // Once signed out, the card settles to the normal Connect form.
@@ -381,7 +408,7 @@ describe.each([
     bridge.logout.mockRejectedValue(new Error('credential deletion failed'))
     renderCard(platform, bridge)
 
-    fireEvent.click(await screen.findByRole('button', { name: msg('settings.accounts.signOut') }))
+    await confirmSignOut(platform)
 
     expect((await screen.findByRole('alert')).textContent).toContain(
       msg('settings.accounts.error.disconnect')
@@ -392,7 +419,105 @@ describe.each([
   })
 })
 
+describe.each(['vrchat', 'chilloutvr'] as const)(
+  'AccountCard — %s sign out asks first',
+  (platform) => {
+    const connected = (): AuthStatus => ({
+      platform,
+      state: 'authenticated',
+      accountId: `${platform}-account`,
+      displayName: 'Neo'
+    })
+
+    it('asks in place, starts on Cancel, and Cancel keeps the session', async () => {
+      const bridge = bridgeFor(connected())
+      renderCard(platform, bridge, { profileEditing: true })
+
+      const opener = await screen.findByRole('button', { name: msg('settings.accounts.signOut') })
+      fireEvent.click(opener)
+
+      // Nothing is sent yet; the question replaces the Edit profile and Sign out row.
+      expect(bridge.logout).not.toHaveBeenCalled()
+      const question = screen.getByRole('group', { name: signOutQuestion(platform) })
+      expect(within(question).getByText(signOutQuestion(platform))).toBeTruthy()
+      expect(
+        screen.queryByRole('button', { name: msg('settings.accounts.profile.edit') })
+      ).toBeNull()
+      const cancel = within(question).getByRole('button', { name: msg('settings.accounts.cancel') })
+      expect(document.activeElement).toBe(cancel)
+
+      fireEvent.click(cancel)
+      expect(screen.queryByRole('group', { name: signOutQuestion(platform) })).toBeNull()
+      const again = screen.getByRole('button', { name: msg('settings.accounts.signOut') })
+      expect(document.activeElement).toBe(again)
+      expect(
+        screen.getByRole('button', { name: msg('settings.accounts.profile.edit') })
+      ).toBeTruthy()
+      expect(bridge.logout).not.toHaveBeenCalled()
+    })
+
+    it('signs out once the question is answered', async () => {
+      const bridge = bridgeFor(connected())
+      renderCard(platform, bridge, { profileEditing: true })
+
+      await confirmSignOut(platform)
+
+      await waitFor(() => expect(bridge.logout).toHaveBeenCalledOnce())
+      expect(bridge.logout).toHaveBeenCalledWith({ platform })
+    })
+
+    it('drops a question left open once the sign-in state changes', async () => {
+      const bridge = bridgeFor(connected())
+      const queryClient = renderCard(platform, bridge, { profileEditing: true })
+      fireEvent.click(await screen.findByRole('button', { name: msg('settings.accounts.signOut') }))
+      expect(screen.getByRole('group', { name: signOutQuestion(platform) })).toBeTruthy()
+
+      // The session ends somewhere else, and the card shows the sign-in form.
+      act(() => {
+        queryClient.setQueryData(authStatusQueryKey(platform), {
+          platform,
+          state: 'unauthenticated',
+          accountId: null,
+          displayName: null
+        } satisfies AuthStatus)
+      })
+      expect(
+        await screen.findByLabelText(
+          msg(platform === 'chilloutvr' ? 'settings.accounts.email' : 'settings.accounts.username')
+        )
+      ).toBeTruthy()
+
+      // Once signed in again, the card offers Sign out instead of the old question.
+      act(() => {
+        queryClient.setQueryData(authStatusQueryKey(platform), connected())
+      })
+      expect(
+        await screen.findByRole('button', { name: msg('settings.accounts.signOut') })
+      ).toBeTruthy()
+      expect(screen.queryByRole('group', { name: signOutQuestion(platform) })).toBeNull()
+      expect(bridge.logout).not.toHaveBeenCalled()
+    })
+  }
+)
+
 describe('AccountCard — VRChat two-factor flow', () => {
+  it('names the code form by platform too', async () => {
+    renderCard(
+      'vrchat',
+      bridgeFor({
+        platform: 'vrchat',
+        state: 'needs-2fa',
+        accountId: null,
+        displayName: null,
+        twoFactorMethod: 'totp'
+      })
+    )
+    const form = await screen.findByRole('form', {
+      name: msg('login.formAria', { platform: msg('settings.accounts.vrchat.label') })
+    })
+    expect(within(form).getByLabelText(msg('settings.accounts.twoFactor.code'))).toBeTruthy()
+  })
+
   it('lets a saved session that needs a fresh code be signed out', async () => {
     const bridge = bridgeFor({
       platform: 'vrchat',
@@ -410,10 +535,34 @@ describe('AccountCard — VRChat two-factor flow', () => {
       displayName: null
     })
 
-    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.signOut') }))
+    await confirmSignOut('vrchat')
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform: 'vrchat' }))
     expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+  })
+
+  it('keeps the question’s Sign out waiting while a code is being sent', async () => {
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    bridge.verify2fa.mockReturnValue(new Promise(() => {}))
+    renderCard('vrchat', bridge)
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.signOut') }))
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.twoFactor.verify') }))
+    await waitFor(() => expect(bridge.verify2fa).toHaveBeenCalled())
+
+    const question = screen.getByRole('group', { name: signOutQuestion('vrchat') })
+    const signOut = within(question).getByRole('button', { name: msg('settings.accounts.signOut') })
+    expect(signOut.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(signOut)
+    expect(bridge.logout).not.toHaveBeenCalled()
   })
 
   it('locks Verify while a saved 2FA session is signing out', async () => {
@@ -429,7 +578,7 @@ describe('AccountCard — VRChat two-factor flow', () => {
     fireEvent.change(await screen.findByLabelText(msg('settings.accounts.twoFactor.code')), {
       target: { value: '654321' }
     })
-    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.signOut') }))
+    await confirmSignOut('vrchat')
     await waitFor(() => expect(bridge.logout).toHaveBeenCalled())
     const verify = screen
       .getByLabelText(msg('settings.accounts.twoFactor.code'))

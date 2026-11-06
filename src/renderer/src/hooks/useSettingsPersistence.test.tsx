@@ -67,15 +67,25 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
   return { promise, resolve }
 }
 
-const storeState = (): { settings: Settings; dirty: boolean; hydrated: boolean } => {
-  const { settings, dirty, hydrated } = useSettingsStore.getState()
-  return { settings, dirty, hydrated }
+const storeState = (): {
+  settings: Settings
+  dirty: boolean
+  hydrated: boolean
+  loadFallback: boolean
+} => {
+  const { settings, dirty, hydrated, loadFallback } = useSettingsStore.getState()
+  return { settings, dirty, hydrated, loadFallback }
 }
 
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
-  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false, hydrated: false })
+  useSettingsStore.setState({
+    settings: DEFAULT_SETTINGS,
+    dirty: false,
+    hydrated: false,
+    loadFallback: false
+  })
   Reflect.deleteProperty(window, 'vrx')
 })
 
@@ -86,6 +96,7 @@ describe('useSettingsPersistence', () => {
     await waitFor(() => expect(storeState().settings.theme).toBe('dark'))
     expect(storeState().dirty).toBe(false)
     expect(storeState().hydrated).toBe(true)
+    expect(storeState().loadFallback).toBe(false)
   })
 
   it('saves on a dirty change (after the load settles) and marks the store clean', async () => {
@@ -117,12 +128,15 @@ describe('useSettingsPersistence', () => {
     })
     render(<Probe />)
     await waitFor(() => expect(storeState().hydrated).toBe(true))
+    // The shell says the saved settings could not be read until a save reaches them.
+    expect(storeState().loadFallback).toBe(true)
     act(() => useSettingsStore.getState().updateSettings({ density: 'compact' }))
     await act(() => Promise.resolve())
     act(() => useSettingsStore.getState().updateSettings({ labelScheme: 'platform-native' }))
     await act(async () => first.resolve({ ...onDisk, density: 'compact' }))
 
     await waitFor(() => expect(storeState().settings.theme).toBe('light'))
+    expect(storeState().loadFallback).toBe(false)
     // Every save in fallback mode carried edits only, never the stale defaults.
     expect(bridge.saveSettings.mock.calls.map(([req]) => req.patch)).toEqual([
       { density: 'compact' },

@@ -157,6 +157,8 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
       'activity',
       'inbox',
       'linked',
+      'search',
+      'groups',
       'avatars',
       'settings',
       'updater'
@@ -253,8 +255,12 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     ...guideDashboardSections(name === 'dashboard' ? variant : null)
   })
   useSettingsStore.getState().hydrate()
-  if (name === 'settings' && variant === 'save-error') {
+  if ((name === 'settings' || name === 'setup') && variant === 'save-error') {
     useSettingsStore.setState({ dirty: true, saveError: true })
+  }
+  // `read-error`: main answered with defaults because the settings file was unreadable.
+  if (name === 'settings' && variant === 'read-error') {
+    useSettingsStore.setState({ loadFallback: true })
   }
   useUiStore
     .getState()
@@ -271,7 +277,9 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
                 ? 'avatars'
                 : name === 'inbox'
                   ? 'inbox'
-                  : 'dashboard'
+                  : name === 'search' || name === 'groups'
+                    ? name
+                    : 'dashboard'
     )
   document.body.classList.add('fixture-document')
   createRoot(root).render(

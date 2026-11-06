@@ -44,10 +44,39 @@ beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'vrx-avatar-disk-'))
 })
 afterEach(async () => {
-  await rm(root, { recursive: true, force: true })
+  // A picture save a test did not wait for can land mid-delete; Windows then
+  // refuses to remove the folder, so retry instead of failing the run.
+  await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
 })
 
 describe('AvatarCache disk tier', () => {
+  it('peek answers only from kept copies and never sends a request', async () => {
+    const store = disk()
+    const fetchFn = vrchatFetch()
+    const cache = new AvatarCache({
+      fetchFn,
+      vrcSessionProvider: () => imageLease(),
+      diskStore: store
+    })
+    await expect(cache.peek(VRC_IMAGE_URL)).resolves.toBeNull()
+    expect(fetchFn).not.toHaveBeenCalled()
+
+    await expect(cache.get(VRC_IMAGE_URL)).resolves.toBe(PICTURE)
+    const calls = fetchFn.mock.calls.length
+    await expect(cache.peek(VRC_IMAGE_URL)).resolves.toBe(PICTURE)
+    await vi.waitFor(async () => expect(store.size).toBe(1))
+
+    // After a relaunch the copy on disk still answers, with no request.
+    const relaunched = new AvatarCache({
+      fetchFn,
+      vrcSessionProvider: () => imageLease(),
+      diskStore: disk()
+    })
+    await expect(relaunched.peek(VRC_IMAGE_URL)).resolves.toBe(PICTURE)
+    await expect(relaunched.peek('https://evil.example/x.png')).resolves.toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(calls)
+  })
+
   it('shows a VRChat picture from disk after a relaunch without any request', async () => {
     const firstStore = disk()
     const first = new AvatarCache({
@@ -148,5 +177,8 @@ describe('AvatarCache disk tier', () => {
     expect(fetchFn).not.toHaveBeenCalled()
     await expect(cache.get(VRC_IMAGE_URL)).resolves.toBe(PICTURE)
     expect(fetchFn).toHaveBeenCalledTimes(2)
+    // That fetch saves the picture again. Let the save finish so cleanup never
+    // races it: Windows refuses to delete a folder that gains a file mid-delete.
+    await vi.waitFor(() => expect(store.size).toBe(1))
   })
 })

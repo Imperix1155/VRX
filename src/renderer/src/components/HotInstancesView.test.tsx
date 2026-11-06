@@ -5,7 +5,7 @@
  * Dashboard switch never hides the page.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import type { Friend, VrcFriend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
@@ -85,6 +85,12 @@ describe('HotInstancesView', () => {
     )
     expect(container.querySelectorAll('[data-hot-card-layout="picture"]')).toHaveLength(8)
     expect(screen.getByRole('spinbutton')).toBeTruthy()
+    // The top bar holds the page's heading; the cards' headings sit under this one.
+    const section = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })
+    expect(
+      within(section).getByRole('heading', { level: 2, name: msg('dashboard.sectionHotInstances') })
+    ).toBeTruthy()
+    expect(within(section).getAllByRole('heading', { level: 3 })).toHaveLength(8)
   })
 
   it('shows the empty state below the threshold', () => {
@@ -94,11 +100,62 @@ describe('HotInstancesView', () => {
     expect(screen.queryByRole('button', { name: /hot instance details/ })).toBeNull()
   })
 
+  it('hands keyboard focus to the next card when the focused one leaves by itself', () => {
+    stub([...crowd('Lake', 3), ...crowd('Pier', 2)])
+    const view = render(<HotInstancesView />)
+    screen.getByRole('button', { name: /Pier hot instance details/ }).focus()
+    // Pier's friends move on: it drops below the threshold and leaves.
+    stub([...crowd('Lake', 3), ...crowd('Pier', 1)])
+    view.rerender(<HotInstancesView />)
+    expect(screen.queryByRole('button', { name: /Pier hot instance details/ })).toBeNull()
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: /Lake hot instance details/ })
+    )
+
+    // Focus the user moved elsewhere stays put.
+    const elsewhere = document.createElement('button')
+    document.body.append(elsewhere)
+    screen.getByRole('button', { name: /Lake hot instance details/ }).focus()
+    elsewhere.focus()
+    stub([...crowd('Lake', 1)])
+    view.rerender(<HotInstancesView />)
+    expect(document.activeElement).toBe(elsewhere)
+    elsewhere.remove()
+  })
+
   it('opens the shared sheet from a card', () => {
     stub(crowd('Lake', 3))
     render(<HotInstancesView />)
     fireEvent.click(screen.getByRole('button', { name: /Lake hot instance details/ }))
     expect(screen.getByRole('dialog', { name: 'Lake' })).toBeTruthy()
+  })
+
+  it("shows loading, not the empty state, while a sign-in's placeholder roster loads", () => {
+    useFriendsMock.mockImplementation(() => ({
+      data: [],
+      isPending: false,
+      isFetching: true,
+      dataUpdatedAt: 0
+    }))
+    render(<HotInstancesView />)
+    expect(screen.getByText(msg('dashboard.loading'))).toBeTruthy()
+    expect(screen.queryByText(msg('dashboard.emptyHeading'))).toBeNull()
+  })
+
+  it('names a platform whose roster failed while the other loaded', () => {
+    useFriendsMock.mockImplementation((platform: string) =>
+      platform === 'vrchat'
+        ? { data: crowd('Lake', 3), isPending: false, dataUpdatedAt: 5 }
+        : { data: [], isPending: false, isError: true, dataUpdatedAt: 0, refetch: vi.fn() }
+    )
+    render(<HotInstancesView />)
+    // A failed first read keeps only the placeholder, so it is missing, not stale.
+    expect(
+      screen.getByText(
+        msg('dashboard.sourceState.missing', { platform: msg('dashboard.platformCvr') })
+      )
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Lake hot instance details/ })).toBeTruthy()
   })
 
   it('ignores a signed-out platform when the other fails, and retries only the enabled one', () => {

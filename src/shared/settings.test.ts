@@ -36,6 +36,11 @@ describe('settings schema', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
       setupPending: false,
       theme: 'system',
       language: 'en',
@@ -45,6 +50,7 @@ describe('settings schema', () => {
       labelScheme: 'vrchat',
       hotInstanceThreshold: 2,
       collapsedFriendSections: ['offline'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: false,
@@ -52,6 +58,8 @@ describe('settings schema', () => {
       friendAlertScope: 'everyone',
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
@@ -281,6 +289,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -305,8 +314,15 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -334,6 +350,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -358,8 +375,15 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -387,6 +411,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -412,8 +437,15 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       backgroundPictureFade: 'medium',
       friendAlertScope: 'everyone',
@@ -440,6 +472,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -468,8 +501,15 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       drawerOpener: 'card',
       confirmJoin: true,
@@ -493,6 +533,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -522,8 +563,15 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
@@ -546,6 +594,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -577,8 +626,15 @@ describe('migration runner', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       joinOpenGame: true,
       vrchatOpenGameJoin: 'go',
@@ -1171,8 +1227,13 @@ describe('Optional pages and first-run setup', () => {
       showActivityPage: true,
       activityFilter: 'all',
       showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
       notifyInvites: false,
       notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false
     })
     expect(shouldPersistSettings({ version: 13, showExplorePage: false }, 12)).toBe(false)
@@ -1194,5 +1255,107 @@ describe('Optional pages and first-run setup', () => {
   it('queues setup only in the fresh-install defaults', () => {
     expect(freshInstallSettings()).toEqual({ ...DEFAULT_SETTINGS, setupPending: true })
     expect(DEFAULT_SETTINGS.setupPending).toBe(false)
+  })
+})
+
+describe('Search, Groups and players-online settings', () => {
+  it('defaults all three on and keeps explicit choices', () => {
+    expect(parseSettings({ version: 22 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true
+    })
+    expect(
+      parseSettings({ showSearchPage: false, showGroupsPage: 'no', dashboardPlayersOnline: false })
+    ).toMatchObject({ showSearchPage: false, showGroupsPage: true, dashboardPlayersOnline: false })
+  })
+
+  it('prevents a v22 build from stripping them during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 23,
+      showSearchPage: false,
+      showGroupsPage: false,
+      dashboardPlayersOnline: false
+    }
+    const oldNormalized = { ...disk, version: 22 }
+    Reflect.deleteProperty(oldNormalized, 'showSearchPage')
+    Reflect.deleteProperty(oldNormalized, 'showGroupsPage')
+    Reflect.deleteProperty(oldNormalized, 'dashboardPlayersOnline')
+
+    if (shouldPersistSettings(disk, 22)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      showSearchPage: false,
+      showGroupsPage: false,
+      dashboardPlayersOnline: false
+    })
+  })
+})
+
+describe('Account notes setting', () => {
+  it('defaults on and keeps an explicit Off', () => {
+    expect(parseSettings({ version: 24 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      saveNotesToAccounts: true
+    })
+    expect(parseSettings({ saveNotesToAccounts: false })).toMatchObject({
+      saveNotesToAccounts: false
+    })
+    expect(parseSettings({ saveNotesToAccounts: 'no' })).toMatchObject({
+      saveNotesToAccounts: true
+    })
+  })
+
+  it('prevents a v24 build from stripping an Off during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 25,
+      saveNotesToAccounts: false
+    }
+    const oldNormalized = { ...disk, version: 24 }
+    Reflect.deleteProperty(oldNormalized, 'saveNotesToAccounts')
+
+    if (shouldPersistSettings(disk, 24)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({ saveNotesToAccounts: false })
+  })
+
+  it('reads Use my game favorites (default on) and keeps an Off across a v25 round-trip', () => {
+    expect(parseSettings({ version: 25 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      useGameFavorites: true
+    })
+    expect(parseSettings({ useGameFavorites: 'no' })).toMatchObject({ useGameFavorites: true })
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 26,
+      useGameFavorites: false
+    }
+    const oldNormalized = { ...disk, version: 25 }
+    Reflect.deleteProperty(oldNormalized, 'useGameFavorites')
+    if (shouldPersistSettings(disk, 25)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ useGameFavorites: false })
+  })
+})
+
+describe('Friends order setting', () => {
+  it('reads the friends order (default Name) and keeps a choice across a v26 round-trip', () => {
+    expect(parseSettings({ version: 26 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      friendSort: 'name'
+    })
+    expect(parseSettings({ friendSort: 'joinable' })).toMatchObject({ friendSort: 'joinable' })
+    expect(parseSettings({ friendSort: 'loudest' })).toMatchObject({ friendSort: 'name' })
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 27,
+      friendSort: 'world'
+    }
+    const oldNormalized = { ...disk, version: 26 }
+    Reflect.deleteProperty(oldNormalized, 'friendSort')
+    if (shouldPersistSettings(disk, 26)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ friendSort: 'world' })
   })
 })

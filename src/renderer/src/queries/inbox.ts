@@ -1,8 +1,9 @@
 /**
- * The view-only inbox (owner, 2026-10-27): invites, invite requests and friend
+ * The inbox (owner, 2026-10-27): invites, invite requests and friend
  * requests the sockets delivered while VRX was open. Main owns the rows; the
- * renderer reads them after each `inbox-changed` push and can only hide rows
- * in VRX. Never persisted (only the friends namespace is).
+ * renderer reads them after each `inbox-changed` push and hides rows in VRX
+ * here; answering a friend request is `friendActions.ts`. Never persisted
+ * (only the friends namespace is).
  */
 import { useContext, useEffect, useState } from 'react'
 import {

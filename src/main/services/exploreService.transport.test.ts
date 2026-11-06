@@ -171,7 +171,9 @@ describe('ExploreService real transport accounting', () => {
       openExternal: async () => undefined,
       onChanged: () => undefined,
       clock: Date.now,
-      wallClock: Date.now
+      wallClock: Date.now,
+      // The window mechanism with a small budget (shipped: 24 pictures a minute).
+      imageFetchesPerMinute: 6
     })
     service.setActive(['vrchat'])
     await service.getSnapshot('vrchat', 'manual')

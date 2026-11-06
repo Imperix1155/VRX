@@ -127,7 +127,7 @@ describe('ExploreView', () => {
   it('opens cards through the injected callback and never uses their source thumbnail URL', () => {
     const selected = world('vrchat', 'vrc', 'World')
     const props = setup({ worlds: [selected] })
-    fireEvent.click(screen.getByRole('button', { name: /open visible rooms/i }))
+    fireEvent.click(screen.getByRole('button', { name: /view rooms$/i }))
     expect(props.onOpenWorld).toHaveBeenCalledWith(selected, expect.any(HTMLButtonElement))
     expect(screen.queryByRole('img')).toBeNull()
   })
@@ -142,7 +142,7 @@ describe('ExploreView', () => {
       platformSnapshots: [{ ...source('vrchat', [partial]), isStale: true }]
     })
     // The card's name stays the world; the People line is its description.
-    const card = screen.getByRole('button', { name: /open visible rooms/i })
+    const card = screen.getByRole('button', { name: /view rooms$/i })
     const people = document.getElementById(card.getAttribute('aria-describedby')!)
     expect(people?.textContent).toBe('People: Unknown')
     expect(screen.queryByText('VRChat results may be out of date.')).toBeNull()
@@ -242,9 +242,46 @@ describe('ExploreView', () => {
     }
     const props = setup({ worlds: [selected], sheet: snapshot, isJoining: true })
     const button = screen.getByRole('button', { name: 'Joining…' })
-    expect(button.hasAttribute('disabled')).toBe(true)
+    // aria-disabled, not disabled: the Join just pressed keeps keyboard focus.
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button.hasAttribute('disabled')).toBe(false)
     fireEvent.click(button)
     expect(props.onJoinRoom).not.toHaveBeenCalled()
+  })
+
+  it('keeps keyboard focus on a room’s Join while the Join runs', () => {
+    const selected = world('vrchat', 'busy', 'Busy World')
+    const snapshot: ExploreWorldSnapshot = {
+      ...source('vrchat', [selected]),
+      world: selected,
+      rooms: [room('vrchat', { state: 'available', selectionRef: 'synthetic' }, selected.worldId)],
+      roomsComplete: true
+    }
+    const props: React.ComponentProps<typeof ExploreView> = {
+      worlds: [selected],
+      total: 4,
+      platformSnapshots: [source('vrchat', [selected])],
+      sheet: snapshot,
+      sheetOpener: null,
+      focusFallback: null,
+      onTotalChange: vi.fn(),
+      onOpenWorld: vi.fn(),
+      onCloseSheet: vi.fn(),
+      onJoinRoom: vi.fn()
+    }
+    const view = render(<ExploreView {...props} />)
+    const join = screen.getByRole('button', { name: 'Join' })
+    join.focus()
+    fireEvent.click(join)
+    expect(props.onJoinRoom).toHaveBeenCalledOnce()
+    view.rerender(<ExploreView {...props} isJoining />)
+    expect(screen.getByRole('button', { name: 'Joining…' })).toBe(join)
+    // jsdom keeps focus on a disabled button; Chromium doesn't.
+    expect(join.hasAttribute('disabled')).toBe(false)
+    expect(document.activeElement).toBe(join)
+    view.rerender(<ExploreView {...props} isJoining={false} />)
+    expect(screen.getByRole('button', { name: 'Join' })).toBe(join)
+    expect(document.activeElement).toBe(join)
   })
 
   it('disables restricted room actions, closes on Escape, and focuses Close on open', () => {
@@ -295,7 +332,7 @@ describe('ExploreView', () => {
     }
     const props = setup({ worlds: [selected], sheet: snapshot })
     fireEvent.pointerDown(screen.getByRole('dialog'))
-    fireEvent.pointerDown(screen.getByRole('button', { name: /open visible rooms/i }))
+    fireEvent.pointerDown(screen.getByRole('button', { name: /view rooms$/i }))
     expect(props.onCloseSheet).not.toHaveBeenCalled()
     fireEvent.pointerDown(document.body)
     expect(props.onCloseSheet).toHaveBeenCalledTimes(1)
@@ -339,6 +376,31 @@ describe('ExploreView', () => {
     fireEvent.click(refreshFirst)
     expect(props.onJoinRoom).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['a room from saved results', true, 'vrc'],
+    ['a room of another world', false, 'another-world']
+  ])(
+    'keeps %s, which can’t be joined anyway, disabled while a Join runs',
+    (_, isStale, worldId) => {
+      const selected = world('vrchat', 'vrc', 'VRC World')
+      setup({
+        worlds: [selected],
+        sheet: {
+          ...source('vrchat', [selected]),
+          isStale,
+          world: selected,
+          rooms: [room('vrchat', { state: 'available', selectionRef: 'synthetic' }, worldId)],
+          roomsComplete: true
+        },
+        isJoining: true
+      })
+      // Only a room that is open once the Join ends keeps focus (aria-disabled).
+      const button = screen.getByRole('button', { name: 'Joining…' })
+      expect(button.hasAttribute('disabled')).toBe(true)
+      expect(button.hasAttribute('aria-disabled')).toBe(false)
+    }
+  )
 
   it('claims saved results only while saved rooms are on screen', () => {
     const selected = world('vrchat', 'vrc', 'VRC World')
@@ -402,6 +464,28 @@ describe('ExploreView', () => {
     expect(description?.textContent).toContain('1,200 / 2,400')
   })
 
+  it('names room access like every other instance and says when a count is unknown', () => {
+    const selected = world('vrchat', 'vrc', 'VRC World')
+    const groupRoom = {
+      ...room('vrchat', { state: 'available', selectionRef: 'a' }, selected.worldId),
+      access: 'group-public' as const,
+      occupancy: { state: 'unknown', value: null, source: 'vrc-room-n-users' } as const,
+      capacity: null
+    }
+    setup({
+      worlds: [selected],
+      sheet: {
+        ...source('vrchat', [selected]),
+        world: selected,
+        rooms: [groupRoom],
+        roomsComplete: true
+      }
+    })
+    // The shared instance-type words ("Group Public"), not a sheet-only variant.
+    expect(screen.getByText('Group Public')).toBeTruthy()
+    expect(screen.getByText('Count unknown')).toBeTruthy()
+  })
+
   it('never activates a fresh room row that belongs to another world', () => {
     const selected = world('vrchat', 'vrc', 'VRC World')
     const fresh: ExploreWorldSnapshot = {
@@ -447,7 +531,7 @@ describe('ExploreView', () => {
   it.each([
     ['joining-disabled', 'Joining is disabled in Settings'],
     ['rate-limited', 'Too many attempts — try again shortly'],
-    ['launch-failed', "Couldn't join. Check the game and connection, then use Join to try again."],
+    ['launch-failed', "Couldn't start the game. Check that it is installed."],
     ['not-joinable', 'Couldn’t join this room. Try again after refreshing.'],
     ['stale', 'Couldn’t join this room. Try again after refreshing.']
   ] as const)('explains a %s room join failure', (reason, copy) => {
@@ -495,6 +579,114 @@ describe('ExploreView', () => {
     )
     fireEvent.error(document.querySelector('img')!)
     expect(document.querySelector('img')).toBeNull()
+  })
+
+  it('holds the picture’s place before it arrives and after it fails', () => {
+    const selected = world('chilloutvr', 'cvr', 'CVR World')
+    const props: React.ComponentProps<typeof ExploreWorldSheet> = {
+      snapshot: {
+        ...source('chilloutvr', [selected]),
+        world: selected,
+        rooms: [],
+        roomsComplete: true
+      },
+      opener: null,
+      focusFallback: null,
+      onClose: vi.fn(),
+      onJoin: vi.fn()
+    }
+    const { rerender } = render(<ExploreWorldSheet {...props} />)
+    const slot = screen.getByTestId('explore-sheet-picture')
+    expect(slot.className).toContain('h-[120px]')
+    expect(slot.className).toContain('bg-[var(--surface-hover)]')
+    expect(slot.querySelector('img')).toBeNull()
+
+    rerender(<ExploreWorldSheet {...props} image="synthetic://late-picture" />)
+    expect(screen.getByTestId('explore-sheet-picture')).toBe(slot)
+    expect(slot.querySelector('img')?.getAttribute('src')).toBe('synthetic://late-picture')
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(slot.className).toContain('h-[220px]')
+    fireEvent.error(slot.querySelector('img')!)
+    expect(slot.querySelector('img')).toBeNull()
+    expect(screen.getByTestId('explore-sheet-picture').className).toContain('h-[220px]')
+  })
+
+  it('the grab bar expands the world sheet into world details on both platforms', () => {
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      const selected = world(platform, `${platform}-w`, 'Some World')
+      const regionRoom = {
+        ...room(platform, { state: 'disabled', reason: 'full' }, selected.worldId),
+        region: platform === 'vrchat' ? 'jp' : 'eu'
+      }
+      render(
+        <ExploreWorldSheet
+          snapshot={{
+            ...source(platform, [selected]),
+            world: selected,
+            rooms: [regionRoom],
+            roomsComplete: true
+          }}
+          opener={null}
+          focusFallback={null}
+          onClose={vi.fn()}
+          onJoin={vi.fn()}
+        />
+      )
+      expect(screen.queryByRole('region', { name: 'About this world' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      const more = screen.getByRole('region', { name: 'About this world' })
+      expect(
+        within(more)
+          .getAllByRole('term')
+          .map((term) => term.textContent)
+      ).toEqual(['People now', 'Room regions', 'Last checked'])
+      expect(within(more).getByText('People now').nextElementSibling?.textContent).toBe('7')
+      expect(within(more).getByText('Room regions').nextElementSibling?.textContent).toBe(
+        platform === 'vrchat' ? 'Japan' : 'Europe'
+      )
+      expect(screen.getByRole('button', { name: 'Show less' })).toBeTruthy()
+      cleanup()
+    }
+  })
+
+  it('lists several room regions with each language’s separator', async () => {
+    const { default: i18n } = await import('../i18n')
+    const selected = world('vrchat', 'vrc-w', 'Some World')
+    const full = room('vrchat', { state: 'disabled', reason: 'full' }, selected.worldId)
+    const snapshot: ExploreWorldSnapshot = {
+      ...source('vrchat', [selected]),
+      world: selected,
+      rooms: [
+        { ...full, roomId: 'a', region: 'jp' },
+        { ...full, roomId: 'b', region: 'eu' }
+      ],
+      roomsComplete: true
+    }
+    try {
+      for (const [lang, regions] of [
+        ['en', 'Japan, Europe'],
+        ['ja', '日本、ヨーロッパ']
+      ] as const) {
+        await i18n.changeLanguage(lang)
+        render(
+          <ExploreWorldSheet
+            snapshot={snapshot}
+            opener={null}
+            focusFallback={null}
+            onClose={vi.fn()}
+            onJoin={vi.fn()}
+          />
+        )
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('sheet.showMore') }))
+        const more = screen.getByRole('region', { name: i18n.t('explore.more.heading') })
+        expect(
+          within(more).getByText(i18n.t('explore.more.regions')).nextElementSibling?.textContent
+        ).toBe(regions)
+        cleanup()
+      }
+    } finally {
+      await i18n.changeLanguage('en')
+    }
   })
 
   it('returns focus to the opener after its parent dismisses the nonmodal sheet', () => {
@@ -704,7 +896,7 @@ describe('ExploreDashboardPreview', () => {
   it('caps a shared selection at two cards', () => {
     const worlds = [world('vrchat', '1'), world('chilloutvr', '2'), world('vrchat', '3')]
     render(<ExploreDashboardPreview worlds={worlds} platformSnapshots={[]} onOpenWorld={vi.fn()} />)
-    expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /view rooms$/i })).toHaveLength(2)
   })
 
   it('keeps refresh copy quiet for cards and retains it for empty loading/error/unavailable previews', () => {
@@ -760,6 +952,6 @@ describe('ExploreDashboardPreview', () => {
       <ExploreDashboardPreview worlds={dashboard} platformSnapshots={[]} onOpenWorld={vi.fn()} />
     )
     expect(dashboard).toEqual(explore.slice(0, 2))
-    expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /view rooms$/i })).toHaveLength(2)
   })
 })

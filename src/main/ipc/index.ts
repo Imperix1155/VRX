@@ -12,20 +12,35 @@ import { registerAvatarHandlers } from './avatar'
 import { registerAppBackgroundHandlers, type AppBackgroundHandlerOptions } from './app-background'
 import { registerFriendsHandlers } from './friends'
 import { registerInboxHandlers } from './inbox'
+import { registerFriendActionHandlers } from './friend-actions'
+import type { FriendActionsService } from '../services/friendActions'
 import type { InboxService } from '../services/inbox'
 import { registerInstanceHandlers } from './instance'
-import { registerExploreHandlers } from './explore'
+import { registerExploreHandlers, registerHomeWorldHandler } from './explore'
 import { registerAvatarLibraryHandlers, registerCurrentAvatarHandler } from './avatar-library'
+import { registerCommunityHandlers } from './community'
+import { registerOwnProfileHandlers } from './own-profile'
+import type { OwnProfileService } from '../services/ownProfileService'
+import type { CommunityService } from '../services/communityService'
+import { registerSocialHandlers } from './social'
+import type { SocialActionService } from '../services/socialActionService'
 import type { AvatarLibraryService } from '../services/avatarLibraryService'
 import type { CurrentAvatarService } from '../services/currentAvatarService'
 import type { ExploreService } from '../services/exploreService'
+import type { HomeWorldService } from '../services/homeWorldService'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
 import { registerAlertPicksHandlers } from './alert-picks'
+import { registerFavoritesHandlers } from './favorites'
+import { registerGameFavoritesHandlers } from './gameFavorites'
+import type { GameFavoritesService } from '../services/gameFavorites'
+import type { Favorites } from '../services/favorites'
 import type { FriendAlertPicks } from '../services/friendAlertPicks'
 import { registerLinksHandlers, type LinksHandlerOptions } from './links'
 import { registerSettingsHandlers } from './settings'
 import { registerUpdaterHandlers } from './updater'
+import { registerVrAlertHandlers } from './vr-alerts'
+import type { VrOverlayAlerts } from '../vrOverlayAlerts'
 import { isTrustedIpcSender } from './security'
 import type { AuthHandlerOptions } from './auth'
 import type { LocationAuthority } from '../services/locationAuthority'
@@ -33,6 +48,7 @@ import type { InstanceHandlerOptions } from './instance'
 import type { AccountRegistry } from '../services/accountRegistry'
 import type { AccountSession } from '../services/accountSession'
 import type { SocialStore } from '../services/socialStore'
+import type { AccountNoteService } from '../services/accountNotes'
 import type { AppStatusService } from '../services/appStatus'
 import type { ActivityFeed } from '../services/activityFeed'
 import {
@@ -52,16 +68,25 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   accountSession: AccountSession
   locationAuthority: LocationAuthority
   socialStore: SocialStore
+  accountNotes?: AccountNoteService
   alertPicks: FriendAlertPicks
+  favorites: Favorites
+  gameFavorites: GameFavoritesService
   links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
   activity: ActivityFeed
   instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
+  homeWorld: HomeWorldService
   avatarLibrary: AvatarLibraryService
   currentAvatar: CurrentAvatarService
+  community: CommunityService
+  ownProfile: OwnProfileService
+  social: SocialActionService
   appBackground: AppBackgroundHandlerOptions
   inbox: InboxService
+  friendActions: FriendActionsService
+  vrOverlayAlerts: Pick<VrOverlayAlerts, 'test'>
   onRendererHydrated: (event: IpcMainEvent) => void
   /** Each roster read, after the location authority is seeded. */
   onFriendRoster?: (platform: Platform, friends: Friend[]) => void
@@ -124,7 +149,8 @@ export function registerIpcHandlers(
     registerAccountsHandlers(options.accountRegistry, options.accountSession)
     registerNotesHandlers({
       accountSession: options.accountSession,
-      socialStore: options.socialStore
+      socialStore: options.socialStore,
+      accountNotes: options.accountNotes
     })
     registerAlertPicksHandlers(options.alertPicks)
     registerLinksHandlers({
@@ -137,14 +163,22 @@ export function registerIpcHandlers(
       accountSession: options.accountSession
     })
     registerExploreHandlers(options.explore)
+    registerFavoritesHandlers(options.favorites, options.explore)
+    registerGameFavoritesHandlers(options.gameFavorites, options.explore)
+    registerHomeWorldHandler(options.homeWorld)
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerCurrentAvatarHandler(options.currentAvatar)
+    registerCommunityHandlers(options.community)
+    registerOwnProfileHandlers(options.ownProfile)
+    registerSocialHandlers(options.social)
     registerAppStatusHandlers(options.appStatus)
     registerActivityHandlers(options.activity)
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)
     registerInboxHandlers(options.inbox)
+    registerFriendActionHandlers(options.friendActions)
+    registerVrAlertHandlers(options.vrOverlayAlerts)
     registerUpdaterHandlers()
   } finally {
     if (originalHandleDescriptor === undefined) Reflect.deleteProperty(ipcMain, 'handle')

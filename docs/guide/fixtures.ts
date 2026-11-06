@@ -1,4 +1,5 @@
 import type { InboxItem, InboxSnapshot } from '@shared/inbox'
+import type { CommunityGroup, PersonProfile, PersonSummary } from '@shared/community'
 import type {
   CvrFriend,
   CvrInstanceType,
@@ -25,6 +26,20 @@ type WorldMode = 'ready' | 'loading' | 'error' | 'stale'
 function illustration(first: string, second: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560"><defs><linearGradient id="sky" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${first}"/><stop offset="1" stop-color="${second}"/></linearGradient><filter id="blur"><feGaussianBlur stdDeviation="28"/></filter></defs><rect width="1280" height="560" fill="url(#sky)"/><circle cx="1080" cy="106" r="172" fill="#fff" fill-opacity=".16" filter="url(#blur)"/><path d="M0 405 C190 300 280 475 470 365 S735 305 880 405 S1100 300 1280 390 V560 H0Z" fill="#060917" fill-opacity=".44"/><path d="M0 445 C245 355 370 515 585 405 S940 344 1280 445 V560 H0Z" fill="#02030a" fill-opacity=".4"/><g fill="#fff" fill-opacity=".52"><circle cx="100" cy="274" r="5"/><circle cx="188" cy="231" r="3"/><circle cx="272" cy="284" r="4"/><circle cx="764" cy="181" r="4"/><circle cx="870" cy="242" r="3"/><circle cx="1130" cy="302" r="5"/></g></svg>`
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+/** A square, logo-like group icon: a bold mark on a flat color, as most groups have. */
+function groupIcon(background: string, mark: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="${background}"/><g fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">${mark}</g></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+const GROUP_MARKS = {
+  lantern: '<path d="M98 70h60M108 70v-14h40v14M92 86h72l-10 104h-52z"/><path d="M128 120v38"/>',
+  globe:
+    '<circle cx="128" cy="128" r="70"/><path d="M58 128h140M128 58c-34 40-34 100 0 140M128 58c34 40 34 100 0 140"/>',
+  anvil: '<path d="M60 96h120c0 28-18 40-44 44v26h28v24H92v-24h28v-26c-34-4-60-18-60-44z"/>',
+  moon: '<path d="M164 70a70 70 0 1 0 22 104 56 56 0 0 1-22-104z"/>'
 }
 
 /** Synthetic stand-in for a user's own background picture (Settings → Appearance). */
@@ -705,4 +720,131 @@ const cvrAvatars: AvatarItem[] = [
 export const avatarLibraries: Record<Platform, AvatarItem[]> = {
   vrchat: vrcAvatars,
   chilloutvr: cvrAvatars
+}
+
+/** Sample groups for the Groups page: owned and member groups on both platforms. */
+export const communityGroups: Record<Platform, CommunityGroup[]> = {
+  vrchat: [
+    {
+      platform: 'vrchat',
+      groupId: 'grp-guide-lantern',
+      name: 'Lantern Walkers',
+      code: 'LANTN.4821',
+      description:
+        'Slow walks through quiet worlds every Friday night. Bring a light, leave the music low.',
+      imageUrl: groupIcon('#1b6fd8', GROUP_MARKS.lantern),
+      bannerUrl: illustration('#2b7de9', '#08193a'),
+      memberCount: 1284,
+      role: 'owner'
+    },
+    {
+      platform: 'vrchat',
+      groupId: 'grp-guide-atlas',
+      name: 'Atlas of Tiny Worlds and Very Long Group Names',
+      code: 'ATLAS.0007',
+      description: null,
+      imageUrl: groupIcon('#2f5fb3', GROUP_MARKS.globe),
+      bannerUrl: null,
+      memberCount: 56210,
+      role: 'member'
+    },
+    {
+      // No picture: the card shows the name's first letter instead.
+      platform: 'vrchat',
+      groupId: 'grp-guide-quiet',
+      name: 'Quiet Hours Club',
+      code: 'QUIET.3310',
+      description: null,
+      imageUrl: null,
+      bannerUrl: null,
+      memberCount: 418,
+      role: 'member'
+    }
+  ],
+  chilloutvr: [
+    {
+      platform: 'chilloutvr',
+      groupId: 'cvr-group-guide-forge',
+      name: 'Prop Forge',
+      code: 'FORGE',
+      description: 'Makers sharing props, shaders and avatar bits.',
+      imageUrl: groupIcon('#d4621a', GROUP_MARKS.anvil),
+      bannerUrl: illustration('#ff9a3c', '#3b1503'),
+      memberCount: 342,
+      role: 'member'
+    },
+    {
+      platform: 'chilloutvr',
+      groupId: 'cvr-group-guide-harbor',
+      name: 'Harbor Night Market',
+      code: 'HRBR',
+      description: 'A weekly market in the harbor world.',
+      imageUrl: groupIcon('#7a3fb8', GROUP_MARKS.moon),
+      bannerUrl: null,
+      memberCount: 97,
+      role: 'owner'
+    },
+    {
+      // No picture: the card shows the name's first letter instead.
+      platform: 'chilloutvr',
+      groupId: 'cvr-group-guide-owls',
+      name: 'Night Owls',
+      code: 'OWLS',
+      description: null,
+      imageUrl: null,
+      bannerUrl: null,
+      memberCount: 64,
+      role: 'member'
+    }
+  ]
+}
+
+/** The full profile of a sample friend: the same fields on both platforms. */
+/** Not friends yet: each one's friend request waits in the sample inbox. */
+const REQUEST_SENDERS: Record<Platform, { userId: string; displayName: string }> = {
+  vrchat: { userId: 'usr_fixture_guest_2', displayName: 'Starlight Courier' },
+  chilloutvr: { userId: 'fixture-guest-1', displayName: 'Pixel Wanderer' }
+}
+
+export function profileFor(platform: Platform, userId: string): PersonProfile | null {
+  const sender = REQUEST_SENDERS[platform]
+  const index = friends[platform].findIndex((item) => item.platformUserId === userId)
+  const friend = friends[platform][index]
+  if (!friend && sender.userId !== userId) return null
+  return {
+    platform,
+    userId,
+    displayName: friend?.displayName ?? sender.displayName,
+    imageUrl: friend?.avatarUrl ?? null,
+    // The same people the sample search marks as friends.
+    isFriend: friend !== undefined && index < 2,
+    pronouns: platform === 'vrchat' ? 'they/them' : null,
+    bio: 'Builds small worlds and collects sunsets.\nUsually around in the evening.',
+    rank:
+      platform === 'vrchat'
+        ? { kind: 'vrchat-trust', value: friend?.trustRank ?? 'trusted' }
+        : { kind: 'label', value: 'User' },
+    badges:
+      platform === 'vrchat'
+        ? [
+            { name: 'VRChat+ Supporter', imageUrl: null },
+            { name: 'Early Adopter', imageUrl: null }
+          ]
+        : [{ name: 'Community Helper', imageUrl: null }]
+  }
+}
+
+/** People a sample search finds: two friends per platform, one person who is
+ *  not a friend yet, and one whose friend request waits in the inbox. */
+export function searchPeople(platform: Platform): PersonSummary[] {
+  const people: PersonSummary[] = friends[platform].slice(0, 3).map((friend, index) => ({
+    platform,
+    userId: friend.platformUserId,
+    displayName: friend.displayName,
+    imageUrl: friend.avatarUrl,
+    isFriend: index < 2
+  }))
+  const sender = REQUEST_SENDERS[platform]
+  people.push({ platform, ...sender, imageUrl: null, isFriend: false })
+  return people
 }

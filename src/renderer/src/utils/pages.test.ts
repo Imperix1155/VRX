@@ -6,7 +6,9 @@ describe('isPageShown', () => {
     showHotInstancesPage: false,
     showExplorePage: false,
     showActivityPage: false,
-    showInboxPage: false
+    showInboxPage: false,
+    showSearchPage: false,
+    showGroupsPage: false
   }
 
   it('hides only the optional pages', () => {
@@ -14,6 +16,8 @@ describe('isPageShown', () => {
     expect(isPageShown('explore', hidden)).toBe(false)
     expect(isPageShown('activity', hidden)).toBe(false)
     expect(isPageShown('inbox', hidden)).toBe(false)
+    expect(isPageShown('search', hidden)).toBe(false)
+    expect(isPageShown('groups', hidden)).toBe(false)
     for (const tab of ['dashboard', 'friends', 'settings'] as const) {
       expect(isPageShown(tab, hidden)).toBe(true)
     }
@@ -24,7 +28,9 @@ describe('isPageShown', () => {
       showHotInstancesPage: true,
       showExplorePage: true,
       showActivityPage: true,
-      showInboxPage: true
+      showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true
     }
     for (const tab of [
       'dashboard',
@@ -33,6 +39,9 @@ describe('isPageShown', () => {
       'activity',
       'inbox',
       'explore',
+      'search',
+      'groups',
+      'avatars',
       'settings'
     ] as const) {
       expect(isPageShown(tab, shown)).toBe(true)
@@ -44,10 +53,14 @@ describe('isPageShown', () => {
       showHotInstancesPage: false,
       showExplorePage: false,
       showActivityPage: true,
-      showInboxPage: false
+      showInboxPage: false,
+      showSearchPage: false,
+      showGroupsPage: false
     }
     expect(isPageShown('activity', onlyActivity)).toBe(true)
     expect(isPageShown('hot', onlyActivity)).toBe(false)
     expect(isPageShown('inbox', onlyActivity)).toBe(false)
+    expect(isPageShown('search', onlyActivity)).toBe(false)
+    expect(isPageShown('groups', { ...onlyActivity, showGroupsPage: true })).toBe(true)
   })
 })

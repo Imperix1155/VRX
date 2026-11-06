@@ -13,8 +13,10 @@ import {
   IconDashboard,
   IconExplore,
   IconFriends,
+  IconGroups,
   IconHot,
   IconInbox,
+  IconSearch,
   IconSettings
 } from './NavIcons'
 
@@ -37,7 +39,10 @@ function SidebarUpdateButton(): React.JSX.Element | null {
       ? t('updater.sidebar.restart')
       : t('updater.sidebar.update')
 
-  const suffix = state.failure ? ` ${t('updater.sidebar.retrySuffix')}` : ''
+  // Only a download or install that failed asks to try again; a background
+  // re-check that failed leaves the offer as it was.
+  const retry = state.failure === 'download-write' || state.failure === 'staged-install'
+  const suffix = retry ? ` ${t('updater.sidebar.retrySuffix')}` : ''
 
   const ariaLabel = isDownloading
     ? t('updater.sidebar.downloadingAria', { percent: state.progressPercent })
@@ -127,11 +132,13 @@ function useNewInboxCount(): number {
 
 const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'dashboard', icon: IconDashboard },
-  { id: 'hot', icon: IconHot },
   { id: 'friends', icon: IconFriends },
+  { id: 'hot', icon: IconHot },
   { id: 'activity', icon: IconActivity },
   { id: 'inbox', icon: IconInbox },
   { id: 'explore', icon: IconExplore },
+  { id: 'search', icon: IconSearch },
+  { id: 'groups', icon: IconGroups },
   { id: 'avatars', icon: IconAvatars },
   { id: 'settings', icon: IconSettings }
 ]
@@ -145,8 +152,17 @@ export default function Sidebar(): React.JSX.Element {
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
   const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
+  const showSearchPage = useSettingsStore((s) => s.settings.showSearchPage)
+  const showGroupsPage = useSettingsStore((s) => s.settings.showGroupsPage)
   const navItems = NAV_ITEMS.filter(({ id }) =>
-    isPageShown(id, { showHotInstancesPage, showExplorePage, showActivityPage, showInboxPage })
+    isPageShown(id, {
+      showHotInstancesPage,
+      showExplorePage,
+      showActivityPage,
+      showInboxPage,
+      showSearchPage,
+      showGroupsPage
+    })
   )
   // While the Inbox is open its rows are on screen, so nothing there is new.
   const newInboxCount = useNewInboxCount()
@@ -216,7 +232,7 @@ export default function Sidebar(): React.JSX.Element {
               {id === 'inbox' && !isActive && newInboxCount > 0 ? (
                 <span
                   data-inbox-new=""
-                  className="ml-auto min-w-[20px] rounded-full border border-[var(--border)] bg-[var(--control-fill)] px-[6px] text-center text-[11px] font-semibold leading-[18px] text-[var(--text)]"
+                  className="glass-chip ml-auto min-w-[20px] rounded-full border border-[var(--border)] bg-[var(--control-fill)] px-[6px] text-center text-[11px] font-semibold leading-[18px] text-[var(--text)]"
                 >
                   <span aria-hidden="true">{newInboxCount > 99 ? '99+' : newInboxCount}</span>
                   <span className="sr-only">

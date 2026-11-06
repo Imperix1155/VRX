@@ -5,7 +5,9 @@ import {
   type QueryClient,
   type UseQueryResult
 } from '@tanstack/react-query'
-import type { ActivityEntry } from '@shared/activity'
+import type { ActivityEntry, ActivityFilter } from '@shared/activity'
+import type { Platform } from '@shared/types'
+import { queryClient } from './queryClient'
 
 /** Not persisted: only the `friends` namespace survives a restart (cache.ts). */
 export const activityKey = ['activity'] as const
@@ -25,6 +27,29 @@ export function useActivity(): UseQueryResult<ActivityEntry[], Error> {
     networkMode: 'always',
     enabled: typeof window !== 'undefined' && typeof window.vrx?.getActivity === 'function'
   })
+}
+
+/** The same list for the Friends list's Recent order. It uses the shared
+ *  client directly (like the favorites hooks) so the list renders without a
+ *  provider, and reads nothing until `enabled`. */
+export function useActivityForFriendsOrder(
+  enabled: boolean
+): UseQueryResult<ActivityEntry[], Error> {
+  return useQuery(
+    {
+      queryKey: activityKey,
+      queryFn: async () => {
+        if (typeof window.vrx?.getActivity !== 'function') return []
+        return window.vrx.getActivity()
+      },
+      staleTime: Infinity,
+      retry: false,
+      networkMode: 'always',
+      enabled:
+        enabled && typeof window !== 'undefined' && typeof window.vrx?.getActivity === 'function'
+    },
+    queryClient
+  )
 }
 
 /** Change pushes re-read the list. An account change drops that platform's
@@ -53,9 +78,22 @@ export function useActivityEvents(): void {
   useEffect(() => subscribeActivity(client), [client])
 }
 
-/** Clear the list in main; the change push refreshes every view. */
-export async function clearActivity(client: QueryClient): Promise<void> {
+/** What Clear takes away: the platforms in the filter and the shown kind. */
+export interface ActivityClearScope {
+  platforms: Platform[]
+  filter: ActivityFilter
+}
+
+/** Clear what the page shows in main, and drop it here at once; the change
+ *  push refreshes every view. Entries outside the scope stay. */
+export async function clearActivity(client: QueryClient, scope: ActivityClearScope): Promise<void> {
   if (typeof window.vrx?.clearActivity !== 'function') return
-  await window.vrx.clearActivity()
-  client.setQueryData<ActivityEntry[]>(activityKey, [])
+  await window.vrx.clearActivity({ platforms: scope.platforms, filter: scope.filter })
+  client.setQueryData<ActivityEntry[]>(activityKey, (entries) =>
+    entries?.filter(
+      (entry) =>
+        !scope.platforms.includes(entry.platform) ||
+        (scope.filter !== 'all' && entry.kind !== scope.filter)
+    )
+  )
 }

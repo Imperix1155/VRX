@@ -23,6 +23,8 @@ interface AdapterWiringOptions {
   activityFeed: AdapterEventConsumer
   /** Sees every event: inbox changes, plus friend adds that settle a request. */
   inbox: AdapterEventConsumer
+  /** The reconnect roster read while no window is open (`rosterCatchUp.ts`). */
+  rosterCatchUp?: AdapterEventConsumer
   broadcast: (event: BroadcastAdapterEvent) => void
 }
 
@@ -65,6 +67,7 @@ export function wireAdapterEvents({
   friendAlerts,
   activityFeed,
   inbox,
+  rosterCatchUp,
   broadcast
 }: AdapterWiringOptions): () => void {
   const handleAdapterEvent = (event: AdapterEvent): void => {
@@ -92,6 +95,11 @@ export function wireAdapterEvents({
     runConsumerSafely('inbox', event.type, () => {
       inbox.consume(event)
     })
+    if (rosterCatchUp) {
+      runConsumerSafely('rosterCatchUp', event.type, () => {
+        rosterCatchUp.consume(event)
+      })
+    }
     runConsumerSafely('broadcast', event.type, () => {
       broadcast(event)
     })

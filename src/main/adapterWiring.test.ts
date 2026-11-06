@@ -1,9 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AdapterEvent } from '@shared/types'
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
+import type { BroadcastAdapterEvent } from '@shared/ipc'
+import type { AdapterEvent, ConnectionHealth, Friend, Platform, VrcFriend } from '@shared/types'
 import type { AdapterEventSource } from './adapterWiring'
 
 import log from './logger'
 import { wireAdapterEvents } from './adapterWiring'
+import { stubPlatformAdapter } from './services/adapters/__testutils__/adapterTestKit'
+import { ActivityFeed } from './services/activityFeed'
+import { AppStatusService } from './services/appStatus'
+import { FriendAlerts, type FriendAlert } from './services/friendAlerts'
+import { createFriendRosterReader } from './services/friendRoster'
+import { LocationAuthority } from './services/locationAuthority'
+import { RosterCatchUp } from './rosterCatchUp'
 
 vi.mock('./logger', () => ({
   default: {
@@ -464,6 +472,137 @@ describe('wireAdapterEvents', () => {
       consumer: 'locationAuthority',
       eventType: 'friend-offline',
       error: 'stringy failure'
+    })
+  })
+})
+
+describe('wireAdapterEvents roster catch-up', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function alice(state: Friend['presence']['state']): VrcFriend {
+    return {
+      platform: 'vrchat',
+      platformUserId: 'usr_alice',
+      displayName: 'Alice',
+      avatarUrl: null,
+      status: 'online',
+      statusDescription: null,
+      trustRank: null,
+      presence: { state },
+      instance: null,
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    }
+  }
+
+  type Consume = Mock<(event: AdapterEvent) => void>
+
+  function consumers(): {
+    appStatus: { recordConnection: Mock<(platform: Platform, health: ConnectionHealth) => void> }
+    locationAuthority: { consume: Consume }
+    friendAlerts: { consume: Consume }
+    activityFeed: { consume: Consume }
+    inbox: { consume: Consume }
+    broadcast: Mock<(event: BroadcastAdapterEvent) => void>
+  } {
+    return {
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: { consume: vi.fn() },
+      friendAlerts: { consume: vi.fn() },
+      activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
+      broadcast: vi.fn()
+    }
+  }
+
+  it('with no window open, a reconnect reads the roster so the next change still alerts', async () => {
+    const source = fakeAdapter()
+    const alerts: FriendAlert[] = []
+    const friendAlerts = new FriendAlerts({
+      notify: (alert) => alerts.push(alert),
+      clock: () => 0,
+      isEnabled: () => true,
+      resolveName: () => null
+    })
+    const activityFeed = new ActivityFeed({
+      now: () => 0,
+      clock: () => 0,
+      isEnabled: () => true,
+      resolveName: () => null,
+      onChanged: () => undefined
+    })
+    const adapter = stubPlatformAdapter({
+      getFriends: vi
+        .fn()
+        .mockResolvedValue({ friends: [alice('offline')], completeness: 'complete' })
+    })
+    const locationAuthority = new LocationAuthority()
+    // The same hand-off as app.ts `onFriendRoster`.
+    const readRoster = createFriendRosterReader(
+      new Map([['vrchat', adapter]]),
+      locationAuthority,
+      new AppStatusService(() => 0),
+      (platform, friends) => {
+        friendAlerts.seedRoster(platform, friends)
+        activityFeed.seedRoster(platform, friends)
+      }
+    )
+    wireAdapterEvents({
+      sources: [source.adapter],
+      ...consumers(),
+      locationAuthority,
+      friendAlerts,
+      activityFeed,
+      rosterCatchUp: new RosterCatchUp({
+        hasWindow: () => false,
+        readRoster,
+        logFailure: vi.fn()
+      })
+    })
+    await readRoster('vrchat')
+    vi.mocked(adapter.getFriends).mockClear()
+
+    // macOS keeps VRX running with its window closed; the socket reconnects.
+    source.emit({ type: 'connection', platform: 'vrchat', health: 'live' })
+    expect(adapter.getFriends).toHaveBeenCalledOnce()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    source.emit({ type: 'friend-presence', platform: 'vrchat', friend: alice('active') })
+
+    expect(alerts.map((alert) => alert.type)).toEqual(['online'])
+    expect(activityFeed.list().map((entry) => entry.kind)).toEqual(['online'])
+  })
+
+  it('runs after main has seen the event and before the broadcast, isolated', () => {
+    const source = fakeAdapter()
+    const calls: string[] = []
+    const wiring = consumers()
+    wiring.inbox.consume.mockImplementation((event) => {
+      calls.push(`inbox:${event.type}`)
+    })
+    wiring.broadcast.mockImplementation((event) => {
+      calls.push(`broadcast:${event.type}`)
+    })
+    wireAdapterEvents({
+      sources: [source.adapter],
+      ...wiring,
+      rosterCatchUp: {
+        consume: (event): void => {
+          calls.push(`catchUp:${event.type}`)
+          throw new Error('catch-up boom')
+        }
+      }
+    })
+
+    source.emit({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+
+    expect(calls).toEqual(['inbox:connection', 'catchUp:connection', 'broadcast:connection'])
+    expect(log.warn).toHaveBeenCalledExactlyOnceWith('adapter event consumer failed', {
+      consumer: 'rosterCatchUp',
+      eventType: 'connection',
+      error: 'catch-up boom'
     })
   })
 })

@@ -40,9 +40,17 @@ const vrx = {
     ipcRenderer.on('explore-changed', listener)
     return () => ipcRenderer.removeListener('explore-changed', listener)
   },
+  // World references only: main resolves them to the platform's world ID.
+  setHomeWorld: (req: IpcInvoke['set-home-world']['req']) => invoke('set-home-world', req),
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
-  getAvatar: (url: string, rendition?: 'avatar') =>
+  getAvatar: (url: string, rendition?: 'avatar' | 'picture') =>
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
+  // Only a copy main already keeps (memory or disk); never starts a download.
+  getKeptAvatar: (url: string, rendition?: 'avatar' | 'picture') =>
+    invoke(
+      'get-avatar',
+      rendition === undefined ? { url, keptOnly: true } : { url, rendition, keptOnly: true }
+    ),
   getAvatarLibrary: (req: IpcInvoke['get-avatar-library']['req']) =>
     invoke('get-avatar-library', req),
   getCurrentAvatar: (req: IpcInvoke['get-current-avatar']['req']) =>
@@ -51,6 +59,20 @@ const vrx = {
     invoke('get-avatar-details', req),
   // Avatar IDs only: main switches only to an avatar it listed for this session.
   switchAvatar: (req: IpcInvoke['switch-avatar']['req']) => invoke('switch-avatar', req),
+  getProfile: (req: IpcInvoke['get-profile']['req']) => invoke('get-profile', req),
+  getProfileWorlds: (req: IpcInvoke['get-profile-worlds']['req']) =>
+    invoke('get-profile-worlds', req),
+  getProfileGroups: (req: IpcInvoke['get-profile-groups']['req']) =>
+    invoke('get-profile-groups', req),
+  searchCommunity: (req: IpcInvoke['search-community']['req']) => invoke('search-community', req),
+  getWorldList: (req: IpcInvoke['get-world-list']['req']) => invoke('get-world-list', req),
+  getPlayersOnline: (req: IpcInvoke['get-players-online']['req']) =>
+    invoke('get-players-online', req),
+  getMyGroups: (req: IpcInvoke['get-my-groups']['req']) => invoke('get-my-groups', req),
+  getOwnProfile: (req: IpcInvoke['get-own-profile']['req']) => invoke('get-own-profile', req),
+  saveOwnProfile: (req: IpcInvoke['save-own-profile']['req']) => invoke('save-own-profile', req),
+  getRelationship: (req: IpcInvoke['get-relationship']['req']) => invoke('get-relationship', req),
+  socialAction: (req: IpcInvoke['social-action']['req']) => invoke('social-action', req),
   getAccounts: () => invoke('get-accounts', undefined),
   getLinkedProfiles: () => invoke('get-linked-profiles', undefined),
   changeLinkedProfile: (req: IpcInvoke['change-linked-profile']['req']) =>
@@ -71,7 +93,7 @@ const vrx = {
   getJoinHandoff: (req: IpcInvoke['get-join-handoff']['req']) => invoke('get-join-handoff', req),
   getAppStatus: () => invoke('get-app-status', undefined),
   getActivity: () => invoke('get-activity', undefined),
-  clearActivity: () => invoke('clear-activity', undefined),
+  clearActivity: (req: IpcInvoke['clear-activity']['req']) => invoke('clear-activity', req),
   onActivityChanged: (callback: () => void) => {
     const listener = (): void => callback()
     ipcRenderer.on('activity-changed', listener)
@@ -80,6 +102,7 @@ const vrx = {
   openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
   openLogsFolder: () => invoke('open-logs-folder', undefined),
   openBugReport: () => invoke('open-bug-report', undefined),
+  testVrAlert: () => invoke('test-vr-alert', undefined),
   getAppBackground: () => invoke('get-app-background', undefined),
   chooseAppBackground: () => invoke('choose-app-background', undefined),
   clearAppBackground: () => invoke('clear-app-background', undefined),
@@ -87,6 +110,11 @@ const vrx = {
   dismissInboxItem: (req: IpcInvoke['dismiss-inbox-item']['req']) =>
     invoke('dismiss-inbox-item', req),
   clearInbox: (req: IpcInvoke['clear-inbox']['req']) => invoke('clear-inbox', req),
+  // A row ID or a listed person only: main decides whether and what to send.
+  answerFriendRequest: (req: IpcInvoke['answer-friend-request']['req']) =>
+    invoke('answer-friend-request', req),
+  sendFriendRequest: (req: IpcInvoke['send-friend-request']['req']) =>
+    invoke('send-friend-request', req),
   onInboxChanged: (callback: () => void) => {
     const listener = (): void => callback()
     ipcRenderer.on('inbox-changed', listener)
@@ -100,8 +128,20 @@ const vrx = {
   installUpdate: () => invoke('updater:install', undefined),
   getFriendNote: (req: IpcInvoke['get-friend-note']['req']) => invoke('get-friend-note', req),
   setFriendNote: (req: IpcInvoke['set-friend-note']['req']) => invoke('set-friend-note', req),
+  syncFriendNote: (req: IpcInvoke['sync-friend-note']['req']) => invoke('sync-friend-note', req),
   getAlertPicks: (req: IpcInvoke['get-alert-picks']['req']) => invoke('get-alert-picks', req),
   setAlertPick: (req: IpcInvoke['set-alert-pick']['req']) => invoke('set-alert-pick', req),
+  getFavoriteFriends: (req: IpcInvoke['get-favorite-friends']['req']) =>
+    invoke('get-favorite-friends', req),
+  setFavoriteFriend: (req: IpcInvoke['set-favorite-friend']['req']) =>
+    invoke('set-favorite-friend', req),
+  getFavoriteWorlds: (req: IpcInvoke['get-favorite-worlds']['req']) =>
+    invoke('get-favorite-worlds', req),
+  setFavoriteWorld: (req: IpcInvoke['set-favorite-world']['req']) =>
+    invoke('set-favorite-world', req),
+  getGameFavorites: (req: IpcInvoke['get-game-favorites']['req']) =>
+    invoke('get-game-favorites', req),
+  setGameFavorite: (req: IpcInvoke['set-game-favorite']['req']) => invoke('set-game-favorite', req),
   notifyRendererHydrated: () => notify('renderer-hydrated', undefined),
   /**
    * Live adapter events pushed from main ('friend-event', VRX-146). Returns an

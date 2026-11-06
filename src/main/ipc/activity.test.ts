@@ -26,12 +26,16 @@ const entry = {
   worldName: null,
   at: 1
 }
-let feed: { list: ReturnType<typeof vi.fn>; clearAll: ReturnType<typeof vi.fn> }
+let feed: {
+  list: ReturnType<typeof vi.fn>
+  clear: ReturnType<typeof vi.fn>
+  clearAll: ReturnType<typeof vi.fn>
+}
 
 beforeEach(() => {
   handlers.clear()
   trusted.value = true
-  feed = { list: vi.fn(() => [entry]), clearAll: vi.fn() }
+  feed = { list: vi.fn(() => [entry]), clear: vi.fn(), clearAll: vi.fn() }
   registerActivityHandlers(feed as unknown as ActivityFeed)
 })
 
@@ -39,9 +43,12 @@ describe('activity handlers', () => {
   it('rejects untrusted senders on both channels', () => {
     trusted.value = false
     for (const channel of ['get-activity', 'clear-activity']) {
-      expect(() => handlers.get(channel)!(event)).toThrow('Untrusted IPC sender')
+      expect(() => handlers.get(channel)!(event, { platforms: ['vrchat'], filter: 'all' })).toThrow(
+        'Untrusted IPC sender'
+      )
     }
     expect(feed.list).not.toHaveBeenCalled()
+    expect(feed.clear).not.toHaveBeenCalled()
     expect(feed.clearAll).not.toHaveBeenCalled()
   })
 
@@ -50,8 +57,30 @@ describe('activity handlers', () => {
     expect(feed.list).toHaveBeenCalledWith()
   })
 
-  it('clears on request', () => {
-    expect(handlers.get('clear-activity')!(event)).toBeUndefined()
-    expect(feed.clearAll).toHaveBeenCalledOnce()
+  it('clears only the platforms and the kind the page shows', () => {
+    expect(
+      handlers.get('clear-activity')!(event, { platforms: ['chilloutvr'], filter: 'world' })
+    ).toBeUndefined()
+    expect(feed.clear).toHaveBeenCalledWith(['chilloutvr'], 'world')
+    handlers.get('clear-activity')!(event, { platforms: ['vrchat', 'chilloutvr'], filter: 'all' })
+    expect(feed.clear).toHaveBeenLastCalledWith(['vrchat', 'chilloutvr'], 'all')
+    expect(feed.clearAll).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['no request', undefined],
+    ['no platforms', { platforms: [], filter: 'all' }],
+    ['an unknown platform', { platforms: ['steam'], filter: 'all' }],
+    ['too many platforms', { platforms: ['vrchat', 'chilloutvr', 'vrchat'], filter: 'all' }],
+    ['platforms that are not a list', { platforms: 'vrchat', filter: 'all' }],
+    ['an unknown kind', { platforms: ['vrchat'], filter: 'friends' }],
+    ['no kind', { platforms: ['vrchat'] }],
+    ['a request that is not a plain object', Object.create({ platforms: ['vrchat'] }) as unknown]
+  ])('refuses %s and clears nothing', (_label, request) => {
+    expect(() => handlers.get('clear-activity')!(event, request)).toThrow(
+      'Invalid clear-activity request'
+    )
+    expect(feed.clear).not.toHaveBeenCalled()
+    expect(feed.clearAll).not.toHaveBeenCalled()
   })
 })

@@ -1,9 +1,5 @@
-import {
-  CREDENTIAL_PERSISTENCE_FAILED,
-  SESSION_IMPORT_NOT_FOUND,
-  SESSION_IMPORT_REJECTED,
-  type Platform
-} from '@shared/types'
+import { SESSION_IMPORT_NOT_FOUND, SESSION_IMPORT_REJECTED, type Platform } from '@shared/types'
+import { signInProblem, type SignInProblem } from './loginError'
 
 export interface AccountCardConfig {
   platform: Platform
@@ -53,14 +49,20 @@ export function importErrorKey(platform: Platform, code?: string): string | null
   return null
 }
 
+const ACCOUNT_ERROR_KEYS: Record<SignInProblem, string> = {
+  credentialPersistence: 'settings.accounts.error.credentialPersistence',
+  invalidCredentials: 'settings.accounts.error.invalidCredentials',
+  invalidCode: 'settings.accounts.error.invalidCode',
+  rateLimited: 'settings.accounts.error.rateLimited',
+  offline: 'settings.accounts.error.offline',
+  serviceDown: 'settings.accounts.error.serviceDown',
+  unknown: 'settings.accounts.error.unknown'
+}
+
 export function accountLoginErrorKey(platform?: Platform, code?: string): string {
-  // The account card keeps its own locale namespace, even though both platforms
-  // share this persistence-failure explanation.
+  // The account card keeps its own locale namespace, with the same messages
+  // as the sign-in screen.
   const importKey = platform ? importErrorKey(platform, code) : null
   if (importKey) return importKey
-  if (code === CREDENTIAL_PERSISTENCE_FAILED) {
-    return 'settings.accounts.error.credentialPersistence'
-  }
-
-  return 'settings.accounts.error.unknown'
+  return ACCOUNT_ERROR_KEYS[signInProblem(code)]
 }

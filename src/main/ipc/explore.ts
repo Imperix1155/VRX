@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { z } from 'zod'
 import type { IpcInvoke } from '@shared/ipc'
 import type { ExploreService } from '../services/exploreService'
+import type { HomeWorldService } from '../services/homeWorldService'
 import { isTrustedIpcSender } from './security'
 
 const platform = z.enum(['vrchat', 'chilloutvr'])
@@ -49,5 +50,14 @@ export function registerExploreHandlers(service: ExploreService): void {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
     const parsed = joinRequest.parse(req)
     return service.joinRoom(parsed.platform, parsed.selectionRef, parsed.mode)
+  })
+}
+
+/** "Set as home world": the renderer names a world only by main's Explore reference. */
+export function registerHomeWorldHandler(service: HomeWorldService): void {
+  ipcMain.handle('set-home-world', (event, req: IpcInvoke['set-home-world']['req']) => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    const parsed = worldReference.parse(req)
+    return service.setHomeWorld(parsed.platform, parsed.worldRef)
   })
 }

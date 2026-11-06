@@ -1,0 +1,212 @@
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { SetHomeWorldFailure } from '@shared/homeWorld'
+import type { Platform } from '@shared/types'
+import { setHomeWorld, useHomeWorldAccount, useHomeWorldId } from '../queries/homeWorld'
+
+const FAILURE_KEYS: Readonly<Record<SetHomeWorldFailure, string>> = {
+  cooldown: 'explore.home.failed.cooldown',
+  'rate-limited': 'explore.home.failed.rate-limited',
+  failed: 'explore.home.failed.failed',
+  'not-authenticated': 'explore.home.failed.not-authenticated',
+  'unknown-world': 'explore.home.failed.unknown-world'
+}
+
+type Step =
+  | { state: 'idle' }
+  | { state: 'confirm' }
+  | { state: 'pending' }
+  | { state: 'done' }
+  | { state: 'failed'; reason: SetHomeWorldFailure }
+
+/** A small house: the same 1.8 stroke as the navigation icons. */
+function IconHome(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-[14px] w-[14px] flex-none"
+    >
+      <path d="M4 10.5 12 4l8 6.5" />
+      <path d="M6 9v10.5h12V9" />
+      <path d="M10 19.5v-5h4v5" />
+    </svg>
+  )
+}
+
+const BUTTON =
+  'inline-flex items-center gap-[var(--space-1)] rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:text-[var(--text-faint)] aria-disabled:cursor-default aria-disabled:text-[var(--text-faint)]'
+
+export interface HomeWorldControlProps {
+  platform: Platform
+  /** Main's Explore reference for the world; the only thing sent to main. */
+  worldRef: string
+  worldId: string
+  worldName: string
+  /** Shown first on the same line (the platform pill). */
+  leading: React.ReactNode
+}
+
+/**
+ * "Set as home world" for a world sheet. A press asks once ("It replaces the
+ * one you have now"), then sends one write through main. After a success the
+ * sheet says "Your home world" for the rest of the session.
+ */
+export default function HomeWorldControl({
+  platform,
+  worldRef,
+  worldId,
+  worldName,
+  leading
+}: HomeWorldControlProps): React.JSX.Element {
+  const { t } = useTranslation()
+  const accountId = useHomeWorldAccount(platform)
+  const homeId = useHomeWorldId(platform, accountId)
+  const [step, setStep] = useState<Step>({ state: 'idle' })
+  // A confirm step or a result line belongs to the account it was shown for.
+  const [stepAccount, setStepAccount] = useState(accountId)
+  if (stepAccount !== accountId) {
+    setStepAccount(accountId)
+    setStep({ state: 'idle' })
+  }
+  const confirmRef = useRef<HTMLButtonElement>(null)
+  const openerRef = useRef<HTMLButtonElement>(null)
+  const chipRef = useRef<HTMLSpanElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  // The account on screen now; a reply for an earlier account is dropped.
+  const liveAccountRef = useRef(accountId)
+  useEffect(() => {
+    liveAccountRef.current = accountId
+  }, [accountId])
+  const returnFocusRef = useRef(false)
+  const platformName = t(platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
+  const isHome = homeId === worldId
+  const pending = step.state === 'pending'
+
+  useEffect(() => {
+    if (step.state === 'confirm') confirmRef.current?.focus()
+    // After Cancel or an answer, focus goes back to what replaced the
+    // confirm panel, so keyboard and screen-reader users never land on the page.
+    // Only when focus is still here (or fell to the page as the panel left):
+    // never pull it away from somewhere the user moved on to.
+    if (step.state !== 'confirm' && step.state !== 'pending' && returnFocusRef.current) {
+      returnFocusRef.current = false
+      const active = document.activeElement
+      if (active === null || active === document.body || rootRef.current?.contains(active)) {
+        ;(chipRef.current ?? openerRef.current)?.focus()
+      }
+    }
+  }, [step.state])
+
+  function cancel(): void {
+    returnFocusRef.current = true
+    setStep({ state: 'idle' })
+  }
+
+  function confirm(): void {
+    if (accountId === null || pending) return
+    const requestAccount = accountId
+    returnFocusRef.current = true
+    setStep({ state: 'pending' })
+    setHomeWorld({ platform, worldRef, accountId }).then(
+      (result) => {
+        if (liveAccountRef.current !== requestAccount) return
+        setStep(result.ok ? { state: 'done' } : { state: 'failed', reason: result.reason })
+      },
+      (error: unknown) => {
+        if (liveAccountRef.current !== requestAccount) return
+        setStep({
+          state: 'failed',
+          reason:
+            error instanceof Error && error.message === 'rate_limited' ? 'rate-limited' : 'failed'
+        })
+      }
+    )
+  }
+
+  const control =
+    accountId === null ? null : isHome ? (
+      <span
+        ref={chipRef}
+        tabIndex={-1}
+        className="inline-flex items-center gap-[var(--space-1)] rounded-[10px] border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)]"
+        aria-label={t('explore.home.isHomeAria', { world: worldName, platform: platformName })}
+      >
+        <IconHome />
+        {t('explore.home.isHome')}
+      </span>
+    ) : step.state === 'confirm' || pending ? null : (
+      <button
+        ref={openerRef}
+        type="button"
+        onClick={() => setStep({ state: 'confirm' })}
+        aria-label={t('explore.home.setAria', { world: worldName, platform: platformName })}
+        className={BUTTON}
+      >
+        <IconHome />
+        {t('explore.home.set')}
+      </button>
+    )
+
+  return (
+    <div ref={rootRef}>
+      <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+        {leading}
+        {control}
+      </div>
+      {accountId !== null && !isHome && (step.state === 'confirm' || pending) ? (
+        <div
+          role="group"
+          aria-label={t('explore.home.confirmAria', { world: worldName })}
+          className="mt-[var(--space-2)] flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-2)] rounded-[13px] border border-[var(--border)] bg-[var(--control-fill)] p-[var(--space-3)]"
+        >
+          <p className="min-w-0 flex-1 basis-[16rem] text-xs text-[var(--text)]">
+            {t('explore.home.confirm', { platform: platformName })}
+          </p>
+          <div className="flex shrink-0 items-center gap-[var(--space-2)]">
+            <button
+              ref={confirmRef}
+              type="button"
+              onClick={confirm}
+              // Not `disabled`: a disabled button drops keyboard focus.
+              aria-disabled={pending}
+              className={BUTTON}
+            >
+              <IconHome />
+              {pending ? t('explore.home.setting') : t('explore.home.makeHome')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!pending) cancel()
+              }}
+              aria-disabled={pending}
+              className={BUTTON}
+            >
+              {t('explore.home.cancel')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {accountId === null ? null : (
+        <p
+          role="status"
+          className={`text-xs [&:not(:empty)]:mt-[var(--space-1)] ${
+            step.state === 'failed' ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'
+          }`}
+        >
+          {step.state === 'done' && isHome
+            ? t('explore.home.done', { platform: platformName })
+            : step.state === 'failed'
+              ? t(FAILURE_KEYS[step.reason], { platform: platformName })
+              : ''}
+        </p>
+      )}
+    </div>
+  )
+}

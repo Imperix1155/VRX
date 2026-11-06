@@ -102,11 +102,20 @@ vi.mock('./app-background', () => ({
     electron.ipcMain.handle('clear-app-background', () => undefined)
   }
 }))
+vi.mock('./vr-alerts', () => ({
+  registerVrAlertHandlers: () => electron.ipcMain.handle('test-vr-alert', () => ({ ok: true }))
+}))
 vi.mock('./inbox', () => ({
   registerInboxHandlers: () => {
     electron.ipcMain.handle('get-inbox', () => ({ items: [] }))
     electron.ipcMain.handle('dismiss-inbox-item', () => undefined)
     electron.ipcMain.handle('clear-inbox', () => undefined)
+  }
+}))
+vi.mock('./friend-actions', () => ({
+  registerFriendActionHandlers: () => {
+    electron.ipcMain.handle('answer-friend-request', () => ({ ok: true }))
+    electron.ipcMain.handle('send-friend-request', () => ({ ok: true }))
   }
 }))
 vi.mock('./settings', () => ({
@@ -144,10 +153,14 @@ function options(): IpcHandlerOptions {
     locationAuthority: {},
     socialStore: {},
     alertPicks: {},
+    favorites: {},
+    gameFavorites: {},
     links: { linkGraph: {} },
     appStatus: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
     inbox: {} as IpcHandlerOptions['inbox'],
+    friendActions: {} as IpcHandlerOptions['friendActions'],
+    vrOverlayAlerts: { test: async () => undefined },
     explore: {
       setActive: vi.fn(),
       getSnapshot: vi.fn(),
@@ -156,12 +169,24 @@ function options(): IpcHandlerOptions {
       getImage: vi.fn(),
       joinRoom: vi.fn(() => ({ ok: true }))
     },
+    homeWorld: { setHomeWorld: vi.fn() },
     avatarLibrary: {
       getLibrary: vi.fn(),
       getDetails: vi.fn(),
       switchAvatar: vi.fn()
     },
     currentAvatar: { getCurrent: vi.fn() },
+    community: {
+      getProfile: vi.fn(),
+      getProfileWorlds: vi.fn(),
+      getProfileGroups: vi.fn(),
+      search: vi.fn(),
+      getWorldList: vi.fn(),
+      getPlayersOnline: vi.fn(),
+      getMyGroups: vi.fn()
+    },
+    ownProfile: { getOwnProfile: vi.fn(), saveOwnProfile: vi.fn(), clearPlatform: vi.fn() },
+    social: { getRelationship: vi.fn(), act: vi.fn() },
     onRendererHydrated: hydrated,
     rateLimit: {
       clock: () => now,
@@ -208,7 +233,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(45)
+    expect(electron.invokeHandlers.size).toBe(66)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -237,6 +262,8 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-inbox',
         'dismiss-inbox-item',
         'clear-inbox',
+        'answer-friend-request',
+        'send-friend-request',
         'get-app-status',
         'get-activity',
         'clear-activity',
@@ -246,6 +273,16 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-current-avatar',
         'get-avatar-details',
         'switch-avatar',
+        'get-profile',
+        'get-profile-worlds',
+        'get-profile-groups',
+        'search-community',
+        'get-world-list',
+        'get-players-online',
+        'get-my-groups',
+        'get-own-profile',
+        'get-relationship',
+        'social-action',
         'get-friend-note',
         'get-friends',
         'get-join-handoff',
@@ -258,10 +295,19 @@ describe('registerIpcHandlers rate limiting', () => {
         'open-url',
         'open-logs-folder',
         'open-bug-report',
+        'save-own-profile',
         'save-settings',
         'self-invite',
         'set-alert-pick',
+        'get-favorite-friends',
+        'set-favorite-friend',
+        'get-favorite-worlds',
+        'set-favorite-world',
+        'get-game-favorites',
+        'set-game-favorite',
         'set-friend-note',
+        'set-home-world',
+        'test-vr-alert',
         'updater:check',
         'updater:download',
         'updater:get-state',

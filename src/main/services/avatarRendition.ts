@@ -68,3 +68,56 @@ export function createAvatarRenditionMaker(
     return rendition.bytes.byteLength === 0 ? null : rendition
   }
 }
+
+/**
+ * Card-sized copies of world and avatar pictures for `AvatarCache`'s `picture`
+ * rendition (owner, 2026-11-01: pictures looked blurry on big screens).
+ *
+ * The `picture` rendition asks VRChat for the full picture instead of its
+ * 256 px thumbnail, and a full picture can be a megabyte or more as PNG. A
+ * page of Explore cards would then hold tens of megabytes of data URLs. This
+ * keeps at most `PICTURE_RENDITION_MAX_WIDTH` pixels across, enough for the
+ * widest card at 200% display scaling, and stores opaque pictures as JPEG.
+ */
+
+/** Widest a `picture` rendition gets: a ~720 px card at 200% scaling. */
+export const PICTURE_RENDITION_MAX_WIDTH = 1440
+/** Pictures within the width whose file is at most this size are kept as they are. */
+export const PICTURE_RENDITION_KEEP_BYTES = 256 * 1024
+/** JPEG quality for opaque `picture` renditions: high, because they show large. */
+export const PICTURE_RENDITION_JPEG_QUALITY = 90
+
+/**
+ * Build the `picture` rendition maker over an image decoder. It returns null,
+ * keeping the original, for formats it cannot decode, for small files already
+ * within the width, and when the new copy would not be smaller.
+ */
+export function createPictureRenditionMaker(
+  decode: (bytes: Buffer) => RenditionImage
+): AvatarRenditionMaker {
+  return (image: StoredImage): StoredImage | null => {
+    if (!DECODABLE.has(image.contentType)) return null
+    const source = decode(image.bytes)
+    if (source.isEmpty()) return null
+    const { width, height } = source.getSize()
+    if (!(width > 0 && height > 0)) return null
+    const tooWide = width > PICTURE_RENDITION_MAX_WIDTH
+    if (!tooWide && image.bytes.byteLength <= PICTURE_RENDITION_KEEP_BYTES) return null
+    const scale = tooWide ? PICTURE_RENDITION_MAX_WIDTH / width : 1
+    const sized = tooWide
+      ? source.resize({
+          width: PICTURE_RENDITION_MAX_WIDTH,
+          height: Math.max(1, Math.round(height * scale)),
+          quality: 'good'
+        })
+      : source
+    if (sized.isEmpty()) return null
+    const rendition: StoredImage = isOpaque(sized.toBitmap())
+      ? { contentType: 'image/jpeg', bytes: sized.toJPEG(PICTURE_RENDITION_JPEG_QUALITY) }
+      : { contentType: 'image/png', bytes: sized.toPNG() }
+    if (rendition.bytes.byteLength === 0) return null
+    // Re-encoding a picture that needed no resize only helps when it shrinks.
+    if (!tooWide && rendition.bytes.byteLength >= image.bytes.byteLength) return null
+    return rendition
+  }
+}

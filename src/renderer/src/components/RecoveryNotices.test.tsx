@@ -10,11 +10,16 @@ import RecoveryNotices, { SETTINGS_PENDING_NOTICE_DELAY_MS } from './RecoveryNot
 const refetch = vi.fn()
 let vrchatAuthError = true
 let vrchatState = 'authenticated'
+let vrchatFetching = false
+let vrchatStatus = 'error'
+let vrchatErrorUpdatedAt = 0
 vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: string) => ({
     data: { state: platform === 'vrchat' ? vrchatState : 'authenticated' },
     isError: platform === 'vrchat' && vrchatAuthError,
-    isFetching: false,
+    isFetching: platform === 'vrchat' && vrchatFetching,
+    status: platform === 'vrchat' ? vrchatStatus : 'success',
+    errorUpdatedAt: platform === 'vrchat' ? vrchatErrorUpdatedAt : 0,
     refetch
   })
 }))
@@ -23,12 +28,17 @@ afterEach(() => {
   vi.useRealTimers()
   vrchatAuthError = true
   vrchatState = 'authenticated'
+  vrchatFetching = false
+  vrchatStatus = 'error'
+  vrchatErrorUpdatedAt = 0
+  refetch.mockClear()
   useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
   useSettingsStore.setState({
     settings: DEFAULT_SETTINGS,
     dirty: false,
     saveError: false,
-    saving: false
+    saving: false,
+    loadFallback: false
   })
 })
 it('retains an unsaved warning and retries the latest settings without navigation', () => {
@@ -40,6 +50,25 @@ it('retains an unsaved warning and retries the latest settings without navigatio
   expect(useSettingsStore.getState().saveAttempt).toBe(previous + 1)
   expect(screen.getByText(i18n.t('settings.persistence.error'))).toBeTruthy()
 })
+it('says the saved settings could not be read while defaults stand in for them', () => {
+  vrchatAuthError = false
+  useSettingsStore.setState({ loadFallback: true })
+  render(<RecoveryNotices />)
+  const notice = screen.getByRole('alert')
+  expect(notice.textContent).toContain(i18n.t('settings.persistence.loadFallback'))
+  // Nothing to retry here: the next change re-reads the file in main.
+  expect(screen.queryByRole('button')).toBeNull()
+
+  // A failed save still comes first, with its Retry.
+  act(() => useSettingsStore.setState({ dirty: true, saveError: true }))
+  expect(screen.getByRole('alert').textContent).toContain(i18n.t('settings.persistence.error'))
+  expect(screen.queryByText(i18n.t('settings.persistence.loadFallback'))).toBeNull()
+
+  // Once a save reaches the real file, the notice goes.
+  act(() => useSettingsStore.setState({ dirty: false, saveError: false, loadFallback: false }))
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
 it('exposes a platform-specific auth failure and retry alongside usable shell content', () => {
   render(<RecoveryNotices />)
   expect(
@@ -47,6 +76,27 @@ it('exposes a platform-specific auth failure and retry alongside usable shell co
   ).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: i18n.t('settings.accounts.retry') }))
   expect(refetch).toHaveBeenCalledOnce()
+})
+
+it('keeps keyboard focus on each Retry while it works, and ignores presses meanwhile', () => {
+  vrchatFetching = true
+  useSettingsStore.setState({ dirty: true, saveError: true, saving: true })
+  render(<RecoveryNotices />)
+  const previous = useSettingsStore.getState().saveAttempt
+  for (const name of [
+    i18n.t('settings.accounts.retrying'),
+    i18n.t('settings.persistence.saving')
+  ]) {
+    const button = screen.getByRole('button', { name })
+    button.focus()
+    // A disabled button would drop focus to the page.
+    expect(button.hasAttribute('disabled')).toBe(false)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(button)
+    expect(document.activeElement).toBe(button)
+  }
+  expect(refetch).not.toHaveBeenCalled()
+  expect(useSettingsStore.getState().saveAttempt).toBe(previous)
 })
 
 it('names a VRChat session waiting for a code and opens Accounts', () => {
@@ -136,4 +186,29 @@ describe('settings persistence notice timing', () => {
     expect(screen.getByRole('alert').textContent).toContain(i18n.t('settings.persistence.error'))
     expect(unsaved()).toBeNull()
   })
+})
+
+it('keeps the account notice and focus on Retry while a check that failed with nothing loaded runs again', () => {
+  vrchatErrorUpdatedAt = 1
+  const view = render(<RecoveryNotices />)
+  const retry = screen.getByRole('button', { name: i18n.t('settings.accounts.retry') })
+  retry.focus()
+  fireEvent.click(retry)
+  expect(refetch).toHaveBeenCalledTimes(1)
+  // With nothing loaded, the check running again reads as pending, not as an
+  // error, until it answers.
+  vrchatAuthError = false
+  vrchatStatus = 'pending'
+  vrchatFetching = true
+  view.rerender(<RecoveryNotices />)
+  expect(retry.isConnected).toBe(true)
+  expect(retry.getAttribute('aria-disabled')).toBe('true')
+  expect(document.activeElement).toBe(retry)
+  // It fails again: the same Retry, still focused, works again.
+  vrchatAuthError = true
+  vrchatStatus = 'error'
+  vrchatFetching = false
+  view.rerender(<RecoveryNotices />)
+  expect(document.activeElement).toBe(retry)
+  expect(retry.hasAttribute('aria-disabled')).toBe(false)
 })

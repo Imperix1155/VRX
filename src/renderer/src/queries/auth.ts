@@ -1,10 +1,12 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import type { AuthStatus, Platform } from '@shared/types'
 
-/** Per-platform query key for auth status (mirrors `friendsQueryKey`, VRX-37). */
-export function authStatusQueryKey(platform: Platform): readonly ['auth-status', Platform] {
-  return ['auth-status', platform] as const
-}
+import { authStatusQueryKey } from './authKey'
+
+/** Per-platform query key for auth status (mirrors `friendsQueryKey`, VRX-37).
+ *  It lives in its own module so readers that only observe the auth cache
+ *  (favorites) don't import this file's query hooks. */
+export { authStatusQueryKey }
 
 /** How often an `error` auth status is re-checked (see useAuthStatus). */
 export const AUTH_ERROR_RECHECK_MS = 60_000
@@ -33,16 +35,27 @@ export async function fetchAuthStatus(platform: Platform): Promise<AuthStatus> {
  *   all explicitly invalidate this key, which bypasses staleTime.
  */
 export function useAuthStatus(platform: Platform): UseQueryResult<AuthStatus, Error> {
+  const queryClient = useQueryClient()
+  // Read at render: every holder re-renders when a check settles (its data or
+  // fetch state changes), and the interval reads the option at each tick.
+  const unreachable =
+    queryClient.getQueryData<AuthStatus>(authStatusQueryKey(platform))?.unreachable === true
   return useQuery({
     queryKey: authStatusQueryKey(platform),
     queryFn: () => fetchAuthStatus(platform),
     staleTime: Infinity,
-    // The one exception to "not polled": an `error` status (the check could not
-    // reach the platform, e.g. VRX started offline or during an outage) is
-    // re-checked once a minute. Until a check succeeds, a restored session never
-    // becomes usable and the friends list fails without ever reaching the network.
+    // The one exception to "not polled": an `error` status (the check failed,
+    // e.g. VRX started offline or during an outage) is re-checked once a
+    // minute while the window shows. Until a check succeeds, a restored session
+    // never becomes usable and the friends list fails without ever reaching the
+    // network.
     refetchInterval: (query) =>
       query.state.data?.state === 'error' ? AUTH_ERROR_RECHECK_MS : false,
+    // While the window is hidden in the tray, only a check that got no answer
+    // at all repeats (offline, or no reply in time): only a successful check
+    // starts a restored session's live connection, which friend alerts need. A
+    // platform that answered and refused is not asked again until it shows.
+    refetchIntervalInBackground: unreachable,
     // Recovery surfaces mount after failure; mounting them must not restart
     // the initial check and send App back through its pending gate.
     retryOnMount: false,

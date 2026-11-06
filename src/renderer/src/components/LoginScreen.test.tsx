@@ -93,6 +93,14 @@ describe('LoginScreen (W6)', () => {
     expect(screen.getByRole('img', { name: 'VRX' })).toBeTruthy()
   })
 
+  it('is the page’s main landmark, headed by the VRX mark', () => {
+    renderLogin()
+    const main = screen.getByRole('main')
+    const heading = screen.getByRole('heading', { level: 1, name: 'VRX' })
+    expect(main.contains(heading)).toBe(true)
+    expect(main.contains(screen.getByRole('radiogroup'))).toBe(true)
+  })
+
   it('scrolls its own screen, so a tall card never loses its bottom', () => {
     // The body never scrolls (§8). Centering with align-items clipped the
     // card's bottom (the notices, an error) when it outgrew a short window.
@@ -142,7 +150,7 @@ describe('LoginScreen (W6)', () => {
     submit()
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain(msg('login.error.unknown'))
+    expect(alert.textContent).toContain(msg('login.error.invalidCredentials'))
   })
 
   it('offers the PC sign-in for the selected tab and names where it looked when none is found', async () => {
@@ -207,10 +215,44 @@ describe('LoginScreen (W6)', () => {
     // Chromium drops focus from a field once it is disabled; jsdom keeps it.
     const activeElement = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(document.body)
     const refocus = vi.spyOn(password, 'focus')
+    const select = vi.spyOn(password as HTMLInputElement, 'select')
 
     settle({ ok: false, needs2fa: false, error: 'invalid_credentials' })
     await screen.findByRole('alert')
     await waitFor(() => expect(refocus).toHaveBeenCalled())
+    // Selected, so typing the right password replaces the rejected one.
+    expect(select).toHaveBeenCalled()
+    activeElement.mockRestore()
+  })
+
+  it('puts focus on the password after a failed sign-in sent from the Sign in button', async () => {
+    let settle: (value: unknown) => void = () => {}
+    const login = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve
+        })
+    )
+    setBridge({ login, verify2fa: vi.fn() })
+    renderLogin()
+    fillCredentials()
+
+    const password = screen.getByLabelText(msg('login.password'))
+    const signIn = screen.getByRole('button', { name: msg('login.signIn') })
+    signIn.focus()
+    fireEvent.click(signIn)
+    await waitFor(() => expect(login).toHaveBeenCalledTimes(1))
+    // Chromium drops focus from the button once it is disabled; jsdom keeps it.
+    const activeElement = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(document.body)
+    const refocus = vi.spyOn(password, 'focus')
+    const select = vi.spyOn(password as HTMLInputElement, 'select')
+    const buttonFocus = vi.spyOn(signIn, 'focus')
+
+    settle({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+    await screen.findByRole('alert')
+    await waitFor(() => expect(refocus).toHaveBeenCalled())
+    expect(select).toHaveBeenCalled()
+    expect(buttonFocus).not.toHaveBeenCalled()
     activeElement.mockRestore()
   })
 
@@ -257,7 +299,7 @@ describe('LoginScreen (W6)', () => {
     expect(usernameInput.value).toBe('neo')
   })
 
-  it('moves focus into the code field, and back to the username on Back', async () => {
+  it('moves focus into the code field, and to the emptied password on Back', async () => {
     setBridge({
       login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
       verify2fa: vi.fn()
@@ -274,8 +316,9 @@ describe('LoginScreen (W6)', () => {
     const back = screen.getByRole('button', { name: msg('login.twoFactor.back') })
     back.focus()
     fireEvent.click(back)
+    // The username is kept and the password dropped, so the password is next.
     await waitFor(() =>
-      expect(document.activeElement).toBe(screen.getByLabelText(msg('login.username')))
+      expect(document.activeElement).toBe(screen.getByLabelText(msg('login.password')))
     )
   })
 
@@ -336,6 +379,69 @@ describe('LoginScreen (W6)', () => {
     )
   })
 
+  it('sends a code typed with full-width digits or a dash as plain digits', async () => {
+    const verify2fa = vi.fn().mockResolvedValue({ ok: true })
+    setBridge({
+      login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
+      verify2fa
+    })
+    renderLogin()
+
+    fillCredentials()
+    submit()
+    await screen.findByText(msg('login.twoFactor.promptTotp'))
+
+    const code = screen.getByLabelText(msg('login.twoFactor.code'))
+    fireEvent.change(code, { target: { value: '１２３－４５６' } })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
+
+    await waitFor(() =>
+      expect(verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '123456' })
+    )
+  })
+
+  it.each([
+    ['the long-vowel mark a Japanese IME types for "-"', '１２３ー４５６'],
+    ['a minus sign', '123\u2212456'],
+    ['an en dash', '123\u2013456']
+  ])('sends a code typed with %s as plain digits', async (_, typed) => {
+    const verify2fa = vi.fn().mockResolvedValue({ ok: true })
+    setBridge({
+      login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
+      verify2fa
+    })
+    renderLogin()
+
+    fillCredentials()
+    submit()
+    await screen.findByText(msg('login.twoFactor.promptTotp'))
+
+    fireEvent.change(screen.getByLabelText(msg('login.twoFactor.code')), {
+      target: { value: typed }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
+
+    await waitFor(() =>
+      expect(verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '123456' })
+    )
+  })
+
+  it('sends a pasted username or email without spaces at its ends, the password as typed', async () => {
+    const login = vi.fn().mockResolvedValue({ ok: true })
+    setBridge({ login, verify2fa: vi.fn() })
+    renderLogin()
+
+    fillCredentials(' neo@example.com ', ' red pill ')
+    submit()
+
+    await waitFor(() =>
+      expect(login).toHaveBeenCalledWith({
+        platform: 'vrchat',
+        credentials: { username: 'neo@example.com', password: ' red pill ' }
+      })
+    )
+  })
+
   it('keeps the 2FA form up with an error on a rejected code', async () => {
     setBridge({
       login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
@@ -354,7 +460,7 @@ describe('LoginScreen (W6)', () => {
     fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain(msg('login.error.unknown'))
+    expect(alert.textContent).toContain(msg('login.error.invalidCode'))
     // Still on the 2FA form — retryable.
     expect(screen.getByLabelText(msg('login.twoFactor.code'))).toBeTruthy()
   })
@@ -385,10 +491,13 @@ describe('LoginScreen (W6)', () => {
     // Chromium drops focus from a field once it is disabled; jsdom keeps it.
     const activeElement = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(document.body)
     const refocus = vi.spyOn(code, 'focus')
+    const select = vi.spyOn(code as HTMLInputElement, 'select')
 
     settle({ ok: false, needs2fa: false, error: 'invalid_2fa_code' })
     await screen.findByRole('alert')
     await waitFor(() => expect(refocus).toHaveBeenCalled())
+    // Selected, so the next code replaces the rejected one.
+    expect(select).toHaveBeenCalled()
     activeElement.mockRestore()
   })
 
@@ -734,7 +843,29 @@ describe('LoginScreen — platform tabs (VRX-217)', () => {
     // Settled: the late error lands in the LIVE form and the tabs re-enable.
     release({ ok: false, needs2fa: false, error: 'invalid_credentials' })
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain(msg('login.error.unknown'))
+    expect(alert.textContent).toContain(msg('login.error.invalidCredentials'))
+    await waitFor(() => expect(cvrTab().getAttribute('aria-disabled')).toBeNull())
+    fireEvent.click(cvrTab())
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('keeps the tabs locked while the code prompt is open, and Back unlocks them', async () => {
+    setBridge({
+      login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'email' }),
+      verify2fa: vi.fn()
+    })
+    renderLogin()
+    fillCredentials()
+    submit()
+
+    await screen.findByLabelText(msg('login.twoFactor.code'))
+    await waitFor(() => expect(cvrTab().getAttribute('aria-disabled')).toBe('true'))
+    fireEvent.click(cvrTab())
+    // The prompt survives: switching would throw away a sign-in already started.
+    expect(cvrTab().getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByLabelText(msg('login.twoFactor.code'))).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.back') }))
     await waitFor(() => expect(cvrTab().getAttribute('aria-disabled')).toBeNull())
     fireEvent.click(cvrTab())
     expect(cvrTab().getAttribute('aria-checked')).toBe('true')

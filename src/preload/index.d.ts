@@ -18,13 +18,25 @@ type VrxBridge = {
     req: IpcInvoke['join-explore-room']['req']
   ) => Promise<IpcInvoke['join-explore-room']['res']>
   onExploreChanged: (callback: (event: IpcEvents['explore-changed']) => void) => () => void
+  /** World references only; main resolves them to the platform's world ID. */
+  setHomeWorld: (
+    req: IpcInvoke['set-home-world']['req']
+  ) => Promise<IpcInvoke['set-home-world']['res']>
   getLinkedProfiles: () => Promise<IpcInvoke['get-linked-profiles']['res']>
   changeLinkedProfile: (
     req: IpcInvoke['change-linked-profile']['req']
   ) => Promise<IpcInvoke['change-linked-profile']['res']>
   onLinkedProfilesChanged: (callback: () => void) => () => void
   getFriends: (req: IpcInvoke['get-friends']['req']) => Promise<IpcInvoke['get-friends']['res']>
-  getAvatar: (url: string, rendition?: 'avatar') => Promise<IpcInvoke['get-avatar']['res']>
+  getAvatar: (
+    url: string,
+    rendition?: 'avatar' | 'picture'
+  ) => Promise<IpcInvoke['get-avatar']['res']>
+  /** A picture main already keeps in memory or on disk; never a download. */
+  getKeptAvatar: (
+    url: string,
+    rendition?: 'avatar' | 'picture'
+  ) => Promise<IpcInvoke['get-avatar']['res']>
   getAvatarLibrary: (
     req: IpcInvoke['get-avatar-library']['req']
   ) => Promise<IpcInvoke['get-avatar-library']['res']>
@@ -38,6 +50,37 @@ type VrxBridge = {
   switchAvatar: (
     req: IpcInvoke['switch-avatar']['req']
   ) => Promise<IpcInvoke['switch-avatar']['res']>
+  getProfile: (req: IpcInvoke['get-profile']['req']) => Promise<IpcInvoke['get-profile']['res']>
+  getProfileWorlds: (
+    req: IpcInvoke['get-profile-worlds']['req']
+  ) => Promise<IpcInvoke['get-profile-worlds']['res']>
+  getProfileGroups: (
+    req: IpcInvoke['get-profile-groups']['req']
+  ) => Promise<IpcInvoke['get-profile-groups']['res']>
+  searchCommunity: (
+    req: IpcInvoke['search-community']['req']
+  ) => Promise<IpcInvoke['search-community']['res']>
+  getWorldList: (
+    req: IpcInvoke['get-world-list']['req']
+  ) => Promise<IpcInvoke['get-world-list']['res']>
+  getPlayersOnline: (
+    req: IpcInvoke['get-players-online']['req']
+  ) => Promise<IpcInvoke['get-players-online']['res']>
+  getMyGroups: (
+    req: IpcInvoke['get-my-groups']['req']
+  ) => Promise<IpcInvoke['get-my-groups']['res']>
+  getOwnProfile: (
+    req: IpcInvoke['get-own-profile']['req']
+  ) => Promise<IpcInvoke['get-own-profile']['res']>
+  saveOwnProfile: (
+    req: IpcInvoke['save-own-profile']['req']
+  ) => Promise<IpcInvoke['save-own-profile']['res']>
+  getRelationship: (
+    req: IpcInvoke['get-relationship']['req']
+  ) => Promise<IpcInvoke['get-relationship']['res']>
+  socialAction: (
+    req: IpcInvoke['social-action']['req']
+  ) => Promise<IpcInvoke['social-action']['res']>
   getAccounts: () => Promise<IpcInvoke['get-accounts']['res']>
   getAuthStatus: (
     req: IpcInvoke['get-auth-status']['req']
@@ -60,23 +103,36 @@ type VrxBridge = {
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   /** The in-memory activity list; reading it makes no platform request. */
   getActivity: () => Promise<IpcInvoke['get-activity']['res']>
-  clearActivity: () => Promise<IpcInvoke['clear-activity']['res']>
+  /** Forget only what the Activity page shows: its platforms and kind. */
+  clearActivity: (
+    req: IpcInvoke['clear-activity']['req']
+  ) => Promise<IpcInvoke['clear-activity']['res']>
   /** The activity list changed (coalesced). Returns an unsubscribe. */
   onActivityChanged: (callback: () => void) => () => void
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
   openLogsFolder: () => Promise<IpcInvoke['open-logs-folder']['res']>
   openBugReport: () => Promise<IpcInvoke['open-bug-report']['res']>
+  /** One test alert to XSOverlay; main sends it to this computer only. */
+  testVrAlert: () => Promise<IpcInvoke['test-vr-alert']['res']>
   /** The user's background picture; main owns the file and the picking dialog. */
   getAppBackground: () => Promise<IpcInvoke['get-app-background']['res']>
   chooseAppBackground: () => Promise<IpcInvoke['choose-app-background']['res']>
   clearAppBackground: () => Promise<IpcInvoke['clear-app-background']['res']>
-  /** View-only inbox: rows the sockets delivered while VRX was open. */
+  /** The inbox: rows the sockets delivered while VRX was open. */
   getInbox: () => Promise<IpcInvoke['get-inbox']['res']>
   /** Hide a row in VRX only; nothing reaches the platform. */
   dismissInboxItem: (
     req: IpcInvoke['dismiss-inbox-item']['req']
   ) => Promise<IpcInvoke['dismiss-inbox-item']['res']>
   clearInbox: (req: IpcInvoke['clear-inbox']['req']) => Promise<IpcInvoke['clear-inbox']['res']>
+  /** Accept or decline one friend request row; main looks the row up itself. */
+  answerFriendRequest: (
+    req: IpcInvoke['answer-friend-request']['req']
+  ) => Promise<IpcInvoke['answer-friend-request']['res']>
+  /** Send a friend request to someone a search listed this session. */
+  sendFriendRequest: (
+    req: IpcInvoke['send-friend-request']['req']
+  ) => Promise<IpcInvoke['send-friend-request']['res']>
   /** The inbox changed; read it again. Returns an unsubscribe. */
   onInboxChanged: (callback: () => void) => () => void
   getSettings: () => Promise<IpcInvoke['get-settings']['res']>
@@ -93,6 +149,9 @@ type VrxBridge = {
   setFriendNote: (
     req: IpcInvoke['set-friend-note']['req']
   ) => Promise<IpcInvoke['set-friend-note']['res']>
+  syncFriendNote: (
+    req: IpcInvoke['sync-friend-note']['req']
+  ) => Promise<IpcInvoke['sync-friend-note']['res']>
   /** Local friend picks for alerts (per signed-in account). */
   getAlertPicks: (
     req: IpcInvoke['get-alert-picks']['req']
@@ -100,6 +159,26 @@ type VrxBridge = {
   setAlertPick: (
     req: IpcInvoke['set-alert-pick']['req']
   ) => Promise<IpcInvoke['set-alert-pick']['res']>
+  /** Favorite friends and worlds, kept only in VRX (per signed-in account). */
+  getFavoriteFriends: (
+    req: IpcInvoke['get-favorite-friends']['req']
+  ) => Promise<IpcInvoke['get-favorite-friends']['res']>
+  setFavoriteFriend: (
+    req: IpcInvoke['set-favorite-friend']['req']
+  ) => Promise<IpcInvoke['set-favorite-friend']['res']>
+  getFavoriteWorlds: (
+    req: IpcInvoke['get-favorite-worlds']['req']
+  ) => Promise<IpcInvoke['get-favorite-worlds']['res']>
+  setFavoriteWorld: (
+    req: IpcInvoke['set-favorite-world']['req']
+  ) => Promise<IpcInvoke['set-favorite-world']['res']>
+  /** Favorites in the user's own VRChat or ChilloutVR account. */
+  getGameFavorites: (
+    req: IpcInvoke['get-game-favorites']['req']
+  ) => Promise<IpcInvoke['get-game-favorites']['res']>
+  setGameFavorite: (
+    req: IpcInvoke['set-game-favorite']['req']
+  ) => Promise<IpcInvoke['set-game-favorite']['res']>
   /** The settings-backed document attributes are ready for the first reveal. */
   notifyRendererHydrated: () => void
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */

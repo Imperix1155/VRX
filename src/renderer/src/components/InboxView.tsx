@@ -2,16 +2,22 @@
  * Inbox page (owner, 2026-10-27): invites, invite requests and friend requests
  * the platform sockets delivered while VRX was open, for both platforms alike.
  *
- * View-only by design. Answering stays in the game or on the platform's site;
- * Hide only takes a row out of VRX and sends nothing. Rows follow the platform
- * filter, carry the platform as a word (PlatformPill) beside its color, and
- * show a known friend's current name and picture. The TopBar owns the heading.
+ * Friend requests can be accepted or declined here (owner, 2026-11-01): one
+ * press sends one answer, and the row leaves once the platform took it.
+ * Invites stay view-only; Hide only takes a row out of VRX and sends nothing.
+ * Rows follow the platform filter, carry the platform as a word (PlatformPill)
+ * beside its color, and show a known friend's current name and picture. The
+ * TopBar owns the heading.
  */
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { FriendRequestAnswer } from '@shared/friendActions'
 import type { InboxItem, InboxKind } from '@shared/inbox'
 import type { Friend, Platform } from '@shared/types'
 import { useInbox, dismissInboxItem, clearInbox } from '../queries/inbox'
+import { useAnswerFriendRequest } from '../queries/friendActions'
+import { platformName } from '../utils/community'
+import { FRIEND_ACTION_ERROR_KEYS, FRIEND_ACTION_BUTTON } from '../utils/friendActions'
 import { useFriends } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useAvatar } from '../hooks/useAvatar'
@@ -20,16 +26,11 @@ import { useUiStore } from '../stores/ui'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { inboxActionText, relativeInboxTime, scopeInboxItems } from '../utils/inbox'
 import PlatformPill from './PlatformPill'
+import { initialOf } from '../utils/initialOf'
+import NotConnectedCard from './NotConnectedCard'
 
 /** Ages refresh once a minute while the page is open; no data is read. */
 const AGE_TICK_MS = 60_000
-
-const graphemes = new Intl.Segmenter()
-
-function initialOf(name: string): string {
-  const first = graphemes.segment(name.trim())[Symbol.iterator]().next()
-  return first.done === true ? '?' : first.value.segment.toUpperCase()
-}
 
 const HIDE_ARIA_KEYS: Record<InboxKind, string> = {
   invite: 'inbox.hideInviteAria',
@@ -72,7 +73,8 @@ const QUIET_BUTTON = [
   'shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium',
   'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)]',
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)]',
-  'disabled:cursor-default disabled:opacity-50 motion-safe:transition-colors cursor-pointer'
+  'disabled:cursor-default disabled:opacity-50 aria-disabled:cursor-default aria-disabled:opacity-50',
+  'motion-safe:transition-colors cursor-pointer'
 ].join(' ')
 
 export default function InboxView(): React.JSX.Element {
@@ -86,6 +88,12 @@ export default function InboxView(): React.JSX.Element {
     useNotConnectedGate(platformFilter)
   const [helpOpen, setHelpOpen] = useState(false)
   const [hideFailed, setHideFailed] = useState(false)
+  /** Rows whose answer is on its way, by row key. */
+  const [answering, setAnswering] = useState<ReadonlyMap<string, FriendRequestAnswer>>(
+    () => new Map()
+  )
+  const answerFriendRequest = useAnswerFriendRequest()
+  const [notice, setNotice] = useState<{ tone: 'done' | 'error'; text: string } | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const helpId = useId()
   const listRef = useRef<HTMLDivElement>(null)
@@ -126,12 +134,15 @@ export default function InboxView(): React.JSX.Element {
   }, [items, markInboxSeen])
 
   // After a row leaves, keep keyboard focus in the list: the row that took its
-  // place, the one above, or the help button when the list emptied.
-  useEffect(() => {
+  // place, the one above, or the help button when the list emptied. Focus the
+  // user moved elsewhere while the row was on its way out stays put.
+  useLayoutEffect(() => {
     const pending = focusAfterHide.current
     if (pending === null || ordered.some((row) => pending.ids.has(`${row.platform}:${row.id}`)))
       return
     focusAfterHide.current = null
+    const active = document.activeElement
+    if (active !== null && active !== document.body) return
     const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>('[data-inbox-hide]')
     const target = buttons?.[Math.min(pending.index, buttons.length - 1)]
     ;(target ?? helpButtonRef.current)?.focus()
@@ -153,6 +164,40 @@ export default function InboxView(): React.JSX.Element {
     setHideFailed(!ok)
   }
 
+  const answer = async (item: InboxItem, choice: FriendRequestAnswer): Promise<void> => {
+    const key = `${item.platform}:${item.id}`
+    const name = nameOf(item)
+    const index = Math.max(
+      0,
+      ordered.findIndex((row) => row.id === item.id)
+    )
+    setNotice(null)
+    setAnswering((prev) => new Map(prev).set(key, choice))
+    focusAfterHide.current = { ids: new Set([key]), index }
+    const result = await answerFriendRequest(item.platform, item.id, choice)
+    setAnswering((prev) => {
+      const next = new Map(prev)
+      next.delete(key)
+      return next
+    })
+    if (result.ok) {
+      setNotice({
+        tone: 'done',
+        text: t(choice === 'accept' ? 'friendActions.accepted' : 'friendActions.declined', {
+          name
+        })
+      })
+      return
+    }
+    focusAfterHide.current = null
+    setNotice({
+      tone: 'error',
+      text: t(FRIEND_ACTION_ERROR_KEYS[result.reason], {
+        platform: platformName(t, item.platform)
+      })
+    })
+  }
+
   const hideAll = async (): Promise<void> => {
     const platforms = [...new Set(items.map((item) => item.platform))]
     focusAfterHide.current = {
@@ -169,18 +214,10 @@ export default function InboxView(): React.JSX.Element {
   }
   if (isNotConnected) {
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
-        <p className="text-sm font-semibold text-[var(--text-dim)]">
-          {selectedPlatform === null ? null : t(NOT_CONNECTED_KEY.inbox[selectedPlatform])}
-        </p>
-        <button
-          type="button"
-          onClick={openAccounts}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-        >
-          {t('dashboard.notConnected.openAccounts')}
-        </button>
-      </div>
+      <NotConnectedCard
+        message={selectedPlatform === null ? null : t(NOT_CONNECTED_KEY.inbox[selectedPlatform])}
+        onOpenAccounts={openAccounts}
+      />
     )
   }
   if (inbox.isError && inbox.data === undefined) {
@@ -209,9 +246,12 @@ export default function InboxView(): React.JSX.Element {
           {rows.map((item) => {
             const name = nameOf(item)
             const age = relativeInboxTime(item.receivedAt, now, i18n.language) ?? t('inbox.justNow')
+            const sending = answering.get(`${item.platform}:${item.id}`)
             return (
               <li
-                key={`${item.platform}:${item.id}`}
+                // Keyed by sender and kind, which main keeps one row for, so
+                // a newer invite that replaces a row keeps its focus.
+                key={`${item.platform}:${item.kind}:${item.senderId}`}
                 className={`platform-row platform-row--${item.platform} flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)]`}
               >
                 <InboxAvatar name={name} friend={friendsById[item.platform].get(item.senderId)} />
@@ -231,10 +271,46 @@ export default function InboxView(): React.JSX.Element {
                     <time dateTime={new Date(item.receivedAt).toISOString()}>{age}</time>
                   </p>
                 </div>
+                {item.kind === 'friend-request' ? (
+                  <div className="flex shrink-0 items-center gap-[var(--space-1)]">
+                    {/* Not `disabled` while answering: a disabled button
+                        drops keyboard focus, and a failed answer would leave
+                        it on the page. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sending === undefined) void answer(item, 'accept')
+                      }}
+                      aria-disabled={sending !== undefined}
+                      aria-label={t('friendActions.acceptAria', { name })}
+                      className={FRIEND_ACTION_BUTTON}
+                    >
+                      {sending === 'accept'
+                        ? t('friendActions.accepting')
+                        : t('friendActions.accept')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sending === undefined) void answer(item, 'decline')
+                      }}
+                      aria-disabled={sending !== undefined}
+                      aria-label={t('friendActions.declineAria', { name })}
+                      className={QUIET_BUTTON}
+                    >
+                      {sending === 'decline'
+                        ? t('friendActions.declining')
+                        : t('friendActions.decline')}
+                    </button>
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   data-inbox-hide=""
-                  onClick={() => void hide(item)}
+                  onClick={() => {
+                    if (sending === undefined) void hide(item)
+                  }}
+                  aria-disabled={sending !== undefined}
                   aria-label={t(HIDE_ARIA_KEYS[item.kind], { name })}
                   className={QUIET_BUTTON}
                 >
@@ -281,7 +357,7 @@ export default function InboxView(): React.JSX.Element {
       <div
         id={helpId}
         hidden={!helpOpen}
-        className="glass glass-information p-[var(--space-4)] text-sm leading-relaxed text-[var(--text-dim)]"
+        className="glass glass-layer p-[var(--space-4)] text-sm leading-relaxed text-[var(--text-dim)]"
       >
         <p>{t('inbox.help.answer')}</p>
         <p className="mt-[var(--space-2)]">{t('inbox.help.live')}</p>
@@ -291,10 +367,18 @@ export default function InboxView(): React.JSX.Element {
           {t('inbox.hideFailed')}
         </p>
       ) : null}
+      <p
+        role="status"
+        className={`canvas-text text-sm empty:hidden ${
+          notice?.tone === 'error' ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'
+        }`}
+      >
+        {notice?.text}
+      </p>
       {items.length === 0 ? (
-        <div className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
+        <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
           <p className="text-sm font-semibold text-[var(--text-dim)]">{t('inbox.emptyHeading')}</p>
-          <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
+          <p className="mt-[var(--space-1)] max-w-[52ch] text-balance text-xs text-[var(--text-dim)]">
             {t('inbox.emptyHint')}
           </p>
         </div>

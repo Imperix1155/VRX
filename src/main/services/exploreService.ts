@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type {
+  ExploreCount,
   ExplorePlatformSnapshot,
   ExploreImageResult,
   ExploreRefreshReason,
@@ -37,11 +38,25 @@ import { isAllowedLaunchUrl } from '../ipc/url-allowlist'
 const FRESH_MS = 60_000
 const RETAIN_MS = 300_000
 const DEADLINE_MS = 45_000
+/**
+ * New picture downloads per platform per rolling minute (docs/api-policy.md).
+ * Enough for a full Search page (10 worlds) or an Explore list (12) at once;
+ * VRChat pictures still start at most one per second in the shared queue.
+ */
+export const EXPLORE_IMAGE_FETCHES_PER_MINUTE = 24
+/** Picture downloads one platform may have running at once. */
+export const EXPLORE_IMAGE_MAX_OUTSTANDING = 2
 const IMAGE_CAPACITY_RETRY_MS = 2_000
 const IMAGE_RETRY_JITTER_MS = 750
 const IMAGE_RETRY_MIN_MS = 250
 const IMAGE_RETRY_MAX_MS = 60_000
 const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
+/**
+ * Worlds adopted from search, the other lists and favorites, per platform
+ * (oldest use drops first). Room for VRX's own favorites (100) and the game
+ * account's favorite worlds (400) plus a search and a list beside them.
+ */
+const ADOPTED_LIMIT = 640
 type MainAdapter = ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>
 type LoadStatus = ExplorePlatformSnapshot['status']
 type Problem = ExplorePlatformSnapshot['problem']
@@ -83,6 +98,9 @@ interface SharedRead<T> {
 interface State {
   session: ResolvedAccountSession | null
   worlds: Map<string, WorldRecord>
+  /** Worlds named by a search or a New / Recently updated list. They live
+   *  beside the candidates so a candidate refresh never drops their references. */
+  adopted: Map<string, WorldRecord>
   candidateIds: string[]
   worldReads: Map<string, SharedRead<ExploreWorldDetail | null>>
   roomReads: Map<string, SharedRead<ExploreRoomEvidence | null>>
@@ -122,6 +140,9 @@ export interface ExploreServiceOptions {
   joinCoordinator: JoinCoordinator
   isJoinAllowed: () => boolean
   getImage: (url: string) => Promise<string | null>
+  /** A picture already kept in memory or on disk, or null. Never a request,
+   *  so it is answered before the image fetch budget is charged. */
+  peekImage?: (url: string) => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   /** Reach a game that is already open (`GameHandoff.deliver`). Without it,
    *  a Join always launches through `openExternal`. */
@@ -134,6 +155,8 @@ export interface ExploreServiceOptions {
   onChanged: (platform: Platform) => void
   clock?: () => number
   wallClock?: () => number
+  /** Tests only: a smaller per-minute picture budget than the shipped one. */
+  imageFetchesPerMinute?: number
 }
 
 /** Account-owned discovery caches with event-driven loads and bounded physical attempts. */
@@ -165,7 +188,7 @@ export class ExploreService {
           if (state.candidateJob) state.candidateAttemptAt = null
           if (state.worldJob) {
             const ref = state.worldJob.worldRef
-            for (const world of state.worlds.values()) {
+            for (const world of [...state.worlds.values(), ...state.adopted.values()]) {
               if (world.ref === ref) world.lastAttemptAt = null
             }
           }
@@ -228,6 +251,71 @@ export class ExploreService {
     }
   }
 
+  /**
+   * Issue references for worlds another main-side read named (a search, or
+   * the New and Recently updated lists), so the same world sheet, images and
+   * Join work for them. Adopting makes no request: the sheet reads the world
+   * only when the user opens it, exactly as for a Popular now world.
+   */
+  adoptWorlds(platform: Platform, evidence: readonly ExploreWorldEvidence[]): ExploreWorld[] {
+    const state = this.state(platform)
+    if (this.disposed || !state.session) return []
+    const now = this.clock()
+    const adopted: ExploreWorld[] = []
+    const seen = new Set<string>()
+    for (const item of evidence.slice(0, ADOPTED_LIMIT)) {
+      if (item.platform !== platform || seen.has(item.worldId)) continue
+      seen.add(item.worldId)
+      let world = state.worlds.get(item.worldId)
+      if (!world) {
+        world = state.adopted.get(item.worldId)
+        if (world) {
+          // Re-insert so the most recently used world is the last to go.
+          state.adopted.delete(item.worldId)
+          // Display values may change between reads; a world sheet's own read
+          // (detail) stays the fresher source while it lasts. A read that
+          // knows no counts at all (a favorite) keeps the counts already shown.
+          if (!world.detail) world.evidence = this.mergedEvidence(world.evidence, item)
+        } else {
+          world = this.newWorld({ ...item })
+        }
+        state.adopted.set(item.worldId, world)
+      }
+      world.lastUsedAt = now
+      adopted.push(this.publicWorld(state, world))
+    }
+    for (const [id, world] of state.adopted) {
+      if (state.adopted.size <= ADOPTED_LIMIT) break
+      if (world.ref === state.selectedRef || world.ref === state.suspendedRef) continue
+      state.adopted.delete(id)
+    }
+    this.pruneSelections(state)
+    return adopted
+  }
+
+  /**
+   * What main knows about a world it handed out, for starring it. Only a live
+   * reference answers, so the renderer can never name a world's picture.
+   */
+  worldEvidence(platform: Platform, worldRef: string): ExploreWorldEvidence | null {
+    const state = this.state(platform)
+    if (!this.current(platform, state)) return null
+    const world = this.findWorld(state, worldRef)
+    return world ? { ...world.evidence } : null
+  }
+
+  /**
+   * The platform world ID behind a reference main issued to the current
+   * account, or null once it expired or the account changed. Lets another
+   * main service act on a world the user opened without trusting an ID from
+   * the renderer. Makes no request.
+   */
+  worldIdFor(platform: Platform, worldRef: string): string | null {
+    const state = this.state(platform)
+    if (!this.current(platform, state)) return null
+    return this.findWorld(state, worldRef)?.evidence.worldId ?? null
+  }
+
   async getImage(platform: Platform, worldRef: string): Promise<ExploreImageResult> {
     const state = this.state(platform)
     const world = this.findWorld(state, worldRef)
@@ -236,29 +324,80 @@ export class ExploreService {
     if (!url) return null
     const cached = state.images.get(url)
     if (cached) return { ok: true, dataUrl: cached }
-    let pending = state.imagePending.get(url)
-    if (!pending) {
-      if ((this.imageOutstanding.get(platform) ?? 0) >= 2)
-        return this.imageDeferral(platform, worldRef, 'capacity')
-      if (!this.take(this.imageStarts, platform, 6))
-        return this.imageDeferral(platform, worldRef, 'window')
-      this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 0) + 1)
-      pending = Promise.resolve()
-        .then(() => this.options.getImage(url))
-        .catch(() => null)
-      state.imagePending.set(url, pending)
-      const owned = pending
-      void pending.then(() => {
-        this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 1) - 1)
-        if (state.imagePending.get(url) === owned) state.imagePending.delete(url)
-      })
+    if (!state.imagePending.has(url)) {
+      const kept = await this.keptImage(platform, state, worldRef, url)
+      if (kept !== undefined) return kept
     }
+    const pending = state.imagePending.get(url) ?? this.startImageFetch(platform, state, url)
+    if (typeof pending === 'string') return this.imageDeferral(platform, worldRef, pending)
     const dataUrl = await pending
-    if (!dataUrl || !this.current(platform, state) || !this.findWorld(state, worldRef)) return null
+    return dataUrl ? this.handOutImage(platform, state, worldRef, url, dataUrl) : null
+  }
+
+  /**
+   * A picture already kept costs no request, so it never waits for (or uses
+   * up) the fetch budget (docs/api-policy.md: new fetches only). Undefined
+   * means "download it". The lookup waits on the disk, so a card that the
+   * account or list dropped meanwhile gets null and starts no download.
+   */
+  private async keptImage(
+    platform: Platform,
+    state: State,
+    worldRef: string,
+    url: string
+  ): Promise<ExploreImageResult | undefined> {
+    const peek = this.options.peekImage?.(url)
+    if (!peek) return undefined
+    const kept = await peek.catch(() => null)
+    if (kept) return this.handOutImage(platform, state, worldRef, url, kept)
+    return this.stillShown(platform, state, worldRef) ? undefined : null
+  }
+
+  private stillShown(platform: Platform, state: State, worldRef: string): boolean {
+    if (!this.active.has(platform) || !this.current(platform, state)) return false
+    return this.findWorld(state, worldRef) !== null
+  }
+
+  /** Starts one picture download inside the budget, or says why it must wait. */
+  private startImageFetch(
+    platform: Platform,
+    state: State,
+    url: string
+  ): Promise<string | null> | 'capacity' | 'window' {
+    if ((this.imageOutstanding.get(platform) ?? 0) >= EXPLORE_IMAGE_MAX_OUTSTANDING)
+      return 'capacity'
+    const perMinute = this.options.imageFetchesPerMinute ?? EXPLORE_IMAGE_FETCHES_PER_MINUTE
+    if (!this.take(this.imageStarts, platform, perMinute)) return 'window'
+    this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 0) + 1)
+    const pending = Promise.resolve()
+      .then(() => this.options.getImage(url))
+      .catch(() => null)
+    state.imagePending.set(url, pending)
+    void pending.then(() => {
+      this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 1) - 1)
+      if (state.imagePending.get(url) === pending) state.imagePending.delete(url)
+    })
+    return pending
+  }
+
+  /** A picture for a world still shown to the same account, kept for reuse. */
+  private handOutImage(
+    platform: Platform,
+    state: State,
+    worldRef: string,
+    url: string,
+    dataUrl: string
+  ): ExploreImageResult {
+    if (!this.current(platform, state) || !this.findWorld(state, worldRef)) return null
+    this.keepImage(state, url, dataUrl)
+    return { ok: true, dataUrl }
+  }
+
+  /** Remembers the last 12 pictures handed out, most recent last. */
+  private keepImage(state: State, url: string, dataUrl: string): void {
     state.images.delete(url)
     state.images.set(url, dataUrl)
     while (state.images.size > 12) state.images.delete(state.images.keys().next().value!)
-    return { ok: true, dataUrl }
   }
 
   async joinRoom(
@@ -369,6 +508,7 @@ export class ExploreService {
     const state: State = {
       session,
       worlds: new Map(),
+      adopted: new Map(),
       candidateIds: [],
       worldReads: new Map(),
       roomReads: new Map(),
@@ -449,7 +589,7 @@ export class ExploreService {
     const staged = new Map<string, WorldRecord>()
     for (const evidence of candidates.slice(0, 12)) {
       if (evidence.platform !== platform || staged.has(evidence.worldId)) continue
-      const existing = state.worlds.get(evidence.worldId)
+      const existing = state.worlds.get(evidence.worldId) ?? state.adopted.get(evidence.worldId)
       staged.set(
         evidence.worldId,
         existing
@@ -490,7 +630,9 @@ export class ExploreService {
     this.check(job)
     // Candidate refresh owns membership. A more recent sheet read retains its evidence.
     for (const [id, world] of staged) {
-      const live = state.worlds.get(id)
+      // An adopted world that became a candidate keeps its record, so an open
+      // sheet and its selections stay valid.
+      const live = state.worlds.get(id) ?? state.adopted.get(id)
       if (live?.detail && (!world.detail || live.detail.fetchedAt > world.detail.fetchedAt)) {
         world.detail = live.detail
       } else if (live?.detail && world.detail) {
@@ -518,6 +660,7 @@ export class ExploreService {
       }
     }
     state.worlds = staged
+    for (const id of staged.keys()) state.adopted.delete(id)
     state.candidateIds = [...staged.values()]
       .filter((world) => platform === 'vrchat' || this.qualifiedRooms(world).length > 0)
       .map((world) => world.evidence.worldId)
@@ -811,6 +954,22 @@ export class ExploreService {
     }
   }
 
+  private mergedEvidence(
+    previous: ExploreWorldEvidence,
+    next: ExploreWorldEvidence
+  ): ExploreWorldEvidence {
+    const knowsNothing = (count: ExploreCount): boolean =>
+      count.state === 'unknown' && count.source === 'unknown'
+    return {
+      ...next,
+      activity: knowsNothing(next.activity) ? previous.activity : next.activity,
+      visibleRoomCount: knowsNothing(next.visibleRoomCount)
+        ? previous.visibleRoomCount
+        : next.visibleRoomCount,
+      popularity: next.popularity ?? previous.popularity
+    }
+  }
+
   private newWorld(evidence: ExploreWorldEvidence): WorldRecord {
     return {
       evidence,
@@ -906,11 +1065,13 @@ export class ExploreService {
 
   private findWorld(state: State, ref: string): WorldRecord | null {
     if (!state.session) return null
-    return (
-      [...state.worlds.values()].find(
-        (world) => world.ref === ref && world.refExpiresAt > this.clock()
-      ) ?? null
-    )
+    const now = this.clock()
+    for (const records of [state.worlds, state.adopted]) {
+      for (const world of records.values()) {
+        if (world.ref === ref && world.refExpiresAt > now) return world
+      }
+    }
+    return null
   }
 
   private findSelection(state: State, ref: string): Selection | null {
@@ -918,12 +1079,16 @@ export class ExploreService {
     if (
       !selection ||
       selection.expiresAt <= this.clock() ||
-      state.worlds.get(selection.world.evidence.worldId) !== selection.world ||
+      this.recordFor(state, selection.world.evidence.worldId) !== selection.world ||
       selection.generation !== selection.world.generation ||
       !selection.world.detail?.ids.includes(selection.roomId)
     )
       return null
     return selection
+  }
+
+  private recordFor(state: State, worldId: string): WorldRecord | undefined {
+    return state.worlds.get(worldId) ?? state.adopted.get(worldId)
   }
 
   private pruneSelections(state: State): void {
@@ -967,7 +1132,7 @@ export class ExploreService {
 
   private expireDetails(state: State): void {
     const now = this.clock()
-    for (const world of state.worlds.values()) {
+    for (const world of [...state.worlds.values(), ...state.adopted.values()]) {
       if (world.detail && world.lastUsedAt + RETAIN_MS <= now && state.selectedRef !== world.ref) {
         world.detail = null
         world.status = 'idle'
@@ -994,7 +1159,8 @@ export class ExploreService {
     return {
       ok: false,
       reason: 'deferred',
-      retryAfterMs: Math.max(IMAGE_RETRY_MIN_MS, Math.min(IMAGE_RETRY_MAX_MS, delay))
+      retryAfterMs: Math.max(IMAGE_RETRY_MIN_MS, Math.min(IMAGE_RETRY_MAX_MS, delay)),
+      wait: reason === 'capacity' ? 'busy' : 'window'
     }
   }
   private imageRetryJitter(worldRef: string): number {

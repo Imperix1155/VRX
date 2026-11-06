@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import InstancePill from './InstancePill'
 import type {
   ExploreCount,
   ExploreJoinDenial,
@@ -7,8 +8,16 @@ import type {
   ExploreWorldSnapshot
 } from '@shared/explore'
 import PlatformPill from './PlatformPill'
+import WorldFavoriteStar from './WorldFavoriteStar'
+import HomeWorldControl from './HomeWorldControl'
+import SheetGrabBar from './SheetGrabBar'
+import { SheetFacts, type SheetFact } from './SheetFacts'
+import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
+import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { joinFailureMessageKey, type JoinFeedback } from '../hooks/useJoinInstance'
 import { formatCount, regionLabelKey } from '../utils/exploreFormat'
+import { instancePillFor } from '../utils/instancePill'
+import { useSettingsStore } from '../stores/settings'
 
 /** Failures where "refresh and try again" is wrong advice; they keep their own copy.
  *  Explore's `stale` means an expired selection, so refreshing is the right advice.
@@ -60,7 +69,7 @@ function Count({ count }: { count: ExploreCount }): React.JSX.Element {
     <>
       {count.state === 'complete'
         ? formatCount(count.value, i18n.language)
-        : t('explore.unknownCount')}
+        : t('explore.countUnknown')}
     </>
   )
 }
@@ -74,6 +83,7 @@ function RoomRow({
 }: {
   room: ExploreRoom
   onJoin: (room: ExploreRoom) => void
+  /** Whether this room's Join could run once no other Join is running. */
   actionAllowed: boolean
   /** Saved results: an otherwise joinable room asks for a refresh first. */
   stale: boolean
@@ -81,8 +91,16 @@ function RoomRow({
 }): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const detailsId = useId()
-  const enabled = actionAllowed && room.action.state === 'available'
-  const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
+  const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
+  const open = actionAllowed && room.action.state === 'available'
+  const enabled = open && !joining
+  // While a Join runs, a room that is otherwise open keeps keyboard focus
+  // (aria-disabled): a disabled button would drop it to the page. A room that
+  // can't be joined anyway stays disabled, as it is when nothing runs.
+  const waiting = open && joining
+  // The shared resolver, so a room reads exactly like the same access type
+  // anywhere else in the app.
+  const pill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
   const region = regionLabelKey(room.platform, room.region)
   const details = [region === null ? null : t(region), room.groupName].filter(
     (part): part is string => part !== null
@@ -100,9 +118,8 @@ function RoomRow({
     <li className="flex min-w-0 items-center justify-between gap-[var(--space-3)] rounded-[13px] border border-[var(--border)] bg-[var(--control-fill)] p-[var(--space-3)]">
       <div id={detailsId} className="min-w-0">
         <div className="flex flex-wrap items-center gap-[var(--space-2)]">
-          <span className="rounded-[9px] border border-[var(--border)] px-[var(--space-2)] py-[var(--space-0-5)] text-xs font-semibold text-[var(--text)]">
-            {access}
-          </span>
+          {/* The same tier-colored pill as every other instance surface. */}
+          <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
           <span className="text-xs text-[var(--text-dim)]">
             <Count count={room.occupancy} />
             {room.capacity === null ? '' : ` / ${formatCount(room.capacity, i18n.language)}`}
@@ -117,13 +134,27 @@ function RoomRow({
       <div className="shrink-0">
         <button
           type="button"
-          disabled={!enabled}
+          disabled={!enabled && !waiting}
+          aria-disabled={waiting || undefined}
           title={disabledLabel ?? undefined}
           aria-describedby={detailsId}
           onClick={() => {
             if (enabled) onJoin(room)
           }}
-          className="rounded-[10px] bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:text-[var(--text-faint)]"
+          // An open Join wears the same green as the friend card's and the hot
+          // sheet's; a room that can't be joined stays neutral.
+          className={`rounded-[10px] border border-transparent bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-sm font-semibold text-[var(--text)] ${enabled ? 'hover:brightness-110' : ''} focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:text-[var(--text-faint)] aria-disabled:cursor-default aria-disabled:text-[var(--text-faint)] motion-safe:transition-[filter]`}
+          style={
+            enabled
+              ? {
+                  borderColor:
+                    'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+                  background:
+                    'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
+                  color: 'var(--op-public-text)'
+                }
+              : undefined
+          }
         >
           {enabled ? t('drawer.join') : disabledLabel}
         </button>
@@ -146,7 +177,7 @@ export default function ExploreWorldSheet({
   joinFailureFor,
   consumeFocusRestoreSuppression
 }: ExploreWorldSheetProps): React.JSX.Element {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [retained, setRetained] = useState<ExploreWorldSnapshot | null>(null)
   if (snapshot !== null && snapshot !== retained) setRetained(snapshot)
   const shown = snapshot ?? retained
@@ -158,6 +189,15 @@ export default function ExploreWorldSheet({
   const panelRef = useRef<HTMLDivElement>(null)
   const openerRef = useRef<HTMLElement | null>(null)
   const wasOpenRef = useRef(false)
+  const expansion = useSheetExpansion({
+    open,
+    onClose,
+    panelRef,
+    collapsed: { minHeight: '0px', maxHeight: '55vh' }
+  })
+  // The scroll area is keyed by world, so another world starts at its top; the
+  // same world opened again starts there too, like the hot and community sheets.
+  const scrollRef = useScrollTopOnShow(open)
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const [expiredFreshnessKey, setExpiredFreshnessKey] = useState<string | null>(null)
   const freshnessKey =
@@ -192,7 +232,10 @@ export default function ExploreWorldSheet({
     }
     wasOpenRef.current = open
   }, [consumeFocusRestoreSuppression, focusFallback, open])
-  useEffect(() => {
+  // The sheet shows when its rooms arrive, not on the press that opened it,
+  // so Escape and a press outside start working in the commit that shows it,
+  // not a task later.
+  useLayoutEffect(() => {
     if (!open || !dismissable) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
@@ -200,7 +243,7 @@ export default function ExploreWorldSheet({
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose, open, dismissable])
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !dismissable) return
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target
@@ -220,6 +263,37 @@ export default function ExploreWorldSheet({
   // empty list keeps its own line, and Refresh stays available beside it.
   const showStaleNote =
     isStale && shown.rooms.length > 0 && shown.status !== 'error' && shown.status !== 'unavailable'
+  const notShown = t('sheet.notShown')
+  const regions = [
+    ...new Set(
+      shown.rooms
+        .map((room) => regionLabelKey(room.platform, room.region))
+        .filter((key): key is string => key !== null)
+        .map((key) => t(key))
+    )
+  ]
+  const moreFacts: SheetFact[] = [
+    {
+      label: t('explore.more.people'),
+      value:
+        world.activity.state === 'complete'
+          ? formatCount(world.activity.value, i18n.language)
+          : t('explore.unknownCount')
+    },
+    {
+      label: t('explore.more.regions'),
+      value: regions.length > 0 ? regions.join(t('listSeparator')) : notShown
+    },
+    {
+      label: t('explore.more.checked'),
+      value:
+        shown.updatedAt === null
+          ? notShown
+          : new Intl.DateTimeFormat(i18n.language, { timeStyle: 'short' }).format(
+              new Date(shown.updatedAt)
+            )
+    }
+  ]
   return (
     <div inert={!open} aria-hidden={!open}>
       <div
@@ -233,11 +307,11 @@ export default function ExploreWorldSheet({
           world: world.name,
           platform: t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
         })}
-        className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex max-h-[55vh] flex-col rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-transform ${open ? 'translate-y-0' : 'translate-y-full'}`}
+        data-sheet-expanded={expansion.expanded ? '' : undefined}
+        className={`glass-sheet fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${open ? 'translate-y-0' : 'translate-y-full'}`}
         style={{
-          // Opaque backing: a backdrop blur would never show (main.css .glass-information).
-          backgroundColor: 'var(--glass-information)',
-          backgroundImage: 'var(--glass-bg)'
+          backgroundImage: 'var(--glass-bg)',
+          ...expansion.panelStyle
         }}
       >
         <button
@@ -261,24 +335,52 @@ export default function ExploreWorldSheet({
           />
           {/* Same grab bar as the Hot Instance sheet: it gives the close button
               its own row, so the world picture never sits under it. */}
-          <div className="flex shrink-0 justify-center pt-[var(--space-3)] pb-[var(--space-2)]">
-            <div aria-hidden="true" className="h-[4px] w-[44px] rounded-full bg-[var(--border)]" />
-          </div>
-          <div className="min-h-0 overflow-y-auto p-[var(--space-4)]">
-            {image && failedImage !== image ? (
-              <img
-                src={image}
-                alt=""
-                className="h-[120px] w-full rounded-[13px] object-cover"
-                onError={() => setFailedImage(image)}
-              />
-            ) : null}
-            <div className="mt-[var(--space-3)] pr-[var(--space-8)]">
-              <h2 className="truncate text-xl font-bold text-[var(--text)]" title={world.name}>
-                {world.name}
-              </h2>
+          <SheetGrabBar expansion={expansion} />
+          {/* Keyed by world, so a sheet switched to another world starts at its top. */}
+          <div
+            ref={scrollRef}
+            key={`${world.platform}:${world.worldId}`}
+            className="min-h-0 flex-1 overflow-y-auto p-[var(--space-4)]"
+          >
+            {/* The cards' neutral fill holds the picture's place, so a picture
+                that arrives late never pushes the rooms and Join down. */}
+            <div
+              data-testid="explore-sheet-picture"
+              className={`w-full overflow-hidden rounded-[13px] bg-[var(--surface-hover)] motion-safe:transition-[height] motion-safe:duration-[220ms] ${
+                expansion.expanded ? 'h-[220px]' : 'h-[120px]'
+              }`}
+            >
+              {image && failedImage !== image ? (
+                <img
+                  src={image}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={() => setFailedImage(image)}
+                />
+              ) : null}
+            </div>
+            <div className="mt-[var(--space-3)]">
+              {/* The star follows the name (favorites, owner 2026-11-01); its
+                  panel lines up under the whole title row. */}
+              <div className="relative flex min-w-0 flex-wrap items-center gap-x-[var(--space-1)] pr-[var(--space-8)]">
+                <h2
+                  className="min-w-0 max-w-[calc(100%-32px)] truncate text-xl font-bold text-[var(--text)]"
+                  title={world.name}
+                >
+                  {world.name}
+                </h2>
+                <WorldFavoriteStar world={world} />
+              </div>
               <div className="mt-[var(--space-1)]">
-                <PlatformPill platform={world.platform} />
+                {/* Keyed by world so a confirm step never carries over to another sheet. */}
+                <HomeWorldControl
+                  key={`${world.platform}:${world.worldRef}`}
+                  platform={world.platform}
+                  worldRef={world.worldRef}
+                  worldId={world.worldId}
+                  worldName={world.name}
+                  leading={<PlatformPill platform={world.platform} />}
+                />
               </div>
               {showStaleNote || (isStale && onRefresh) ? (
                 <div className="mt-[var(--space-1)] flex items-center gap-[var(--space-2)]">
@@ -297,6 +399,11 @@ export default function ExploreWorldSheet({
                 </div>
               ) : null}
             </div>
+            {expansion.expanded ? (
+              <div className="mt-[var(--space-4)]">
+                <SheetFacts heading={t('explore.more.heading')} facts={moreFacts} />
+              </div>
+            ) : null}
             <h3 className="mt-[var(--space-4)] text-sm font-semibold text-[var(--text)]">
               {t('explore.visiblePublicRooms')}
             </h3>
@@ -335,7 +442,6 @@ export default function ExploreWorldSheet({
                     actionAllowed={
                       shown.status === 'ready' &&
                       !isStale &&
-                      !joining &&
                       room.platform === world.platform &&
                       room.worldId === world.worldId
                     }

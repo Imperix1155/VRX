@@ -2,9 +2,10 @@
  * Inbox vocabulary: invites, invite requests and friend requests that the two
  * platform sockets already deliver to VRX.
  *
- * View-only by design. VRX shows what arrived while it was open; answering
- * stays in the game or on the platform's site, so nothing here can change the
- * user's account. Items live only in main's memory and never persist.
+ * VRX shows what arrived while it was open. Nothing here can change the
+ * user's account: answering a friend request is a separate, pressed action
+ * (`friendActions.ts`), and invites are answered in the game. Items live only
+ * in main's memory and never persist.
  *
  * ⚠️ Pure types and values, bundled into the sandboxed renderer.
  */

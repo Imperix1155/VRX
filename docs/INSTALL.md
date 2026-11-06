@@ -2,7 +2,7 @@
 
 Download VRX only from its official GitHub page:
 [get the latest release](https://github.com/Imperix1155/VRX/releases/latest).
-Each release has notes describing what changed. Beta and release-candidate
+Each release has notes describing what changed. Dev, beta and release-candidate
 test builds are on the [Releases](https://github.com/Imperix1155/VRX/releases)
 page, marked **Pre-release**.
 
@@ -51,7 +51,8 @@ VRX checks for updates when it starts and every few hours while it runs. When
 one is available, an **Update** button appears at the bottom of the sidebar,
 and Settings → About shows the same choice. Nothing downloads or installs
 until you say so, unless you turn on **Automatic updates**. Automatic updates
-download in the background and install when VRX closes.
+download in the background and install when you quit VRX (closing the window
+only hides it in the tray).
 
 The portable Windows build can't update itself. Settings → About links to
 the releases page instead.
@@ -101,7 +102,10 @@ delete these folders after uninstalling:
 
 ## Report a problem
 
-Open a [GitHub issue](https://github.com/Imperix1155/VRX/issues) with:
+The quickest way is Settings → About → **Report a bug**. It opens a GitHub
+bug report with your VRX version and system already filled in; nothing from
+your accounts is added. You can also open a
+[GitHub issue](https://github.com/Imperix1155/VRX/issues) yourself with:
 
 - the VRX version (shown at the bottom of the sidebar),
 - your system and which download you used,

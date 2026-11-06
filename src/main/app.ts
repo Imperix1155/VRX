@@ -1,8 +1,20 @@
-import { createRendererRecovery } from './services/rendererRecovery'
+import { createRendererRecovery, type RendererRecovery } from './services/rendererRecovery'
 import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
 import { ExploreService } from './services/exploreService'
 import { AvatarLibraryService } from './services/avatarLibraryService'
 import { CurrentAvatarService } from './services/currentAvatarService'
+import { CommunityService } from './services/communityService'
+import { OwnProfileService } from './services/ownProfileService'
+import type { CommunityAdapter } from './services/adapters/CommunityAdapter'
+import type { OwnProfileAdapter } from './services/adapters/OwnProfileAdapter'
+import type { SocialActionAdapter } from './services/adapters/SocialActionAdapter'
+import { SocialActionService } from './services/socialActionService'
+import { AccountNoteService } from './services/accountNotes'
+import type { AccountNoteAdapter } from './services/adapters/AccountNoteAdapter'
+import { GameFavoritesService } from './services/gameFavorites'
+import type { GameFavoritesAdapter } from './services/adapters/GameFavoritesAdapter'
+import { HomeWorldService } from './services/homeWorldService'
+import type { HomeWorldAdapter } from './services/adapters/HomeWorldAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
@@ -41,7 +53,7 @@ import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdap
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { BroadcastAdapterEvent } from '@shared/ipc'
-import type { Platform } from '@shared/types'
+import type { Friend, Platform } from '@shared/types'
 import { ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
@@ -51,7 +63,7 @@ import {
   avatarCache
 } from './services/avatarCache'
 import { IMAGE_DISK_DIRECTORY, ImageDiskStore } from './services/imageDiskStore'
-import { createAvatarRenditionMaker } from './services/avatarRendition'
+import { createAvatarRenditionMaker, createPictureRenditionMaker } from './services/avatarRendition'
 import { APP_BACKGROUND_DIRECTORY, AppBackgroundStore } from './services/appBackground'
 import { VRC_METADATA_DIRECTORY, VrcMetadataStore } from './services/vrcMetadataStore'
 import { isAllowedUrl } from './ipc/url-allowlist'
@@ -62,25 +74,32 @@ import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
 import { ActivityFeed } from './services/activityFeed'
 import { InboxService } from './services/inbox'
+import { FriendActionsService } from './services/friendActions'
+import type { FriendActionsAdapter } from './services/adapters/FriendActionsAdapter'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
 import { SocialStore } from './services/socialStore'
 import { FriendAlertPicks } from './services/friendAlertPicks'
+import { Favorites } from './services/favorites'
 import { LinkGraphStore } from './services/linkGraphStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
+import { createFriendRosterReader } from './services/friendRoster'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import {
   createFriendNotificationNotifier,
+  type NativeAlert,
   isFriendAlertEnabled,
   isFriendAlertIncluded,
   isInboxAlertEnabled
 } from './friendNotifications'
+import { createVrOverlayAlerts } from './vrOverlayAlerts'
 import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
+import { RosterCatchUp } from './rosterCatchUp'
 import { importCvrSession } from './services/cvrSessionImport'
 import { importVrcxSession } from './services/vrcxSessionImport'
 import { createSessionImporter } from './services/sessionImport'
@@ -114,6 +133,7 @@ const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
   }
 })
 const rendererHydrationGates = new WeakMap<WebContents, ShowGate>()
+const rendererRecoveries = new WeakMap<WebContents, RendererRecovery>()
 
 const onRendererHydrated = (event: IpcMainEvent): void => {
   if (!isTrustedIpcSender(event.senderFrame)) return
@@ -221,6 +241,7 @@ function createWindow(): BrowserWindow {
     onError: (error) => log.warn('renderer recovery dialog rejected', { message: String(error) }),
     isQuitting: () => quitting
   })
+  rendererRecoveries.set(mainWindow.webContents, recovery)
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     exploreWindowService?.setActive([])
     if (details.reason !== 'clean-exit' && details.reason !== 'killed') {
@@ -232,6 +253,7 @@ function createWindow(): BrowserWindow {
     log.warn('window-unresponsive')
     recovery.unresponsive()
   })
+  mainWindow.on('responsive', () => recovery.responsive())
 
   keepMinimumSizeOnScreen(mainWindow)
 
@@ -276,6 +298,17 @@ function getOrCreateMainWindow(): BrowserWindow {
 
 function focusMainWindow(): BrowserWindow {
   const window = getOrCreateMainWindow()
+  // A crash box answered with Dismiss leaves the window empty; asking for VRX
+  // again (tray, second launch, alert click) brings it back.
+  rendererRecoveries.get(window.webContents)?.revive()
+  // A window that is new, or still starting, shows itself once it has painted.
+  // The request starts the gate's fallback, so one that never says it can
+  // paint still shows within it (VRX-185).
+  const gate = rendererHydrationGates.get(window.webContents)
+  if (gate?.isShown() === false) {
+    gate.requested()
+    return window
+  }
   if (window.isMinimized()) window.restore()
   window.show()
   window.focus()
@@ -409,10 +442,19 @@ app
     const inboxBoundary: { current?: InboxService } = {}
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
+    const communityBoundary: { current?: CommunityService } = {}
+    const ownProfileBoundary: { current?: OwnProfileService } = {}
+    const socialBoundary: { current?: SocialActionService } = {}
+    const accountNotesBoundary: { current?: AccountNoteService } = {}
+    const gameFavoritesBoundary: { current?: GameFavoritesService } = {}
+    const homeWorldBoundary: { current?: HomeWorldService } = {}
+    const friendActionsBoundary: { current?: FriendActionsService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
     const alertPicks = new FriendAlertPicks(accountSession, socialStore)
+    // Favorite friends and worlds: local stars, never sent to a platform.
+    const favorites = new Favorites(accountSession, socialStore)
     const linkGraph = new LinkGraphStore()
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
@@ -444,6 +486,13 @@ app
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
+        communityBoundary.current?.clearPlatform('vrchat')
+        ownProfileBoundary.current?.clearPlatform('vrchat')
+        socialBoundary.current?.clearPlatform('vrchat')
+        accountNotesBoundary.current?.clearPlatform('vrchat')
+        gameFavoritesBoundary.current?.clearPlatform('vrchat')
+        homeWorldBoundary.current?.clearPlatform('vrchat')
+        friendActionsBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
         // boundary too would read as an account switch: it refetched the dead
@@ -519,6 +568,13 @@ app
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
+        communityBoundary.current?.clearPlatform('chilloutvr')
+        friendActionsBoundary.current?.clearPlatform('chilloutvr')
+        ownProfileBoundary.current?.clearPlatform('chilloutvr')
+        socialBoundary.current?.clearPlatform('chilloutvr')
+        accountNotesBoundary.current?.clearPlatform('chilloutvr')
+        gameFavoritesBoundary.current?.clearPlatform('chilloutvr')
+        homeWorldBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -541,9 +597,29 @@ app
       // friend's display name.
       logFailure: () => log.warn('friend notification failed')
     })
+    // The same alerts in the VR headset through XSOverlay when the user turned
+    // that on (vrOverlayAlerts.ts). Loopback only; the icon is made once.
+    let vrAlertIcon: string | null | undefined
+    const vrOverlayAlerts = createVrOverlayAlerts({
+      getSettings: getSettingsSnapshot,
+      iconBase64: () => {
+        if (vrAlertIcon === undefined) {
+          const image = nativeImage
+            .createFromPath(icon)
+            .resize({ width: 64, height: 64, quality: 'best' })
+          vrAlertIcon = image.isEmpty() ? null : image.toPNG().toString('base64')
+        }
+        return vrAlertIcon
+      },
+      logFailure: () => log.warn('VR alert failed')
+    })
+    const showAlert = (alert: NativeAlert): void => {
+      showFriendAlert(alert)
+      vrOverlayAlerts.notify(alert)
+    }
 
     const friendAlerts = new FriendAlerts({
-      notify: showFriendAlert,
+      notify: showAlert,
       // Monotonic time keeps limiter windows correct across wall-clock adjustments.
       clock: () => performance.now(),
       isEnabled: (type) => isFriendAlertEnabled(type, getSettingsSnapshot()),
@@ -578,7 +654,7 @@ app
       }
     })
     activityBoundary.current = activityFeed
-    // View-only inbox: socket-delivered invites and requests, memory only.
+    // The inbox: socket-delivered invites and requests, memory only.
     const inbox = new InboxService({
       now: () => Date.now(),
       clock: () => performance.now(),
@@ -587,7 +663,7 @@ app
           if (!window.isDestroyed()) window.webContents.send('inbox-changed')
         }
       },
-      notify: (item) => showFriendAlert({ type: 'inbox', item }),
+      notify: (item) => showAlert({ type: 'inbox', item }),
       isAlertEnabled: (kind) => isInboxAlertEnabled(kind, getSettingsSnapshot())
     })
     inboxBoundary.current = inbox
@@ -610,6 +686,11 @@ app
     // full-size profile icon (avatarRendition.ts).
     avatarCache.setAvatarRenditionMaker(
       createAvatarRenditionMaker((bytes) => nativeImage.createFromBuffer(bytes))
+    )
+    // World and avatar pictures ask for the full picture (sharp on big
+    // screens) and keep a card-sized copy of it (avatarRendition.ts).
+    avatarCache.setPictureRenditionMaker(
+      createPictureRenditionMaker((bytes) => nativeImage.createFromBuffer(bytes))
     )
 
     const joinCoordinator = new JoinCoordinator()
@@ -634,7 +715,8 @@ app
       ]),
       joinCoordinator,
       isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
-      getImage: (url) => avatarCache.get(url),
+      getImage: (url) => avatarCache.getPicture(url),
+      peekImage: (url) => avatarCache.peekKeptPicture(url),
       openExternal: (url) => shell.openExternal(url),
       deliverJoin: (platform, url, location, stillCurrent) =>
         gameHandoff.deliver(
@@ -669,11 +751,129 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
 
+    // Profiles, search, Explore's other lists, players online, and groups.
+    // Read-only; world results borrow Explore's references and sheet.
+    const community = new CommunityService({
+      adapters: new Map<Platform, CommunityAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      adoptWorlds: (platform, evidence) => explore.adoptWorlds(platform, evidence),
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    communityBoundary.current = community
+    // Settings → Accounts: the user's own bio, pronouns and VRChat status.
+    // Read when the editor opens, written only on Save.
+    const ownProfile = new OwnProfileService({
+      adapters: new Map<Platform, OwnProfileAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    ownProfileBoundary.current = ownProfile
+    // Friend notes on the user's own accounts: a check when a drawer opens,
+    // a save after an edit, and the user's choice when both copies changed.
+    const accountNotes = new AccountNoteService({
+      adapters: new Map<Platform, AccountNoteAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      socialStore,
+      accountSession,
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      isEnabled: () => getSettingsSnapshot().saveNotesToAccounts,
+      log: (message, meta) => log.warn(message, meta)
+    })
+    accountNotesBoundary.current = accountNotes
+    // Favorites in the user's own accounts, beside VRX's stars: one read per
+    // sign-in and one write per press, as VRCX and CVRX do.
+    const gameFavorites = new GameFavoritesService({
+      adapters: new Map<Platform, GameFavoritesAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      accountSession,
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      isEnabled: () => getSettingsSnapshot().useGameFavorites,
+      log: (message, meta) => log.warn(message, meta)
+    })
+    gameFavoritesBoundary.current = gameFavorites
+    // "Set as home world" from a world sheet: one write, by Explore reference.
+    const homeWorld = new HomeWorldService({
+      adapters: new Map<Platform, HomeWorldAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      resolveWorld: (platform, worldRef) => explore.worldIdFor(platform, worldRef),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    homeWorldBoundary.current = homeWorld
+
+    // The profile's Unfriend, Block and Unblock: confirmed, one person at a time.
+    const social = new SocialActionService({
+      adapters: new Map<Platform, SocialActionAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      isKnownPerson: (platform, userId) => community.knowsPerson(platform, userId),
+      // The platform's own message confirms an unfriend a moment later. Main's
+      // roster follows VRX's own at once, and a request to them may go again.
+      unfriended: (platform, userId) => {
+        locationAuthority.consume({ type: 'friend-removed', platform, platformUserId: userId })
+        friendActionsBoundary.current?.forgetRequest(platform, userId)
+      },
+      log: (message, meta) => log.warn(message, meta)
+    })
+    socialBoundary.current = social
+    // Accept or decline a friend request, or send one: one press, one write.
+    const friendActions = new FriendActionsService({
+      adapters: new Map<Platform, FriendActionsAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      inbox,
+      wasListed: (platform, userId) => community.knowsPerson(platform, userId),
+      isFriend: (platform, userId) => locationAuthority.hasFriend(platform, userId),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    friendActionsBoundary.current = friendActions
+
+    // With no window open (macOS after closing it), main runs the reconnect
+    // roster read itself (rosterCatchUp.ts), the same read `get-friends` serves.
+    const rosterCatchUp = new RosterCatchUp({
+      hasWindow: () => BrowserWindow.getAllWindows().some((window) => !window.isDestroyed()),
+      readRoster: (platform) => readFriendRoster(platform),
+      logFailure: (platform) => log.warn('roster catch-up failed', { platform })
+    })
+    // Each roster read, after the location authority is seeded.
+    const onFriendRoster = (platform: Platform, friends: Friend[]): void => {
+      // Settle requests first: it cannot throw, and an alert failure must not skip it.
+      inbox.settleRoster(platform, friends)
+      rosterCatchUp.rosterRead(platform)
+      friendAlerts.seedRoster(platform, friends)
+      activityFeed.seedRoster(platform, friends)
+    }
+    const readFriendRoster = createFriendRosterReader(
+      adapters,
+      locationAuthority,
+      appStatus,
+      onFriendRoster
+    )
+
     registerIpcHandlers(adapters, {
       explore,
+      homeWorld,
       inbox,
+      friendActions,
+      vrOverlayAlerts,
       avatarLibrary,
       currentAvatar,
+      community,
+      ownProfile,
+      social,
       // Settings → Appearance background picture (appBackground.ts).
       appBackground: {
         store: new AppBackgroundStore({
@@ -706,7 +906,10 @@ app
       accountRegistry,
       accountSession,
       socialStore,
+      accountNotes,
+      gameFavorites,
       alertPicks,
+      favorites,
       links: {
         linkGraph,
         onChanged: () => {
@@ -752,12 +955,7 @@ app
       },
       locationAuthority,
       onRendererHydrated,
-      onFriendRoster: (platform, friends) => {
-        // Settle requests first: it cannot throw, and an alert failure must not skip it.
-        inbox.settleRoster(platform, friends)
-        friendAlerts.seedRoster(platform, friends)
-        activityFeed.seedRoster(platform, friends)
-      },
+      onFriendRoster,
       instance: {
         joinCoordinator,
         gameHandoff,
@@ -775,6 +973,13 @@ app
       if (event.type === 'auth-invalidated') {
         explore.clearPlatform(event.platform)
         avatarLibrary.clearPlatform(event.platform)
+        community.clearPlatform(event.platform)
+        ownProfile.clearPlatform(event.platform)
+        social.clearPlatform(event.platform)
+        accountNotes.clearPlatform(event.platform)
+        gameFavorites.clearPlatform(event.platform)
+        homeWorld.clearPlatform(event.platform)
+        friendActions.clearPlatform(event.platform)
       }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }
       for (const window of BrowserWindow.getAllWindows()) {
@@ -789,6 +994,7 @@ app
       friendAlerts,
       activityFeed,
       inbox,
+      rosterCatchUp,
       broadcast
     })
     // A socket can look open after sleep while its connection is gone.

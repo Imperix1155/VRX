@@ -17,54 +17,49 @@
  */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useFriends, scopeByPlatformFilter } from '../queries/friends'
-import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
+import { useFriendSummary } from '../hooks/useFriendSummary'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
-import { useFriendsStore } from '../stores/friends'
+import { useHotGridFocus } from '../hooks/useFocusFollowsList'
 import { dashboardSectionOrderOf, type Platform } from '@shared/types'
 import {
   dashboardBlocks,
   getDashboardStats,
   getHotInstances,
-  pickOnePerPlatform
+  pickOnePerPlatform,
+  DASHBOARD_SECTION_CARDS
 } from '../utils/dashboardAggregations'
+import { usePictureColumns } from '../hooks/usePictureColumns'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
-import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
+import FriendsSourceNotice from './FriendsSourceNotice'
 import HotInstanceSheet from './HotInstanceSheet'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
 import DashboardGlance from './DashboardGlance'
+import NotConnectedCard from './NotConnectedCard'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
-
-/** Color token name tying each stat to its meaning (DESIGN.md §9). */
-type StatTint = 'active' | 'ingame' | 'bridge'
 
 interface StatCardProps {
   value: number
   labelKey: string
-  tint: StatTint
 }
 
-function StatCard({ value, labelKey, tint }: StatCardProps): React.JSX.Element {
-  const { t } = useTranslation()
-  const numberColor =
-    tint === 'active'
-      ? 'text-[var(--active)]'
-      : tint === 'ingame'
-        ? 'text-[var(--ingame)]'
-        : 'text-[var(--bridge)]'
-
+/**
+ * One Dashboard statistic (owner, 2026-11-01: the three cards must read as one
+ * set). Every card is the same: the number in VT323 (§7) and its label, both
+ * neutral. "Friends online" counts in-game and active friends together, so
+ * neither presence color would be honest, and the label says what it is.
+ */
+function StatCard({ value, labelKey }: StatCardProps): React.JSX.Element {
+  const { t, i18n } = useTranslation()
   return (
-    <div className="glass glass-information p-[16px_18px]">
-      <div
-        className={`font-[family-name:var(--font-mono)] text-[38px] leading-none ${numberColor}`}
-      >
-        {value}
+    <div className="glass glass-layer min-w-0 p-[16px_18px]">
+      <div className="font-[family-name:var(--font-mono)] text-[38px] leading-none tabular-nums text-[var(--text)]">
+        {new Intl.NumberFormat(i18n.language).format(value)}
       </div>
-      <div className="text-[12.5px] text-[var(--text-dim)] mt-[var(--space-1)]">{t(labelKey)}</div>
+      <div className="mt-[var(--space-1)] text-[12.5px] text-[var(--text-dim)]">{t(labelKey)}</div>
     </div>
   )
 }
@@ -90,7 +85,7 @@ function SectionHeading({
           labelled by it and screen readers get a navigable outline (audit W5). */}
       <h2
         id={id}
-        className="canvas-text font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-faint)]"
+        className="canvas-text font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-dim)]"
       >
         {t(labelKey)}
       </h2>
@@ -112,8 +107,6 @@ function SectionHeading({
  */
 function DashboardContent(): React.JSX.Element {
   const { t } = useTranslation()
-  const vrcQuery = useFriends('vrchat')
-  const cvrQuery = useFriends('chilloutvr')
   // Live from the store — changes apply immediately and persist via
   // useSettingsPersistence (VRX-184).
   const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
@@ -130,30 +123,31 @@ function DashboardContent(): React.JSX.Element {
 
   // The Dashboard is a social surface, so it honors the global platform filter
   // (VRX-66): the stats + hot instances reflect only the selected platform(s).
-  const platformFilter = useFriendsStore((s) => s.platformFilter)
-  const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
+  // A platform that failed while the other loaded gets its own line (issue 368).
+  const {
+    platformFilter,
+    friends,
+    hasData,
+    isLoading,
+    retry,
+    sourceFailures,
+    isAuthStatusPending,
+    isNotConnected,
+    notConnectedKey,
+    openAccounts
+  } = useFriendSummary()
   const scopedPlatforms = useMemo(
     (): Platform[] => (platformFilter === 'all' ? ['vrchat', 'chilloutvr'] : [platformFilter]),
     [platformFilter]
   )
-  // A signed-out platform's disabled query stays pending forever and refetch
-  // bypasses its gate, so only enabled queries drive loading and Retry.
-  const enabled = scoped.filter((q) => q.isEnabled !== false)
-  const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
-    useNotConnectedGate(platformFilter)
-  const notConnectedKey =
-    selectedPlatform === null ? null : NOT_CONNECTED_KEY.dashboard[selectedPlatform]
-
-  const hasData = scoped.some((q) => q.data != null)
-
   // Compute hot instances BEFORE any early return so the sheet hook runs on
   // every render without breaking hook order. The sheet derives from the full
   // uncapped list (the page's list), so an open sheet stays put even if its
   // card drops out of the two shown.
-  const friends = scoped.flatMap((q) => q.data ?? [])
   const hotInstances = hotEnabled ? getHotInstances(friends, hotThreshold, Infinity) : []
   const allHotCount = hotInstances.length
-  const shownHot = pickOnePerPlatform(hotInstances)
+  // Picture cards fill one row on wide windows; bars stay two across.
+  const columns = usePictureColumns()
   const stats = getDashboardStats(friends, allHotCount)
   // "Hide empty sections" (owner, 2026-10-27): a Hot Instances section with
   // nothing hot steps aside, and the first section actually shown takes the
@@ -162,6 +156,10 @@ function DashboardContent(): React.JSX.Element {
   const hotShown = hotEnabled && !(hideEmpty && allHotCount === 0)
   const popularShown = popularNow && popularHasContent
   const hotPictures = hideEmpty ? hotShown && (hotFirst || !popularShown) : hotFirst
+  const shownHot = pickOnePerPlatform(
+    hotInstances,
+    hotPictures ? Math.max(DASHBOARD_SECTION_CARDS, columns) : DASHBOARD_SECTION_CARDS
+  )
   const popularLayout = (hideEmpty ? hotFirst && hotShown : hotFirst) ? 'bar' : 'card'
 
   // The Dashboard has two contained, non-modal sheets. Opening one always
@@ -169,24 +167,23 @@ function DashboardContent(): React.JSX.Element {
   const dismissExplore = useCallback(() => setExploreDismissSignal((signal) => signal + 1), [])
   const { selectedInstance, openSheet, closeSheet, clearSelection, fallbackFocusRef } =
     useHotInstanceSheet(hotInstances, dismissExplore)
+  // As on the Hot Instances page: a card that leaves by itself hands keyboard
+  // focus to the card in its place, not the page.
+  const {
+    attach: attachHotGrid,
+    onFocus: onHotGridFocus,
+    onBlur: onHotGridBlur
+  } = useHotGridFocus(shownHot, fallbackFocusRef)
 
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
   }
   if (isNotConnected) {
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
-        <p className="text-sm font-semibold text-[var(--text-dim)]">
-          {notConnectedKey === null ? null : t(notConnectedKey)}
-        </p>
-        <button
-          type="button"
-          onClick={openAccounts}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-        >
-          {t('dashboard.notConnected.openAccounts')}
-        </button>
-      </div>
+      <NotConnectedCard
+        message={notConnectedKey === null ? null : t(notConnectedKey)}
+        onOpenAccounts={openAccounts}
+      />
     )
   }
   // Every branch below keeps Popular now in the same slot, a keyed child of
@@ -203,10 +200,10 @@ function DashboardContent(): React.JSX.Element {
   ) : null
 
   if (!hasData) {
-    // Loading while ANY scoped query is still pending (don't flash an error
-    // while the other platform may yet deliver); error only when every scoped
-    // source has settled with nothing.
-    if (enabled.some((q) => q.isPending)) {
+    // Loading while ANY scoped query is still pending or holds a placeholder
+    // that has not failed (don't flash an error while the other platform may
+    // yet deliver); error only when every scoped source has settled with nothing.
+    if (isLoading) {
       return (
         <div>
           <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
@@ -222,9 +219,7 @@ function DashboardContent(): React.JSX.Element {
           <p className="text-sm text-[var(--error)]">{t('dashboard.error')}</p>
           <button
             type="button"
-            onClick={() => {
-              for (const q of enabled) void q.refetch()
-            }}
+            onClick={retry}
             className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
           >
             {t('dashboard.retry')}
@@ -275,7 +270,12 @@ function DashboardContent(): React.JSX.Element {
         // that fill the row → 1 column on a narrow pane, a lone card full-width.
         // Rules live in main.css (inline styles can't do @container/:only-child). (VRX-199)
         <div className="hotwrap">
-          <div className={hotPictures ? 'hot-grid hot-grid--picture' : 'hot-grid'}>
+          <div
+            ref={attachHotGrid}
+            className={hotPictures ? 'hot-grid hot-grid--picture' : 'hot-grid'}
+            onFocus={onHotGridFocus}
+            onBlur={onHotGridBlur}
+          >
             {shownHot.map((inst) => (
               <HotInstanceCard
                 key={inst.groupKey}
@@ -292,20 +292,21 @@ function DashboardContent(): React.JSX.Element {
 
   return (
     <div>
-      {/* Stat cards row */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${hotEnabled ? 3 : 2}, minmax(0, 1fr))`,
-          gap: '14px',
-          marginBottom: '26px'
-        }}
-      >
-        <StatCard value={stats.onlineCount} labelKey="dashboard.statOnlineLabel" tint="active" />
-        <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" tint="ingame" />
-        {hotEnabled && (
-          <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
-        )}
+      {/* Stat cards row. Player counts live in the top bar (owner, 2026-11-01).
+          The source line sits inside it so Popular now keeps its slot. */}
+      <div style={{ marginBottom: '26px' }}>
+        <FriendsSourceNotice failures={sourceFailures} wording="summary" />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${hotEnabled ? 3 : 2}, minmax(0, 1fr))`,
+            gap: '14px'
+          }}
+        >
+          <StatCard value={stats.onlineCount} labelKey="dashboard.statOnlineLabel" />
+          <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" />
+          {hotEnabled && <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" />}
+        </div>
       </div>
 
       {/* Every section joins one keyed array in the user's order, so Popular

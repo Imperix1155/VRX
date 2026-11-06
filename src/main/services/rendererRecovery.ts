@@ -4,7 +4,7 @@ import { mt } from '../i18n'
 interface RecoveryWindow {
   isDestroyed(): boolean
   reload(): void
-  webContents: { forcefullyCrashRenderer(): void }
+  webContents: { forcefullyCrashRenderer(): void; isCrashed(): boolean }
 }
 interface RecoveryDependencies {
   window: RecoveryWindow
@@ -14,18 +14,25 @@ interface RecoveryDependencies {
   isQuitting?: () => boolean
 }
 
+export interface RendererRecovery {
+  crashed(reason: string, exitCode: number): void
+  unresponsive(): void
+  /** The window answers again: a hang box still open closes as if Wait was pressed. */
+  responsive(): void
+  /** The user asked to see the window: reload a renderer that a dismissed crash box left empty. */
+  revive(): void
+}
+
 /** One dialog owner per window, shared by hangs and crashes. */
 export function createRendererRecovery({
   window,
   showDialog,
   onError,
   isQuitting = () => false
-}: RecoveryDependencies): {
-  crashed(reason: string, exitCode: number): void
-  unresponsive(): void
-} {
+}: RecoveryDependencies): RendererRecovery {
   let active = false
-  let pendingCrash: { reason: string; exitCode: number } | undefined
+  let closeHangDialog: AbortController | undefined
+  let pendingCrash: { exitCode: number } | undefined
   // Set while the hang path's own forced kill is on its way, so only that one
   // 'killed' is expected. Any other kill (e.g. Task Manager) is a crash.
   let expectingKill = false
@@ -35,6 +42,8 @@ export function createRendererRecovery({
     active = true
     const crash = pendingCrash
     pendingCrash = undefined
+    const hangClose = kind === 'hang' ? new AbortController() : undefined
+    closeHangDialog = hangClose
     let reloaded = false
     try {
       const { response } = await showDialog(
@@ -43,10 +52,8 @@ export function createRendererRecovery({
               type: 'error',
               title: mt('recovery.crash.title'),
               message: mt('recovery.crash.message'),
-              detail: mt('recovery.crash.detail', {
-                reason: String(crash?.reason),
-                exitCode: String(crash?.exitCode)
-              }),
+              // Only the exit code: the raw reason is a developer word.
+              detail: mt('recovery.crash.detail', { exitCode: String(crash?.exitCode) }),
               buttons: [mt('recovery.reload'), mt('recovery.dismiss')],
               defaultId: 0,
               cancelId: 1
@@ -58,7 +65,8 @@ export function createRendererRecovery({
               detail: mt('recovery.hang.detail'),
               buttons: [mt('recovery.reload'), mt('recovery.wait')],
               defaultId: 0,
-              cancelId: 1
+              cancelId: 1,
+              signal: hangClose?.signal
             }
       )
       if (!window.isDestroyed() && response === 0) {
@@ -74,6 +82,7 @@ export function createRendererRecovery({
       onError(error)
     } finally {
       active = false
+      if (closeHangDialog === hangClose) closeHangDialog = undefined
       if (reloaded) pendingCrash = undefined
       // A hang's Wait cannot dismiss a later crash that needs recovery.
       if (kind === 'hang' && pendingCrash && !window.isDestroyed()) void show('crash')
@@ -87,11 +96,20 @@ export function createRendererRecovery({
         return
       }
       if (reason === 'clean-exit' || isQuitting() || window.isDestroyed()) return
-      if (!active || !pendingCrash) pendingCrash = { reason, exitCode }
+      if (!active || !pendingCrash) pendingCrash = { exitCode }
       void show('crash')
     },
     unresponsive() {
       void show('hang')
+    },
+    responsive() {
+      // A box left open would offer Reload, which would kill a window that works again.
+      closeHangDialog?.abort()
+    },
+    revive() {
+      // An open box owns the answer; a working renderer needs nothing.
+      if (active || window.isDestroyed() || !window.webContents.isCrashed()) return
+      window.reload()
     }
   }
 }

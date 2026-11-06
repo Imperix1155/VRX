@@ -223,6 +223,10 @@ export type BackgroundGlow = (typeof BACKGROUND_GLOWS)[number]
 export const FRIEND_ALERT_SCOPES = ['everyone', 'picked'] as const
 export type FriendAlertScope = (typeof FRIEND_ALERT_SCOPES)[number]
 
+/** How long an alert stays in view in the VR headset (XSOverlay). */
+export const VR_ALERT_DURATIONS = ['short', 'medium', 'long'] as const
+export type VrAlertDuration = (typeof VR_ALERT_DURATIONS)[number]
+
 // ─── Background picture fade ─────────────────────────────────────────────────
 /** How strongly the user's own background picture fades toward the theme's
  *  base colour so text over it stays readable. Single source for both the
@@ -316,6 +320,19 @@ export function withDashboardSectionOrder(
  *  `collapsedFriendSections` array element enum. */
 export const FRIEND_SECTIONS = ['in-game', 'online', 'offline'] as const
 export type FriendSection = (typeof FRIEND_SECTIONS)[number]
+/** Every friends-list section in display order: Favorites (starred friends
+ *  who are on now, owner 2026-11-01) leads the presence sections. Element
+ *  enum of the settings schema's `collapsedFriendSections`. */
+export const FRIEND_LIST_SECTIONS = ['favorites', ...FRIEND_SECTIONS] as const
+export type FriendListSection = (typeof FRIEND_LIST_SECTIONS)[number]
+
+/** The order inside each friends-list group (owner, 2026-11-02). Display
+ *  order; `name` (A to Z) is the default. `recent` = the newest Activity
+ *  first, `world` = friends in the same instance together (the biggest crowd
+ *  first), `joinable` = the most open instance you can join first. Every
+ *  choice falls back to the name. */
+export const FRIEND_SORTS = ['name', 'recent', 'world', 'joinable'] as const
+export type FriendSort = (typeof FRIEND_SORTS)[number]
 
 // ─── Auth (VRX-16/18 — direct login + hybrid import) ─────────────────────────
 export type AuthState = 'authenticated' | 'unauthenticated' | 'needs-2fa' | 'error'
@@ -333,6 +350,14 @@ export interface AuthStatus {
    * cookie expired; VRX-173). Drives the method-aware reprompt copy.
    */
   twoFactorMethod?: TwoFactorMethod
+  /**
+   * Present ONLY when `state` is `'error'` and the check got no answer at all
+   * (offline, a name that didn't resolve, or no reply within the request
+   * timeout). A platform that answered and refused (429, 403, 5xx, an
+   * unreadable reply) leaves it out, so the renderer never repeats those
+   * checks while the window is hidden.
+   */
+  unreachable?: true
 }
 
 /**

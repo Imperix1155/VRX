@@ -2,8 +2,15 @@ import { useTranslation } from 'react-i18next'
 import type { FriendSourceFailure } from '../queries/friends'
 
 const SOURCE_STATE_KEY = {
-  missing: 'friends.sourceState.missing',
-  stale: 'friends.sourceState.stale'
+  list: {
+    missing: 'friends.sourceState.missing',
+    stale: 'friends.sourceState.stale'
+  },
+  // The Dashboard and Hot Instances show numbers and cards, not a list.
+  summary: {
+    missing: 'dashboard.sourceState.missing',
+    stale: 'dashboard.sourceState.stale'
+  }
 } as const
 
 /**
@@ -23,9 +30,11 @@ const SOURCE_STATE_COLOR = {
  * preserve meaningful errors and stale results.
  */
 export default function FriendsSourceNotice({
-  failures
+  failures,
+  wording = 'list'
 }: {
   failures: readonly FriendSourceFailure[]
+  wording?: keyof typeof SOURCE_STATE_KEY
 }): React.JSX.Element | null {
   const { t } = useTranslation()
   if (failures.length === 0) return null
@@ -42,7 +51,7 @@ export default function FriendsSourceNotice({
               data-kind={failure.kind}
               className={`flex items-center justify-between gap-[var(--space-2)] ${SOURCE_STATE_COLOR[failure.kind]}`}
             >
-              <span>{t(SOURCE_STATE_KEY[failure.kind], { platform })}</span>
+              <span>{t(SOURCE_STATE_KEY[wording][failure.kind], { platform })}</span>
               <button
                 type="button"
                 // aria-disabled keeps keyboard focus on Retry while it runs.

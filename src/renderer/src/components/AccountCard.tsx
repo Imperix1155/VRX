@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Platform } from '@shared/types'
@@ -12,8 +12,78 @@ import TwoFactorForm from './auth/TwoFactorForm'
 import ErrorBanner from './auth/ErrorBanner'
 import ImportSignInAction from './auth/ImportSignInAction'
 import { accountCopy } from './auth/copy'
+import OwnProfileDialog from './OwnProfileDialog'
 
-export default function AccountCard({ platform }: { platform: Platform }): React.JSX.Element {
+const ACCOUNT_BUTTON =
+  'rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] aria-disabled:opacity-50 motion-safe:transition-colors'
+
+/**
+ * Sign out asks once, in place, starting on Cancel: it ends the session, and
+ * signing back in needs the password again.
+ */
+function SignOutQuestion({
+  question,
+  busy,
+  held,
+  onConfirm,
+  onCancel
+}: {
+  question: string
+  /** Signing out now. */
+  busy: boolean
+  /** Sign out waits, as the button it replaced does (a code is being sent). */
+  held: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    cancelRef.current?.focus()
+  }, [])
+  return (
+    <div
+      role="group"
+      aria-label={question}
+      className="flex basis-full flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-2)]"
+    >
+      <p className="min-w-0 flex-1 basis-[10rem] text-sm text-[var(--text)]">{question}</p>
+      <div className="flex shrink-0 gap-[var(--space-2)]">
+        {/* Not `disabled`: a disabled button drops keyboard focus. */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!busy && !held) onConfirm()
+          }}
+          aria-disabled={busy || held || undefined}
+          className={ACCOUNT_BUTTON}
+        >
+          {busy ? t('settings.accounts.disconnecting') : t('settings.accounts.signOut')}
+        </button>
+        <button
+          ref={cancelRef}
+          type="button"
+          onClick={() => {
+            if (!busy) onCancel()
+          }}
+          aria-disabled={busy || undefined}
+          className={ACCOUNT_BUTTON}
+        >
+          {t('settings.accounts.cancel')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function AccountCard({
+  platform,
+  profileEditing = false
+}: {
+  platform: Platform
+  /** Settings → Accounts offers Edit profile; the welcome setup keeps to signing in. */
+  profileEditing?: boolean
+}): React.JSX.Element {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { data: authStatus, isPending, isError } = useAuthStatus(platform)
@@ -21,6 +91,17 @@ export default function AccountCard({ platform }: { platform: Platform }): React
 
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false)
+  // Whichever Sign out button shows; focus goes back to it after the question.
+  const signOutRef = useRef<HTMLButtonElement>(null)
+  const returnFocusToSignOut = useRef(false)
+  useEffect(() => {
+    if (confirmingSignOut || !returnFocusToSignOut.current) return
+    returnFocusToSignOut.current = false
+    signOutRef.current?.focus()
+  }, [confirmingSignOut])
 
   // A restored session can drift into needs-2fa while the card is mounted —
   // the reactive seed for the shared flow's 2FA leg (VRChat only; CVR has none).
@@ -36,6 +117,18 @@ export default function AccountCard({ platform }: { platform: Platform }): React
     // A fresh login changes who the friends data belongs to — settle it too.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) })
   })
+
+  // The question, Edit profile and the "Profile saved" line belong to the
+  // sign-in they came from: any change closes them, so none comes back on its
+  // own after signing in again, as the same account or another.
+  const signOutContext = `${isError}:${authStatus?.state}:${authStatus?.accountId}:${flow.pending2fa === null}`
+  const [questionContext, setQuestionContext] = useState(signOutContext)
+  if (questionContext !== signOutContext) {
+    setQuestionContext(signOutContext)
+    setConfirmingSignOut(false)
+    setEditingProfile(false)
+    setProfileSaved(false)
+  }
 
   async function handleDisconnect(): Promise<void> {
     flow.setErrorKey(null)
@@ -72,21 +165,46 @@ export default function AccountCard({ platform }: { platform: Platform }): React
     }
   }
 
+  const signOutQuestion = confirmingSignOut ? (
+    <SignOutQuestion
+      question={t('settings.accounts.signOutConfirm', { platform: t(config.labelKey) })}
+      busy={isDisconnecting}
+      held={isRetrying || flow.isSubmitting}
+      onConfirm={() => {
+        returnFocusToSignOut.current = true
+        void handleDisconnect().finally(() => setConfirmingSignOut(false))
+      }}
+      onCancel={() => {
+        returnFocusToSignOut.current = true
+        setConfirmingSignOut(false)
+      }}
+    />
+  ) : null
+  const askSignOut = (): void => setConfirmingSignOut(true)
+
   const isConnected = !isError && authStatus?.state === 'authenticated'
   // `error` = the platform couldn't be reached / its reply couldn't be read
   // (VRX-201) — the session may be alive, so NEVER show the Connect form here
   // (re-entering credentials would create a duplicate session). Quiet banner +
   // Retry + Sign out instead; identical path for both platforms.
   const isUnreachable = isError || authStatus?.state === 'error'
+  // Both cards hold the same controls (Password, Connect, Sign out…), so each
+  // is a group named by its platform and its forms say which sign-in they are.
+  const nameId = useId()
+  const formAriaLabel = t('login.formAria', { platform: t(config.labelKey) })
 
   return (
     <div
-      className={`glass glass-information ${config.tintClass} relative overflow-hidden p-[var(--space-6)]`}
+      role="group"
+      aria-labelledby={nameId}
+      className={`glass glass-layer ${config.tintClass} relative overflow-hidden p-[var(--space-6)]`}
     >
+      {/* The name lines up with the status and buttons below it. A future
+          platform logo would go in front of it; do not restore PlatformGlyph. */}
       <div className="relative flex items-center gap-[var(--space-3)]">
-        {/* Reserved for a future real platform logo; do not restore PlatformGlyph. */}
-        <div className="w-[var(--space-6)] shrink-0" aria-hidden="true" />
-        <p className="text-sm font-medium text-[var(--text)]">{t(config.labelKey)}</p>
+        <p id={nameId} className="text-sm font-medium text-[var(--text)]">
+          {t(config.labelKey)}
+        </p>
       </div>
 
       {isPending ? (
@@ -104,18 +222,64 @@ export default function AccountCard({ platform }: { platform: Platform }): React
                 {t('settings.accounts.connectedAs', { name: authStatus.displayName ?? '' })}
               </span>
             </p>
-            <button
-              type="button"
-              onClick={() => void handleDisconnect()}
-              disabled={isDisconnecting}
-              className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
-            >
-              {isDisconnecting
-                ? t('settings.accounts.disconnecting')
-                : t('settings.accounts.signOut')}
-            </button>
+            {/* With Edit profile: its own row, each button growing to fill it, one
+                line in English, two full-width lines where words are longer (Japanese).
+                Sign out's question takes the row's place until it is answered. */}
+            {signOutQuestion ??
+              (profileEditing ? (
+                <div className="flex basis-full flex-wrap gap-[var(--space-2)]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileSaved(false)
+                      setEditingProfile(true)
+                    }}
+                    disabled={isDisconnecting}
+                    className="flex-auto whitespace-nowrap rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+                  >
+                    {t('settings.accounts.profile.edit')}
+                  </button>
+                  <button
+                    ref={signOutRef}
+                    type="button"
+                    onClick={askSignOut}
+                    disabled={isDisconnecting}
+                    className="flex-auto whitespace-nowrap rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+                  >
+                    {t('settings.accounts.signOut')}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  ref={signOutRef}
+                  type="button"
+                  onClick={askSignOut}
+                  disabled={isDisconnecting}
+                  className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+                >
+                  {t('settings.accounts.signOut')}
+                </button>
+              ))}
           </div>
+          <p role="status" className="text-xs text-[var(--text-dim)]">
+            {profileSaved ? (
+              <span className="mt-[var(--space-2)] block">
+                <span aria-hidden="true">✓ </span>
+                {t('settings.accounts.profile.saved', { platform: t(config.labelKey) })}
+              </span>
+            ) : null}
+          </p>
           <ErrorBanner errorKey={flow.errorKey} className="mt-[var(--space-3)]" />
+          {profileEditing && editingProfile && (
+            <OwnProfileDialog
+              platform={platform}
+              onClose={() => setEditingProfile(false)}
+              onSaved={() => {
+                setEditingProfile(false)
+                setProfileSaved(true)
+              }}
+            />
+          )}
         </div>
       ) : isUnreachable ? (
         <div className="relative mt-[var(--space-4)]">
@@ -127,24 +291,27 @@ export default function AccountCard({ platform }: { platform: Platform }): React
             <span>{t('settings.accounts.unreachable', { platform: t(config.labelKey) })}</span>
           </p>
           <div className="mt-[var(--space-3)] flex items-center gap-[var(--space-3)]">
-            <button
-              type="button"
-              onClick={() => void handleRetry()}
-              disabled={isRetrying || isDisconnecting}
-              className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
-            >
-              {isRetrying ? t('settings.accounts.retrying') : t('settings.accounts.retry')}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleDisconnect()}
-              disabled={isRetrying || isDisconnecting}
-              className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
-            >
-              {isDisconnecting
-                ? t('settings.accounts.disconnecting')
-                : t('settings.accounts.signOut')}
-            </button>
+            {signOutQuestion ?? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleRetry()}
+                  disabled={isRetrying || isDisconnecting}
+                  className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+                >
+                  {isRetrying ? t('settings.accounts.retrying') : t('settings.accounts.retry')}
+                </button>
+                <button
+                  ref={signOutRef}
+                  type="button"
+                  onClick={askSignOut}
+                  disabled={isRetrying || isDisconnecting}
+                  className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+                >
+                  {t('settings.accounts.signOut')}
+                </button>
+              </>
+            )}
           </div>
           <ErrorBanner errorKey={flow.errorKey} className="mt-[var(--space-3)]" />
         </div>
@@ -152,6 +319,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
         <CredentialsForm
           idPrefix={platform}
           autocompleteSection={platform}
+          ariaLabel={formAriaLabel}
           copy={accountCopy(platform)}
           username={flow.username}
           password={flow.password}
@@ -177,6 +345,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
         <>
           <TwoFactorForm
             idPrefix={platform}
+            ariaLabel={formAriaLabel}
             copy={accountCopy(platform)}
             method={flow.pending2fa}
             code={flow.twoFactorCode}
@@ -195,16 +364,17 @@ export default function AccountCard({ platform }: { platform: Platform }): React
               same Sign out as the other saved-session states. */}
           {authStatus?.state === 'needs-2fa' ? (
             <div className="relative mt-[var(--space-3)]">
-              <button
-                type="button"
-                onClick={() => void handleDisconnect()}
-                disabled={isDisconnecting || flow.isSubmitting}
-                className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
-              >
-                {isDisconnecting
-                  ? t('settings.accounts.disconnecting')
-                  : t('settings.accounts.signOut')}
-              </button>
+              {signOutQuestion ?? (
+                <button
+                  ref={signOutRef}
+                  type="button"
+                  onClick={askSignOut}
+                  disabled={isDisconnecting || flow.isSubmitting}
+                  className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+                >
+                  {t('settings.accounts.signOut')}
+                </button>
+              )}
             </div>
           ) : null}
         </>

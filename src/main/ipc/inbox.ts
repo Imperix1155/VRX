@@ -22,8 +22,9 @@ function isItemId(value: unknown): value is string {
 }
 
 /**
- * The view-only inbox. Every action here only changes what VRX shows: nothing
- * reaches either platform, so dismissing never answers or declines anything.
+ * The inbox. Every action here only changes what VRX shows: nothing reaches
+ * either platform, so dismissing never answers or declines anything. Answering
+ * a friend request lives in `friend-actions.ts`.
  */
 export function registerInboxHandlers(inbox: InboxService): void {
   ipcMain.handle('get-inbox', (event) => {

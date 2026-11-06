@@ -5,8 +5,10 @@
  * One unified page, like Friends: with ALL selected, VRChat and ChilloutVR
  * share the same "Wearing now" row (side by side, equal size) and one uploads
  * grid sorted by name, so neither platform leads. Per-platform states (not
- * connected, loading, failed) use the same one-line notice. Data loads when
- * the page opens and when the user presses Refresh, never on a timer.
+ * connected, loading, failed) use the same one-line notice; under ALL, like
+ * every other page, a platform the user isn't signed in to adds none. Data
+ * loads when the page opens and when the user presses Refresh, never on a
+ * timer.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,8 +18,9 @@ import type { AuthStatus, Platform } from '@shared/types'
 import { useAuthStatus } from '../queries/auth'
 import { useAvatarLibrary } from '../queries/avatarLibrary'
 import { useFriendsStore } from '../stores/friends'
-import { useUiStore } from '../stores/ui'
 import { isNotConnectedAuth } from '../hooks/useNotConnectedGate'
+import GoToAccountsButton from './GoToAccountsButton'
+import { sourcesSettled, type Kept } from '../utils/community'
 import AvatarCard from './AvatarCard'
 import AvatarSheet from './AvatarSheet'
 
@@ -71,22 +74,36 @@ function useProgressiveCount(total: number): number {
   return Math.min(count, total)
 }
 
+/**
+ * `stale` still shows the library that loaded last; a later read failed.
+ * `idle`: nothing is being read, because the sign-in check couldn't say who is
+ * signed in; it shows no line, like the community pages.
+ */
 type SourceState =
   | { kind: 'auth-pending' | 'not-connected' | 'loading' }
+  | { kind: 'idle' }
   | { kind: 'failed'; reason: AvatarLibraryFailure }
   | { kind: 'ready'; result: ReadyLibrary }
+  | { kind: 'stale'; result: ReadyLibrary; rateLimited: boolean }
 
-function sourceState(
-  auth: UseQueryResult<AuthStatus, Error>,
-  library: UseQueryResult<AvatarLibraryResult, Error>
-): SourceState {
+/** The states that show a line above the avatars. */
+type NoticeState = Exclude<SourceState, { kind: 'ready' } | { kind: 'idle' }>
+
+type LibraryQuery = UseQueryResult<Kept<AvatarLibraryResult>, Error>
+
+function sourceState(auth: UseQueryResult<AuthStatus, Error>, library: LibraryQuery): SourceState {
   if (auth.data === undefined && auth.isPending) return { kind: 'auth-pending' }
   if (isNotConnectedAuth(auth)) return { kind: 'not-connected' }
   const result = library.data
+  // A failure being asked again (Try again) reads as loading until the
+  // platform answers, as on the community pages.
+  if (result?.ok !== true && library.fetchStatus === 'fetching') return { kind: 'loading' }
   if (result === undefined) {
-    return library.isError ? { kind: 'failed', reason: 'unavailable' } : { kind: 'loading' }
+    return library.isError ? { kind: 'failed', reason: 'unavailable' } : { kind: 'idle' }
   }
-  return result.ok ? { kind: 'ready', result } : { kind: 'failed', reason: result.reason }
+  if (!result.ok) return { kind: 'failed', reason: result.reason }
+  if (result.refreshFailed !== true) return { kind: 'ready', result }
+  return { kind: 'stale', result, rateLimited: result.refreshRateLimited === true }
 }
 
 export default function AvatarsView(): React.JSX.Element {
@@ -99,7 +116,7 @@ export default function AvatarsView(): React.JSX.Element {
   const cvrAuth = useAuthStatus('chilloutvr')
   const vrcLibrary = useAvatarLibrary('vrchat', shown.includes('vrchat'))
   const cvrLibrary = useAvatarLibrary('chilloutvr', shown.includes('chilloutvr'))
-  const libraries: Record<Platform, UseQueryResult<AvatarLibraryResult, Error>> = {
+  const libraries: Record<Platform, LibraryQuery> = {
     vrchat: vrcLibrary,
     chilloutvr: cvrLibrary
   }
@@ -108,6 +125,14 @@ export default function AvatarsView(): React.JSX.Element {
     chilloutvr: sourceState(cvrAuth, cvrLibrary)
   }
   const sources = shown.map((platform) => ({ platform, state: states[platform] }))
+  // Under ALL, a platform the user isn't signed in to is a choice, not
+  // missing data, so it adds no line; a single-platform filter says so.
+  const noticed = sources.filter(
+    (source): source is { platform: Platform; state: NoticeState } =>
+      source.state.kind !== 'ready' &&
+      source.state.kind !== 'idle' &&
+      (platformFilter !== 'all' || source.state.kind !== 'not-connected')
+  )
   const vrcReady = readyResult(shown, 'vrchat', states.vrchat)
   const cvrReady = readyResult(shown, 'chilloutvr', states.chilloutvr)
   // Query results keep their identity between renders, so the merged, sorted
@@ -119,6 +144,10 @@ export default function AvatarsView(): React.JSX.Element {
     i18n.language
   )
   const drawnUploads = useProgressiveCount(uploads.length)
+  // With no uploads to draw yet, the section (its count and "none" line)
+  // waits for every shown platform, so one platform's empty library never
+  // reads as none at all while the other is still loading.
+  const showUploads = uploads.length > 0 || sourcesSettled(sources)
 
   const [selection, setSelection] = useState<AvatarItem | null>(null)
   const openerRef = useRef<HTMLElement | null>(null)
@@ -151,27 +180,29 @@ export default function AvatarsView(): React.JSX.Element {
         <button
           type="button"
           onClick={() => {
+            if (refreshing) return
             for (const platform of refreshable) void libraries[platform].refetch()
           }}
-          disabled={refreshing || refreshable.length === 0}
-          className="canvas-control rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 motion-safe:transition-colors"
+          // A pressed Refresh stays focusable while it runs (aria-disabled), so
+          // keyboard focus stays on it; with nothing to refresh it is off.
+          aria-disabled={refreshing || undefined}
+          disabled={refreshable.length === 0}
+          className="canvas-control rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-colors"
         >
           {refreshing ? t('avatars.refreshing') : t('avatars.refresh')}
         </button>
       </div>
 
-      {sources.some(({ state }) => state.kind !== 'ready') ? (
+      {noticed.length > 0 ? (
         <div className="mb-[var(--space-4)] flex flex-col gap-[var(--space-2)]">
-          {sources.map(({ platform, state }) =>
-            state.kind === 'ready' ? null : (
-              <SourceNotice
-                key={platform}
-                platform={platform}
-                state={state}
-                onRetry={() => void libraries[platform].refetch()}
-              />
-            )
-          )}
+          {noticed.map(({ platform, state }) => (
+            <SourceNotice
+              key={platform}
+              platform={platform}
+              state={state}
+              onRetry={() => void libraries[platform].refetch()}
+            />
+          ))}
         </div>
       ) : null}
 
@@ -203,33 +234,35 @@ export default function AvatarsView(): React.JSX.Element {
               )
             )}
           </section>
-          <section aria-label={t('avatars.yourUploads')}>
-            <SubHeading>
-              {t('avatars.yourUploads')}
-              <span className="ml-[var(--space-2)] normal-case tracking-normal text-[var(--text-faint)]">
-                {t('avatars.uploadCount', { count: uploads.length })}
-              </span>
-            </SubHeading>
-            {uploads.length === 0 ? (
-              <p className="text-sm text-[var(--text-dim)]">{t('avatars.empty')}</p>
-            ) : (
-              <div style={UPLOAD_GRID}>
-                {uploads.slice(0, drawnUploads).map((avatar) => (
-                  <AvatarCard
-                    key={`${avatar.platform}:${avatar.avatarId}`}
-                    avatar={avatar}
-                    worn={wornIds.has(`${avatar.platform}:${avatar.avatarId}`)}
-                    onOpen={openSheet}
-                  />
-                ))}
-              </div>
-            )}
-            {anyIncomplete ? (
-              <p className="mt-[var(--space-2)] text-xs text-[var(--text-dim)]">
-                {t('avatars.partial')}
-              </p>
-            ) : null}
-          </section>
+          {showUploads ? (
+            <section aria-label={t('avatars.yourUploads')}>
+              <SubHeading>
+                {t('avatars.yourUploads')}
+                <span className="ml-[var(--space-2)] normal-case tracking-normal text-[var(--text-dim)]">
+                  {t('avatars.uploadCount', { count: uploads.length })}
+                </span>
+              </SubHeading>
+              {uploads.length === 0 ? (
+                <p className="text-sm text-[var(--text-dim)]">{t('avatars.empty')}</p>
+              ) : (
+                <div style={UPLOAD_GRID}>
+                  {uploads.slice(0, drawnUploads).map((avatar) => (
+                    <AvatarCard
+                      key={`${avatar.platform}:${avatar.avatarId}`}
+                      avatar={avatar}
+                      worn={wornIds.has(`${avatar.platform}:${avatar.avatarId}`)}
+                      onOpen={openSheet}
+                    />
+                  ))}
+                </div>
+              )}
+              {anyIncomplete ? (
+                <p className="mt-[var(--space-2)] text-xs text-[var(--text-dim)]">
+                  {t('avatars.partial')}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
         </div>
       ) : null}
 
@@ -246,7 +279,9 @@ function readyResult(
   platform: Platform,
   state: SourceState
 ): ReadyLibrary | null {
-  return shown.includes(platform) && state.kind === 'ready' ? state.result : null
+  return shown.includes(platform) && (state.kind === 'ready' || state.kind === 'stale')
+    ? state.result
+    : null
 }
 
 function useLibrarySummary(
@@ -288,51 +323,58 @@ function SourceNotice({
   onRetry
 }: {
   platform: Platform
-  state: Exclude<SourceState, { kind: 'ready' }>
+  state: NoticeState
   onRetry: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const setActiveTab = useUiStore((s) => s.setActiveTab)
-  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
+  const noticeRef = useRef<HTMLDivElement>(null)
   const platformName = t(platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
 
   let text: string
   let action: React.JSX.Element | null = null
   let tone = 'text-[var(--text-dim)]'
+  const accountsButton = <GoToAccountsButton label={t('avatars.notConnected.openAccounts')} />
   if (state.kind === 'not-connected') {
     text = t(NOT_CONNECTED_KEYS[platform])
-    action = (
-      <button
-        type="button"
-        onClick={() => {
-          setActiveTab('settings')
-          setSettingsCategory('accounts')
-        }}
-        className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-      >
-        {t('avatars.notConnected.openAccounts')}
-      </button>
-    )
+    action = accountsButton
   } else if (state.kind === 'failed') {
     text = t(ERROR_KEYS[state.reason], { platform: platformName })
     tone = 'text-[var(--error)]'
-    action = (
-      <button
-        type="button"
-        onClick={onRetry}
-        className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
-      >
-        {t('avatars.retry')}
-      </button>
-    )
+    // "Sign in again" is done in Accounts; another try would only fail the same way.
+    action =
+      state.reason === 'not-authenticated' ? (
+        accountsButton
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            onRetry()
+            // The line turns into the loading line and this button leaves it;
+            // focus stays on the line, beside a Try again that comes back.
+            noticeRef.current?.focus({ preventScroll: true })
+          }}
+          className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+        >
+          {t('avatars.retry')}
+        </button>
+      )
+  } else if (state.kind === 'stale') {
+    // Dim: the library that loaded last still shows. Refresh tries again.
+    text = t(state.rateLimited ? 'avatars.staleRateLimited' : 'avatars.stale', {
+      platform: platformName
+    })
   } else {
     text = t('avatars.loadingPlatform', { platform: platformName })
   }
 
   return (
+    // Keyboard focus can rest on the line, so the line itself has no role that
+    // changes under it; its words are what screen readers hear change.
     <div
-      role={state.kind === 'failed' ? 'alert' : 'status'}
-      className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)]"
+      ref={noticeRef}
+      data-source-notice={platform}
+      tabIndex={-1}
+      className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)] outline-none"
     >
       {/* The notice text names the platform, so the dot is never the only cue. */}
       <span
@@ -340,7 +382,9 @@ function SourceNotice({
         className="inline-block h-[8px] w-[8px] shrink-0 rounded-full"
         style={{ background: platform === 'vrchat' ? 'var(--vrc)' : 'var(--cvr)' }}
       />
-      <p className={`text-sm ${tone}`}>{text}</p>
+      <p role={state.kind === 'failed' ? 'alert' : 'status'} className={`text-sm ${tone}`}>
+        {text}
+      </p>
       {action}
     </div>
   )

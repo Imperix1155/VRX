@@ -88,7 +88,7 @@ describe('FriendsList join pill (VRX-166)', () => {
   it('renders a joinable friend pill as a button with the translated accessible name', () => {
     render(<FriendsList />)
 
-    const button = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const button = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
     expect(button.textContent).toBe('Public')
   })
 
@@ -146,7 +146,7 @@ describe('FriendsList join pill (VRX-166)', () => {
     mockFriends([unknown])
     render(<FriendsList />)
 
-    const button = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const button = screen.getByRole('button', { name: 'Unknown: Join Alex in The Great Pug' })
     expect(button.textContent).toBe('Unknown')
     expect(button.style.color).toBe('var(--text-dim)')
   })
@@ -164,7 +164,7 @@ describe('FriendsList join pill (VRX-166)', () => {
     mockFriends([known])
     render(<FriendsList />)
 
-    const button = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const button = screen.getByRole('button', { name: 'Invite: Join Alex in The Great Pug' })
     expect(button.textContent).toBe('Invite')
     expect(button.style.color).toBe('var(--op-invite-text)')
   })
@@ -176,7 +176,7 @@ describe('FriendsList join pill (VRX-166)', () => {
     render(<FriendsList />)
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
 
@@ -203,7 +203,7 @@ describe('FriendsList join pill (VRX-166)', () => {
     )
     render(<FriendsList />)
 
-    const button = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const button = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
     fireEvent.click(button)
     fireEvent.click(button)
 
@@ -229,7 +229,7 @@ describe('FriendsList join pill (VRX-166)', () => {
     joinInstance.mockResolvedValue({ ok: false, reason: 'not-joinable' })
     render(<FriendsList />)
 
-    const button = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const button = screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' })
     const status = screen.getByRole('status')
     expect(status.textContent).toBe('')
 
@@ -239,7 +239,7 @@ describe('FriendsList join pill (VRX-166)', () => {
     })
 
     expect(status.textContent).toBe('No longer joinable — they may have moved or gone offline')
-    expect(button.getAttribute('aria-label')).toBe('Join Alex in The Great Pug')
+    expect(button.getAttribute('aria-label')).toBe('Public: Join Alex in The Great Pug')
     expect(button.textContent).toBe('Public')
 
     await act(async () => {
@@ -262,7 +262,7 @@ describe('FriendsList join pill (VRX-166)', () => {
     render(<FriendsList />)
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
 
@@ -276,7 +276,7 @@ describe('FriendsList join pill (VRX-166)', () => {
     render(<FriendsList />)
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Public: Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
 
@@ -284,16 +284,16 @@ describe('FriendsList join pill (VRX-166)', () => {
       const row = screen.getByRole('button', { name: joinName }).closest('li')
       return row?.querySelector('[role="status"]')?.textContent ?? ''
     }
-    expect(statusOf('Join Alex in The Great Pug')).toBe(
+    expect(statusOf('Public: Join Alex in The Great Pug')).toBe(
       'No longer joinable — they may have moved or gone offline'
     )
-    expect(statusOf('Join Bea in The Great Pug')).toBe('') // Bea does NOT blip
+    expect(statusOf('Public: Join Bea in The Great Pug')).toBe('') // Bea does NOT blip
   })
 
-  it('falls back to the visible pill label in the accessible name when worldName is null', () => {
+  it('starts with the pill label and names an unknown world as the row does', () => {
     mockFriends([{ ...joinableFriend, instance: { ...publicInstance, worldName: null } }])
     render(<FriendsList />)
 
-    expect(screen.getByRole('button', { name: 'Join Alex in Public' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Public: Join Alex in Unknown World' })).toBeTruthy()
   })
 })

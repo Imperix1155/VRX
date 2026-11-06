@@ -133,6 +133,23 @@ describe('CvrAdapter.importSession', () => {
     await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
   })
 
+  it('says it was rate limited after one request and saves nothing', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(new Response(null, { status: 429, headers: { 'Retry-After': '60' } }))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const binding = ownerBindingHarness<CVRCredentials>()
+    const adapter = new CvrAdapter(binding.store, instantAdmission(), { log: vi.fn() })
+
+    await expect(adapter.importSession(imported)).resolves.toEqual({
+      ok: false,
+      needs2fa: false,
+      error: 'rate_limited'
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(binding.getAttemptedAccountIds()).toEqual([])
+  })
+
   it('discards the session when it cannot be saved securely', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(authEnvelope())))
     const binding = ownerBindingHarness<CVRCredentials>()

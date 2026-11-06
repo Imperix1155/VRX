@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 /**
- * Inbox page (owner, 2026-10-27): view-only rows for both platforms, scoped by
- * the platform filter, with Hide acting in VRX only.
+ * Inbox page (owner, 2026-10-27): rows for both platforms, scoped by the
+ * platform filter, with Hide acting in VRX only. Friend requests can be
+ * accepted or declined (owner, 2026-11-01).
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
+import { act, render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { InboxItem, InboxSnapshot } from '@shared/inbox'
 import type { Friend } from '@shared/types'
@@ -50,6 +51,7 @@ let bridge: {
   getInbox: ReturnType<typeof vi.fn>
   dismissInboxItem: ReturnType<typeof vi.fn>
   clearInbox: ReturnType<typeof vi.fn>
+  answerFriendRequest: ReturnType<typeof vi.fn>
 }
 
 function renderInbox(friends: { vrchat?: Friend[]; chilloutvr?: Friend[] } = {}): QueryClient {
@@ -94,7 +96,13 @@ beforeEach(() => {
   bridge = {
     getInbox: vi.fn(async () => snapshot),
     dismissInboxItem: vi.fn(async () => undefined),
-    clearInbox: vi.fn(async () => undefined)
+    clearInbox: vi.fn(async () => undefined),
+    answerFriendRequest: vi.fn(async ({ platform, id }: { platform: string; id: string }) => {
+      snapshot = {
+        items: snapshot.items.filter((row) => !(row.platform === platform && row.id === id))
+      }
+      return { ok: true }
+    })
   }
   vi.stubGlobal('vrx', bridge)
 })
@@ -170,6 +178,44 @@ describe('InboxView', () => {
     )
   })
 
+  it('leaves focus where the user moved it while a row was on its way out', async () => {
+    const client = renderInbox()
+    const hide = await screen.findByRole('button', {
+      name: msg('inbox.hideInviteAria', { name: 'Alice' })
+    })
+    hide.focus()
+    fireEvent.click(hide)
+    await waitFor(() => expect(bridge.dismissInboxItem).toHaveBeenCalledTimes(1))
+    const elsewhere = document.createElement('button')
+    document.body.append(elsewhere)
+    elsewhere.focus()
+    snapshot = { items: snapshot.items.slice(1) }
+    await client.invalidateQueries({ queryKey: inboxKey })
+    await waitFor(() => expect(screen.queryByText('Alice')).toBeNull())
+    expect(document.activeElement).toBe(elsewhere)
+    elsewhere.remove()
+  })
+
+  it('keeps keyboard focus when a newer invite from the same person replaces a row', async () => {
+    const client = renderInbox()
+    const hide = await screen.findByRole('button', {
+      name: msg('inbox.hideInviteAria', { name: 'Alice' })
+    })
+    hide.focus()
+    // Main keeps one row per sender and kind: Alice's newer invite takes the
+    // older one's place under a new id.
+    snapshot = {
+      items: [
+        item({ id: 'invite:not_3', worldName: 'Moon Base', receivedAt: NOW - 60_000 }),
+        ...snapshot.items.slice(1)
+      ]
+    }
+    await client.invalidateQueries({ queryKey: inboxKey })
+    await screen.findByText(/Moon Base/)
+    expect(document.activeElement).toBe(hide)
+    expect(hide.isConnected).toBe(true)
+  })
+
   it('Hide all clears only the platforms on screen', async () => {
     useFriendsStore.setState({ platformFilter: 'chilloutvr' })
     renderInbox()
@@ -200,12 +246,79 @@ describe('InboxView', () => {
     snapshot = { items: [] }
     renderInbox()
     expect(await screen.findByText(msg('inbox.emptyHeading'))).toBeTruthy()
+    // The hint wraps into even lines, never leaving one word alone.
+    expect(screen.getByText(msg('inbox.emptyHint')).className).toContain('text-balance')
     expect(screen.queryByRole('button', { name: msg('inbox.hideAll') })).toBeNull()
     const help = screen.getByRole('button', { name: msg('inbox.help.label') })
     expect(help.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(help)
     expect(help.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByText(msg('inbox.help.answer'))).toBeTruthy()
+  })
+
+  it('offers Accept and Decline on friend requests only, and sends one answer', async () => {
+    const client = renderInbox()
+    const requests = await screen.findByRole('region', { name: msg('inbox.requestsHeading') })
+    const invites = screen.getByRole('region', { name: msg('inbox.invitesHeading') })
+    expect(within(invites).queryByRole('button', { name: /accept/i })).toBeNull()
+
+    fireEvent.click(
+      within(requests).getByRole('button', {
+        name: msg('friendActions.acceptAria', { name: 'Bob' })
+      })
+    )
+    await waitFor(() =>
+      expect(bridge.answerFriendRequest).toHaveBeenCalledWith({
+        platform: 'chilloutvr',
+        id: 'friend-request:g-1',
+        answer: 'accept'
+      })
+    )
+    expect((await screen.findByRole('status')).textContent).toBe(
+      msg('friendActions.accepted', { name: 'Bob' })
+    )
+    // Main pushes inbox-changed; the row leaves on the re-read.
+    await client.invalidateQueries({ queryKey: inboxKey })
+    await waitFor(() => expect(screen.queryByText('Bob')).toBeNull())
+    expect(bridge.answerFriendRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the row and names the platform when an answer fails', async () => {
+    let fail: (result: { ok: false; reason: 'unavailable' }) => void = () => undefined
+    bridge.answerFriendRequest.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          fail = resolve
+        })
+    )
+    renderInbox()
+    const decline = await screen.findByRole<HTMLButtonElement>('button', {
+      name: msg('friendActions.declineAria', { name: 'Bob' })
+    })
+    decline.focus()
+    fireEvent.click(decline)
+    // Keyboard focus stays on the pressed button while it sends and after it
+    // fails: `disabled` would drop it to the page. More presses send nothing.
+    await waitFor(() => expect(decline.getAttribute('aria-disabled')).toBe('true'))
+    expect(decline.disabled).toBe(false)
+    expect(document.activeElement).toBe(decline)
+    fireEvent.click(decline)
+    fireEvent.click(
+      screen.getByRole('button', { name: msg('friendActions.acceptAria', { name: 'Bob' }) })
+    )
+    expect(bridge.answerFriendRequest).toHaveBeenCalledTimes(1)
+    act(() => fail({ ok: false, reason: 'unavailable' }))
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        msg('friendActions.error.unavailable', { platform: 'ChilloutVR' })
+      )
+    )
+    expect(document.activeElement).toBe(decline)
+    expect(decline.getAttribute('aria-disabled')).toBe('false')
+    expect(screen.getByText('Bob')).toBeTruthy()
+    expect(bridge.answerFriendRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ answer: 'decline' })
+    )
   })
 
   it('offers Accounts when the filtered platform is not connected', async () => {

@@ -3,12 +3,22 @@
  * HotInstanceSheet (VRX-250 / VRX-260) — bottom-sheet rendering for a hot
  * instance, including the group card in the meta stack.
  */
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useSettingsStore } from '../stores/settings'
+import { useJoinInstance } from '../hooks/useJoinInstance'
 import HotInstanceSheet from './HotInstanceSheet'
 import { getHotInstances, type HotInstance } from '../utils/dashboardAggregations'
 
@@ -160,9 +170,13 @@ describe('HotInstanceSheet', () => {
     expect(card.getAttribute('aria-label')).toBe('Hosted by Pixel Pals')
     const nameSpan = within(card).getByText('Pixel Pals')
     expect(nameSpan.getAttribute('title')).toBe('Pixel Pals')
-    const img = card.querySelector('img')
-    expect(img).toBeTruthy()
-    expect(img!.getAttribute('src')).toBe('data:image/png;base64,group')
+    // The picture appears after the read resolves, a tick after the call.
+    const img = await waitFor(() => {
+      const found = card.querySelector('img')
+      expect(found).toBeTruthy()
+      return found!
+    })
+    expect(img.getAttribute('src')).toBe('data:image/png;base64,group')
   })
 
   it('omits the group card when the group has no name', () => {
@@ -329,10 +343,160 @@ describe('HotInstanceSheet', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('opens another instance, or the same one again, at the top of the sheet', () => {
+    stubIntersectionObserver()
+    const first = makeHotInstance()
+    const second = makeCvrHotInstance()
+    const { rerender } = render(<HotInstanceSheet instance={first} onClose={vi.fn()} />)
+    const scroller = (): HTMLElement =>
+      screen.getByRole('dialog').querySelector<HTMLElement>('.overflow-y-auto')!
+    scroller().scrollTop = 240
+    rerender(<HotInstanceSheet instance={second} onClose={vi.fn()} />)
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe(second.worldName)
+    expect(scroller().scrollTop).toBe(0)
+    scroller().scrollTop = 120
+    // A roster refresh hands the sheet a new object for the same instance: no jump.
+    rerender(<HotInstanceSheet instance={{ ...second }} onClose={vi.fn()} />)
+    expect(scroller().scrollTop).toBe(120)
+    rerender(<HotInstanceSheet instance={null} onClose={vi.fn()} />)
+    rerender(<HotInstanceSheet instance={second} onClose={vi.fn()} />)
+    expect(scroller().scrollTop).toBe(0)
+  })
+
+  it('opens a VRChat instance in another world at the top, though the instance number matches', () => {
+    stubIntersectionObserver()
+    const first = makeHotInstance()
+    const second = makeHotInstance({
+      worldId: 'wrld_other',
+      worldName: 'Other World',
+      groupKey: 'vrchat other key'
+    })
+    const { rerender } = render(<HotInstanceSheet instance={first} onClose={vi.fn()} />)
+    const scroller = (): HTMLElement =>
+      screen.getByRole('dialog').querySelector<HTMLElement>('.overflow-y-auto')!
+    scroller().scrollTop = 240
+    rerender(<HotInstanceSheet instance={second} onClose={vi.fn()} />)
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Other World')
+    expect(scroller().scrollTop).toBe(0)
+  })
+
   it('names each member chip once, by its visible name', () => {
     stubIntersectionObserver()
     render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
     expect(screen.getByText('Alex')).toBeTruthy()
     expect(screen.queryByRole('img', { name: 'Alex' })).toBeNull()
+  })
+
+  it('the grab bar expands the sheet into instance details, the same on both platforms', () => {
+    stubIntersectionObserver()
+    for (const instance of [makeHotInstance(), makeCvrHotInstance()]) {
+      render(<HotInstanceSheet instance={instance} onClose={vi.fn()} />)
+      const bar = screen.getByRole('button', { name: 'Show more' })
+      expect(bar.getAttribute('aria-expanded')).toBe('false')
+      expect(screen.queryByRole('region', { name: 'About this instance' })).toBeNull()
+
+      fireEvent.click(bar)
+      expect(bar.getAttribute('aria-expanded')).toBe('true')
+      const more = screen.getByRole('region', { name: 'About this instance' })
+      const labels = within(more)
+        .getAllByRole('term')
+        .map((term) => term.textContent)
+      // Same fields in the same order on both platforms.
+      expect(labels).toEqual([
+        'People here',
+        'Friends here',
+        'Region',
+        'Access',
+        'Group',
+        'Instance ID'
+      ])
+      // The full instance ID moves into the details instead of the truncated line.
+      expect(within(more).getByText(instance.instanceId)).toBeTruthy()
+      expect(screen.queryByTestId('hot-sheet-instance-id')).toBeNull()
+      expect(within(more).getByText(instance.groupName!)).toBeTruthy()
+
+      fireEvent.keyDown(bar, { key: 'ArrowDown' })
+      expect(screen.queryByRole('region', { name: 'About this instance' })).toBeNull()
+      cleanup()
+    }
+  })
+
+  it('shows the head count and region the members carry, never fewer people than friends', () => {
+    stubIntersectionObserver()
+    render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    const more = screen.getByRole('region', { name: 'About this instance' })
+    const value = (label: string): string | null =>
+      within(more).getByText(label).nextElementSibling?.textContent ?? null
+    expect(value('People here')).toBe('4')
+    expect(value('Friends here')).toBe('1')
+    expect(value('Region')).toBe('US West')
+    cleanup()
+
+    render(<HotInstanceSheet instance={makeCvrHotInstance()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    const cvr = screen.getByRole('region', { name: 'About this instance' })
+    expect(within(cvr).getByText('Region').nextElementSibling?.textContent).toBe('Not shown')
+  })
+
+  it('says a group hosts it even when the group name is unknown, and None only for no group', () => {
+    stubIntersectionObserver()
+    const groupValue = (): string | null =>
+      within(screen.getByRole('region', { name: 'About this instance' })).getByText('Group')
+        .nextElementSibling?.textContent ?? null
+    render(<HotInstanceSheet instance={makeHotInstance({ groupName: null })} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(groupValue()).toBe('Not shown')
+    cleanup()
+
+    render(
+      <HotInstanceSheet
+        instance={makeHotInstance({ isGroup: false, groupName: null, groupId: null })}
+        onClose={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(groupValue()).toBe('None')
+  })
+
+  it('keeps keyboard focus on Join while its join runs, and ignores presses until it ends', async () => {
+    stubIntersectionObserver()
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: false },
+      dirty: false
+    })
+    let finish!: (result: { ok: true }) => void
+    const joinInstance = vi.fn(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          finish = resolve
+        })
+    )
+    window.vrx = { ...window.vrx, joinInstance } as unknown as Window['vrx']
+    try {
+      render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
+      const join = screen.getByRole('button', { name: 'Join Alex in Group Hangout' })
+      join.focus()
+
+      fireEvent.click(join)
+      expect(joinInstance).toHaveBeenCalledOnce()
+      // The disabled attribute would drop focus to the page (focus fixup);
+      // aria-disabled keeps the button focused and announced as unavailable.
+      expect(join.hasAttribute('disabled')).toBe(false)
+      expect(join.getAttribute('aria-disabled')).toBe('true')
+      expect(document.activeElement).toBe(join)
+
+      fireEvent.click(join)
+      expect(joinInstance).toHaveBeenCalledOnce()
+
+      await act(async () => {
+        finish({ ok: true })
+        await Promise.resolve()
+      })
+      expect(join.getAttribute('aria-disabled')).toBeNull()
+      expect(document.activeElement).toBe(join)
+    } finally {
+      renderHook(() => useJoinInstance()).result.current.invalidatePending()
+    }
   })
 })

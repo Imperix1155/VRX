@@ -60,11 +60,13 @@ describe('Sidebar destinations (VRX-281)', () => {
     const nav = screen.getByRole('navigation', { name: i18n.t('shell.nav.aria') })
     const tabs = [
       'dashboard',
-      'hot',
       'friends',
+      'hot',
       'activity',
       'inbox',
       'explore',
+      'search',
+      'groups',
       'avatars',
       'settings'
     ] as const
@@ -89,7 +91,9 @@ describe('Sidebar optional pages (owner, 2026-10-20)', () => {
         showHotInstancesPage: false,
         showExplorePage: false,
         showActivityPage: false,
-        showInboxPage: false
+        showInboxPage: false,
+        showSearchPage: false,
+        showGroupsPage: false
       }
     })
     render(<Sidebar />)
@@ -244,20 +248,38 @@ describe('Sidebar update button (VRX-113)', () => {
     expect(footer.querySelector(':scope > span.whitespace-nowrap')?.textContent).toMatch(/^v\S+$/)
   })
 
-  it('appends localized retry guidance to update-available title/aria-label after a download/write failure', () => {
+  it.each(['download-write', 'staged-install'] as const)(
+    'appends localized retry guidance to update-available title/aria-label after a %s failure',
+    (failure) => {
+      updaterState.state = {
+        state: 'update-available',
+        currentVersion: '0.14.0',
+        availableVersion: '0.15.0',
+        progressPercent: 0,
+        failure
+      }
+      render(<Sidebar />)
+
+      const expectedAria = `${i18n.t('updater.sidebar.downloadAria')} ${i18n.t('updater.sidebar.retrySuffix')}`
+      const expectedTitle = `${i18n.t('updater.sidebar.downloadTitle')} ${i18n.t('updater.sidebar.retrySuffix')}`
+      const button = screen.getByRole('button', { name: expectedAria })
+      expect(button.getAttribute('title')).toBe(expectedTitle)
+    }
+  )
+
+  it('keeps the plain download label when only a background re-check failed', () => {
+    // No download was tried, and the offer still stands.
     updaterState.state = {
       state: 'update-available',
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 0,
-      failure: 'download-write'
+      failure: 'check-network'
     }
     render(<Sidebar />)
 
-    const expectedAria = `${i18n.t('updater.sidebar.downloadAria')} ${i18n.t('updater.sidebar.retrySuffix')}`
-    const expectedTitle = `${i18n.t('updater.sidebar.downloadTitle')} ${i18n.t('updater.sidebar.retrySuffix')}`
-    const button = screen.getByRole('button', { name: expectedAria })
-    expect(button.getAttribute('title')).toBe(expectedTitle)
+    const button = screen.getByRole('button', { name: i18n.t('updater.sidebar.downloadAria') })
+    expect(button.getAttribute('title')).toBe(i18n.t('updater.sidebar.downloadTitle'))
   })
 
   it('expands to show the label on focus', () => {

@@ -17,6 +17,8 @@ import RecoveryNotices from './RecoveryNotices'
 import JoinConfirmDialog from './JoinConfirmDialog'
 import ExploreRoute from './ExploreRoute'
 import AvatarsView from './AvatarsView'
+import SearchView from './SearchView'
+import GroupsView from './GroupsView'
 import { useExploreCoordinator } from '../hooks/useExploreCoordinator'
 
 /** A page the user turned off falls back to the Dashboard before paint, so a
@@ -28,13 +30,17 @@ function useHiddenPageFallback(): void {
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
   const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
+  const showSearchPage = useSettingsStore((s) => s.settings.showSearchPage)
+  const showGroupsPage = useSettingsStore((s) => s.settings.showGroupsPage)
   const hotOpenedFromAlert = useUiStore((s) => s.hotOpenedFromAlert)
   const shown =
     isPageShown(activeTab, {
       showHotInstancesPage,
       showExplorePage,
       showActivityPage,
-      showInboxPage
+      showInboxPage,
+      showSearchPage,
+      showGroupsPage
     }) ||
     (activeTab === 'hot' && hotOpenedFromAlert)
   useLayoutEffect(() => {
@@ -80,6 +86,18 @@ function MainContent(): React.JSX.Element {
       return (
         <ErrorBoundary key={activeTab} variant="panel">
           <ExploreRoute />
+        </ErrorBoundary>
+      )
+    case 'search':
+      return (
+        <ErrorBoundary key={activeTab} variant="panel">
+          <SearchView />
+        </ErrorBoundary>
+      )
+    case 'groups':
+      return (
+        <ErrorBoundary key={activeTab} variant="panel">
+          <GroupsView />
         </ErrorBoundary>
       )
     case 'avatars':
@@ -134,8 +152,11 @@ export default function AppShell(): React.JSX.Element {
         ref={mainRef}
         aria-label={t(VIEW_TITLE_KEYS[activeTab])}
         // tabIndex -1: programmatically focusable so the join dialog's
-        // focus-restore has a stable container fallback (VRX-210).
+        // focus-restore has a stable container fallback (VRX-210). It is a
+        // place to land, not a control, so the browser draws no ring around
+        // the whole page.
         tabIndex={-1}
+        className="outline-none"
         style={{
           overflowY: 'auto',
           // Keep the social filter fixed when a view gains or loses its scrollbar.
@@ -145,7 +166,6 @@ export default function AppShell(): React.JSX.Element {
               ? 'var(--space-2)'
               : 'var(--space-2) var(--space-2) var(--space-10)'
         }}
-        className="[&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar-thumb]:rounded-full"
       >
         <TopBar />
         <RecoveryNotices />

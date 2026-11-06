@@ -1,4 +1,4 @@
-import { forwardRef, useId, useState } from 'react'
+import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthState, BackgroundGlow, LabelScheme, Platform, Theme } from '@shared/types'
 import {
@@ -9,13 +9,23 @@ import {
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
 import { useSettingsStore } from '../../stores/settings'
+import { SECTION_SETTINGS } from '../../utils/dashboardSections'
 import { focusRadioSibling, segArrowTarget } from '../../utils/segmented'
 import AccountCard from '../AccountCard'
 import SegmentedControl from '../SegmentedControl'
 import Toggle from '../Toggle'
-import { IconActivity, IconExplore, IconFriends, IconHot, IconInbox } from '../NavIcons'
+import {
+  IconActivity,
+  IconExplore,
+  IconFriends,
+  IconGroups,
+  IconHot,
+  IconInbox,
+  IconSearch
+} from '../NavIcons'
 import { BackgroundPictureControls, BackgroundPictureMessage } from '../BackgroundPicturePicker'
 import { useBackgroundPicturePicker } from '../../hooks/useBackgroundPicturePicker'
+import FinePrint from '../FinePrint'
 import { useAppBackground } from '../../queries/appBackground'
 import { SECONDARY_BUTTON, SETUP_ALERTS, SETUP_PLATFORMS } from './setupModel'
 
@@ -54,15 +64,17 @@ export const StepHeading = forwardRef<
 >(function StepHeading({ title, lead, centered = false, leadLive = false }, ref) {
   return (
     <div className={centered ? 'text-center' : undefined}>
-      {/* Focus lands here on every step change so screen readers announce it. */}
-      <h2
+      {/* Focus lands here on every step change so screen readers announce it.
+          The setup has no top bar, so each step's title is the page's heading,
+          in the page title's type (DESIGN.md §7: 25 px extra bold). */}
+      <h1
         ref={ref}
         id="setup-step-title"
         tabIndex={-1}
-        className="text-[22px] font-semibold leading-tight text-[var(--text)] text-balance focus:outline-none"
+        className="text-[25px] font-extrabold leading-[1.2] text-[var(--text)] text-balance focus:outline-none"
       >
         {title}
-      </h2>
+      </h1>
       {lead && (
         <p
           role={leadLive ? 'status' : undefined}
@@ -77,7 +89,7 @@ export const StepHeading = forwardRef<
 
 function RowIcon({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <span className="grid h-[32px] w-[32px] flex-none place-items-center rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] text-[var(--text)]">
+    <span className="glass-chip grid h-[32px] w-[32px] flex-none place-items-center rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] text-[var(--text)]">
       {children}
     </span>
   )
@@ -118,43 +130,6 @@ function Row(props: RowProps): React.JSX.Element {
 const ALERT_GROUPS = ['friends', 'inbox'] as const
 
 const FINE_PRINT = 'text-[11.5px] leading-[1.45] text-[var(--text-dim)]'
-
-/**
- * Simple by default, more on demand (owner, 2026-10-22): one short line of
- * fine print that swaps to the full text in place, so opening it adds only a
- * line or two.
- */
-function FinePrint({
-  summary,
-  full,
-  centered = false
-}: {
-  summary: string
-  full: string
-  centered?: boolean
-}): React.JSX.Element {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const textId = useId()
-  return (
-    <p
-      id={textId}
-      aria-live="polite"
-      className={`${FINE_PRINT}${centered ? ' max-w-[52ch] text-center text-balance' : ''}`}
-    >
-      {open ? full : summary}{' '}
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={textId}
-        onClick={() => setOpen((value) => !value)}
-        className="whitespace-nowrap text-[var(--text-dim)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors"
-      >
-        {t(open ? 'setup.showLess' : 'setup.showMore')}
-      </button>
-    </p>
-  )
-}
 
 // ─── Welcome ─────────────────────────────────────────────────────────────────
 
@@ -242,19 +217,26 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
   const showExplore = useSettingsStore((s) => s.settings.showExplorePage)
   const showActivity = useSettingsStore((s) => s.settings.showActivityPage)
   const showInbox = useSettingsStore((s) => s.settings.showInboxPage)
+  const showSearch = useSettingsStore((s) => s.settings.showSearchPage)
+  const showGroups = useSettingsStore((s) => s.settings.showGroupsPage)
   const update = useSettingsStore((s) => s.updateSettings)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
       <StepHeading ref={ref} title={t('setup.pages.title')} lead={t('setup.pages.lead')} />
-      <div className="settings-cards">
-        <Row icon={<IconHot />} label={t('shell.nav.hot')} description={t('setup.pages.hot')}>
+      {/* One card like the Alerts step, so all six pages fit without scrolling. */}
+      <div className="setting-card grid gap-[var(--space-2)] py-[10px]">
+        <RowContent
+          icon={<IconHot />}
+          label={t('shell.nav.hot')}
+          description={t('setup.pages.hot')}
+        >
           <Toggle
             checked={showHot}
             ariaLabel={t('setup.pages.hotAria')}
             onChange={(checked) => update({ showHotInstancesPage: checked })}
           />
-        </Row>
-        <Row
+        </RowContent>
+        <RowContent
           icon={<IconActivity />}
           label={t('shell.nav.activity')}
           description={t('setup.pages.activity')}
@@ -264,15 +246,19 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             ariaLabel={t('setup.pages.activityAria')}
             onChange={(checked) => update({ showActivityPage: checked })}
           />
-        </Row>
-        <Row icon={<IconInbox />} label={t('shell.nav.inbox')} description={t('setup.pages.inbox')}>
+        </RowContent>
+        <RowContent
+          icon={<IconInbox />}
+          label={t('shell.nav.inbox')}
+          description={t('setup.pages.inbox')}
+        >
           <Toggle
             checked={showInbox}
             ariaLabel={t('setup.pages.inboxAria')}
             onChange={(checked) => update({ showInboxPage: checked })}
           />
-        </Row>
-        <Row
+        </RowContent>
+        <RowContent
           icon={<IconExplore />}
           label={t('shell.nav.explore')}
           description={t('setup.pages.explore')}
@@ -282,7 +268,29 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             ariaLabel={t('setup.pages.exploreAria')}
             onChange={(checked) => update({ showExplorePage: checked })}
           />
-        </Row>
+        </RowContent>
+        <RowContent
+          icon={<IconSearch />}
+          label={t('shell.nav.search')}
+          description={t('setup.pages.search')}
+        >
+          <Toggle
+            checked={showSearch}
+            ariaLabel={t('setup.pages.searchAria')}
+            onChange={(checked) => update({ showSearchPage: checked })}
+          />
+        </RowContent>
+        <RowContent
+          icon={<IconGroups />}
+          label={t('shell.nav.groups')}
+          description={t('setup.pages.groups')}
+        >
+          <Toggle
+            checked={showGroups}
+            ariaLabel={t('setup.pages.groupsAria')}
+            onChange={(checked) => update({ showGroupsPage: checked })}
+          />
+        </RowContent>
       </div>
     </div>
   )
@@ -329,7 +337,8 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
               values={DASHBOARD_SECTION_ORDERS}
               active={order}
               labelKeys={ORDER_LABEL_KEYS}
-              ariaLabel={t('settings.dashboard.order.aria')}
+              // Named with the question it shows, so voice control can say it.
+              ariaLabel={t('setup.dashboard.order.label')}
               // The full section list owns the order; swap the two in it too.
               onChange={(value) =>
                 update({
@@ -535,6 +544,8 @@ export const DoneStep = forwardRef<
       ['shell.nav.activity', s.showActivityPage],
       ['shell.nav.inbox', s.showInboxPage],
       ['shell.nav.explore', s.showExplorePage],
+      ['shell.nav.search', s.showSearchPage],
+      ['shell.nav.groups', s.showGroupsPage],
       ['shell.nav.avatars', true],
       ['shell.nav.settings', true]
     ] as const
@@ -543,18 +554,13 @@ export const DoneStep = forwardRef<
     .map(([key]) => t(key))
     .join(t('listSeparator'))
 
-  const sections = [
-    s.dashboardPopularNow && t('settings.dashboard.popular.label'),
-    s.hotInstancesEnabled && t('settings.dashboard.hot.label')
-  ].filter((name): name is string => typeof name === 'string')
-  if (sections.length === 2 && s.dashboardSectionOrder === 'hot-first') sections.reverse()
-  const [first, second] = sections
+  // Every section that's on, in its Dashboard order, named as Settings →
+  // Dashboard names it.
+  const sections = s.dashboardSections
+    .filter((section) => s[SECTION_SETTINGS[section].setting])
+    .map((section) => t(SECTION_SETTINGS[section].labelKey))
   const dashboard =
-    first === undefined
-      ? t('setup.done.dashboardNone')
-      : second === undefined
-        ? first
-        : t('setup.done.dashboardBoth', { first, second })
+    sections.length === 0 ? t('setup.done.dashboardNone') : sections.join(t('listSeparator'))
 
   const alertsOn = SETUP_ALERTS.filter((alert) => s[alert.key]).length
   const alerts =
@@ -562,10 +568,21 @@ export const DoneStep = forwardRef<
       ? t('setup.done.alertsOff')
       : t('setup.done.alertsSome', { count: alertsOn, total: SETUP_ALERTS.length })
 
-  const look = t(picture ? 'setup.done.lookValuePicture' : 'setup.done.lookValue', {
-    theme: t(THEME_CHOICES.find(([value]) => value === s.theme)?.[1] ?? 'setup.look.system'),
-    glow: t(GLOW_LABEL_KEYS[s.backgroundGlow])
-  })
+  // "Dark, no glow" rather than "Dark, Off glow".
+  const noGlow = s.backgroundGlow === 'off'
+  const look = t(
+    picture
+      ? noGlow
+        ? 'setup.done.lookValuePictureNoGlow'
+        : 'setup.done.lookValuePicture'
+      : noGlow
+        ? 'setup.done.lookValueNoGlow'
+        : 'setup.done.lookValue',
+    {
+      theme: t(THEME_CHOICES.find(([value]) => value === s.theme)?.[1] ?? 'setup.look.system'),
+      glow: t(GLOW_LABEL_KEYS[s.backgroundGlow])
+    }
+  )
 
   const rows: Array<[string, string]> = [
     ['setup.done.accounts', accounts],

@@ -40,6 +40,21 @@ describe('splitByMatch', () => {
     ])
   })
 
+  it('matches hiragana and katakana both ways, keeping the voicing rule', () => {
+    expect(splitByMatch('タロウ', 'たろう')).toEqual([{ text: 'タロウ', isMatch: true }])
+    expect(splitByMatch('ねこ太郎', 'ネコ')).toEqual([
+      { text: 'ねこ', isMatch: true },
+      { text: '太郎', isMatch: false }
+    ])
+    expect(splitByMatch('ﾀﾛｳ', 'たろう')).toEqual([{ text: 'ﾀﾛｳ', isMatch: true }])
+    expect(splitByMatch('ｶﾞｽ', 'が')[0]).toEqual({ text: 'ｶﾞ', isMatch: true })
+    expect(splitByMatch('ヴィ', 'ゔぃ')).toEqual([{ text: 'ヴィ', isMatch: true }])
+    expect(splitByMatch('ヽ', 'ゝ')).toEqual([{ text: 'ヽ', isMatch: true }])
+    expect(splitByMatch('カズ', 'が')).toEqual([{ text: 'カズ', isMatch: false }])
+    // A voiced letter with no hiragana twin still joins its half-width mark.
+    expect(splitByMatch('ヷ', 'ﾜﾞ')).toEqual([{ text: 'ヷ', isMatch: true }])
+  })
+
   it('splits every non-overlapping occurrence', () => {
     expect(splitByMatch('Banana', 'an')).toEqual([
       { text: 'B', isMatch: false },
