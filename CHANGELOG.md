@@ -78,6 +78,9 @@ CHANGELOG.md list every change in detail.
 - Search: world pictures further down the results no longer stay blank after
   waiting their turn behind the others.
 - Groups: many VRChat group pictures that never loaded now do.
+- Favorites: when VRChat or ChilloutVR briefly drops your session and you are
+  back on the same account, the star's game favorite groups load again, so
+  adding or removing a favorite there no longer keeps failing until a restart.
 
 ### Security
 

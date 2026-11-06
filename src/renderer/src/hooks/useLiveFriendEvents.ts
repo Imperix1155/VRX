@@ -152,6 +152,9 @@ export function useLiveFriendEvents(): void {
         for (const communityKey of communityQueryKeysForPlatform(event.platform)) {
           void queryClient.cancelQueries({ queryKey: communityKey })
         }
+        // Main forgot this platform's game favorites too; a later change would
+        // be refused until they are read again at re-auth.
+        void queryClient.cancelQueries({ queryKey: gameFavoritesPlatformKey(event.platform) })
         void queryClient.invalidateQueries({ queryKey: authStatusQueryKey(event.platform) })
         // Persist the corrected cache synchronously: this platform is empty,
         // while the independent platform's legitimate roster stays intact.
@@ -259,6 +262,8 @@ export function useLiveFriendEvents(): void {
           for (const communityKey of communityQueryKeysForPlatform(platform)) {
             void queryClient.resetQueries({ queryKey: communityKey })
           }
+          // Main cleared its game favorites at the 401, so read them again.
+          void queryClient.resetQueries({ queryKey: gameFavoritesPlatformKey(platform) })
         }
         if (
           status?.state === 'authenticated' &&

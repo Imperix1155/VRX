@@ -88,7 +88,8 @@ or launch authority.
 - Friend, linked-profile, Explore, note, note-sync, alert-pick, favorite,
   game-favorite, avatar, community and own-profile queries cancel
   old work and clear data and fences at identity or auth boundaries. Community
-  answers kept through a data-path 401 reset when the same account returns. Avatar
+  answers and game favorites kept through a data-path 401 reset when the same
+  account returns, since main forgot them at the 401. Avatar
   libraries otherwise stay in memory for the session, keyed by account. An old reply never publishes
   under the replacement account.
 - `projectLinkedFriends` projects only qualified people; raw friend caches stay
