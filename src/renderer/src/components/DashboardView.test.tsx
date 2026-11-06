@@ -872,7 +872,7 @@ describe('HotInstanceSheet (VRX-250)', () => {
     expect(screen.getByText(msg('policySpace.public'))).toBeTruthy()
   })
 
-  it('platform stripe is clipped inside the panel radius container, not full-window', () => {
+  it('hot sheet has no solid platform stripe along its top edge (owner, 2026-11-06)', () => {
     stubQueries(
       { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
       { data: [], isPending: false }
@@ -880,11 +880,7 @@ describe('HotInstanceSheet (VRX-250)', () => {
     render(<DashboardView />)
 
     fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
-    const stripe = screen.getByTestId('hot-sheet-stripe')
-    // The stripe must be a descendant of the overflow-clipping radius wrapper.
-    const clipper = stripe.closest('.overflow-hidden')
-    expect(clipper).not.toBeNull()
-    expect(clipper?.className).toContain('rounded-t-[var(--radius-panel)]')
+    expect(screen.queryByTestId('hot-sheet-stripe')).toBeNull()
   })
 
   it('sheet and scrim are offset from the left edge so they do not cover the sidebar', () => {

@@ -357,16 +357,6 @@ function SocialConfirmDialog({
         data-social-confirm={action}
         className="glass glass-frosted-heavy glass-information relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
       >
-        <span
-          aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-[4px]"
-          style={{
-            background:
-              platform === 'vrchat'
-                ? 'linear-gradient(90deg, var(--vrc), transparent)'
-                : 'linear-gradient(90deg, var(--cvr), transparent)'
-          }}
-        />
         <div className="flex items-start justify-between gap-[var(--space-3)]">
           <h2
             id={titleId}

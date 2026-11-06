@@ -17,7 +17,7 @@ export interface AvatarCardProps {
 
 /**
  * One avatar on the Avatars page. VRChat and ChilloutVR use this exact card;
- * only the platform stripe, tint and short label differ. The picture loads
+ * only the platform tint and short label differ. The picture loads
  * through main's image proxy when the card nears the viewport. Memoized: a
  * library can hold hundreds of cards, and opening a details sheet or a Refresh
  * press must not re-render every one of them.
@@ -45,15 +45,6 @@ function AvatarCard({ avatar, worn, onOpen, layout = 'card' }: AvatarCardProps):
       aria-describedby={wornLine ? wornId : undefined}
       className={`glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex w-full min-w-0 flex-col overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] ${bar ? '' : 'h-full'}`}
     >
-      <div
-        aria-hidden="true"
-        className="h-[4px] w-full shrink-0"
-        style={{
-          background: isVrc
-            ? 'linear-gradient(90deg, var(--vrc), transparent)'
-            : 'linear-gradient(90deg, var(--cvr), transparent)'
-        }}
-      />
       <div className={bar ? 'flex min-w-0 items-stretch' : 'flex flex-1 flex-col'}>
         <div
           ref={pictureRef}

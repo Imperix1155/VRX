@@ -1,7 +1,7 @@
 /**
  * PlatformPill — the quiet platform label on a Dashboard hot-instance card (VRX-198).
  *
- * The card TINT + top stripe already carry the platform for anyone who can see
+ * The card TINT already carries the platform for anyone who can see
  * color; this pill is the §5 NON-COLOR signifier for colorblind / low-vision users.
  * It shares the instance pill's GEOMETRY (same footprint, so the two align in the
  * card's shared column). Its colors come from the --plat-*-badge-* tokens: a dim

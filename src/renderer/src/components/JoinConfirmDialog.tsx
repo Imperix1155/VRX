@@ -219,16 +219,6 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
         tabIndex={-1}
         className="glass glass-frosted-heavy glass-information relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
       >
-        <span
-          aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-[4px]"
-          style={{
-            background:
-              world.platform === 'vrchat'
-                ? 'linear-gradient(90deg, var(--vrc), transparent)'
-                : 'linear-gradient(90deg, var(--cvr), transparent)'
-          }}
-        />
         <div className="flex items-start justify-between gap-[var(--space-3)]">
           <h2
             id="explore-join-confirm-title"
@@ -648,18 +638,6 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
         tabIndex={-1}
         className="glass glass-frosted-heavy glass-information relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
       >
-        {/* Platform top edge (hot-card recipe) — tint reinforces the PlatformPill
-            word; neither carries platform alone (R12). */}
-        <span
-          aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-[4px]"
-          style={{
-            background: isVrc
-              ? 'linear-gradient(90deg, var(--vrc), transparent)'
-              : 'linear-gradient(90deg, var(--cvr), transparent)'
-          }}
-        />
-
         <div className="flex items-start justify-between gap-[var(--space-3)]">
           <h2 id="join-confirm-title" className="text-base font-semibold text-[var(--text)]">
             {title}
