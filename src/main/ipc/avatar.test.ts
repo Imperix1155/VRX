@@ -17,7 +17,7 @@ vi.mock('./security', () => ({
   isTrustedIpcSender: vi.fn(() => trusted.value)
 }))
 
-const service = vi.hoisted(() => ({ get: vi.fn(), getPicture: vi.fn() }))
+const service = vi.hoisted(() => ({ get: vi.fn(), getPicture: vi.fn(), peek: vi.fn() }))
 vi.mock('../services/avatarCache', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/avatarCache')>()),
   avatarCache: service
@@ -33,6 +33,7 @@ beforeEach(() => {
   trusted.value = true
   service.get.mockReset().mockResolvedValue(null)
   service.getPicture.mockReset().mockResolvedValue(null)
+  service.peek.mockReset().mockResolvedValue(null)
   registerAvatarHandlers()
 })
 
@@ -101,5 +102,24 @@ describe('get-avatar handler boundary', () => {
     })
     expect(service.getPicture).toHaveBeenCalledWith(url)
     expect(service.get).not.toHaveBeenCalled()
+  })
+  it('answers keptOnly from kept copies only, and rejects any other keptOnly value', async () => {
+    const url = 'https://api.vrchat.cloud/api/1/image/file_1/1/256'
+    service.peek.mockResolvedValue('data:image/png;base64,eA==')
+    await expect(call({ url, keptOnly: true })).resolves.toEqual({
+      ok: true,
+      dataUrl: 'data:image/png;base64,eA=='
+    })
+    expect(service.peek).toHaveBeenCalledWith(url, 'original')
+    await call({ url, rendition: 'picture', keptOnly: true })
+    expect(service.peek).toHaveBeenLastCalledWith(url, 'picture')
+    expect(service.get).not.toHaveBeenCalled()
+    expect(service.getPicture).not.toHaveBeenCalled()
+
+    service.peek.mockClear()
+    for (const keptOnly of [false, 'yes', 1, null]) {
+      await expect(call({ url, keptOnly })).rejects.toThrow('Invalid avatar request')
+    }
+    expect(service.peek).not.toHaveBeenCalled()
   })
 })

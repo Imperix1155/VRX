@@ -7,7 +7,8 @@ import {
   AVATAR_RENDERER_CACHE_MAX_BYTES,
   AVATAR_RETRY_DELAY_MS,
   AvatarDataCache,
-  useAvatar
+  useAvatar,
+  useAvatarImage
 } from './useAvatar'
 
 type ObserverCallback = ConstructorParameters<typeof IntersectionObserver>[0]
@@ -212,6 +213,77 @@ describe('useAvatar', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+function StatusHarness({ url }: { url: string }): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  const image = useAvatarImage(url, ref)
+  return (
+    <div ref={ref} data-testid={`status-${url.split('/').at(-3)}`}>
+      {image.dataUrl ?? (image.pending ? 'pending' : 'none')}
+      {image.instant ? ' instant' : ''}
+    </div>
+  )
+}
+
+const apiUrl = (name: string): string => `https://api.vrchat.cloud/api/1/image/file_${name}/1/256`
+
+describe('useAvatar with VRChat API-host pictures', () => {
+  it('shows a picture main already keeps without lining up a download', async () => {
+    const getAvatar = vi.fn()
+    const getKeptAvatar = vi
+      .fn()
+      .mockResolvedValue({ ok: true, dataUrl: 'data:image/png;base64,a2VwdA==' })
+    window.vrx = { getAvatar, getKeptAvatar } as unknown as Window['vrx']
+    const url = apiUrl('kept')
+
+    render(<StatusHarness url={url} />)
+    expect(screen.getByTestId('status-file_kept').textContent).toBe('pending')
+    observers.at(-1)?.intersect(true)
+    await waitFor(() =>
+      expect(screen.getByTestId('status-file_kept').textContent).toContain('data:image')
+    )
+    expect(getKeptAvatar).toHaveBeenCalledWith(url)
+    expect(getAvatar).not.toHaveBeenCalled()
+
+    // Back on the page later: shown on the first render, without a fade.
+    cleanup()
+    render(<StatusHarness url={url} />)
+    expect(screen.getByTestId('status-file_kept').textContent).toContain(' instant')
+    expect(getKeptAvatar).toHaveBeenCalledTimes(1)
+  })
+
+  it('never downloads a picture whose tile left before its turn', async () => {
+    const answers = new Map<string, (value: { ok: true; dataUrl: string }) => void>()
+    const getAvatar = vi.fn(
+      (url: string) =>
+        new Promise<{ ok: true; dataUrl: string }>((resolve) => answers.set(url, resolve))
+    )
+    const getKeptAvatar = vi.fn().mockResolvedValue(null)
+    window.vrx = { getAvatar, getKeptAvatar } as unknown as Window['vrx']
+    const [one, two, three] = [apiUrl('one'), apiUrl('two'), apiUrl('three')]
+
+    const first = render(<StatusHarness url={one} />)
+    observers.at(-1)?.intersect(true)
+    const second = render(<StatusHarness url={two} />)
+    observers.at(-1)?.intersect(true)
+    const third = render(<StatusHarness url={three} />)
+    observers.at(-1)?.intersect(true)
+    await waitFor(() => expect(getAvatar).toHaveBeenCalledTimes(2))
+    expect(getAvatar.mock.calls.map(([url]) => url)).toEqual([one, two])
+
+    // The user opens another page before the third picture's turn.
+    third.unmount()
+    answers.get(one)!({ ok: true, dataUrl: 'data:image/png;base64,b25l' })
+    answers.get(two)!({ ok: true, dataUrl: 'data:image/png;base64,dHdv' })
+    await waitFor(() =>
+      expect(screen.getByTestId('status-file_two').textContent).toContain('data:image')
+    )
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(getAvatar).toHaveBeenCalledTimes(2)
+    first.unmount()
+    second.unmount()
   })
 })
 

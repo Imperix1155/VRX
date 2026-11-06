@@ -292,6 +292,23 @@ export class AvatarCache {
     return fullHeldBack ? this.peekPicture(parsed.href) : null
   }
 
+  /**
+   * What `get` (or `getPicture` for `picture`) would answer from a copy already
+   * kept in memory or on disk, or null. Makes no request, so the renderer can
+   * show kept pictures at once and line up only real downloads.
+   */
+  async peek(value: string, rendition: ImageRendition = 'original'): Promise<string | null> {
+    if (rendition === 'picture') return this.peekKeptPicture(value)
+    const parsed = parseAllowedAvatarUrl(value)
+    if (parsed === null) return null
+    const key = renditionKey(parsed.href, rendition)
+    const cached = this.cache.get(key)
+    if (cached !== undefined && cached.expiresAt > this.now() && cached.dataUrl !== null) {
+      return cached.dataUrl
+    }
+    return this.readStored(parsed.href, rendition)
+  }
+
   /** A `picture` copy already in memory or on disk, without any request. */
   private async peekPicture(url: string): Promise<string | null> {
     const key = renditionKey(url, 'picture')

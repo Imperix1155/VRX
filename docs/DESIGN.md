@@ -1000,6 +1000,13 @@ with nothing loaded, its red line stands alone.
   (first of each, then second of each) so neither platform leads. People are
   square picture tiles with the platform stripe, tint and VRC/CVR chip, and a
   quiet "Friend" line; with no picture the tile shows the name's first letter.
+  While a tile's picture is on its way (owner, 2026-11-04) its box breathes
+  softly (`.picture-waiting`) with no letter, so a first letter always means
+  "no picture"; a picture that arrives after the page is up fades in
+  (`.picture-arrive`), one already loaded this session shows at once, and a
+  picture that fails falls back to the letter. Reduced motion shows the same
+  states without the pulse or fade. The guide's dashboard `pictures-loading`
+  variant holds every picture in the waiting state.
   Worlds use the Explore world card and sheet with Join.
 - **Full profile** opens in the bottom sheet (Search) or behind "Show full
   profile" in friend details. Fields come in one order on both platforms:
@@ -1020,9 +1027,10 @@ with nothing loaded, its red line stands alone.
   (owner, 2026-11-04): the group's wide banner across the top with its square
   icon (never cropped) in the bottom-left corner, then the name and the VRC or
   CVR chip with the group code, led by "Owner ·" on a group you own. Icons
-  load first and banners fade in after; a group without a banner keeps the
-  same layout over a blurred copy of its icon, and no picture at all shows the
-  name's first letter on the platform color. A group opens the bottom sheet.
+  load first (with the same waiting look as Search tiles) and banners fade in
+  after; a group without a banner keeps the same layout over a blurred copy of
+  its icon, and no picture at all shows the name's first letter on the
+  platform color. A group opens the bottom sheet.
   View only.
 - **Avatars** lists the avatars uploaded on each platform and the one worn
   now, as picture cards with a VRC or CVR chip; the sheet has Wear this

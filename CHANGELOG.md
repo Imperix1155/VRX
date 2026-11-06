@@ -9,9 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pictures load faster on Groups, Search and other pages. Pictures for what
+  is on screen now go first, and pictures for a page you already left are
+  skipped instead of holding up the one you're on. VRX still asks VRChat for
+  at most one thing per second.
+- While a group, person or world picture is on its way, its box shows a soft
+  loading look instead of the first letter, and the picture fades in when it
+  arrives. A first letter now always means there is no picture.
 - The welcome setup and sign-in screens now follow the rest of the app's
   look more closely: step titles match page titles, the step count uses the
   app's retro heading font, and the sign-in logo matches the sidebar's.
+
+### Fixed
+
+- Search: world pictures further down the results no longer stay blank after
+  waiting their turn behind the others.
+- Settings → Accounts → Edit profile: your VRChat bio loads into the editor
+  again, and saving a new bio reaches VRChat. VRChat moved bios to a separate
+  profile, so VRX now reads and saves the bio there; pronouns and status save
+  as before.
 
 ## [1.4.0-dev.15] - 2026-11-05
 
