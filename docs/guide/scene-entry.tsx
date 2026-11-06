@@ -22,7 +22,7 @@ const root = document.getElementById('root')
 if (root === null) throw new Error('Missing scene root')
 
 const SCENE_VARIANTS: Record<string, string[]> = {
-  dashboard: ['ready', 'hot-first', 'reordered', 'needs-code'],
+  dashboard: ['ready', 'hot-first', 'reordered', 'needs-code', 'pictures-loading'],
   activity: ['ready', 'empty'],
   friends: friendsScenarios.map(({ value }) => value),
   updater: ['available', 'downloading', 'downloaded', 'idle'],

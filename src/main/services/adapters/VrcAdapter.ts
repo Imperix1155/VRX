@@ -66,7 +66,7 @@ import {
 import { parseVrcAvatar, parseVrcAvatarPage } from './vrchat/parseAvatars'
 import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
 import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
-import { parseVrcOwnProfile, vrcOwnProfileBody } from './vrchat/parseOwnProfile'
+import { parseVrcOwnProfile, vrcOwnProfileBody, vrcOwnUserBody } from './vrchat/parseOwnProfile'
 import { SocialDataError, type SocialActionAdapter } from './SocialActionAdapter'
 import { parseVrcBlocked } from './vrchat/parseBlocked'
 import {
@@ -1346,31 +1346,41 @@ export class VrcAdapter
   async getOwnProfile(lease: RequestLease): Promise<OwnProfile> {
     const accountId = this.accountId
     if (accountId === null) throw new AuthError()
+    // The bio lives on the profile, not on `/users/{me}`; one read as VRCX's
+    // own editor does, with the pronouns and status alongside it.
     const raw = await this.runCommunityRequest(lease, () =>
-      this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
+      this.get(
+        `/profile/${encodeURIComponent(accountId)}?asSelf=true`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
     )
     const profile = parseVrcOwnProfile(raw, accountId)
     if (!profile) throw new OwnProfileDataError('VRChat profile response was malformed')
     return profile
   }
 
-  async saveOwnProfile(
-    changes: OwnProfileChanges,
-    lease: RequestLease
-  ): Promise<OwnProfile | null> {
+  async saveOwnProfile(changes: OwnProfileChanges, lease: RequestLease): Promise<null> {
     const accountId = this.accountId
     if (accountId === null) throw new AuthError()
-    // One PUT carries every changed field; VRChat leaves the others as they are.
-    const raw = await this.runCommunityRequest(lease, () =>
-      this.putJson(
-        `/users/${encodeURIComponent(accountId)}`,
-        vrcOwnProfileBody(changes),
-        z.unknown(),
-        // A write is never sent twice on its own; the user can press again.
-        this.communityOptions(lease)
+    const path = encodeURIComponent(accountId)
+    // Pronouns and status are user fields; the bio is a profile field. Each
+    // PUT goes out only when it carries a change, one after the other in the
+    // shared line, and a write is never sent twice on its own.
+    const userBody = vrcOwnUserBody(changes)
+    if (userBody) {
+      await this.runCommunityRequest(lease, () =>
+        this.putJson(`/users/${path}`, userBody, z.unknown(), this.communityOptions(lease))
       )
-    )
-    return parseVrcOwnProfile(raw, accountId)
+    }
+    const profileBody = vrcOwnProfileBody(changes)
+    if (profileBody) {
+      await this.runCommunityRequest(lease, () =>
+        this.putJson(`/profile/${path}`, profileBody, z.unknown(), this.communityOptions(lease))
+      )
+    }
+    // Neither reply is the whole editor: main keeps its last read plus what was sent.
+    return null
   }
 
   // ── Unfriend, block and unblock (one confirmed write for one person) ─────────

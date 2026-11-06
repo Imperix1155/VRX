@@ -12,8 +12,12 @@ export function registerAvatarHandlers(): void {
     if (req.rendition !== undefined && req.rendition !== 'avatar' && req.rendition !== 'picture') {
       throw new Error('Invalid avatar rendition')
     }
-    const dataUrl =
-      req.rendition === 'picture'
+    if (req.keptOnly !== undefined && req.keptOnly !== true) {
+      throw new Error('Invalid avatar request')
+    }
+    const dataUrl = req.keptOnly
+      ? await avatarCache.peek(req.url, req.rendition ?? 'original')
+      : req.rendition === 'picture'
         ? await avatarCache.getPicture(req.url)
         : await avatarCache.get(req.url, req.rendition ?? 'original')
     return dataUrl === null ? null : { ok: true, dataUrl }

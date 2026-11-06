@@ -30,10 +30,19 @@ import ProfileDetails from './ProfileDetails'
 
 const avatarPicture = vi.hoisted(() => ({ current: null as string | null }))
 const avatarCalls = vi.hoisted(() => [] as Array<{ url: string | null; rendition?: string }>)
+const avatarPending = vi.hoisted(() => ({ current: false }))
 vi.mock('../hooks/useAvatar', () => ({
   useAvatar: (url: string | null, _ref: unknown, rendition?: string) => {
     avatarCalls.push({ url, rendition })
     return avatarPicture.current
+  },
+  useAvatarImage: (url: string | null, _ref: unknown, rendition?: string) => {
+    avatarCalls.push({ url, rendition })
+    return {
+      dataUrl: avatarPicture.current,
+      pending: url !== null && avatarPicture.current === null && avatarPending.current,
+      instant: false
+    }
   }
 }))
 // World cards and their sheet have their own tests (ExploreRoute.test.tsx).
@@ -225,6 +234,7 @@ afterEach(() => {
   authState.chilloutvr = 'authenticated'
   lastRecover.current = null
   avatarPicture.current = null
+  avatarPending.current = false
   useFriendsStore.setState({ platformFilter: 'all' })
   Reflect.deleteProperty(window, 'vrx')
 })
@@ -634,6 +644,7 @@ describe('GroupsView', () => {
       .mockImplementationOnce(({ platform }: { platform: Platform }) => answer(platform))
     // The icon has not arrived yet.
     avatarPicture.current = null
+    avatarPending.current = true
     avatarCalls.length = 0
     renderWith(<GroupsView />)
     const region = await screen.findByRole('region', { name: msg('groups.heading') })
@@ -642,6 +653,37 @@ describe('GroupsView', () => {
     expect(
       tile.querySelector('[data-community-tile-banner]')?.getAttribute('data-community-tile-banner')
     ).toBe('none')
+    // While it waits the icon box shows the loading look, not the first letter.
+    expect(
+      tile
+        .querySelector('[data-community-tile-picture]')
+        ?.getAttribute('data-community-tile-picture')
+    ).toBe('loading')
+  })
+
+  it('asks for a group banner once its icon has an answer, even with no picture', async () => {
+    const bannered = {
+      ...group('chilloutvr', 'Iconless', 'member'),
+      imageUrl: 'https://x/icon.png',
+      bannerUrl: 'https://x/banner.png'
+    }
+    const answer = (platform: Platform): Promise<MyGroupsResult> =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        groups: platform === 'chilloutvr' ? [bannered] : [],
+        complete: true
+      })
+    bridge.getMyGroups
+      .mockImplementationOnce(({ platform }: { platform: Platform }) => answer(platform))
+      .mockImplementationOnce(({ platform }: { platform: Platform }) => answer(platform))
+    // The icon download finished without a picture.
+    avatarPicture.current = null
+    avatarPending.current = false
+    avatarCalls.length = 0
+    renderWith(<GroupsView />)
+    await screen.findByRole('region', { name: msg('groups.heading') })
+    expect(avatarCalls).toContainEqual({ url: 'https://x/banner.png', rendition: 'picture' })
   })
 
   it('asks main for a fresh list only on Refresh', async () => {

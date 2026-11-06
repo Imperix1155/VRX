@@ -11,8 +11,14 @@ export type ExploreRefreshReason = 'snapshot' | 'automatic' | 'manual'
 export type ExploreWorldReason = 'snapshot' | 'open' | 'manual'
 
 /** Main owns image admission. Only a typed admission deferral is recoverable. */
+/**
+ * A deferred picture says why: `busy` (other pictures are downloading; a short
+ * wait) or `window` (the per-minute download budget is used up).
+ */
 export type ExploreImageResult =
-  { ok: true; dataUrl: string } | { ok: false; reason: 'deferred'; retryAfterMs: number } | null
+  | { ok: true; dataUrl: string }
+  | { ok: false; reason: 'deferred'; retryAfterMs: number; wait?: 'busy' | 'window' }
+  | null
 
 export type ExploreCountSource =
   | 'vrc-world-occupants'

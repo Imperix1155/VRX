@@ -10,7 +10,13 @@ import type {
 } from './adapters/ExploreAdapter'
 import type { RequestLease } from './adapters/RequestLease'
 import { JoinCoordinator } from './joinCoordinator'
-import { ExploreService, type ExploreServiceOptions } from './exploreService'
+import { COMMUNITY_LIST_MAX_WORLDS } from '@shared/community'
+import {
+  EXPLORE_IMAGE_FETCHES_PER_MINUTE,
+  EXPLORE_IMAGE_MAX_OUTSTANDING,
+  ExploreService,
+  type ExploreServiceOptions
+} from './exploreService'
 
 const unknown = (): ExploreCount => ({ state: 'unknown', value: null, source: 'unknown' })
 const id = (n: number): string => `wrld_00000000-0000-0000-0000-${String(n).padStart(12, '0')}`
@@ -122,7 +128,7 @@ interface Harness {
 }
 function make(
   platform: Platform = 'vrchat',
-  extra: Pick<ExploreServiceOptions, 'peekImage'> = {}
+  extra: Pick<ExploreServiceOptions, 'peekImage' | 'imageFetchesPerMinute'> = {}
 ): Harness {
   const now = { value: 0 }
   const account = new AccountSession()
@@ -640,8 +646,16 @@ describe('ExploreService guard rails', () => {
     expect(h.images).not.toHaveBeenCalled()
   })
 
+  it('ships a picture budget that fits a whole Search page or Explore list at once', () => {
+    expect(EXPLORE_IMAGE_MAX_OUTSTANDING).toBe(2)
+    expect(EXPLORE_IMAGE_FETCHES_PER_MINUTE).toBeGreaterThanOrEqual(2 * COMMUNITY_LIST_MAX_WORLDS)
+    // VRChat pictures still start at most one per second in the shared queue.
+    expect(EXPLORE_IMAGE_FETCHES_PER_MINUTE).toBeLessThanOrEqual(60)
+  })
+
   it('keeps two outstanding and six rolling image operations across an account boundary', async () => {
-    const h = make()
+    // The mechanism with a small budget; the shipped budget is checked below.
+    const h = make('vrchat', { imageFetchesPerMinute: 6 })
     const entries = Array.from({ length: 7 }, (_, index) =>
       world(index, `https://files.vrchat.cloud/${index}.png`)
     )
@@ -662,7 +676,8 @@ describe('ExploreService guard rails', () => {
     )
     await expect(h.service.getImage('vrchat', newRefs[2]!)).resolves.toMatchObject({
       ok: false,
-      reason: 'deferred'
+      reason: 'deferred',
+      wait: 'busy'
     })
     pending[0]!.resolve('data:image/png;base64,a')
     pending[1]!.resolve('data:image/png;base64,b')
@@ -674,7 +689,8 @@ describe('ExploreService guard rails', () => {
     expect(h.images).toHaveBeenCalledTimes(6)
     await expect(h.service.getImage('vrchat', newRefs[6]!)).resolves.toMatchObject({
       ok: false,
-      reason: 'deferred'
+      reason: 'deferred',
+      wait: 'window'
     })
   })
 })

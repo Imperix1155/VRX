@@ -220,9 +220,14 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         ? Promise.reject(new Error('Synthetic roster refresh failed'))
         : Promise.resolve(friends[platform]),
     getAvatar: (url) => {
+      // `pictures-loading` holds every picture on its way, so the waiting look
+      // (Groups, Search tiles) can be inspected.
+      if (variant === 'pictures-loading') return new Promise<never>(() => {})
       const dataUrl = worldImages[url] ?? (url.startsWith('data:image/') ? url : undefined)
       return Promise.resolve(dataUrl ? { ok: true, dataUrl } : null)
     },
+    // Fixture pictures are data URLs; nothing is kept the way main keeps downloads.
+    getKeptAvatar: () => Promise.resolve(null),
     getAvatarLibrary: ({ platform }) =>
       Promise.resolve({
         ok: true,

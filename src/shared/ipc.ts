@@ -169,7 +169,8 @@ export interface IpcInvoke {
    * `'picture'` for a sharp, card-sized world or avatar picture.
    */
   'get-avatar': {
-    req: { url: string; rendition?: 'avatar' | 'picture' }
+    /** `keptOnly`: answer only from a copy already kept; never a request. */
+    req: { url: string; rendition?: 'avatar' | 'picture'; keptOnly?: true }
     res: { ok: true; dataUrl: string } | null
   }
   /** The signed-in user's own avatars and the one they wear now. Never on a timer. */
