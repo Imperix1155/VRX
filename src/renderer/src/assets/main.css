@@ -471,7 +471,7 @@
   --tint-vrc-border: rgba(43, 124, 232, 0.34);
   --tint-cvr-bg: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
   --tint-cvr-border: rgba(243, 113, 30, 0.36);
-  /* Platform rows (.platform-row): platform tint, stronger at the platform edge. */
+  /* Platform rows (.platform-row): platform tint, stronger on the left. */
   --platform-row-tint-strong: 24%;
   --platform-row-tint-soft: 12%;
   /* Colored pills (instance access, policy space, platform rails): how much
@@ -1340,13 +1340,14 @@ body::after {
 /* Settings: compact information cards over a neutral backing panel. */
 @layer components {
   /* Activity entries (owner, 2026-10-27): each entry is its own capsule tinted
-     with its platform's brand color plus a 3px platform edge, so VRChat and
-     ChilloutVR read apart at a glance. Both platforms share one recipe; only
-     the color differs. The platform pill stays the non-color cue. */
+     with its platform's brand color, so VRChat and ChilloutVR read apart at a
+     glance. Both platforms share one recipe; only the color differs. The
+     platform pill stays the non-color cue. */
   /* Platform-tinted rows (Activity, Friends, Inbox, the Dashboard glance):
-     a card-color capsule washed in its platform's hue from the left, a
-     platform-colored edge and a 3px platform bar. A linked person carries
-     both platforms, blue into orange. */
+     a card-color capsule washed in its platform's hue from the left with a
+     soft platform-colored border. A linked person carries both platforms,
+     blue into orange. No solid accent bar on the edge (owner, 2026-11-06):
+     the frosted wash and the platform pill carry the platform. */
   .platform-row {
     --platform-row-from: var(--platform-row-color);
     --platform-row-to: var(--platform-row-color);
@@ -1364,14 +1365,6 @@ body::after {
       color-mix(in srgb, var(--platform-row-from) var(--platform-row-tint-strong), transparent),
       color-mix(in srgb, var(--platform-row-to) var(--platform-row-tint-soft), transparent)
     );
-  }
-  .platform-row::before {
-    content: '';
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 3px;
-    background: linear-gradient(var(--platform-row-from), var(--platform-row-to));
-    pointer-events: none;
   }
   .platform-row--vrchat {
     --platform-row-color: var(--vrc);
@@ -1392,9 +1385,6 @@ body::after {
   .platform-row--none {
     --platform-row-color: transparent;
     --platform-row-border: var(--border);
-  }
-  .platform-row--none::before {
-    content: none;
   }
   .settings-cards {
     display: grid;

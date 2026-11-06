@@ -5,7 +5,7 @@
  * aria-modal, no focus trap, initial focus on ✕, and Esc, ✕ or a pointerdown
  * outside (not on another avatar card) closes it. The page restores focus to
  * the opener. VRChat and ChilloutVR show the same fields in the same order;
- * only the platform stripe and label differ.
+ * only the platform tint and label differ.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -231,15 +231,6 @@ function AvatarSheetPanel({
       </button>
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[var(--radius-panel)]">
-        <div
-          aria-hidden="true"
-          className="h-[4px] w-full shrink-0"
-          style={{
-            background: isVrc
-              ? 'linear-gradient(90deg, var(--vrc), transparent)'
-              : 'linear-gradient(90deg, var(--cvr), transparent)'
-          }}
-        />
         <SheetGrabBar expansion={expansion} />
 
         <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]">
