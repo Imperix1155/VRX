@@ -36,12 +36,13 @@ export function useSegmentedBubble(activeIndex: number): {
     place()
     const raf = requestAnimationFrame(place)
     document.fonts?.ready.then(place).catch(() => {})
-    const ro = new ResizeObserver(place)
-    ro.observe(track)
+    // Guarded like the friends list's own observer: a test DOM may lack it.
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place)
+    ro?.observe(track)
     return () => {
       cancelled = true
       cancelAnimationFrame(raf)
-      ro.disconnect()
+      ro?.disconnect()
     }
   }, [activeIndex, i18n.language])
 

@@ -378,7 +378,8 @@ describe('VRChat dispatch cancellation', () => {
     vi.setSystemTime(10_000)
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const admission = new ApiAdmissionController()
-    admission.deferUntil(20_000)
+    // An earlier request holds the request spacing, so the next login waits its turn.
+    await admission.acquire()
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({}, 401)))
     vi.stubGlobal('fetch', fetchMock)
     const adapter = new VrcAdapter(fakeStore(), admission)
@@ -392,6 +393,23 @@ describe('VRChat dispatch cancellation', () => {
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(
       `Basic ${Buffer.from('account-b:fake-b').toString('base64')}`
     )
+  })
+
+  it('sends no login while a rate limit is cooling down, and says so', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    const admission = new ApiAdmissionController()
+    admission.deferUntil(20_000)
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore(), admission)
+    await expect(adapter.login(creds)).resolves.toEqual({
+      ok: false,
+      needs2fa: false,
+      error: 'rate_limited'
+    })
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 
@@ -507,7 +525,7 @@ async function runDeferredWorldMetadataRace(liveMutation: 'offline' | 'location'
   markSessionEstablished(adapter)
   const unsubscribe = adapter.subscribe((event) => {
     events.push(event)
-    cache = applyFriendEvent(cache, event)
+    if (event.type !== 'inbox') cache = applyFriendEvent(cache, event)
   })
 
   try {
@@ -878,6 +896,32 @@ describe('VrcAdapter', () => {
       await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
 
       expect(binding.getOwner()).toBe('ACCOUNT001')
+    })
+
+    it('refuses a legacy id VRX cannot keep before saving the session', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse(
+              { id: 'legacy.user', displayName: 'Legacy' },
+              { setCookies: ['auth=legacy-session'] }
+            )
+          )
+      )
+      const store = fakeStore()
+      const accountSession = new AccountSession()
+      const adapter = new VrcAdapter(store, instantAdmission(), {
+        onIdentity: (accountId) => accountSession.setIdentity('vrchat', accountId)
+      })
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({
+        ok: false,
+        error: 'unexpected_response'
+      })
+      expect(store.saved).toEqual([])
+      expect(accountSession.getAccountId('vrchat')).toBeNull()
     })
 
     it('rebinds an A-to-B replacement to B after the new credential is persisted', async () => {
@@ -2277,6 +2321,59 @@ describe('VrcAdapter', () => {
       })
     })
 
+    it('says a sign-in was rate limited after one request, without resending the password', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response(null, { status: 429, headers: { 'Retry-After': '60' } }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore(), instantAdmission())
+
+      await expect(adapter.login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'rate_limited'
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('says a 2FA code was rate limited after one request and keeps waiting for a code', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+        )
+        .mockResolvedValue(new Response(null, { status: 429, headers: { 'Retry-After': '60' } }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore(), instantAdmission())
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'rate_limited'
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+    })
+
+    it('blames the service, not the code, when 2FA verify gets a server error', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+        )
+        .mockResolvedValueOnce(jsonResponse({ error: 'unavailable' }, { status: 503 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore(), instantAdmission())
+
+      await adapter.login(creds)
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'http_503'
+      })
+    })
+
     it('keeps a failed direct-login 2FA session tentative so a subscriber cannot start its pipeline', async () => {
       const fetchMock = vi
         .fn()
@@ -2932,6 +3029,24 @@ describe('VrcAdapter', () => {
       ).toMatchObject({
         state: 'error'
       })
+    })
+
+    it('marks only a check that got no answer as unreachable', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+      expect(
+        await new VrcAdapter(fakeStore('auth=x'), instantAdmission()).getAuthStatus()
+      ).toMatchObject({ state: 'error', unreachable: true })
+
+      // VRChat answered and refused: never re-checked from the tray.
+      for (const status of [403, 500, 429]) {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(() => Promise.resolve(jsonResponse({}, { status })))
+        )
+        const result = await new VrcAdapter(fakeStore('auth=x'), instantAdmission()).getAuthStatus()
+        expect(result.state).toBe('error')
+        expect(result.unreachable).toBeUndefined()
+      }
     })
 
     it('repeated network validation failures do not block a subsequent correct login', async () => {
@@ -4863,16 +4978,19 @@ describe('VrcAdapter', () => {
       expect(opts.method).toBe('POST')
     })
 
-    it('rejects without an API call for public instances', async () => {
-      const fetchMock = vi.fn()
+    it('invites to a public instance too (Join uses it when VRChat is open)', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ type: 'invite' }), { status: 200 }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), instantAdmission())
       markSessionEstablished(adapter)
 
-      await expect(adapter.selfInvite(publicLocation)).rejects.toThrow(
-        /no invite needed for public instances/i
-      )
-      expect(fetchMock).not.toHaveBeenCalled()
+      await adapter.selfInvite(publicLocation)
+
+      expect(fetchMock).toHaveBeenCalledOnce()
+      const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
+      expect(url).toBe(`https://api.vrchat.cloud/api/1/invite/myself/to/${publicLocation}`)
     })
 
     it('rejects with a generic error when the API call fails', async () => {

@@ -1,9 +1,23 @@
-import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 import { QueryClient, QueryClientContext, useMutation, useQuery } from '@tanstack/react-query'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 
 const MAX_NOTE_LENGTH = 500
+
+/** Longer than main saves. Only a note taken from an account before VRX kept
+ *  to the cap can be: the field never grows past it. */
+export function isOverNoteLimit(value: string): boolean {
+  return value.trimEnd().length > MAX_NOTE_LENGTH
+}
 
 type NoteData = IpcInvoke['get-friend-note']['res']
 type SaveResult = IpcInvoke['set-friend-note']['res']
@@ -59,6 +73,34 @@ const saveStates = coordinator.saveStates
 const latestDrafts = coordinator.latestDrafts
 const boundaryEpochs = coordinator.boundaryEpochs
 const boundaryListeners = coordinator.boundaryListeners
+
+export interface FriendNoteSaved {
+  platform: Platform
+  friendId: string
+  note: string
+  revision: { platformAccountId: string; epoch: number }
+}
+
+// A saved note can outlive its drawer (closing it or picking another friend
+// flushes the save), so listeners hear about it here rather than through a
+// mounted component. Renderer-lifetime only.
+const savedListeners = new Set<(saved: FriendNoteSaved) => void>()
+
+/** Hear about every note VRX saved locally, whether or not its drawer is open. */
+export function subscribeFriendNoteSaved(listener: (saved: FriendNoteSaved) => void): () => void {
+  savedListeners.add(listener)
+  return () => savedListeners.delete(listener)
+}
+
+function notifyFriendNoteSaved(saved: FriendNoteSaved): void {
+  for (const listener of savedListeners) {
+    try {
+      listener(saved)
+    } catch {
+      // A listener's failure never undoes or blocks the local save.
+    }
+  }
+}
 
 function epochFor(platform: Platform): number {
   return boundaryEpochs.get(platform) ?? 0
@@ -194,6 +236,16 @@ export interface UseFriendNoteResult {
   retry: () => void
 }
 
+/** The extra the account-note sync needs from VRX's own copy. */
+export interface UseAccountFriendNoteResult extends UseFriendNoteResult {
+  /** VRX's saved copy and the read's revision, or null until it loads. */
+  persisted: { note: string; revision: { platformAccountId: string; epoch: number } } | null
+  /** The draft differs from the saved copy, or a save is running. */
+  isEditing: boolean
+  /** Show a copy main already saved (the account copy the user took). */
+  adoptPersisted: (note: string) => void
+}
+
 function sameNote(left: string, right: string | null | undefined): boolean {
   return left.trimEnd() === (right ?? '').trimEnd()
 }
@@ -212,7 +264,10 @@ function emptyDraft(key: string, generation = 0): DraftState {
 }
 
 /** Load and edit a per-account, per-friend private note through the preload bridge. */
-export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): UseFriendNoteResult {
+export function useFriendNote({
+  platform,
+  friendId
+}: UseFriendNoteOptions): UseAccountFriendNoteResult {
   const providedClient = useContext(QueryClientContext)
   const [fallbackClient] = useState(
     () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -368,6 +423,12 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
             }
             if (result?.ok) {
               queryClient.setQueryData(saveQueryKey, { note, revision })
+              notifyFriendNoteSaved({
+                platform: save.platform,
+                friendId: save.friendId,
+                note,
+                revision
+              })
               // A late completion may only dismiss feedback when it saved the
               // draft still visible for this friend/account boundary.
               const currentDraft = latestDrafts.get(save.key)
@@ -498,6 +559,10 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
       if (query.data?.revision === undefined || setFriendNote === null) {
         return
       }
+      // Main refuses a note over the cap. A note already over it (taken from
+      // an account before VRX kept to the cap) stays as saved until the user
+      // shortens it, and the drawer says so.
+      if (isOverNoteLimit(draft.value)) return
       const stateKey = key
       const saveState = saveStates.get(stateKey)
       const activeFailedKey = failedDraftKey(key, draft.platformAccountId)
@@ -560,7 +625,12 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   const setValue = useCallback(
     (value: string) => {
       if (!isWritable || epochFor(platform) !== boundaryEpoch) return
-      const next = value.slice(0, MAX_NOTE_LENGTH)
+      // The cap stops growth only: deleting from a note that is already over it
+      // (taken from an account before VRX kept to the cap) never cuts its end.
+      const next =
+        value.length > MAX_NOTE_LENGTH && value.length > draftRef.current.value.length
+          ? value.slice(0, MAX_NOTE_LENGTH)
+          : value
       // Completion handlers can run in the same React batch as input. Keep
       // their guard in step with the visible draft rather than waiting for the
       // passive synchronization effect.
@@ -603,7 +673,29 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     [boundaryEpoch, friendId, isWritable, platform]
   )
 
+  const persistedRevision = query.data?.revision
+  const persistedNote = query.data?.note ?? ''
+  const persisted = useMemo(
+    () =>
+      persistedRevision === undefined ? null : { note: persistedNote, revision: persistedRevision },
+    [persistedNote, persistedRevision]
+  )
+  const adoptPersisted = useCallback(
+    (note: string) => {
+      if (friendId === '') return
+      queryClient.setQueryData<NoteData>(
+        ['friend-note', platform, friendId, boundaryEpoch],
+        (current) =>
+          current?.revision === undefined ? current : { note, revision: current.revision }
+      )
+    },
+    [queryClient, platform, friendId, boundaryEpoch]
+  )
+
   return {
+    persisted,
+    isEditing: draft.dirty || saveStates.get(key)?.saving === true,
+    adoptPersisted,
     value: draft.value,
     isWritable,
     loadFailed,

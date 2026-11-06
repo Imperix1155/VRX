@@ -13,6 +13,12 @@ export interface LinkedRow {
   target: ProfileTarget
   accounts: Friend[]
   name: string
+  /** While searching: the person's other name that matched when `name` does
+   *  not, so the row can show why it is listed. */
+  matchedName?: string
+  /** A linked person's names in the order `matchedName` prefers them, so a
+   *  row held in place (useStableLinkedRows) can ask the search itself. */
+  searchNames?: string[]
   section: FriendSection
   platformMark: Platform | 'vrx'
 }
@@ -109,6 +115,16 @@ function matchesSearch(values: string[], search: string): boolean {
   return (
     query === '' || values.some((value) => splitByMatch(value, query).some((part) => part.isMatch))
   )
+}
+
+/** While searching, the first of `names` that matched when the row's own
+ *  `name` did not. */
+export function matchedName(name: string, names: string[], search: string): string | undefined {
+  const query = search.trim()
+  const matches = (value: string): boolean =>
+    splitByMatch(value, query).some((part) => part.isMatch)
+  if (query === '' || matches(name)) return undefined
+  return names.find((value) => value !== '' && matches(value))
 }
 
 function sectionFor(friend: Friend): FriendSection {
@@ -235,6 +251,13 @@ function buildRows(input: ProjectionInput): LinkedRow[] {
     if (displayed.length === 0) continue
     const name = nameFor(profile, accounts)
     const personKey = `person:${profile.id}`
+    // A row whose shown name has no match names the one that matched,
+    // preferring the accounts' own names.
+    const otherNames = [
+      ...accounts.map((account) => account.friend.displayName),
+      profile.customName ?? '',
+      profile.defaultName
+    ]
 
     if (input.filter === 'all' && !isMixedInGameAndOnline(accounts)) {
       const anchor = anchorFor(accounts, profile.preferredPlatform)
@@ -244,6 +267,8 @@ function buildRows(input: ProjectionInput): LinkedRow[] {
         target: { kind: 'person', personId: profile.id, anchor: anchor.ref },
         accounts: displayed.map((account) => account.friend),
         name,
+        matchedName: matchedName(name, otherNames, input.search),
+        searchNames: otherNames,
         section: sectionFor(anchor.friend),
         platformMark: combinedPlatformMark(accounts)
       })
@@ -257,6 +282,8 @@ function buildRows(input: ProjectionInput): LinkedRow[] {
         target: { kind: 'account', account: account.ref, personId: profile.id },
         accounts: [account.friend],
         name: account.friend.displayName,
+        matchedName: matchedName(account.friend.displayName, otherNames, input.search),
+        searchNames: otherNames,
         section: sectionFor(account.friend),
         platformMark: account.friend.platform
       })

@@ -13,7 +13,9 @@ transport, and published adapter events.
 
 - `fetchFriends.ts` (paginated roster), `VrcPipeline.ts` (receive-only live
   events), the world and group resolvers and batch fetchers, the `parse*.ts`
-  converters, `buildJoinUrl.ts`, and `parseExplore.ts`.
+  converters, `buildJoinUrl.ts`, `parseExplore.ts`, `parseAvatars.ts`, and
+  `parseCommunity.ts`, and `parseOwnProfile.ts` (the own-profile editor's
+  fields, and the `PUT /users/{me}` and `PUT /profile/{me}` bodies).
 - Symbols and the adapter contract: [`docs/INTERNAL-API.md`](../../../../../docs/INTERNAL-API.md).
 
 ## Local Contracts
@@ -43,7 +45,9 @@ transport, and published adapter events.
   never authorizes a join.
 - The Pipeline is live state, not a polling replacement. It never sends,
   decodes the double-encoded payload defensively, ignores malformed or unknown
-  messages, and adds no heartbeat. A token-exchange 401 is a data-path 401: it
+  messages, and adds no heartbeat. `notification` invites, invite requests and
+  friend requests become `inbox` events (`parseNotification.ts`); hide,
+  response and clear-all remove them; hide and see carry a bare non-JSON ID. A token-exchange 401 is a data-path 401: it
   invalidates the session and stops the Pipeline until the status check
   settles it; other exchange failures use the raw cookie. Reconnect waits
   honor the shared 429 cooldown, recheck it after token preparation and before
@@ -68,6 +72,15 @@ transport, and published adapter events.
   `isAllowedLaunchUrl` validation and `shell.openExternal` stay in IPC.
 - `parseExplore.ts` accepts only internally consistent public candidates and
   returns evidence without references, actions, URLs, or raw responses.
+- `parseAvatars.ts` reads only the fields the Avatars page shows; a record
+  without an `avtr_` ID or a name is skipped, and image URLs must be `https`.
+- `parseBlocked.ts` answers whether a player-moderation list holds a `block`
+  of exactly that person, and refuses a reply that is not a list. The
+  profile's Unfriend, Block and Unblock are single `retry: 'none'` requests
+  in `VrcAdapter`.
+- `parseCommunity.ts` reads only the profile, world, group and count fields
+  VRX shows. Hidden badges stay hidden, and records with a malformed ID or no
+  name are skipped and mark the list incomplete.
 
 ## Work Guidance
 

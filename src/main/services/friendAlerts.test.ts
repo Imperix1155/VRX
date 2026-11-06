@@ -91,6 +91,7 @@ function harness(options?: {
   enabled?: Partial<Record<FriendAlertType, boolean>>
   names?: Record<string, string>
   threshold?: number
+  included?: (platform: Platform, id: string) => boolean
 }): {
   engine: FriendAlerts
   alerts: FriendAlert[]
@@ -115,6 +116,7 @@ function harness(options?: {
       notify: (alert) => alerts.push(alert),
       clock: () => now,
       isEnabled,
+      isFriendIncluded: options?.included,
       hotInstanceThreshold: () => threshold,
       resolveName: (_platform: Platform, id: string) => options?.names?.[id] ?? null
     }),
@@ -784,5 +786,62 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
     engine.consume(presenceEvent(friend('in-game', instance('later'), 'usr_later_1', 'Later One')))
     engine.consume(presenceEvent(friend('in-game', instance('later'), 'usr_later_2', 'Later Two')))
     expect(hotAlerts(alerts)).toHaveLength(4)
+  })
+})
+
+describe('FriendAlerts picked-friends scope', () => {
+  it('keeps friend alerts for included friends and drops the rest, on both platforms', () => {
+    const picked = new Set(['vrchat:usr_1', 'chilloutvr:cvr_1'])
+    const { engine, alerts } = harness({
+      enabled: { offline: true },
+      included: (platform, id) => picked.has(`${platform}:${id}`)
+    })
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      const ids = platform === 'vrchat' ? ['usr_1', 'usr_2'] : ['cvr_1', 'cvr_2']
+      for (const id of ids) {
+        const row = (state: PresenceState, at: InstanceInfo | null = null): Friend =>
+          ({ ...friend(state, at, id, `Name ${id}`), platform }) as Friend
+        engine.consume(presenceEvent(row('offline')))
+        engine.consume(presenceEvent(row('in-game', instance(`${id}-world`))))
+        engine.consume(presenceEvent(row('offline')))
+      }
+    }
+
+    expect(
+      alerts.map((alert) => [
+        alert.platform,
+        alert.type,
+        'platformUserId' in alert ? alert.platformUserId : null
+      ])
+    ).toEqual([
+      ['vrchat', 'online', 'usr_1'],
+      ['vrchat', 'in-game', 'usr_1'],
+      ['vrchat', 'offline', 'usr_1'],
+      ['chilloutvr', 'online', 'cvr_1'],
+      ['chilloutvr', 'in-game', 'cvr_1'],
+      ['chilloutvr', 'offline', 'cvr_1']
+    ])
+  })
+
+  it('reads the scope at each decision, so a just-picked friend alerts on the next change', () => {
+    let pickedNow = false
+    const { engine, alerts } = harness({ included: () => pickedNow })
+    engine.consume(presenceEvent(friend('offline')))
+    engine.consume(presenceEvent(friend('active')))
+    expect(alerts).toEqual([])
+    pickedNow = true
+    engine.consume(presenceEvent(friend('in-game', instance('one'))))
+    expect(alerts.map((alert) => alert.type)).toEqual(['in-game'])
+  })
+
+  it('never limits hot-instance alerts, which are about groups', () => {
+    const included = vi.fn(() => false)
+    const { engine, alerts } = harness({ included })
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+
+    expect(alerts.map((alert) => alert.type)).toEqual(['hot-instance'])
   })
 })

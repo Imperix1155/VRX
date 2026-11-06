@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStatus } from '../../queries/auth'
 import { useSettingsStore } from '../../stores/settings'
 import { useUiStore } from '../../stores/ui'
+import { SettingsPersistenceNotice } from '../RecoveryNotices'
 import {
   AlertsStep,
   DashboardStep,
@@ -66,8 +67,9 @@ function Progress({
   const index = COUNTED.indexOf(step)
   if (index < 0) return null
   return (
-    <nav aria-label={t('setup.progress.aria')} className="mb-[var(--space-4)]">
-      <p className="mb-[8px] text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-dim)]">
+    <nav aria-label={t('setup.progress.aria')} className="mb-[var(--space-3)]">
+      {/* A VT323 section kicker, like the Dashboard's (DESIGN.md §7). */}
+      <p className="mb-[6px] font-mono text-[18px] font-normal leading-none uppercase tracking-[2px] text-[var(--text-dim)]">
         {t('setup.progress.count', { current: index + 1, total: COUNTED.length })}
       </p>
       <ol className="grid grid-cols-5 gap-[6px]">
@@ -100,6 +102,13 @@ function Progress({
       </ol>
     </nav>
   )
+}
+
+/** The welcome sits in the middle of the card; the other steps start at the
+ *  top so their headings never move between steps. */
+function stepClassName(step: SetupStep): string {
+  const base = 'setup-step -mx-[30px] min-h-0 flex-1 overflow-y-auto px-[30px]'
+  return step === 'welcome' ? `${base} flex flex-col justify-center-safe` : base
 }
 
 export default function SetupWizard(): React.JSX.Element {
@@ -170,18 +179,21 @@ export default function SetupWizard(): React.JSX.Element {
   const showSkip = step !== 'done' && !skipping
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-[var(--space-4)]">
+    <main className="flex min-h-screen items-center justify-center p-[var(--space-4)]">
+      {/* Layered glass, like Settings: the card is a frosted back panel
+          (.glass-panel), and the cards, choices and fields on it are their
+          own frosted panes. */}
       <section
         aria-labelledby="setup-step-title"
-        className="glass glass-information relative flex h-[min(660px,calc(100vh-32px))] w-full max-w-[640px] flex-col overflow-hidden px-[30px] pb-[22px] pt-[26px]"
+        className="glass glass-panel relative flex h-[min(660px,calc(100vh-32px))] w-full max-w-[640px] flex-col overflow-hidden px-[30px] pb-[22px] pt-[26px]"
       >
         <div className="relative flex min-h-0 flex-1 flex-col">
+          {/* Every step saves real settings, so a failed save shows here as it
+              does above the app's pages. */}
+          <SettingsPersistenceNotice />
           {!skipping && <Progress step={step} onJump={setStep} />}
           {/* Keyed so each step enters fresh (and replays the enter motion). */}
-          <div
-            key={step}
-            className="setup-step -mx-[30px] min-h-0 flex-1 overflow-y-auto px-[30px]"
-          >
+          <div key={step} className={stepClassName(step)}>
             {step === 'welcome' && <WelcomeStep ref={headingRef} />}
             {step === 'signin' && (
               <SignInStep ref={headingRef} skipping={skipping} readyCount={readyCount} />
@@ -218,6 +230,6 @@ export default function SetupWizard(): React.JSX.Element {
           </div>
         </div>
       </section>
-    </div>
+    </main>
   )
 }

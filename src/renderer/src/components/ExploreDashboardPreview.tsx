@@ -30,7 +30,7 @@ export function PopularNowSection({
     <section className="mb-[var(--space-6)]" aria-labelledby="dashboard-popular-heading">
       <h2
         id="dashboard-popular-heading"
-        className="font-[family-name:var(--font-mono)] text-[20px] font-normal tracking-[0.08em] text-[var(--text-faint)]"
+        className="canvas-text font-[family-name:var(--font-mono)] text-[20px] font-normal tracking-[0.08em] text-[var(--text-dim)]"
       >
         {t('explore.popularNow')}
       </h2>
@@ -44,8 +44,8 @@ export function PopularNowSection({
           <div className="hot-grid hot-grid--flush">{cards}</div>
         </div>
       ) : (
-        <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-          {cards}
+        <div className="picture-gridwrap mt-[var(--space-3)]">
+          <div className="picture-grid">{cards}</div>
         </div>
       )}
       {children}

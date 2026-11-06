@@ -1,4 +1,5 @@
 import { RosterRefresh } from './RosterRefresh'
+import { UserReadShare } from './UserReadShare'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import type {
   AdapterEvent,
@@ -23,8 +24,25 @@ import { CvrPipeline } from './cvr/CvrPipeline'
 import { fetchCvrFriends } from './cvr/fetchCvrFriends'
 import { parseCvrPrivacy } from './cvr/parseCvrPrivacy'
 import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resolveCvrInstance'
-import { AuthSessionPendingError, CVRAuthError, CVRNetworkError } from './errors'
+import {
+  AuthSessionPendingError,
+  CVRAuthError,
+  CVRNetworkError,
+  CVRRateLimitError,
+  NetworkError,
+  signInFailure
+} from './errors'
+import {
+  FriendActionRefusedError,
+  FriendActionUnavailableError,
+  type FriendActionsAdapter,
+  type FriendRequestRecord
+} from './FriendActionsAdapter'
+import type { FriendRequestAnswer } from '@shared/friendActions'
 import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
+import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
+import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
+import { parseCvrOwnProfile } from './cvr/parseOwnProfile'
 import { extractCvrPlatformUserId } from './cvr/cvrPlatformUserId'
 import { hasUnsafeCredentialCharacters, isValidCvrSession } from './credentialValidation'
 import type {
@@ -43,6 +61,62 @@ import {
 } from './cvr/parseExplore'
 import type { AdapterRequestOptions } from './BaseAdapter'
 import { assertRequestLease } from './RequestLease'
+import {
+  SocialDataError,
+  SocialNotSentError,
+  type SocialActionAdapter
+} from './SocialActionAdapter'
+import { AVATAR_LIBRARY_MAX_ITEMS, isAvatarId, type AvatarItem } from '@shared/avatarLibrary'
+import {
+  AvatarDataError,
+  type AvatarLibraryAdapter,
+  type OwnAvatarsPage
+} from './AvatarLibraryAdapter'
+import {
+  parseCvrAvatarDetails,
+  parseCvrCurrentAvatar,
+  parseCvrOwnAvatars
+} from './cvr/parseAvatars'
+import {
+  COMMUNITY_LIST_MAX_WORLDS,
+  COMMUNITY_MY_GROUPS_MAX,
+  COMMUNITY_PROFILE_MAX_ITEMS,
+  COMMUNITY_SEARCH_MAX_RESULTS,
+  isCommunityUserId,
+  type CommunityGroup,
+  type CommunityWorld,
+  type PersonProfile,
+  type WorldList
+} from '@shared/community'
+import { isHomeWorldId } from '@shared/homeWorld'
+import {
+  CommunityDataError,
+  type CommunityAdapter,
+  type CommunityList,
+  type CommunitySearchPage
+} from './CommunityAdapter'
+import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
+import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
+import {
+  GameFavoritesDataError,
+  isCvrUserCategory,
+  isGameFavoriteId,
+  parseCvrCategories,
+  parseCvrItemCategories,
+  type GameFavoriteChange,
+  type GameFavoriteMembership,
+  type GameFavoritesAdapter,
+  type GameFavoritesRead
+} from './GameFavoritesAdapter'
+import { GAME_FAVORITE_WORLDS_MAX } from '@shared/gameFavorites'
+import type { RequestPriority } from './ApiAdmissionController'
+import {
+  parseCvrGroups,
+  parseCvrPlayersOnline,
+  parseCvrProfile,
+  parseCvrProfileWorlds,
+  parseCvrSearch
+} from './cvr/parseCommunity'
 
 /** The presence-snapshot member of AdapterEvent (no exported alias in shared). */
 type PresenceSnapshotEvent = Extract<AdapterEvent, { type: 'presence-snapshot' }>
@@ -57,9 +131,20 @@ const cvrCurrentUserSchema = cvrAuthEnvelopeSchema.extend({
 })
 
 const CVR_EXPLORE_CANDIDATE_LIMIT = 12
+/** Most pages VRX reads from one of the user's world categories. */
+const CVR_FAVORITE_PAGES_MAX = 8
 const EXPLORE_ROOM_ID_LIMIT = 100
 const cvrExploreWorldId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const cvrExploreRoomId = /^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$/i
+
+/**
+ * A sign-in or imported-session request: interactive, and never sent again on
+ * its own. A request ChilloutVR asks to slow down ends that try, since
+ * resending would only stretch the limit (docs/api-policy.md).
+ */
+function signInRequestOptions(lease: RequestLease): AdapterRequestOptions {
+  return { priority: 'interactive', lease, retry: 'none' }
+}
 
 function recordValue(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -141,13 +226,28 @@ export interface CvrCredentialStore {
  * loop without another auth request. Instances = VRX-59/60. CVR has NO 2FA leg
  * — `verify2fa` rejects per the interface.
  */
-export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, ExploreAdapter {
+export class CvrAdapter
+  extends CvrApiClient
+  implements
+    IPlatformAdapter,
+    ExploreAdapter,
+    AvatarLibraryAdapter,
+    CommunityAdapter,
+    OwnProfileAdapter,
+    SocialActionAdapter,
+    AccountNoteAdapter,
+    HomeWorldAdapter,
+    GameFavoritesAdapter,
+    FriendActionsAdapter
+{
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
     () => this.admission.cooldownRemainingMs,
     () => this.live?.captureRosterRevision?.(),
     () => this.admission.rateLimitRevision
   )
+  /** One person's `/users/{id}` answer for the profile, note and block checks. */
+  private readonly userReads = new UserReadShare()
   private sessionAbort = new AbortController()
   private loginAbort = new AbortController()
   private session: CVRCredentials | null = null
@@ -178,6 +278,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
   // REST roster's names in main so native notifications can resolve readable
   // copy without fabricating profile fields on AdapterEvent.
   private readonly friendNames = new Map<string, string>()
+  /** Friend id → categories, from the last roster read and VRX's own writes. */
+  private readonly friendCategories = new Map<string, string[]>()
   /** Monotonic order fence: only the newest same-generation roster may write names. */
   private friendNamesRequestSequence = 0
   private friendNamesCommittedSequence = 0
@@ -286,13 +388,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
 
     let response: Response
     try {
-      response = await this.authenticateRaw(2, email, password, { priority: 'interactive', lease })
-    } catch {
-      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
-      // Keep authentication diagnostics fixed: raw exception fields can carry
-      // request context and must never reach the log.
-      this.live?.log?.('warn', 'cvr login: request failed')
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      response = await this.authenticateRaw(2, email, password, signInRequestOptions(lease))
+    } catch (error) {
+      return this.unansweredSignIn(operationGeneration, error, 'cvr login: request failed')
     }
     if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
 
@@ -366,14 +464,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
 
     let response: Response
     try {
-      response = await this.authenticateRaw(1, imported.username, imported.accessKey, {
-        priority: 'interactive',
-        lease
-      })
-    } catch {
-      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
-      this.live?.log?.('warn', 'cvr session import: request failed')
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      response = await this.authenticateRaw(
+        1,
+        imported.username,
+        imported.accessKey,
+        signInRequestOptions(lease)
+      )
+    } catch (error) {
+      return this.unansweredSignIn(operationGeneration, error, 'cvr session import: request failed')
     }
     if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
 
@@ -439,10 +537,17 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
         recordCircuitFailure: false,
         lease: this.captureSessionLease()
       })
-    } catch {
+    } catch (error) {
       // Network trouble or an already-open circuit — the session may still be
       // fine; report error WITHOUT clearing (a flaky boot must not log out).
-      return this.currentStatusIfSwapped(validated) ?? this.status('error')
+      // Only no answer at all may be re-checked while the window is hidden; a
+      // 429 is a refusal.
+      return (
+        this.currentStatusIfSwapped(validated) ??
+        (error instanceof NetworkError
+          ? { ...this.status('error'), unreachable: true }
+          : this.status('error'))
+      )
     }
 
     // A newer session landed under us → this result is stale; don't mutate.
@@ -627,6 +732,511 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     }
   }
 
+  // ── Avatar library (user-initiated reads and one switch at a time) ──────────
+
+  captureAvatarLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnAvatars(lease: RequestLease): Promise<OwnAvatarsPage> {
+    const accountId = this.accountId
+    if (accountId === null) throw new CVRAuthError()
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get('/avatars', z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseCvrOwnAvatars(raw, accountId, this.displayName)
+    if (!parsed) throw new AvatarDataError('ChilloutVR avatar list response was malformed')
+    const avatars = parsed.avatars.slice(0, AVATAR_LIBRARY_MAX_ITEMS)
+    return {
+      avatars,
+      complete: parsed.skipped === 0 && avatars.length === parsed.avatars.length
+    }
+  }
+
+  async getCurrentAvatar(lease: RequestLease): Promise<AvatarItem | null> {
+    const accountId = this.accountId
+    if (accountId === null) return null
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
+    )
+    return parseCvrCurrentAvatar(raw)
+  }
+
+  async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
+    if (!isAvatarId('chilloutvr', avatarId)) {
+      throw new AvatarDataError('Invalid ChilloutVR avatar id')
+    }
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/avatars/${encodeURIComponent(avatarId)}`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const avatar = parseCvrAvatarDetails(raw)
+    return avatar?.avatarId === avatarId.toLowerCase() ? avatar : null
+  }
+
+  async switchAvatar(avatarId: string, lease: RequestLease): Promise<void> {
+    if (!isAvatarId('chilloutvr', avatarId)) {
+      throw new AvatarDataError('Invalid ChilloutVR avatar id')
+    }
+    // ChilloutVR switches with a GET (CVRX uses the same route).
+    await this.runCommunityRequest(lease, () =>
+      this.get(`/avatars/${encodeURIComponent(avatarId)}/switchAvatar`, z.unknown(), {
+        ...this.communityOptions(lease),
+        // A write is never sent twice on its own; the user can press again.
+        retry: 'none'
+      })
+    )
+  }
+
+  // ── Friend actions (one press, one socket frame, never resent) ──────────────
+  // ChilloutVR takes friend actions over `/users/ws`, as CVRX sends them:
+  // `{ RequestType: 6 | 7 | 5, Data: { id } }`. The socket sends no reply, so a
+  // sent frame is the success; the roster-changed push confirms an accept.
+
+  captureFriendActionLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  /** A press is refused at once while the live socket is closed, never held. */
+  canSendFriendAction(): boolean {
+    return this.pipeline?.isConnected() ?? false
+  }
+
+  answerFriendRequest(
+    record: FriendRequestRecord,
+    answer: FriendRequestAnswer,
+    lease: RequestLease
+  ): Promise<void> {
+    return this.sendFriendFrame(lease, record.senderId, (pipeline, id) =>
+      answer === 'accept' ? pipeline.acceptFriendRequest(id) : pipeline.declineFriendRequest(id)
+    )
+  }
+
+  sendFriendRequest(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendFriendFrame(lease, userId, (pipeline, id) => pipeline.sendFriendRequest(id))
+  }
+
+  private sendFriendFrame(
+    lease: RequestLease,
+    userId: string,
+    send: (pipeline: CvrPipeline, id: string) => boolean
+  ): Promise<void> {
+    try {
+      this.sendFriendFrameNow(lease, userId, send)
+      return Promise.resolve()
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  }
+
+  private sendFriendFrameNow(
+    lease: RequestLease,
+    userId: string,
+    send: (pipeline: CvrPipeline, id: string) => boolean
+  ): void {
+    if (!isCommunityUserId('chilloutvr', userId)) {
+      throw new FriendActionRefusedError('Invalid ChilloutVR user id')
+    }
+    const id = userId.toLowerCase()
+    if (id === this.accountId?.toLowerCase()) {
+      throw new FriendActionRefusedError('A friend action cannot name the signed-in user')
+    }
+    assertRequestLease(lease)
+    // A socket frame takes no admission slot, but it still honors a 429 cooldown.
+    const cooldown = this.admission.cooldownRemainingMs
+    if (cooldown > 0) throw new CVRRateLimitError(cooldown)
+    // The pipeline is replaced at every session boundary, so a current lease
+    // means this socket belongs to the same account.
+    const pipeline = this.pipeline
+    if (pipeline === null || !send(pipeline, id)) {
+      throw new FriendActionUnavailableError('ChilloutVR live connection is not open')
+    }
+  }
+
+  // ── Home world (one user-pressed write at a time) ───────────────────────────
+
+  captureHomeWorldLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async setHomeWorld(worldId: string, lease: RequestLease): Promise<void> {
+    if (!isHomeWorldId('chilloutvr', worldId)) {
+      throw new HomeWorldIdError('Invalid ChilloutVR world id')
+    }
+    // ChilloutVR sets the home world with a GET (CVRX uses the same route).
+    await this.runCommunityRequest(lease, () =>
+      this.get(`/worlds/${encodeURIComponent(worldId)}/sethome`, z.unknown(), {
+        ...this.communityOptions(lease),
+        // A write is never sent twice on its own; the user can press again.
+        retry: 'none'
+      })
+    )
+  }
+
+  // ── Community reads (profiles, search, lists, players online, groups) ───────
+  // Read-only; each one follows a user action and waits in the shared line.
+
+  captureCommunityLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
+    const id = this.communityUserId(userId)
+    const raw = await this.readSharedUser(id, lease)
+    const profile = parseCvrProfile(raw)
+    return profile?.userId === id ? profile : null
+  }
+
+  async getProfileWorlds(
+    userId: string,
+    lease: RequestLease
+  ): Promise<CommunityList<CommunityWorld>> {
+    const id = this.communityUserId(userId)
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(id)}/worlds`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseCvrProfileWorlds(raw)
+    if (!parsed) throw new CommunityDataError('ChilloutVR world list response was malformed')
+    return parsed
+  }
+
+  async getProfileGroups(
+    userId: string,
+    lease: RequestLease
+  ): Promise<CommunityList<CommunityGroup>> {
+    const id = this.communityUserId(userId)
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(id)}/groups`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseCvrGroups(raw, false, COMMUNITY_PROFILE_MAX_ITEMS)
+    if (!parsed) throw new CommunityDataError('ChilloutVR group list response was malformed')
+    return parsed
+  }
+
+  async search(query: string, lease: RequestLease): Promise<CommunitySearchPage> {
+    // The text is one path step, and "." or ".." can't be one: it finds
+    // nothing, and nothing is sent.
+    if (query === '.' || query === '..') return { people: [], worlds: [] }
+    // One request answers people, worlds, avatars and props together.
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/search/${encodeURIComponent(query)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseCvrSearch(raw, COMMUNITY_SEARCH_MAX_RESULTS)
+    if (!parsed) throw new CommunityDataError('ChilloutVR search response was malformed')
+    return parsed
+  }
+
+  async getWorldList(list: WorldList, lease: RequestLease): Promise<ExploreWorldEvidence[]> {
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.getExploreDiscovery(
+        { kind: 'world-list', list },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const outer = recordValue(raw)
+    if (!outer || !Array.isArray(outer.entries)) {
+      throw new CommunityDataError('ChilloutVR world list response was malformed')
+    }
+    return parseCvrExploreCandidates({
+      ...outer,
+      entries: outer.entries.slice(0, COMMUNITY_LIST_MAX_WORLDS)
+    })
+  }
+
+  async getPlayersOnline(lease: RequestLease): Promise<number | null> {
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.getExploreDiscovery(
+        { kind: 'players-online' },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    return parseCvrPlayersOnline(raw)
+  }
+
+  async getMyGroups(lease: RequestLease): Promise<CommunityList<CommunityGroup>> {
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get('/groups', z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseCvrGroups(raw, true, COMMUNITY_MY_GROUPS_MAX)
+    if (!parsed) throw new CommunityDataError('ChilloutVR group list response was malformed')
+    return parsed
+  }
+
+  // ── Unfriend, block and unblock (one confirmed message for one person) ──────
+  // The writes go over /users/ws like CVRX's (RequestType 8, 30, 31). The socket
+  // gives no reply, so "sent" is the most VRX can know; FRIEND_LIST_UPDATED
+  // then refreshes the roster after an unfriend.
+
+  captureSocialLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
+    const id = this.socialUserId(userId)
+    const raw = await this.readSharedUser(id, lease)
+    const record = recordValue(raw)
+    if (!record || typeof record.id !== 'string' || record.id.toLowerCase() !== id) {
+      throw new SocialDataError('ChilloutVR user response was malformed')
+    }
+    return typeof record.isBlocked === 'boolean' ? record.isBlocked : null
+  }
+
+  unfriend(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendSocial(lease, (pipeline) => pipeline.unfriend(this.socialUserId(userId)))
+  }
+
+  block(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendSocial(lease, (pipeline) => pipeline.block(this.socialUserId(userId)))
+  }
+
+  unblock(userId: string, lease: RequestLease): Promise<void> {
+    return this.sendSocial(lease, (pipeline) => pipeline.unblock(this.socialUserId(userId)))
+  }
+
+  /** Send on the current account's socket only; a closed socket sends nothing. */
+  private sendSocial(lease: RequestLease, send: (pipeline: CvrPipeline) => boolean): Promise<void> {
+    try {
+      assertRequestLease(lease)
+      // Every session boundary stops or replaces the pipeline, so the one here
+      // belongs to the lease's account.
+      const pipeline = lease.generation === this.sessionGeneration ? this.pipeline : null
+      if (pipeline === null || !send(pipeline)) throw new SocialNotSentError()
+      return Promise.resolve()
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  }
+
+  private socialUserId(userId: string): string {
+    if (!isCommunityUserId('chilloutvr', userId)) {
+      throw new SocialDataError('Invalid ChilloutVR user id')
+    }
+    return userId.toLowerCase()
+  }
+
+  // ── Game favorites (the user's own ChilloutVR categories) ───────────────────
+  // CVRX's requests: the categories once per sign-in, a category's worlds page
+  // by page, and one assign with the item's whole list. VRX reads the item's
+  // categories right before it writes, so one set in the game is never dropped.
+
+  captureFavoritesLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  /** The categories each friend has, from the roster and VRX's own writes. */
+  friendFavoriteGroups(): ReadonlyMap<string, readonly string[]> {
+    return this.friendCategories
+  }
+
+  async readGameFavorites(
+    lease: RequestLease,
+    priority: RequestPriority = 'background'
+  ): Promise<GameFavoritesRead> {
+    const options = { ...this.communityOptions(lease), priority }
+    const groups = parseCvrCategories(
+      await this.runCommunityRequest(lease, () => this.get('/categories', z.unknown(), options))
+    )
+    const worlds = new Map<string, GameFavoriteMembership[]>()
+    const worldEvidence: ExploreWorldEvidence[] = []
+    reading: for (const group of groups.world) {
+      let pages = 1
+      for (let page = 0; page < pages && page < CVR_FAVORITE_PAGES_MAX; page++) {
+        const raw = await this.runCommunityRequest(lease, () =>
+          this.getExploreDiscovery(
+            { kind: 'category-worlds', categoryId: group.key, page },
+            z.unknown(),
+            options
+          )
+        )
+        const outer = recordValue(raw)
+        if (!outer || !Array.isArray(outer.entries)) {
+          throw new GameFavoritesDataError('ChilloutVR category worlds were malformed')
+        }
+        const total = outer.totalPages
+        pages = typeof total === 'number' && Number.isInteger(total) && total > 0 ? total : 1
+        for (const world of parseCvrExploreCandidates(outer)) {
+          const memberships = worlds.get(world.worldId)
+          if (memberships) {
+            if (!memberships.some((m) => m.key === group.key)) {
+              memberships.push({ key: group.key, entryId: null })
+            }
+            continue
+          }
+          if (worldEvidence.length >= GAME_FAVORITE_WORLDS_MAX) break reading
+          worlds.set(world.worldId, [{ key: group.key, entryId: null }])
+          worldEvidence.push({ ...world, sourceOrder: worldEvidence.length })
+        }
+      }
+    }
+    const friendKeys = new Set(groups.friend.map((group) => group.key))
+    const friends = new Map<string, GameFavoriteMembership[]>()
+    for (const [id, categories] of this.friendCategories) {
+      const keys = categories.filter((key) => friendKeys.has(key))
+      if (keys.length > 0)
+        friends.set(
+          id,
+          keys.map((key) => ({ key, entryId: null }))
+        )
+    }
+    return { oneGroupPerItem: false, groups, friends, worlds, worldEvidence }
+  }
+
+  async writeGameFavorite(
+    change: GameFavoriteChange,
+    lease: RequestLease
+  ): Promise<GameFavoriteMembership[]> {
+    const { kind, group, on, groups } = change
+    if (!isGameFavoriteId('chilloutvr', kind, change.id) || !isCvrUserCategory(kind, group.key)) {
+      throw new GameFavoritesDataError('Invalid ChilloutVR favorite')
+    }
+    const id = change.id.toLowerCase()
+    const generation = this.sessionGeneration
+    // Read the item's categories now. CVRX uses the copy it read last; VRX
+    // reads again so a category set in the game since then is kept.
+    const raw = await this.runCommunityRequest(lease, () =>
+      kind === 'friend'
+        ? this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+        : this.getExploreDiscovery(
+            { kind: 'world', worldId: id },
+            z.unknown(),
+            this.communityOptions(lease)
+          )
+    )
+    const fresh = parseCvrItemCategories(raw, id)
+    if (fresh === null) {
+      throw new GameFavoritesDataError('ChilloutVR did not say which categories this has')
+    }
+    const kept = fresh.filter((key) => isCvrUserCategory(kind, key))
+    const next = on ? [...new Set([...kept, group.key])] : kept.filter((key) => key !== group.key)
+    if (next.length !== kept.length) {
+      // CVRX sends the same route and body. A write is never sent twice on its own.
+      await this.runCommunityRequest(lease, () =>
+        this.post(
+          '/categories/assign',
+          { Uuid: id, CategoryType: kind === 'friend' ? 'Friends' : 'Worlds', Categories: next },
+          z.unknown(),
+          { ...this.communityOptions(lease), retry: 'none' }
+        )
+      )
+    }
+    if (kind === 'friend' && generation === this.sessionGeneration) {
+      this.friendCategories.set(id, next)
+    }
+    const known = new Set(groups.map((g) => g.key))
+    return next.filter((key) => known.has(key)).map((key) => ({ key, entryId: null }))
+  }
+
+  // ── Account notes (the user's private note on a friend) ─────────────────────
+  // A read and a write each follow a user action; a write is never resent.
+
+  captureNoteLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async readAccountNote(userId: string, lease: RequestLease): Promise<string | null> {
+    const id = this.communityUserId(userId)
+    // Always a new read, since a save must see what the account holds now; the
+    // full profile and block check that follow may use the same answer.
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.userReads.fresh(lease.generation, id, () => this.readUser(id, lease))
+    )
+    return parseAccountNoteReply(raw, id, (left, right) => left.toLowerCase() === right)
+  }
+
+  async writeAccountNote(userId: string, note: string, lease: RequestLease): Promise<void> {
+    const id = this.communityUserId(userId)
+    // CVRX sends the same route and body.
+    await this.runCommunityRequest(lease, () =>
+      this.post(
+        `/users/${encodeURIComponent(id)}/note`,
+        { note },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  private communityUserId(userId: string): string {
+    if (!isCommunityUserId('chilloutvr', userId)) {
+      throw new CommunityDataError('Invalid ChilloutVR user id')
+    }
+    return userId.toLowerCase()
+  }
+
+  // ── Own profile (read when the editor opens, written on Save) ───────────────
+
+  captureOwnProfileLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnProfile(lease: RequestLease): Promise<OwnProfile> {
+    const accountId = this.accountId
+    if (accountId === null) throw new CVRAuthError()
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
+    )
+    const profile = parseCvrOwnProfile(raw, accountId)
+    if (!profile) throw new OwnProfileDataError('ChilloutVR profile response was malformed')
+    return profile
+  }
+
+  async saveOwnProfile(changes: OwnProfileChanges, lease: RequestLease): Promise<null> {
+    // CVRX sends each field as its own form to `/users/self`; VRX does the
+    // same, one request per changed field, in the shared line, never resent.
+    const fields: Array<[string, string]> = []
+    if (changes.bio !== undefined) fields.push(['ProfileBio', changes.bio])
+    if (changes.pronouns !== undefined) fields.push(['ProfilePronouns', changes.pronouns])
+    for (const [name, value] of fields) {
+      await this.runCommunityRequest(lease, () =>
+        this.postForm('/users/self', { [name]: value }, z.unknown(), this.communityOptions(lease))
+      )
+    }
+    // The reply carries no profile; the service keeps what was sent.
+    return null
+  }
+
+  private communityOptions(lease: RequestLease): AdapterRequestOptions {
+    return {
+      lease,
+      priority: 'interactive',
+      // A read is never resent on its own, and a 429 stops a list's paging;
+      // the user can press again.
+      retry: 'none',
+      // A missing person, world or avatar is an ordinary answer; only sign-in
+      // failures count.
+      recordCircuitFailure: 'auth'
+    }
+  }
+
+  private readUser(id: string, lease: RequestLease): Promise<unknown> {
+    return this.get(`/users/${encodeURIComponent(id)}`, z.unknown(), this.communityOptions(lease))
+  }
+
+  /** The person's record, or one a note, profile or block check read under 30 s ago. */
+  private readSharedUser(id: string, lease: RequestLease): Promise<unknown> {
+    return this.runCommunityRequest(lease, () =>
+      this.userReads.shared(lease.generation, id, () => this.readUser(id, lease))
+    )
+  }
+
+  private async runCommunityRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
+    try {
+      const value = await request()
+      assertRequestLease(lease)
+      return value
+    } catch (error) {
+      if (lease.isCurrent() && error instanceof CVRAuthError) {
+        this.handleDataAuthFailure(error)
+      }
+      throw error
+    }
+  }
+
   private captureSessionLease(): RequestLease {
     const generation = this.sessionGeneration
     return {
@@ -645,7 +1255,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     // Static roster only (VRX-57); live presence arrives via the pipeline below.
     const generation = this.sessionGeneration
     const requestSequence = ++this.friendNamesRequestSequence
-    let result: { friends: Friend[]; skippedRecords: number }
+    let result: { friends: Friend[]; skippedRecords: number; categories: Map<string, string[]> }
     try {
       result = await fetchCvrFriends((path, schema) => this.get(path, schema, { retry: 'none' }))
     } catch (error) {
@@ -693,6 +1303,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
       for (const friend of result.friends) {
         this.friendNames.set(friend.platformUserId, friend.displayName)
       }
+      this.friendCategories.clear()
+      for (const [id, categories] of result.categories) this.friendCategories.set(id, categories)
     }
     return {
       friends: result.friends,
@@ -1048,6 +1660,21 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     return operationGeneration === this.loginOperationGeneration
   }
 
+  /**
+   * The result of a sign-in or imported-session request that got no answer.
+   * The log line is fixed text: raw exception fields can carry request
+   * context and must never reach the log.
+   */
+  private unansweredSignIn(
+    operationGeneration: number,
+    error: unknown,
+    logLine: string
+  ): LoginResult {
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
+    this.live?.log?.('warn', logLine)
+    return { ok: false, needs2fa: false, error: signInFailure(error) }
+  }
+
   private supersededLoginResult(): LoginResult {
     return { ok: false, needs2fa: false, error: 'unexpected_response' }
   }
@@ -1214,9 +1841,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
   private bumpSessionGeneration(restartPipeline = true, identityRetained = false): void {
     this.sessionAbort.abort()
     this.rosterRefresh.clear()
+    this.userReads.clear()
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.friendNames.clear()
+    this.friendCategories.clear()
     this.friendNamesRequestSequence = 0
     this.friendNamesCommittedSequence = 0
     this.instanceResolver.clear()

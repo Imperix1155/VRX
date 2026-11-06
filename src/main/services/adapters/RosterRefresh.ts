@@ -6,11 +6,23 @@ interface RunState {
   lease: RequestLease
   dirty: boolean
   finalRead: boolean
+  /** A change landed after the final read was sent, so its answer may miss it. */
+  stale: boolean
+  rateLimitRevision?: number
 }
 
-/** One roster operation per session, including at most one event-driven follow-up. */
+interface Run {
+  state: RunState
+  promise: Promise<FriendRoster>
+}
+
+/**
+ * One roster operation per session, including at most one event-driven
+ * follow-up. A change during that follow-up makes the next caller wait for the
+ * run and then read once more, instead of sharing an answer that may miss it.
+ */
 export class RosterRefresh {
-  private active: { state: RunState; promise: Promise<FriendRoster> } | null = null
+  private active: Run | null = null
 
   constructor(
     private readonly read: () => Promise<FriendRoster>,
@@ -20,9 +32,10 @@ export class RosterRefresh {
   ) {}
 
   get(lease: RequestLease): Promise<FriendRoster> {
-    if (this.active?.state.lease.signal === lease.signal) return this.active.promise
-    const state = { lease, dirty: false, finalRead: false }
-    const promise = this.execute(state).finally(() => {
+    const active = this.active?.state.lease.signal === lease.signal ? this.active : null
+    if (active && !active.state.stale) return active.promise
+    const state: RunState = { lease, dirty: false, finalRead: false, stale: false }
+    const promise = (active ? this.follow(state, active) : this.execute(state)).finally(() => {
       if (this.active?.promise === promise) this.active = null
     })
     this.active = { state, promise }
@@ -30,22 +43,39 @@ export class RosterRefresh {
   }
 
   invalidate(): void {
-    if (this.active && !this.active.state.finalRead) this.active.state.dirty = true
+    const state = this.active?.state
+    if (state?.finalRead) state.stale = true
+    else if (state) state.dirty = true
   }
 
   clear(): void {
     this.active = null
   }
 
+  /** One fresh run after `previous`, unless it failed or a 429 touched it. */
+  private async follow(state: RunState, previous: Run): Promise<FriendRoster> {
+    const settled = await previous.promise
+    assertRequestLease(state.lease)
+    if (
+      settled.rateLimit ||
+      this.cooldownRemaining() > 0 ||
+      previous.state.rateLimitRevision !== this.readRateLimitRevision?.()
+    )
+      return settled
+    // This run's first read covers every change seen while it waited.
+    state.dirty = false
+    return this.execute(state)
+  }
+
   private async execute(state: RunState): Promise<FriendRoster> {
-    const rateLimitRevision = this.readRateLimitRevision?.()
+    state.rateLimitRevision = this.readRateLimitRevision?.()
     const first = await this.readWithRevision()
     assertRequestLease(state.lease)
     if (
       !state.dirty ||
       first.rateLimit ||
       this.cooldownRemaining() > 0 ||
-      rateLimitRevision !== this.readRateLimitRevision?.()
+      state.rateLimitRevision !== this.readRateLimitRevision?.()
     )
       return first
     state.finalRead = true

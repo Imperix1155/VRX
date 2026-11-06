@@ -240,7 +240,7 @@ export default function LinkConfirmDialog({
         <div
           className={warningClass}
           style={{
-            borderColor: 'color-mix(in srgb, var(--error) 45%, transparent)',
+            borderColor: 'color-mix(in srgb, var(--error) var(--pill-edge-strong), transparent)',
             background: 'color-mix(in srgb, var(--error) 10%, transparent)'
           }}
         >
@@ -312,7 +312,7 @@ export default function LinkConfirmDialog({
         <div
           className={warningClass}
           style={{
-            borderColor: 'color-mix(in srgb, var(--error) 45%, transparent)',
+            borderColor: 'color-mix(in srgb, var(--error) var(--pill-edge-strong), transparent)',
             background: 'color-mix(in srgb, var(--error) 10%, transparent)'
           }}
         >

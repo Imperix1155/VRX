@@ -322,6 +322,50 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     )
   })
 
+  it('resets community answers once the same account is back after a 401, and only then', () => {
+    stubBridge()
+    const client = new QueryClient()
+    const vrcSearch = ['community-search', 'vrchat', 'usr_me', 'tea'] as const
+    const vrcProfile = ['profile', 'vrchat', 'usr_me', 'usr_x'] as const
+    const cvrSearch = ['community-search', 'chilloutvr', 'cvr-me', 'tea'] as const
+    const vrcGameFavorites = ['game-favorites', 'vrchat', 'usr_me'] as const
+    const cvrGameFavorites = ['game-favorites', 'chilloutvr', 'cvr-me'] as const
+    client.setQueryData(vrcSearch, { ok: true })
+    client.setQueryData(vrcProfile, { ok: true })
+    client.setQueryData(cvrSearch, { ok: true })
+    client.setQueryData(vrcGameFavorites, { state: 'ready' })
+    client.setQueryData(cvrGameFavorites, { state: 'ready' })
+    mount(client)
+
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' }))
+    // Still shown while the session is checked again.
+    expect(client.getQueryData(vrcSearch)).toEqual({ ok: true })
+
+    act(() => {
+      client.setQueryData(authStatusQueryKey('vrchat'), {
+        state: 'authenticated' as const,
+        accountId: 'usr_me'
+      })
+    })
+    expect(client.getQueryData(vrcSearch)).toBeUndefined()
+    expect(client.getQueryData(vrcProfile)).toBeUndefined()
+    expect(client.getQueryData(cvrSearch)).toEqual({ ok: true })
+    // Main forgot the game favorites at the 401, so they are read again too.
+    expect(client.getQueryData(vrcGameFavorites)).toBeUndefined()
+    expect(client.getQueryData(cvrGameFavorites)).toEqual({ state: 'ready' })
+
+    // A later status check does not reset fresh answers again.
+    client.setQueryData(vrcSearch, { ok: true })
+    act(() => {
+      client.setQueryData(authStatusQueryKey('vrchat'), {
+        state: 'authenticated' as const,
+        accountId: 'usr_me',
+        checkedAt: 1
+      })
+    })
+    expect(client.getQueryData(vrcSearch)).toEqual({ ok: true })
+  })
+
   it('does NOT lift the quarantine on connection:live alone — socket-open is not proof of re-auth (Codex)', async () => {
     stubBridge()
     const client = new QueryClient()
@@ -383,6 +427,42 @@ describe('useLiveFriendEvents — identity boundary', () => {
     expect(client.getQueryData(cvrNoteKey)).toEqual({ note: 'Other platform note' })
   })
 
+  it("drops the outgoing account's alert picks and keeps the other platform's", () => {
+    stubBridge()
+    const client = new QueryClient()
+    const vrcPicksKey = ['alert-picks', 'vrchat', 'usr_me'] as const
+    const cvrPicksKey = ['alert-picks', 'chilloutvr', 'cvr-me'] as const
+    client.setQueryData(vrcPicksKey, { friendIds: ['usr_a'] })
+    client.setQueryData(cvrPicksKey, { friendIds: ['cvr_a'] })
+    mount(client)
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+
+    expect(client.getQueryData(vrcPicksKey)).toBeUndefined()
+    expect(client.getQueryData(cvrPicksKey)).toEqual({ friendIds: ['cvr_a'] })
+  })
+
+  it("drops the outgoing account's avatars and keeps the other platform's", () => {
+    stubBridge()
+    const client = new QueryClient()
+    const vrcLibraryKey = ['avatar-library', 'vrchat', 'usr_me'] as const
+    const vrcDetailsKey = ['avatar-details', 'vrchat', 'usr_me', 'avtr_x'] as const
+    const cvrLibraryKey = ['avatar-library', 'chilloutvr', 'cvr-me'] as const
+    const vrcCurrentKey = ['current-avatar', 'vrchat', 'usr_me'] as const
+    client.setQueryData(vrcLibraryKey, { ok: true })
+    client.setQueryData(vrcDetailsKey, { ok: true })
+    client.setQueryData(vrcCurrentKey, { ok: true })
+    client.setQueryData(cvrLibraryKey, { ok: true })
+    mount(client)
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+
+    expect(client.getQueryData(vrcLibraryKey)).toBeUndefined()
+    expect(client.getQueryData(vrcDetailsKey)).toBeUndefined()
+    expect(client.getQueryData(vrcCurrentKey)).toBeUndefined()
+    expect(client.getQueryData(cvrLibraryKey)).toEqual({ ok: true })
+  })
+
   it('clears a mounted useFriends observer immediately and refetches the new account (real QueryClient)', async () => {
     const accountA = [vrcFriend('Account A')]
     let resolveAccountB: ((friends: Friend[]) => void) | undefined
@@ -431,6 +511,33 @@ describe('useLiveFriendEvents — identity boundary', () => {
     expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))?.[0]?.presence.state).toBe(
       'offline'
     )
+  })
+
+  it('keeps the sign-in placeholder a placeholder when a live event lands before the roster', () => {
+    stubBridge()
+    const client = new QueryClient()
+    client.setQueryData(friendsQueryKey('chilloutvr'), [cvrFriend('offline')])
+    mount(client)
+
+    act(() => fireIdentityBoundary!({ platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!(snapshotEvent))
+
+    // The Dashboard says Loading, and a failed first read is "missing", only
+    // while the empty roster keeps its 0 stamp.
+    const state = client.getQueryState(friendsQueryKey('chilloutvr'))
+    expect(state?.data).toEqual([])
+    expect(state?.dataUpdatedAt).toBe(0)
+  })
+
+  it('stamps a live event on a roster that loaded as usual', () => {
+    stubBridge()
+    const client = new QueryClient()
+    client.setQueryData(friendsQueryKey('chilloutvr'), [cvrFriend('offline')])
+    mount(client)
+
+    act(() => fireFriendEvent!(snapshotEvent))
+
+    expect(client.getQueryState(friendsQueryKey('chilloutvr'))?.dataUpdatedAt).toBeGreaterThan(0)
   })
 
   it('isolates a VRChat boundary from ChilloutVR cache and snapshot buffer', async () => {

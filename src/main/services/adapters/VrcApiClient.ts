@@ -20,7 +20,7 @@ export const VRC_USER_AGENT = `VRX/${__APP_VERSION__} (https://github.com/Imperi
  *
  *   BaseAdapter  → request<T>: rate limit, timeout, redirect:'error', 429
  *                  backoff, Zod validation, circuit breaker, typed errors
- *   VrcApiClient → get/post against VRC_API_BASE with the auth cookie +
+ *   VrcApiClient → get/post/put/delete against VRC_API_BASE with the auth cookie +
  *                  User-Agent attached (THIS class)
  *   VrcAdapter   → the IPlatformAdapter methods (extends this; later)
  *
@@ -82,6 +82,78 @@ export abstract class VrcApiClient extends BaseAdapter {
       schema,
       () => ({
         method: 'POST',
+        headers: this.headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+  }
+
+  /** PUT to `path` (relative to VRC_API_BASE) with no body, validated against `schema`. */
+  protected put<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions
+  ): Promise<T> {
+    return this.request(
+      VRC_API_BASE + path,
+      schema,
+      () => ({
+        method: 'PUT',
+        headers: this.headers()
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+  }
+
+  /**
+   * A write with no body and no reply worth reading (`PUT` an answer, `POST` a
+   * friend request). Returns the HTTP status so the caller can tell a refusal
+   * (4xx) from a failure; 429 handling and admission stay in `rawRequest`.
+   */
+  protected async sendWrite(
+    method: 'PUT' | 'POST',
+    path: string,
+    options?: AdapterRequestOptions
+  ): Promise<number> {
+    const response = await this.rawRequest(
+      VRC_API_BASE + path,
+      () => ({ method, headers: this.headers() }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+    await response.body?.cancel().catch(() => {})
+    return response.status
+  }
+
+  /** DELETE `path` (relative to VRC_API_BASE), validated against `schema`. */
+  protected delete<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions
+  ): Promise<T> {
+    return this.request(
+      VRC_API_BASE + path,
+      schema,
+      () => ({
+        method: 'DELETE',
+        headers: this.headers()
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+  }
+
+  /** PUT `body` as JSON to `path` (relative to VRC_API_BASE), validated against `schema`. */
+  protected putJson<T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions
+  ): Promise<T> {
+    return this.request(
+      VRC_API_BASE + path,
+      schema,
+      () => ({
+        method: 'PUT',
         headers: this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body)
       }),

@@ -1,7 +1,17 @@
-import { Component } from 'react'
+import { Component, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type FallbackVariant = 'app' | 'panel'
+
+/** How long the button reads "Copied" after a copy worked. */
+const COPIED_LABEL_MS = 2_000
+
+/** Copied diagnostics leave out folder names: only file names stay (`index-….js:12:345`).
+ *  A file URL runs to the next space (its own spaces are %20); everything up
+ *  to its last slash goes. */
+function withoutInstallFolder(text: string): string {
+  return text.replace(/file:\/\/\S*\//g, '')
+}
 
 interface FallbackProps {
   error?: Error
@@ -14,10 +24,38 @@ interface FallbackProps {
 function ErrorFallback({ error, variant = 'app' }: FallbackProps): React.JSX.Element {
   const { t } = useTranslation()
   const isPanel = variant === 'panel'
+  const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+    }
+  }, [])
 
   function copyDiagnostics(): void {
-    const text = `${error?.message ?? 'Unknown error'}\n\n${error?.stack ?? ''}`
-    navigator.clipboard.writeText(text).catch(() => undefined)
+    if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+    setCopy('idle')
+    const text = withoutInstallFolder(
+      `${error?.message ?? 'Unknown error'}\n\n${error?.stack ?? ''}`
+    )
+    const failed = (): void => {
+      if (mounted.current) setCopy('failed')
+    }
+    let writing: Promise<void>
+    try {
+      writing = navigator.clipboard.writeText(text)
+    } catch {
+      failed()
+      return
+    }
+    writing.then(() => {
+      if (!mounted.current) return
+      setCopy('copied')
+      resetTimer.current = setTimeout(() => setCopy('idle'), COPIED_LABEL_MS)
+    }, failed)
   }
 
   return (
@@ -71,8 +109,15 @@ function ErrorFallback({ error, variant = 'app' }: FallbackProps): React.JSX.Ele
               onClick={copyDiagnostics}
               className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
             >
-              {t('error.copyDiagnostics')}
+              {t(copy === 'copied' ? 'error.copied' : 'error.copyDiagnostics')}
             </button>
+            {/* Screen readers hear the result; a failure also shows under the button. */}
+            <p
+              role="status"
+              className={copy === 'failed' ? 'text-xs text-[var(--text-dim)]' : 'sr-only'}
+            >
+              {copy === 'idle' ? '' : t(copy === 'copied' ? 'error.copied' : 'error.copyFailed')}
+            </p>
           </div>
         </div>
       </div>

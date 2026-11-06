@@ -4,20 +4,24 @@ import type { Platform } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { useAuthStatus } from '../queries/auth'
+import { isAuthCheckFailing } from '../queries/authCheck'
 import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
 
 // A compact one-row strip: text and its action share the row, so a notice
 // costs Settings (no scrolling at the default size, DESIGN.md §8) as little
-// height as possible.
+// height as possible. A busy Retry is aria-disabled, not disabled, so keyboard
+// focus stays on it and is still there if the retry fails.
 const buttonClass =
-  'shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--control-fill-hover)] disabled:opacity-50'
+  'shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--control-fill-hover)] disabled:opacity-50 aria-disabled:cursor-default aria-disabled:opacity-50'
 const noticeClass =
-  'glass glass-information mb-[var(--space-2)] flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-2)] text-xs leading-snug text-[var(--text-dim)]'
+  'glass glass-layer mb-[var(--space-2)] flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-2)] text-xs leading-snug text-[var(--text-dim)]'
 
 function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | null {
   const { t } = useTranslation()
-  const { isError, isFetching, refetch } = useAuthStatus(platform)
-  if (!isError) return null
+  const { isError, isFetching, status, errorUpdatedAt, refetch } = useAuthStatus(platform)
+  // Also while Retry runs the check again, so the notice and keyboard focus
+  // on Retry stay until it answers.
+  if (!isAuthCheckFailing({ isError, status, errorUpdatedAt })) return null
   return (
     <div className={noticeClass} role="status">
       <span className="min-w-0 flex-1">
@@ -28,9 +32,9 @@ function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | n
       <button
         type="button"
         className={buttonClass}
-        disabled={isFetching}
+        aria-disabled={isFetching || undefined}
         onClick={() => {
-          void refetch()
+          if (!isFetching) void refetch()
         }}
       >
         {t(isFetching ? 'settings.accounts.retrying' : 'settings.accounts.retry')}
@@ -80,14 +84,18 @@ export const SETTINGS_PENDING_NOTICE_DELAY_MS = 2_000
 
 /**
  * Settings persistence notice. A failed save shows immediately as an alert with
- * Retry. An ordinary in-flight save stays silent: the pending notice appears only
- * when the latest change is still unsaved after SETTINGS_PENDING_NOTICE_DELAY_MS,
- * so routine edits never flash a banner or trigger a screen-reader announcement.
+ * Retry. Settings that could not be read (main answered with defaults) show as
+ * an alert until a save reaches the real file. An ordinary in-flight save stays
+ * silent: the pending notice appears only when the latest change is still
+ * unsaved after SETTINGS_PENDING_NOTICE_DELAY_MS, so routine edits never flash
+ * a banner or trigger a screen-reader announcement. The welcome setup, which
+ * replaces the shell, shows it too.
  */
-function SettingsPersistenceNotice(): React.JSX.Element | null {
+export function SettingsPersistenceNotice(): React.JSX.Element | null {
   const { t } = useTranslation()
   const dirty = useSettingsStore((s) => s.dirty)
   const saveError = useSettingsStore((s) => s.saveError)
+  const loadFallback = useSettingsStore((s) => s.loadFallback)
   const saving = useSettingsStore((s) => s.saving)
   const settings = useSettingsStore((s) => s.settings)
   const retrySave = useSettingsStore((s) => s.retrySave)
@@ -105,20 +113,36 @@ function SettingsPersistenceNotice(): React.JSX.Element | null {
   }, [waiting, settings])
 
   const pendingTooLong = waiting && pendingSince === settings
-  if (!dirty || (!saveError && !pendingTooLong)) return null
+  const failed = dirty && saveError
+  // Failures first: a failed save, then settings that could not be read.
+  const warning = failed || loadFallback
+  if (!warning && !pendingTooLong) return null
   return (
-    <div className={noticeClass} role={saveError ? 'alert' : 'status'}>
+    <div className={noticeClass} role={warning ? 'alert' : 'status'}>
       {/* The failure's non-color cue (R2): a warning glyph before its words. */}
-      {saveError && (
+      {warning && (
         <span aria-hidden="true" className="shrink-0 text-sm text-[var(--error)]">
           ⚠
         </span>
       )}
       <span className="min-w-0 flex-1">
-        {t(saveError ? 'settings.persistence.error' : 'settings.persistence.unsaved')}
+        {t(
+          failed
+            ? 'settings.persistence.error'
+            : loadFallback
+              ? 'settings.persistence.loadFallback'
+              : 'settings.persistence.unsaved'
+        )}
       </span>
-      {saveError && (
-        <button type="button" className={buttonClass} disabled={saving} onClick={retrySave}>
+      {failed && (
+        <button
+          type="button"
+          className={buttonClass}
+          aria-disabled={saving || undefined}
+          onClick={() => {
+            if (!saving) retrySave()
+          }}
+        >
           {t(saving ? 'settings.persistence.saving' : 'settings.persistence.retry')}
         </button>
       )}

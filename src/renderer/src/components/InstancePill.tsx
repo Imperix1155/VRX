@@ -47,8 +47,8 @@ export default function InstancePill({
     tier != null
       ? {
           color: `var(--op-${tier}-text)`,
-          '--instance-pill-bg': `color-mix(in srgb, var(--op-${tier}) 13%, transparent)`,
-          borderColor: `color-mix(in srgb, var(--op-${tier}) 36%, transparent)`
+          '--instance-pill-bg': `color-mix(in srgb, var(--op-${tier}) var(--pill-tint), transparent)`,
+          borderColor: `color-mix(in srgb, var(--op-${tier}) var(--pill-edge), transparent)`
         }
       : {
           color: 'var(--text-dim)',

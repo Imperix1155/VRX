@@ -148,6 +148,9 @@ describe('FriendsList', () => {
     // vertical writing mode rotates onto the horizontal axis (review-caught High).
     const markup = render()
     expect(markup).toContain('grid-cols-[14px_42px_1fr_auto]')
+    // pl-[13px] with -ml-[7px] leaves a 3px gap between the tab and the row's
+    // 3px platform bar, so the two never touch.
+    expect(markup).toContain('pl-[13px]')
     for (const cls of [
       '[writing-mode:vertical-rl]',
       'rotate-180',
@@ -392,10 +395,10 @@ describe('FriendsList', () => {
 
   // ─── Platform tab + CVR presence ring ────────────────────────────────────────
 
-  it('renders the VRChat platform tab (--vrc tint + VRC acronym) for a VRChat friend', () => {
+  it('renders the VRChat platform tab (platform rail + VRC acronym) for a VRChat friend', () => {
     const markup = render()
-    expect(markup).toContain('var(--vrc)')
-    expect(markup).toContain('var(--plat-vrc-ghost-text)')
+    expect(markup).toContain('var(--plat-vrc-rail-bg)')
+    expect(markup).toContain('var(--plat-vrc-rail-text)')
     expect(markup).toContain('>VRC<')
   })
 
@@ -410,7 +413,8 @@ describe('FriendsList', () => {
       } as Friend
     ])
     const markup = render()
-    expect(markup).toContain('var(--cvr)')
+    expect(markup).toContain('var(--plat-cvr-rail-bg)')
+    expect(markup).toContain('var(--plat-cvr-rail-text)')
     expect(markup).toContain('>CVR<')
     expect(markup).toContain('aria-label="ChilloutVR"')
     // VRX-207: CVR online = privacy tier 2 — the SAME ring as VRChat status:online,

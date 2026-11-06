@@ -3,7 +3,9 @@ import type { InstanceActionResult, IpcInvoke } from '@shared/ipc'
 import type { JoinMode, Platform } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
+import type { AccountSession } from '../services/accountSession'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import { GameHandoff } from '../services/gameHandoff'
 import type { LocationAuthority } from '../services/locationAuthority'
 import { isTrustedIpcSender } from './security'
 import { isAllowedLaunchUrl } from './url-allowlist'
@@ -27,6 +29,20 @@ export interface InstanceHandlerOptions {
   clock?: () => number
   log?: InstanceLog
   joinCoordinator?: JoinCoordinator
+  /** Launch, or reach the game that is already open. Defaults to launch only. */
+  gameHandoff?: GameHandoff
+  /** Fences a Join to the account that started it. Without it, no fence. */
+  accountSession?: Pick<AccountSession, 'resolve'>
+}
+
+/** The pre-2026-10-27 behavior: every Join starts the game through its URL. */
+function launchOnlyHandoff(): GameHandoff {
+  return new GameHandoff({
+    hostPlatform: process.platform,
+    isRunning: () => Promise.resolve(false),
+    settings: () => ({ joinOpenGame: false, vrchatOpenGameJoin: 'go' }),
+    openExternal: (url) => shell.openExternal(url)
+  })
 }
 
 export function registerInstanceHandlers(
@@ -37,6 +53,7 @@ export function registerInstanceHandlers(
   const clock = options.clock ?? Date.now
   const log = options.log ?? (() => undefined)
   const joins = options.joinCoordinator ?? new JoinCoordinator(clock)
+  const handoff = options.gameHandoff ?? launchOnlyHandoff()
   const inFlight = new Set<string>()
   const lastActionAt = new Map<string, number>()
   const denied = (
@@ -45,6 +62,17 @@ export function registerInstanceHandlers(
   ): InstanceActionResult => {
     log('warn', 'instance action denied', { platform, reason })
     return { ok: false, reason }
+  }
+  /** Capture the signed-in account now; the check fails once it changes. */
+  const accountFence = (platform: Platform): (() => boolean) => {
+    const session = options.accountSession
+    if (!session) return () => true
+    const start = session.resolve(platform)
+    if (!('ready' in start)) return () => false
+    return () => {
+      const now = session.resolve(platform)
+      return 'ready' in now && now.accountKey === start.accountKey && now.epoch === start.epoch
+    }
   }
 
   ipcMain.handle('join-instance', async (event, req: IpcInvoke['join-instance']['req']) => {
@@ -92,19 +120,31 @@ export function registerInstanceHandlers(
     const url = adapter.buildJoinUrl(resolved.friend.instance!, req.mode)
     if (url === null || !isAllowedLaunchUrl(url)) return denied(req.platform, 'invalid-url')
 
+    const stillCurrent = accountFence(req.platform)
+    if (!stillCurrent()) return denied(req.platform, 'stale')
     const permit = joins.acquire(req.platform, currentKey!, req.friendId)
     if (!permit) return denied(req.platform, 'cooldown')
+    const instance = resolved.friend.instance!
     try {
-      try {
-        await shell.openExternal(url)
-      } catch {
-        return denied(req.platform, 'launch-failed')
-      }
+      const result = await handoff.deliver(
+        req.platform,
+        url,
+        () => adapter.selfInvite(`${instance.worldId}:${instance.instanceId}`),
+        stillCurrent
+      )
+      if (!result.ok) return denied(req.platform, result.reason)
       permit.complete()
-      return { ok: true }
+      return { ok: true, handoff: result.handoff }
     } finally {
       permit.release()
     }
+  })
+
+  ipcMain.handle('get-join-handoff', async (event, req: IpcInvoke['get-join-handoff']['req']) => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    if (!req || !VALID_PLATFORMS.has(req.platform))
+      throw new Error('Invalid get-join-handoff request')
+    return handoff.preview(req.platform)
   })
 
   ipcMain.handle('self-invite', async (event, req: IpcInvoke['self-invite']['req']) => {
@@ -125,6 +165,8 @@ export function registerInstanceHandlers(
     if (!isFriendJoinable(resolved.friend)) return denied(req.platform, 'not-joinable')
     const instance = resolved.friend.instance!
     const location = `${instance.worldId}:${instance.instanceId}`
+    // A public instance needs no invite outside an open game: use Join.
+    if (instance.type === 'public') return denied(req.platform, 'invite-failed')
     const actionKey = `${req.platform}:self-invite` satisfies `${Platform}:${InstanceAction}`
     const previous = lastActionAt.get(actionKey)
     if (

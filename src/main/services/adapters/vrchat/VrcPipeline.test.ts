@@ -314,7 +314,7 @@ describe('VrcPipeline', () => {
     r.pipeline.stop()
   })
 
-  it('drops unknown types, notifications (unrouted until VRX-84), and malformed frames without throwing', async () => {
+  it('drops unknown types, v2 notifications, and malformed frames without throwing', async () => {
     const r = rig()
     r.pipeline.start()
     await tick()
@@ -332,6 +332,129 @@ describe('VrcPipeline', () => {
     // Only the Buffer frame (valid, exercises binary decode) produced an event.
     expect(r.events.length).toBe(baseline + 1)
     expect(r.events.at(-1)).toMatchObject({ type: 'friend-offline', platformUserId: 'usr_b' })
+    r.pipeline.stop()
+  })
+
+  it('routes invites, invite requests and friend requests to the inbox, view-only', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    const baseline = r.events.length
+
+    r.sockets[0]!.fire(
+      'message',
+      frame('notification', {
+        id: 'not_1',
+        type: 'invite',
+        senderUserId: 'usr_a',
+        senderUsername: 'Alice',
+        details: { worldId: 'wrld_x:1~private(usr_a)', worldName: 'The Great Pug' }
+      })
+    )
+    r.sockets[0]!.fire(
+      'message',
+      frame('notification', {
+        id: 'not_2',
+        type: 'friendRequest',
+        senderUserId: 'usr_b',
+        senderUsername: 'Bob',
+        details: '{}'
+      })
+    )
+    r.sockets[0]!.fire(
+      'message',
+      frame('notification', { id: 'not_3', type: 'requestInvite', senderUserId: 'usr_c' })
+    )
+    // Not inbox material: a vote to kick and a malformed record.
+    r.sockets[0]!.fire(
+      'message',
+      frame('notification', { id: 'not_4', type: 'votetokick', senderUserId: 'usr_d' })
+    )
+    r.sockets[0]!.fire('message', frame('notification', { type: 'invite' }))
+
+    expect(r.events.slice(baseline)).toEqual([
+      {
+        type: 'inbox',
+        platform: 'vrchat',
+        change: {
+          op: 'add',
+          entries: [
+            {
+              sourceId: 'not_1',
+              kind: 'invite',
+              senderId: 'usr_a',
+              senderName: 'Alice',
+              worldName: 'The Great Pug'
+            }
+          ]
+        }
+      },
+      {
+        type: 'inbox',
+        platform: 'vrchat',
+        change: {
+          op: 'add',
+          entries: [
+            {
+              sourceId: 'not_2',
+              kind: 'friend-request',
+              senderId: 'usr_b',
+              senderName: 'Bob',
+              worldName: null
+            }
+          ]
+        }
+      },
+      {
+        type: 'inbox',
+        platform: 'vrchat',
+        change: {
+          op: 'add',
+          entries: [
+            {
+              sourceId: 'not_3',
+              kind: 'invite-request',
+              senderId: 'usr_c',
+              senderName: null,
+              worldName: null
+            }
+          ]
+        }
+      }
+    ])
+    r.pipeline.stop()
+  })
+
+  it('removes inbox items answered or hidden elsewhere, and clears on clear-all', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    const baseline = r.events.length
+
+    // Hide carries a bare, non-JSON ID; a JSON-quoted one works too.
+    r.sockets[0]!.fire('message', JSON.stringify({ type: 'hide-notification', content: 'not_1' }))
+    r.sockets[0]!.fire('message', frame('hide-notification', 'not_2'))
+    r.sockets[0]!.fire(
+      'message',
+      frame('response-notification', {
+        notificationId: 'not_3',
+        receiverId: 'usr_me',
+        responseId: 'not_9'
+      })
+    )
+    r.sockets[0]!.fire('message', JSON.stringify({ type: 'clear-notification', content: '' }))
+    // Seen is not answered; a broken ID is dropped.
+    r.sockets[0]!.fire('message', JSON.stringify({ type: 'see-notification', content: 'not_5' }))
+    r.sockets[0]!.fire('message', JSON.stringify({ type: 'hide-notification', content: 'a b' }))
+
+    expect(r.events.slice(baseline)).toEqual([
+      { type: 'inbox', platform: 'vrchat', change: { op: 'remove', sourceIds: ['not_1'] } },
+      { type: 'inbox', platform: 'vrchat', change: { op: 'remove', sourceIds: ['not_2'] } },
+      { type: 'inbox', platform: 'vrchat', change: { op: 'remove', sourceIds: ['not_3'] } },
+      { type: 'inbox', platform: 'vrchat', change: { op: 'clear' } }
+    ])
     r.pipeline.stop()
   })
 

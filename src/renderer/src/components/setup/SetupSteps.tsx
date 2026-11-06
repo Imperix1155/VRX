@@ -1,14 +1,32 @@
-import { forwardRef, useId, useState } from 'react'
+import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthState, BackgroundGlow, LabelScheme, Platform, Theme } from '@shared/types'
-import { BACKGROUND_GLOWS, DASHBOARD_SECTION_ORDERS, LABEL_SCHEMES } from '@shared/types'
+import {
+  BACKGROUND_GLOWS,
+  DASHBOARD_SECTION_ORDERS,
+  LABEL_SCHEMES,
+  withDashboardSectionOrder
+} from '@shared/types'
 import type { Settings } from '@shared/settings'
 import { useSettingsStore } from '../../stores/settings'
+import { SECTION_SETTINGS } from '../../utils/dashboardSections'
 import { focusRadioSibling, segArrowTarget } from '../../utils/segmented'
 import AccountCard from '../AccountCard'
 import SegmentedControl from '../SegmentedControl'
 import Toggle from '../Toggle'
-import { IconExplore, IconFriends, IconHot } from '../NavIcons'
+import {
+  IconActivity,
+  IconExplore,
+  IconFriends,
+  IconGroups,
+  IconHot,
+  IconInbox,
+  IconSearch
+} from '../NavIcons'
+import { BackgroundPictureControls, BackgroundPictureMessage } from '../BackgroundPicturePicker'
+import { useBackgroundPicturePicker } from '../../hooks/useBackgroundPicturePicker'
+import FinePrint from '../FinePrint'
+import { useAppBackground } from '../../queries/appBackground'
 import { SECONDARY_BUTTON, SETUP_ALERTS, SETUP_PLATFORMS } from './setupModel'
 
 /**
@@ -23,6 +41,7 @@ const PLATFORM_LABEL_KEYS: Record<Platform, string> = {
 }
 
 const GLOW_LABEL_KEYS: Record<BackgroundGlow, string> = {
+  off: 'settings.backgroundGlow.off',
   muted: 'settings.backgroundGlow.muted',
   standard: 'settings.backgroundGlow.standard',
   vivid: 'settings.backgroundGlow.vivid'
@@ -45,15 +64,17 @@ export const StepHeading = forwardRef<
 >(function StepHeading({ title, lead, centered = false, leadLive = false }, ref) {
   return (
     <div className={centered ? 'text-center' : undefined}>
-      {/* Focus lands here on every step change so screen readers announce it. */}
-      <h2
+      {/* Focus lands here on every step change so screen readers announce it.
+          The setup has no top bar, so each step's title is the page's heading,
+          in the page title's type (DESIGN.md §7: 25 px extra bold). */}
+      <h1
         ref={ref}
         id="setup-step-title"
         tabIndex={-1}
-        className="text-[22px] font-semibold leading-tight text-[var(--text)] text-balance focus:outline-none"
+        className="text-[25px] font-extrabold leading-[1.2] text-[var(--text)] text-balance focus:outline-none"
       >
         {title}
-      </h2>
+      </h1>
       {lead && (
         <p
           role={leadLive ? 'status' : undefined}
@@ -68,25 +89,23 @@ export const StepHeading = forwardRef<
 
 function RowIcon({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <span className="grid h-[32px] w-[32px] flex-none place-items-center rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] text-[var(--text)]">
+    <span className="glass-chip grid h-[32px] w-[32px] flex-none place-items-center rounded-[10px] border border-[var(--border)] bg-[var(--control-fill)] text-[var(--text)]">
       {children}
     </span>
   )
 }
 
-function Row({
-  label,
-  description,
-  icon,
-  children
-}: {
+interface RowProps {
   label: string
   description: string
   icon?: React.ReactNode
   children: React.ReactNode
-}): React.JSX.Element {
+}
+
+/** One labeled control row; `Row` wraps it in its own card. */
+function RowContent({ label, description, icon, children }: RowProps): React.JSX.Element {
   return (
-    <div className="setting-card setting-row py-[10px]">
+    <div className="setting-row">
       <div className="flex items-center gap-[var(--space-3)]">
         {icon ? <RowIcon>{icon}</RowIcon> : null}
         <div className="min-w-0">
@@ -99,44 +118,18 @@ function Row({
   )
 }
 
-const FINE_PRINT = 'text-[11.5px] leading-[1.45] text-[var(--text-dim)]'
-
-/**
- * Simple by default, more on demand (owner, 2026-10-22): one short line of
- * fine print that swaps to the full text in place, so opening it adds only a
- * line or two.
- */
-function FinePrint({
-  summary,
-  full,
-  centered = false
-}: {
-  summary: string
-  full: string
-  centered?: boolean
-}): React.JSX.Element {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const textId = useId()
+function Row(props: RowProps): React.JSX.Element {
   return (
-    <p
-      id={textId}
-      aria-live="polite"
-      className={`${FINE_PRINT}${centered ? ' max-w-[52ch] text-center text-balance' : ''}`}
-    >
-      {open ? full : summary}{' '}
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={textId}
-        onClick={() => setOpen((value) => !value)}
-        className="whitespace-nowrap text-[var(--text-dim)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors"
-      >
-        {t(open ? 'setup.showLess' : 'setup.showMore')}
-      </button>
-    </p>
+    <div className="setting-card py-[10px]">
+      <RowContent {...props} />
+    </div>
   )
 }
+
+/** Friend alerts share one card and inbox alerts another, like Settings. */
+const ALERT_GROUPS = ['friends', 'inbox'] as const
+
+const FINE_PRINT = 'text-[11.5px] leading-[1.45] text-[var(--text-dim)]'
 
 // ─── Welcome ─────────────────────────────────────────────────────────────────
 
@@ -222,19 +215,50 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
   const { t } = useTranslation()
   const showHot = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplore = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivity = useSettingsStore((s) => s.settings.showActivityPage)
+  const showInbox = useSettingsStore((s) => s.settings.showInboxPage)
+  const showSearch = useSettingsStore((s) => s.settings.showSearchPage)
+  const showGroups = useSettingsStore((s) => s.settings.showGroupsPage)
   const update = useSettingsStore((s) => s.updateSettings)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
       <StepHeading ref={ref} title={t('setup.pages.title')} lead={t('setup.pages.lead')} />
-      <div className="settings-cards">
-        <Row icon={<IconHot />} label={t('shell.nav.hot')} description={t('setup.pages.hot')}>
+      {/* One card like the Alerts step, so all six pages fit without scrolling. */}
+      <div className="setting-card grid gap-[var(--space-2)] py-[10px]">
+        <RowContent
+          icon={<IconHot />}
+          label={t('shell.nav.hot')}
+          description={t('setup.pages.hot')}
+        >
           <Toggle
             checked={showHot}
             ariaLabel={t('setup.pages.hotAria')}
             onChange={(checked) => update({ showHotInstancesPage: checked })}
           />
-        </Row>
-        <Row
+        </RowContent>
+        <RowContent
+          icon={<IconActivity />}
+          label={t('shell.nav.activity')}
+          description={t('setup.pages.activity')}
+        >
+          <Toggle
+            checked={showActivity}
+            ariaLabel={t('setup.pages.activityAria')}
+            onChange={(checked) => update({ showActivityPage: checked })}
+          />
+        </RowContent>
+        <RowContent
+          icon={<IconInbox />}
+          label={t('shell.nav.inbox')}
+          description={t('setup.pages.inbox')}
+        >
+          <Toggle
+            checked={showInbox}
+            ariaLabel={t('setup.pages.inboxAria')}
+            onChange={(checked) => update({ showInboxPage: checked })}
+          />
+        </RowContent>
+        <RowContent
           icon={<IconExplore />}
           label={t('shell.nav.explore')}
           description={t('setup.pages.explore')}
@@ -244,7 +268,29 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             ariaLabel={t('setup.pages.exploreAria')}
             onChange={(checked) => update({ showExplorePage: checked })}
           />
-        </Row>
+        </RowContent>
+        <RowContent
+          icon={<IconSearch />}
+          label={t('shell.nav.search')}
+          description={t('setup.pages.search')}
+        >
+          <Toggle
+            checked={showSearch}
+            ariaLabel={t('setup.pages.searchAria')}
+            onChange={(checked) => update({ showSearchPage: checked })}
+          />
+        </RowContent>
+        <RowContent
+          icon={<IconGroups />}
+          label={t('shell.nav.groups')}
+          description={t('setup.pages.groups')}
+        >
+          <Toggle
+            checked={showGroups}
+            ariaLabel={t('setup.pages.groupsAria')}
+            onChange={(checked) => update({ showGroupsPage: checked })}
+          />
+        </RowContent>
       </div>
     </div>
   )
@@ -257,6 +303,7 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
   const popular = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const hot = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const order = useSettingsStore((s) => s.settings.dashboardSectionOrder)
+  const sections = useSettingsStore((s) => s.settings.dashboardSections)
   const update = useSettingsStore((s) => s.updateSettings)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
@@ -290,8 +337,15 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
               values={DASHBOARD_SECTION_ORDERS}
               active={order}
               labelKeys={ORDER_LABEL_KEYS}
-              ariaLabel={t('settings.dashboard.order.aria')}
-              onChange={(value) => update({ dashboardSectionOrder: value })}
+              // Named with the question it shows, so voice control can say it.
+              ariaLabel={t('setup.dashboard.order.label')}
+              // The full section list owns the order; swap the two in it too.
+              onChange={(value) =>
+                update({
+                  dashboardSectionOrder: value,
+                  dashboardSections: withDashboardSectionOrder(sections, value)
+                })
+              }
             />
           </Row>
         )}
@@ -316,14 +370,18 @@ export const AlertsStep = forwardRef<HTMLHeadingElement>(function AlertsStep(_pr
     <div className="flex flex-col gap-[var(--space-3)]">
       <StepHeading ref={ref} title={t('setup.alerts.title')} lead={t('setup.alerts.lead')} />
       <div className="settings-cards">
-        {SETUP_ALERTS.map((alert) => (
-          <Row key={alert.key} label={t(alert.label)} description={t(alert.description)}>
-            <Toggle
-              checked={settings[alert.key]}
-              ariaLabel={t(alert.aria)}
-              onChange={(checked) => update({ [alert.key]: checked })}
-            />
-          </Row>
+        {ALERT_GROUPS.map((group) => (
+          <div key={group} className="setting-card grid gap-[var(--space-2)] py-[10px]">
+            {SETUP_ALERTS.filter((alert) => alert.group === group).map((alert) => (
+              <RowContent key={alert.key} label={t(alert.label)} description={t(alert.description)}>
+                <Toggle
+                  checked={settings[alert.key]}
+                  ariaLabel={t(alert.aria)}
+                  onChange={(checked) => update({ [alert.key]: checked })}
+                />
+              </RowContent>
+            ))}
+          </div>
         ))}
       </div>
       <div>
@@ -364,6 +422,7 @@ export const LookStep = forwardRef<HTMLHeadingElement>(function LookStep(_props,
   const glow = useSettingsStore((s) => s.settings.backgroundGlow)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const update = useSettingsStore((s) => s.updateSettings)
+  const picker = useBackgroundPicturePicker()
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
       <StepHeading ref={ref} title={t('setup.look.title')} lead={t('setup.look.lead')} />
@@ -422,6 +481,22 @@ export const LookStep = forwardRef<HTMLHeadingElement>(function LookStep(_props,
           onChange={(value) => update({ backgroundGlow: value })}
         />
       </Row>
+      {/* Optional, like the rest of setup (owner, 2026-10-28). The same picker,
+          checks and wording as Settings → Appearance; the fade stays there. */}
+      <div className="setting-card py-[10px]">
+        <div className="setting-row">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-[var(--text)]">
+              {t('settings.backgroundPicture.label')}
+            </p>
+            <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+              {t('settings.backgroundPicture.description')}
+            </p>
+            <BackgroundPictureMessage picker={picker} />
+          </div>
+          <BackgroundPictureControls picker={picker} oneLine />
+        </div>
+      </div>
       {/* Asked here so new users pick their terms (owner, 2026-10-20); leaving
           setup before this step keeps the VRChat default. */}
       <Row label={t('settings.labelScheme.label')} description={t('setup.look.labelsDescription')}>
@@ -445,6 +520,7 @@ export const DoneStep = forwardRef<
 >(function DoneStep({ authStates }, ref) {
   const { t } = useTranslation()
   const s = useSettingsStore((state) => state.settings)
+  const { data: picture } = useAppBackground()
 
   const accounts = SETUP_PLATFORMS.map((platform) => {
     const state = authStates[platform]
@@ -465,7 +541,12 @@ export const DoneStep = forwardRef<
       ['shell.nav.dashboard', true],
       ['shell.nav.hot', s.showHotInstancesPage],
       ['shell.nav.friends', true],
+      ['shell.nav.activity', s.showActivityPage],
+      ['shell.nav.inbox', s.showInboxPage],
       ['shell.nav.explore', s.showExplorePage],
+      ['shell.nav.search', s.showSearchPage],
+      ['shell.nav.groups', s.showGroupsPage],
+      ['shell.nav.avatars', true],
       ['shell.nav.settings', true]
     ] as const
   )
@@ -473,18 +554,13 @@ export const DoneStep = forwardRef<
     .map(([key]) => t(key))
     .join(t('listSeparator'))
 
-  const sections = [
-    s.dashboardPopularNow && t('settings.dashboard.popular.label'),
-    s.hotInstancesEnabled && t('settings.dashboard.hot.label')
-  ].filter((name): name is string => typeof name === 'string')
-  if (sections.length === 2 && s.dashboardSectionOrder === 'hot-first') sections.reverse()
-  const [first, second] = sections
+  // Every section that's on, in its Dashboard order, named as Settings →
+  // Dashboard names it.
+  const sections = s.dashboardSections
+    .filter((section) => s[SECTION_SETTINGS[section].setting])
+    .map((section) => t(SECTION_SETTINGS[section].labelKey))
   const dashboard =
-    first === undefined
-      ? t('setup.done.dashboardNone')
-      : second === undefined
-        ? first
-        : t('setup.done.dashboardBoth', { first, second })
+    sections.length === 0 ? t('setup.done.dashboardNone') : sections.join(t('listSeparator'))
 
   const alertsOn = SETUP_ALERTS.filter((alert) => s[alert.key]).length
   const alerts =
@@ -492,10 +568,21 @@ export const DoneStep = forwardRef<
       ? t('setup.done.alertsOff')
       : t('setup.done.alertsSome', { count: alertsOn, total: SETUP_ALERTS.length })
 
-  const look = t('setup.done.lookValue', {
-    theme: t(THEME_CHOICES.find(([value]) => value === s.theme)?.[1] ?? 'setup.look.system'),
-    glow: t(GLOW_LABEL_KEYS[s.backgroundGlow])
-  })
+  // "Dark, no glow" rather than "Dark, Off glow".
+  const noGlow = s.backgroundGlow === 'off'
+  const look = t(
+    picture
+      ? noGlow
+        ? 'setup.done.lookValuePictureNoGlow'
+        : 'setup.done.lookValuePicture'
+      : noGlow
+        ? 'setup.done.lookValueNoGlow'
+        : 'setup.done.lookValue',
+    {
+      theme: t(THEME_CHOICES.find(([value]) => value === s.theme)?.[1] ?? 'setup.look.system'),
+      glow: t(GLOW_LABEL_KEYS[s.backgroundGlow])
+    }
+  )
 
   const rows: Array<[string, string]> = [
     ['setup.done.accounts', accounts],

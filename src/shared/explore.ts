@@ -4,13 +4,21 @@ import type { Platform } from './types'
 export const EXPLORE_WORLD_TOTALS = [2, 4, 6] as const
 export type ExploreWorldTotal = (typeof EXPLORE_WORLD_TOTALS)[number]
 export const DEFAULT_EXPLORE_WORLD_TOTAL: ExploreWorldTotal = 4
+/** Most worlds one selection may hold: six rows on the widest (eight-column) window. */
+export const EXPLORE_MAX_SELECTION = 48
 export type ExploreFilter = 'all' | Platform
 export type ExploreRefreshReason = 'snapshot' | 'automatic' | 'manual'
 export type ExploreWorldReason = 'snapshot' | 'open' | 'manual'
 
 /** Main owns image admission. Only a typed admission deferral is recoverable. */
+/**
+ * A deferred picture says why: `busy` (other pictures are downloading; a short
+ * wait) or `window` (the per-minute download budget is used up).
+ */
 export type ExploreImageResult =
-  { ok: true; dataUrl: string } | { ok: false; reason: 'deferred'; retryAfterMs: number } | null
+  | { ok: true; dataUrl: string }
+  | { ok: false; reason: 'deferred'; retryAfterMs: number; wait?: 'busy' | 'window' }
+  | null
 
 export type ExploreCountSource =
   | 'vrc-world-occupants'

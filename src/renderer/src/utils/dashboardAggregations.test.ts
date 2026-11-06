@@ -5,7 +5,12 @@ import {
   type FriendAlert,
   type HotInstanceAlert
 } from '../../../main/services/friendAlerts'
-import { getDashboardStats, getHotInstances, pickOnePerPlatform } from './dashboardAggregations'
+import {
+  dashboardBlocks,
+  getDashboardStats,
+  getHotInstances,
+  pickOnePerPlatform
+} from './dashboardAggregations'
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
 
@@ -799,5 +804,26 @@ describe('getHotInstances world art backfill', () => {
       2
     )
     expect(hot).toMatchObject({ worldName: 'Art World', thumbnailUrl: 'https://img/x.png' })
+  })
+})
+
+describe('dashboardBlocks', () => {
+  it('keeps big sections alone and joins neighbouring glance sections into one row', () => {
+    expect(dashboardBlocks(['wearing-now', 'invites', 'popular', 'hot'])).toEqual([
+      ['wearing-now', 'invites'],
+      'popular',
+      'hot'
+    ])
+    expect(dashboardBlocks(['popular', 'wearing-now', 'hot', 'invites'])).toEqual([
+      'popular',
+      ['wearing-now'],
+      'hot',
+      ['invites']
+    ])
+    expect(dashboardBlocks(['hot', 'invites', 'wearing-now', 'popular'])).toEqual([
+      'hot',
+      ['invites', 'wearing-now'],
+      'popular'
+    ])
   })
 })

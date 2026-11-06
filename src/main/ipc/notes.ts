@@ -3,9 +3,11 @@ import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 import type { AccountSession } from '../services/accountSession'
 import type { NotesData, SocialStore } from '../services/socialStore'
+import type { AccountNoteService } from '../services/accountNotes'
 import { isTrustedIpcSender } from './security'
 
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
+const VALID_SYNC_MODES = new Set(['check', 'save', 'keep-mine', 'use-account'])
 const MAX_NOTE_LENGTH = 500
 const MAX_FRIEND_ID_LENGTH = 128
 const FRIEND_ID_PATTERN = /^[A-Za-z0-9_-]+$/
@@ -15,6 +17,8 @@ const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 export interface NotesHandlerOptions {
   accountSession: AccountSession
   socialStore: SocialStore
+  /** Copies on the user's own accounts; absent in tests that cover local notes only. */
+  accountNotes?: AccountNoteService
 }
 
 function isValidFriendId(friendId: unknown): friendId is string {
@@ -113,5 +117,31 @@ export function registerNotesHandlers(options: NotesHandlerOptions): void {
       // Any remaining SocialStore throw is a validation/serialization problem.
       return { ok: false, reason: 'invalid' as const }
     }
+  })
+
+  ipcMain.handle('sync-friend-note', (event, req: IpcInvoke['sync-friend-note']['req']) => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    if (!req || !VALID_PLATFORMS.has(req.platform) || !VALID_SYNC_MODES.has(req.mode)) {
+      throw new Error('Invalid sync-friend-note request')
+    }
+    if (
+      !isValidFriendId(req.friendId) ||
+      typeof req.revision !== 'object' ||
+      req.revision === null ||
+      typeof req.revision.platformAccountId !== 'string' ||
+      typeof req.revision.epoch !== 'number'
+    ) {
+      return { ok: false, reason: 'invalid' as const }
+    }
+    if (options.accountNotes === undefined) return { ok: false, reason: 'unavailable' as const }
+    return options.accountNotes.sync({
+      platform: req.platform,
+      friendId: req.friendId,
+      revision: {
+        platformAccountId: req.revision.platformAccountId,
+        epoch: req.revision.epoch
+      },
+      mode: req.mode
+    })
   })
 }

@@ -23,6 +23,9 @@ vi.mock('../queries/auth', async (importOriginal) => ({
   useAuthStatus: useAuthStatusMock
 }))
 
+// The Dashboard glance row reads through a QueryClient; its own tests cover it.
+vi.mock('./DashboardGlance', () => ({ default: () => null }))
+
 const accountCta = 'Go to Accounts'
 
 const socialSurfaces = [

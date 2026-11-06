@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
-const CACHE_ADVISORY = 'https://github.com/advisories/GHSA-ch52-4w7c-c8xp'
-const CACHE_EXCEPTION_EXPIRES = Date.parse('2027-01-31T00:00:00Z')
 const severities = ['info', 'low', 'moderate', 'high', 'critical']
 const highRisk = (severity) => severity === 'high' || severity === 'critical'
 
@@ -63,27 +61,9 @@ function vulnerabilities(report) {
   return entries
 }
 
-function isCacheException(name, entry, advisory, context) {
-  return (
-    advisory.url === CACHE_ADVISORY &&
-    advisory.severity === 'high' &&
-    advisory.name === 'http-cache-semantics' &&
-    name === 'http-cache-semantics' &&
-    context.now.getTime() < CACHE_EXCEPTION_EXPIRES &&
-    !context.production.vulnerabilities[name] &&
-    Array.isArray(entry.nodes) &&
-    entry.nodes.length > 0 &&
-    entry.nodes.every(
-      (node) =>
-        node === 'node_modules/http-cache-semantics' &&
-        context.lock?.packages?.[node]?.dev === true &&
-        context.lock.packages[node].version === '4.2.0'
-    )
-  )
-}
-
-// SECURITY.md owns the approved exception, expiry and removal conditions.
-export function auditFailures(full, production, lock, now = new Date()) {
+// No advisory is excluded. SECURITY.md records the development-only HTTP cache
+// patch; that patch is not an audit exception.
+export function auditFailures(full, production) {
   const prodEntries = vulnerabilities(production)
   const failures = prodEntries
     .filter(([, entry]) => highRisk(entry.severity))
@@ -94,12 +74,7 @@ export function auditFailures(full, production, lock, now = new Date()) {
         continue
       }
       if (!highRisk(advisory.severity)) continue
-      const allowedCacheAdvisory = isCacheException(name, entry, advisory, {
-        production,
-        lock,
-        now
-      })
-      if (!allowedCacheAdvisory) failures.push(`${name}:${advisory.url}`)
+      failures.push(`${name}:${advisory.url}`)
     }
   }
   return failures
@@ -107,12 +82,12 @@ export function auditFailures(full, production, lock, now = new Date()) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const [full, production, lock] = process.argv
-      .slice(2)
+    const [full, production] = process.argv
+      .slice(2, 4)
       .map((file) => JSON.parse(readFileSync(file, 'utf8')))
-    const failures = auditFailures(full, production, lock)
+    const failures = auditFailures(full, production)
     if (failures.length) throw new Error(`Blocked advisories: ${failures.join(', ')}`)
-    console.log('Audit policy passed; temporary dev-only exception expires 2027-01-31 UTC.')
+    console.log('Audit policy passed.')
   } catch (error) {
     console.error(`Audit policy failed: ${error.message}`)
     process.exitCode = 1

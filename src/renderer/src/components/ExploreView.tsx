@@ -12,7 +12,7 @@ import NumberStepper from './NumberStepper'
 import ExploreWorldCard from './ExploreWorldCard'
 import ExploreWorldSheet from './ExploreWorldSheet'
 import ExploreSourceState from './ExploreSourceState'
-import type { JoinFailureReason } from '../hooks/useJoinInstance'
+import type { JoinFeedback } from '../hooks/useJoinInstance'
 
 export interface ExploreViewProps {
   worlds: readonly ExploreWorld[]
@@ -32,7 +32,7 @@ export interface ExploreViewProps {
   sheetDismissable?: boolean
   isJoining?: boolean
   onRefreshSheet?: () => void
-  joinFailureFor?: (room: ExploreRoom) => JoinFailureReason | null
+  joinFailureFor?: (room: ExploreRoom) => JoinFeedback | null
 }
 
 /** Presentational grid. The existing platform selector remains owned by the shell. */
@@ -82,9 +82,15 @@ export default function ExploreView({
   }
   return (
     <section aria-label={t('explore.heading')}>
-      <div className="flex flex-wrap items-center justify-end gap-[var(--space-4)]">
-        <div className="flex items-center gap-[var(--space-2)]">
-          <span className="text-sm text-[var(--text-dim)]">{t('explore.worldsShown')}</span>
+      <div className="flex flex-wrap items-center justify-between gap-[var(--space-4)]">
+        {/* Each Explore list says what it holds, Popular now included. */}
+        <p className="canvas-text text-sm text-[var(--text-dim)]">
+          {t('explore.lists.popularHint')}
+        </p>
+        <div className="ml-auto flex items-center gap-[var(--space-2)]">
+          <span className="canvas-text text-sm text-[var(--text-dim)]">
+            {t('explore.worldsShown')}
+          </span>
           <NumberStepper
             value={total}
             min={2}
@@ -100,23 +106,25 @@ export default function ExploreView({
       {worlds.length === 0 &&
       !shownSources.some((source) => source.status === 'loading') &&
       !terminalFailure ? (
-        <p className="mt-[var(--space-4)] text-sm text-[var(--text-dim)]">
+        <p className="canvas-text mt-[var(--space-4)] text-sm text-[var(--text-dim)]">
           {t(nothingLoaded ? 'explore.notLoaded' : 'explore.empty')}
         </p>
       ) : null}
       {worlds.length > 0 ? (
-        <div className="mt-[var(--space-4)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-          {worlds.map(
-            (world) =>
-              renderWorld?.(world) ?? (
-                <ExploreWorldCard
-                  key={`${world.platform}:${world.worldId}`}
-                  world={world}
-                  image={images?.[world.worldRef]}
-                  onOpen={onOpenWorld}
-                />
-              )
-          )}
+        <div className="picture-gridwrap mt-[var(--space-4)]">
+          <div className="picture-grid">
+            {worlds.map(
+              (world) =>
+                renderWorld?.(world) ?? (
+                  <ExploreWorldCard
+                    key={`${world.platform}:${world.worldId}`}
+                    world={world}
+                    image={images?.[world.worldRef]}
+                    onOpen={onOpenWorld}
+                  />
+                )
+            )}
+          </div>
         </div>
       ) : null}
       <ExploreWorldSheet

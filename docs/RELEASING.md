@@ -10,12 +10,32 @@ replacing someone's installed app. When the owner grants a delivery step,
 carry that grant through the steps it covers without asking again, and leave
 every other step pending.
 
+## Branch flow
+
+Work moves in one direction:
+
+1. Feature and fix PRs merge into `dev`.
+2. A **dev build** is a version PR into `dev` that sets `X.Y.Z-dev.N`.
+   Merging it publishes the build, and people on the Dev channel update.
+3. A **stable release** is a release PR from `dev` into `main` that sets
+   `X.Y.Z` and turns the dev changelog sections into one `[X.Y.Z]` summary
+   (keep the dev sections below it). Merging it publishes the release.
+4. The next dev version PR merges `main` back into `dev`, so `dev` carries the
+   stable version's changelog and commits. Never merge `main` into `dev` on
+   its own: a push to `dev` with a stable version fails the channel check.
+
+Dev versions must sort above the latest stable one (for example
+`1.4.0-dev.1` after `1.3.0`), otherwise updaters treat them as older. `beta`
+works like `dev` with `X.Y.Z-beta.N` and is rarely used.
+
 ## 1. Prepare a version PR
 
-1. Fetch the current `main`. Check open PRs and the last published release,
-   and settle what the release includes: every user-visible change since the
-   last public release, not only the latest test build.
-2. On a feature branch, pick a [SemVer](https://semver.org/) version. New
+1. Fetch `dev` (for a dev or stable release) or `beta`. A stable release
+   branches from `dev` and targets `main` (see [Branch flow](#branch-flow)).
+   Check open PRs and the last published release, and settle what the release
+   includes: every user-visible change since the last release in that
+   channel, not only the latest test build.
+2. On a branch made from it, pick a [SemVer](https://semver.org/) version. New
    features bump MINOR; compatible fixes bump PATCH; breaking changes bump
    MAJOR. A stable release is `X.Y.Z` and merges to `main`. A beta is
    `X.Y.Z-beta.N` on the `beta` branch. A dev build is `X.Y.Z-dev.N` on the
@@ -173,9 +193,10 @@ that one install with the right version exists and that it launches. Testing
 with real accounts needs the task's permission; never publish private
 screenshots or credentials as release evidence.
 
-## 5. Before the first stable release (1.0.0)
+## 5. Before a stable release
 
-Windows is the main target. On a clean, supported Windows machine, check:
+Windows is the main target. For a release with large changes to sign-in,
+storage, startup or updates, check on a clean, supported Windows machine:
 installer, launch, sign-in and session restore after restart, tray recovery,
 a consented update from an earlier installer, settings and data kept after
 the update, uninstall, and the portable build. Use only authorized test

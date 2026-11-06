@@ -67,6 +67,12 @@ export const HOT_INSTANCE_THRESHOLD = 2
 /** Bounds for the user-configurable hot threshold (VRX-78) — schema + both steppers share these. */
 export const HOT_INSTANCE_THRESHOLD_MIN = 1
 export const HOT_INSTANCE_THRESHOLD_MAX = 10
+/** Activity entries kept in memory per platform. Each platform has its own
+ *  allowance so a busy friend list on one never pushes the other's out. */
+export const ACTIVITY_MAX_ENTRIES_PER_PLATFORM = 300
+/** Activity changes reach the renderer at most this often (ms), so a burst of
+ *  presence changes is one re-read. */
+export const ACTIVITY_PUSH_COALESCE_MS = 500
 
 // ─── Platform / app identity ─────────────────────────────────────────────────
 /** CVR `Platform` header value (verified vs CVRX source). */
@@ -79,6 +85,8 @@ export const RELEASES_URL = 'https://github.com/Imperix1155/VRX/releases/latest'
 export const ALL_RELEASES_URL = 'https://github.com/Imperix1155/VRX/releases' as const
 /** Where to report a problem with VRX (Settings → About → Legal). */
 export const ISSUES_URL = 'https://github.com/Imperix1155/VRX/issues' as const
+/** New-issue page; main adds the bug report form and its prefilled fields. */
+export const NEW_BUG_REPORT_URL = 'https://github.com/Imperix1155/VRX/issues/new' as const
 
 /** Where a build that can't update itself finds its next version: a test
  *  build's next version is usually another test build. */

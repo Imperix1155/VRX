@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -21,8 +21,9 @@ vi.stubGlobal(
 
 const msg = (key: string, options?: Record<string, unknown>): string => i18n.t(key, options)
 
-function setBridge(states: Record<Platform, AuthState>): void {
+function setBridge(states: Record<Platform, AuthState>, extra: Record<string, unknown> = {}): void {
   ;(window as unknown as { vrx?: unknown }).vrx = {
+    ...extra,
     getAuthStatus: vi.fn(({ platform }: { platform: Platform }) =>
       Promise.resolve({
         platform,
@@ -37,8 +38,11 @@ function setBridge(states: Record<Platform, AuthState>): void {
   }
 }
 
-function renderWizard(states: Record<Platform, AuthState>): void {
-  setBridge(states)
+function renderWizard(
+  states: Record<Platform, AuthState>,
+  extra: Record<string, unknown> = {}
+): void {
+  setBridge(states, extra)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -57,6 +61,15 @@ async function goToSignIn(): Promise<void> {
   fireEvent.click(button('setup.getStarted'))
   await screen.findByRole('heading', { name: msg('setup.signin.title') })
 }
+
+async function goToLook(): Promise<void> {
+  await goToSignIn()
+  await screen.findByText(msg('setup.signin.one'))
+  for (let i = 0; i < 4; i++) fireEvent.click(button('setup.continue'))
+  await screen.findByRole('heading', { name: msg('setup.look.title') })
+}
+
+const PICTURE = 'data:image/jpeg;base64,AAAA'
 
 beforeEach(() => {
   useSettingsStore.getState().setSettings({ ...DEFAULT_SETTINGS, setupPending: true })
@@ -88,7 +101,13 @@ describe('SetupWizard', () => {
 
   it('offers a real Skip setup button on every step before the summary', async () => {
     renderWizard(signedIn)
-    expect(screen.getByRole('heading', { name: msg('setup.welcome.title') })).toBeTruthy()
+    // No top bar here: each step's title is the page's heading, in its main landmark.
+    expect(
+      within(screen.getByRole('main')).getByRole('heading', {
+        level: 1,
+        name: msg('setup.welcome.title')
+      })
+    ).toBeTruthy()
     expect(button('setup.skip')).toBeTruthy()
     await goToSignIn()
     await screen.findByText(msg('setup.signin.one'))
@@ -159,17 +178,26 @@ describe('SetupWizard', () => {
     const explore = screen.getByRole('radiogroup', { name: msg('setup.pages.exploreAria') })
     fireEvent.click(within(explore).getByRole('radio', { name: msg('settings.boolean.off') }))
     expect(settings().showExplorePage).toBe(false)
+    const activity = screen.getByRole('radiogroup', { name: msg('setup.pages.activityAria') })
+    fireEvent.click(within(activity).getByRole('radio', { name: msg('settings.boolean.off') }))
+    expect(settings().showActivityPage).toBe(false)
+    fireEvent.click(within(activity).getByRole('radio', { name: msg('settings.boolean.on') }))
+    expect(settings().showActivityPage).toBe(true)
+    const groups = screen.getByRole('radiogroup', { name: msg('setup.pages.groupsAria') })
+    fireEvent.click(within(groups).getByRole('radio', { name: msg('settings.boolean.off') }))
+    expect(settings().showGroupsPage).toBe(false)
 
     fireEvent.click(button('setup.continue'))
+    // The order is named with the question it shows.
     expect(
-      screen.getByRole('radiogroup', { name: msg('settings.dashboard.order.aria') })
+      screen.getByRole('radiogroup', { name: msg('setup.dashboard.order.label') })
     ).toBeTruthy()
     const hot = screen.getByRole('radiogroup', { name: msg('setup.dashboard.hotAria') })
     fireEvent.click(within(hot).getByRole('radio', { name: msg('settings.boolean.off') }))
     expect(settings().hotInstancesEnabled).toBe(false)
     // The order only matters while both sections show.
     expect(
-      screen.queryByRole('radiogroup', { name: msg('settings.dashboard.order.aria') })
+      screen.queryByRole('radiogroup', { name: msg('setup.dashboard.order.label') })
     ).toBeNull()
 
     fireEvent.click(button('setup.continue'))
@@ -178,7 +206,9 @@ describe('SetupWizard', () => {
       notifyFriendOnline: true,
       notifyFriendInGame: true,
       notifyFriendOffline: true,
-      notifyHotInstance: true
+      notifyHotInstance: true,
+      notifyInvites: true,
+      notifyFriendRequests: true
     })
     expect(button('setup.alerts.allOff')).toBeTruthy()
 
@@ -205,20 +235,32 @@ describe('SetupWizard', () => {
     fireEvent.click(button('setup.continue'))
     const summary = screen.getByRole('heading', { name: msg('setup.done.title') }).parentElement
       ?.parentElement as HTMLElement
-    // Hot Instances is off, so the Dashboard shows Popular now alone.
-    expect(within(summary).getByText(msg('settings.dashboard.popular.label'))).toBeTruthy()
+    // Hot Instances is off, so the Dashboard shows the other three, in order.
+    expect(
+      within(summary).getByText(
+        [
+          msg('settings.dashboard.wearingNow.label'),
+          msg('settings.dashboard.invites.label'),
+          msg('settings.dashboard.popular.label')
+        ].join(', ')
+      )
+    ).toBeTruthy()
     expect(
       within(summary).getByText(
         [
           msg('shell.nav.dashboard'),
           msg('shell.nav.hot'),
           msg('shell.nav.friends'),
+          msg('shell.nav.activity'),
+          msg('shell.nav.inbox'),
+          msg('shell.nav.search'),
+          msg('shell.nav.avatars'),
           msg('shell.nav.settings')
         ].join(', ')
       )
     ).toBeTruthy()
     expect(
-      within(summary).getByText(msg('setup.done.alertsSome', { count: 4, total: 4 }))
+      within(summary).getByText(msg('setup.done.alertsSome', { count: 6, total: 6 }))
     ).toBeTruthy()
     expect(within(summary).getByText(msg('settings.labelScheme.platformNative'))).toBeTruthy()
 
@@ -252,5 +294,142 @@ describe('SetupWizard', () => {
       })
     )
     expect(screen.getByRole('heading', { name: msg('setup.signin.title') })).toBeTruthy()
+  })
+
+  it('offers the background picture on the Look step, with the same checks as Settings', async () => {
+    const chooseAppBackground = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, reason: 'cancelled' })
+      .mockResolvedValueOnce({ ok: false, reason: 'too-tall' })
+      .mockResolvedValueOnce({ ok: true, dataUrl: PICTURE })
+    const clearAppBackground = vi.fn().mockResolvedValue(undefined)
+    renderWizard(signedIn, {
+      getAppBackground: vi.fn().mockResolvedValue(null),
+      chooseAppBackground,
+      clearAppBackground
+    })
+    await goToLook()
+    expect(screen.getByText(msg('settings.backgroundPicture.label'))).toBeTruthy()
+    expect(screen.queryByTestId('background-picture-thumb')).toBeNull()
+    // The fade stays in Settings: simple by default.
+    expect(screen.queryByText(msg('settings.backgroundPicture.fade.label'))).toBeNull()
+
+    // Closing the dialog is not an error.
+    fireEvent.click(button('settings.backgroundPicture.choose'))
+    await vi.waitFor(() => expect(chooseAppBackground).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() =>
+      expect(button('settings.backgroundPicture.choose').getAttribute('aria-disabled')).toBeNull()
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    // Main refuses a picture that cannot fill the window, with the Settings wording.
+    fireEvent.click(button('settings.backgroundPicture.choose'))
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      msg('settings.backgroundPicture.error.tooTall')
+    )
+
+    fireEvent.click(button('settings.backgroundPicture.choose'))
+    expect(await screen.findByTestId('background-picture-thumb')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(button('settings.backgroundPicture.change')).toBeTruthy()
+    expect(button('settings.backgroundPicture.remove')).toBeTruthy()
+
+    fireEvent.click(button('setup.continue'))
+    const summary = screen.getByRole('heading', { name: msg('setup.done.title') }).parentElement
+      ?.parentElement as HTMLElement
+    expect(
+      within(summary).getByText(
+        msg('setup.done.lookValuePicture', {
+          theme: msg('setup.look.system'),
+          glow: msg('settings.backgroundGlow.standard')
+        })
+      )
+    ).toBeTruthy()
+
+    // Back on Look, Remove forgets it and the summary drops it again.
+    fireEvent.click(button('setup.back'))
+    fireEvent.click(button('settings.backgroundPicture.remove'))
+    await vi.waitFor(() => expect(clearAppBackground).toHaveBeenCalledTimes(1))
+    expect(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.choose') })
+    ).toBeTruthy()
+    expect(screen.queryByTestId('background-picture-thumb')).toBeNull()
+    fireEvent.click(button('setup.continue'))
+    expect(
+      screen.getByText(
+        msg('setup.done.lookValue', {
+          theme: msg('setup.look.system'),
+          glow: msg('settings.backgroundGlow.standard')
+        })
+      )
+    ).toBeTruthy()
+  })
+
+  it('sums up every Dashboard section that is on, in its Dashboard order', async () => {
+    // Moved and switched in Settings before: Latest invites last, Wearing now off.
+    useSettingsStore.getState().updateSettings({
+      dashboardSections: ['hot', 'wearing-now', 'popular', 'invites'],
+      dashboardSectionOrder: 'hot-first',
+      dashboardWearingNow: false
+    })
+    renderWizard(signedIn)
+    await goToLook()
+    fireEvent.click(button('setup.continue'))
+    const row = screen.getByText(msg('setup.done.dashboard')).parentElement as HTMLElement
+    expect(within(row).getByRole('definition').textContent).toBe(
+      [
+        msg('settings.dashboard.hot.label'),
+        msg('settings.dashboard.popular.label'),
+        msg('settings.dashboard.invites.label')
+      ].join(', ')
+    )
+
+    // Only with all four off does it show the friend counts alone.
+    act(() =>
+      useSettingsStore.getState().updateSettings({
+        hotInstancesEnabled: false,
+        dashboardPopularNow: false,
+        dashboardInvites: false
+      })
+    )
+    expect(within(row).getByRole('definition').textContent).toBe(msg('setup.done.dashboardNone'))
+    act(() => useSettingsStore.getState().updateSettings({ dashboardInvites: true }))
+    expect(within(row).getByRole('definition').textContent).toBe(
+      msg('settings.dashboard.invites.label')
+    )
+  })
+
+  it('reads "no glow" in the summary when the glow is off', async () => {
+    renderWizard(signedIn)
+    await goToLook()
+    const glow = screen.getByRole('radiogroup', { name: msg('settings.backgroundGlow.aria') })
+    fireEvent.click(within(glow).getByRole('radio', { name: msg('settings.backgroundGlow.off') }))
+    expect(settings().backgroundGlow).toBe('off')
+
+    fireEvent.click(button('setup.continue'))
+    const summary = screen.getByRole('heading', { name: msg('setup.done.title') }).parentElement
+      ?.parentElement as HTMLElement
+    expect(
+      within(summary).getByText(
+        msg('setup.done.lookValueNoGlow', { theme: msg('setup.look.system') })
+      )
+    ).toBeTruthy()
+    expect(summary.textContent).not.toContain(
+      msg('setup.done.lookValue', {
+        theme: msg('setup.look.system'),
+        glow: msg('settings.backgroundGlow.off')
+      })
+    )
+  })
+
+  it('shows a failed settings save with Retry, as the app does', () => {
+    renderWizard(signedOut)
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    act(() => useSettingsStore.setState({ dirty: true, saveError: true }))
+    expect(screen.getByRole('alert').textContent).toContain(msg('settings.persistence.error'))
+    const attempts = useSettingsStore.getState().saveAttempt
+    fireEvent.click(button('settings.persistence.retry'))
+    expect(useSettingsStore.getState().saveAttempt).toBe(attempts + 1)
   })
 })

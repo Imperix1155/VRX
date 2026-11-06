@@ -140,7 +140,8 @@ describe('CvrAdapter', () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
     const admission = new ApiAdmissionController()
-    admission.deferUntil(20_000)
+    // An earlier request holds the request spacing, so the next login waits its turn.
+    await admission.acquire()
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({}, 401)))
     vi.stubGlobal('fetch', fetchMock)
     const adapter = new CvrAdapter(fakeStore(), admission)
@@ -653,6 +654,43 @@ describe('CvrAdapter', () => {
       })
       expect(log.mock.calls).toEqual([['warn', 'cvr login: request failed']])
       expect(JSON.stringify(log.mock.calls)).not.toContain('username@example.com')
+    })
+
+    it('says a sign-in was rate limited after one request, without resending the password', async () => {
+      const fetchMock = vi.fn(() =>
+        Promise.resolve(new Response(null, { status: 429, headers: { 'Retry-After': '60' } }))
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new CvrAdapter(fakeStore(), instantAdmission(), { log: vi.fn() })
+
+      expect(await adapter.login(creds)).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'rate_limited'
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('sends no sign-in while a rate limit is cooling down, and says so', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(10_000)
+        const admission = new ApiAdmissionController()
+        admission.deferUntil(20_000)
+        const fetchMock = vi.fn()
+        vi.stubGlobal('fetch', fetchMock)
+        const adapter = new CvrAdapter(fakeStore(), admission, { log: vi.fn() })
+
+        await expect(adapter.login(creds)).resolves.toEqual({
+          ok: false,
+          needs2fa: false,
+          error: 'rate_limited'
+        })
+        await vi.advanceTimersByTimeAsync(15_000)
+        expect(fetchMock).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('malformed envelope → unexpected_response (never a false success)', async () => {
@@ -3080,6 +3118,33 @@ describe('CvrAdapter validation failures do not poison login (Codex, 2026-07-06)
 
     expect(await adapter.login(creds)).toEqual({ ok: true })
     expect(loginFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks only a validation that got no answer as unreachable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('offline')))
+    )
+    expect(
+      await new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'key-1' }),
+        instantAdmission()
+      ).getAuthStatus()
+    ).toMatchObject({ state: 'error', unreachable: true })
+
+    // ChilloutVR answered and refused: never re-checked from the tray.
+    for (const status of [500, 429]) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ message: 'no' }, { status })))
+      )
+      const result = await new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'key-1' }),
+        instantAdmission()
+      ).getAuthStatus()
+      expect(result.state).toBe('error')
+      expect(result.unreachable).toBeUndefined()
+    }
   })
 
   it('schema-drifted validation reports error without clearing or poisoning login', async () => {

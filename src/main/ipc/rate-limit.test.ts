@@ -100,6 +100,11 @@ describe('IPC denial shapes', () => {
     })
   })
 
+  it('keeps the alert pick save result shape when denied', () => {
+    expect(ipcRateLimitDenial('set-alert-pick')).toEqual({ ok: false, reason: 'rate-limited' })
+    expect(() => ipcRateLimitDenial('get-alert-picks')).toThrowError('rate_limited')
+  })
+
   it('throws rate_limited for a query channel', () => {
     expect(() => ipcRateLimitDenial('get-friends')).toThrowError('rate_limited')
   })

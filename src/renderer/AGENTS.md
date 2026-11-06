@@ -11,7 +11,8 @@ or launch authority.
 - `index.html` holds the shipped CSP. `src/App.tsx` owns the settings
   hydration gate, the welcome-setup gate (`components/setup`, before the shell
   and login), the auth gate, and the app-wide subscriptions it mounts once
-  (`useLiveFriendEvents`, `useLinkedProfileEvents`, dashboard navigation).
+  (`useLiveFriendEvents`, `useLinkedProfileEvents`, `useActivityEvents`,
+  `useInboxEvents`, the hot-instance alert navigation).
 - `src/components`, `hooks`, `queries` (TanStack Query), `stores` (Zustand),
   `utils` (pure helpers), `i18n` with `locales/en` and `locales/ja`, and
   `assets` (`main.css` tokens, local fonts).
@@ -34,9 +35,9 @@ or launch authority.
 **Boot and auth**
 
 - Show `BootSplash` until settings hydrate, then notify main once. A platform
-  in `authenticated` or `error` state, or a failed auth query, enters the
-  shell; pending auth keeps the splash, so login never flashes over a restored
-  session.
+  in `authenticated` or `error` state, or a failed auth query, also while
+  Retry runs it again (`isAuthCheckFailing`), enters the shell; other pending
+  auth keeps the splash, so login never flashes over a restored session.
 - The login screen remounts its form per platform tab and locks the tabs while
   submitting. `CREDENTIAL_PERSISTENCE_FAILED` and the two sign-in-from-this-PC
   results (per platform, `importErrorKey`) get dedicated copy. A
@@ -45,8 +46,9 @@ or launch authority.
   because a VRChat check is a real API request. The only interval re-checks an
   `error` status once a minute (`AUTH_ERROR_RECHECK_MS`).
 - While `setupPending` is true the welcome setup replaces the shell and login.
-  Only Hot Instances and Explore can be hidden (`isPageShown`); a hidden
-  active page falls back to the Dashboard.
+  Only Hot Instances, Activity, Inbox, Explore, Search and Groups can be hidden
+  (`isPageShown`); a hidden active page falls back to the Dashboard. The
+  Avatars page always shows.
 
 **State**
 
@@ -83,8 +85,12 @@ or launch authority.
 
 **Account-bound data**
 
-- Friend, linked-profile, Explore, and note queries cancel old work and clear
-  data and fences at identity or auth boundaries. An old reply never publishes
+- Friend, linked-profile, Explore, note, note-sync, alert-pick, favorite,
+  game-favorite, avatar, community and own-profile queries cancel
+  old work and clear data and fences at identity or auth boundaries. Community
+  answers and game favorites kept through a data-path 401 reset when the same
+  account returns, since main forgot them at the 401. Avatar
+  libraries otherwise stay in memory for the session, keyed by account. An old reply never publishes
   under the replacement account.
 - `projectLinkedFriends` projects only qualified people; raw friend caches stay
   account-scoped. Linked snapshots keep the newest `storeRevision` within a
@@ -101,21 +107,30 @@ or launch authority.
   feedback stays until another attempt or an account boundary. Retries reuse
   the flow and never run automatically.
 - Explore and the Dashboard preview share ranking, selection, and the
-  non-modal sheet. `useExploreCoordinator` is the only discovery trigger:
+  non-modal sheet; Search and Explore's New and Recently updated tabs open the
+  same sheet for main-adopted worlds. `useExploreCoordinator` is the only
+  discovery trigger. It also declares Explore active on Search (for its world
+  pictures and sheet) without loading Popular now there:
   visibility, focus, and connectivity wakes, gated by account and platform. No
   polling; timers serve only local freshness and typed image deferrals.
 - Explore reads, selection, and images are fenced by generation, account,
   close, and reference identity. A loading world sheet waits for
   `explore-changed` and a cache-only reread. A manual open or refresh may
-  recover one expired reference. Only typed image deferrals retry, within a
+  recover one expired reference: Popular now from its snapshot, Search and
+  the lists by re-reading their own results. Only typed image deferrals retry, within a
   bound. Sheets distinguish incomplete coverage, verified emptiness, stale
   data, and typed denials.
 
 **Design and accessibility**
 
 - Follow [`docs/DESIGN.md`](../../docs/DESIGN.md): tokens only, dark and light
-  parity, information panels independent of ambient glow, platform text or
-  glyphs beside color, and separate presence state and VRChat status. Ask Me
+  parity, the layered glass classes in `main.css` (`.glass` with
+  `.glass-panel`, `.glass-sheet`, `.glass-layer`, `.platform-row`,
+  `.setting-card`, `.glass-chip`; menus and dialogs `.glass-information`),
+  platform text or glyphs beside color, and separate presence state and
+  VRChat status. Never put a `backdrop-filter` on an element that contains a
+  fixed overlay; panels and sheets blur on `::after` for that reason. A new or
+  changed token in `main.css` runs `npm run design:tokens`. Ask Me
   and DND locations never reach labels, images, accessible names, or actions.
   Use the shared `isWorldHidden`, `isHotInstanceMember`, `hotInstanceKey`, and
   `isFriendJoinable`; no local copies.
@@ -136,7 +151,8 @@ or launch authority.
 
 ## Work Guidance
 
-Read the three design documents before UI work and the relevant catalog
+Read `docs/DESIGN.md` and look at the design guide (`npm run guide:dev`)
+before UI work, and read the relevant catalog
 entries before changing a query, hook, store, utility, bridge call, or shared
 type. Current source is the implementation record; examples and old notes do
 not authorize behavior changes.

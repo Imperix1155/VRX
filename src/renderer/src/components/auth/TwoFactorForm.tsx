@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TwoFactorMethod } from '@shared/types'
 import AuthInput from './AuthInput'
 import ErrorBanner from './ErrorBanner'
 import type { AuthCopy } from './copy'
+import { useRefocusAfterAttempt } from './useRefocusAfterAttempt'
 
 /** Identical in both call sites — the quiet secondary action. */
 const BACK_CLASS =
@@ -57,21 +58,10 @@ export default function TwoFactorForm({
       document.getElementById(`${idPrefix}-2fa`)?.focus({ preventScroll: true })
     }
   }, [idPrefix])
-  // A wrong code disables the field and Verify while it is checked, which
-  // drops focus to the page. When the form stays up, focus goes back to the
-  // code field so the next attempt can be typed at once.
-  const attempted = useRef(false)
-  useEffect(() => {
-    if (isSubmitting) {
-      attempted.current = true
-      return
-    }
-    if (!attempted.current) return
-    attempted.current = false
-    const active = document.activeElement
-    if (active !== null && active !== document.body) return
-    document.getElementById(`${idPrefix}-2fa`)?.focus({ preventScroll: true })
-  }, [isSubmitting, idPrefix])
+  // A wrong code disables the field and Verify while it is checked. When the
+  // form stays up, focus goes back to the code field, ready for the next code.
+  const codeField = useCallback(() => document.getElementById(`${idPrefix}-2fa`), [idPrefix])
+  useRefocusAfterAttempt(isSubmitting, codeField)
   return (
     <form onSubmit={onSubmit} noValidate className={formClassName} aria-label={ariaLabel}>
       <div className="flex flex-col gap-[var(--space-3)]">

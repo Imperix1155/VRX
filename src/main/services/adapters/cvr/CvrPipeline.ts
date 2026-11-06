@@ -20,12 +20,13 @@
  *   entries never fabricate them.
  * - `11` FRIEND_LIST_UPDATED → `roster-changed` (trigger-only; consumer
  *   refetches the roster over REST).
- * - Invites/requests/notifications (15/20/25/0/1/2/30/50) are decoded + logged
- *   but deliberately unrouted — their stores/features don't exist yet (same
- *   deferral pattern as VRX-146's notifications).
+ * - Invites, invite requests and friend requests (15/20/25) feed the
+ *   inbox (`parseInbox.ts`). Other notices (0/1/2/30/50) are decoded + logged
+ *   but deliberately unrouted.
  * - BIDIRECTIONAL: outgoing `{ RequestType, Data }` senders for the friend-
- *   request/invite/block action family. 🟡 The Data payload shapes are
- *   mock-verified against CVRX notes — confirm on first live use.
+ *   request/invite/block action family. Only the friend request senders
+ *   (5/6/7) have a caller: `CvrAdapter`'s pressed friend actions. 🟡 The Data
+ *   payload shapes follow CVRX's `{ id }` — confirm on first live use.
  * - Unknown ResponseTypes / malformed payloads: logged, ignored, never throw.
  *
  * NOTE: no application-level keepalive is sent. The server pings (~60s) and
@@ -35,6 +36,7 @@
  */
 import { z } from 'zod'
 import { CVR_WS_URL } from '@shared/constants'
+import type { InboxKind } from '@shared/inbox'
 import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import {
   ReconnectingPipeline,
@@ -44,6 +46,7 @@ import {
 } from '../ReconnectingPipeline'
 import { parseCvrPrivacy } from './parseCvrPrivacy'
 import { extractCvrPlatformUserId } from './cvrPlatformUserId'
+import { parseCvrInboxFrame } from './parseInbox'
 
 // ─── Injected surfaces ────────────────────────────────────────────────────────
 
@@ -78,9 +81,10 @@ export const CVR_RESPONSE = {
 } as const
 
 /**
- * Deliberately unwired until the future invites feature: these mock-verified
- * RequestType values and senders are retained so invite work needn't re-derive
- * their wire shapes.
+ * Outgoing RequestType values (CVRX `api_cvr_ws.js`). Friend request send,
+ * accept and decline are wired to `CvrAdapter`'s friend actions; unfriend, block
+ * and unblock to the profile's confirmed actions (SocialActionService); the
+ * invite senders are still unused.
  */
 export const CVR_REQUEST = {
   FRIEND_REQUEST_SEND: 5,
@@ -303,21 +307,32 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
         // Roster add/remove — trigger-only; the consumer refetches over REST.
         return { type: 'roster-changed', platform: 'chilloutvr' }
       case CVR_RESPONSE.INVITES:
+        return this.inboxEvent('invite', payload)
       case CVR_RESPONSE.REQUEST_INVITES:
+        return this.inboxEvent('invite-request', payload)
       case CVR_RESPONSE.FRIEND_REQUESTS:
+        return this.inboxEvent('friend-request', payload)
       case CVR_RESPONSE.MENU_POPUP:
       case CVR_RESPONSE.HUD_MESSAGE:
       case CVR_RESPONSE.PUSH_NOTIFICATION:
       case CVR_RESPONSE.MATURE_CONTENT_UPDATE:
       case CVR_RESPONSE.GROUP_INVITE:
-        // Recognized, deliberately unrouted — invites/requests/notification
-        // stores don't exist yet (same deferral pattern as VRX-146).
+        // Recognized, deliberately unrouted: popups, HUD and push notices,
+        // content settings and group invites are not inbox material.
         this.log('debug', 'cvr pipeline: recognized event unrouted', { responseType })
         return null
       default:
         this.log('debug', 'cvr pipeline: unknown ResponseType ignored', { responseType })
         return null
     }
+  }
+
+  /** Invite and request frames → inbox additions. Never removes anything. */
+  private inboxEvent(kind: InboxKind, payload: unknown): AdapterEvent | null {
+    const { entries, skipped } = parseCvrInboxFrame(kind, payload)
+    if (skipped > 0) this.log('debug', 'cvr pipeline: skipped malformed inbox records', { skipped })
+    if (entries.length === 0) return null
+    return { type: 'inbox', platform: 'chilloutvr', change: { op: 'add', entries } }
   }
 
   /**

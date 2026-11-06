@@ -11,38 +11,63 @@ export function isAccountReady(state: AuthState | undefined): boolean {
 }
 
 type AlertKey =
-  'notifyFriendOnline' | 'notifyFriendInGame' | 'notifyFriendOffline' | 'notifyHotInstance'
+  | 'notifyFriendOnline'
+  | 'notifyFriendInGame'
+  | 'notifyFriendOffline'
+  | 'notifyHotInstance'
+  | 'notifyInvites'
+  | 'notifyFriendRequests'
 
-/** Same order and copy as Settings → Notifications. */
+/** Same order and copy as Settings → Notifications. `group` puts friend and
+ *  inbox alerts in one card each, so the step fits without scrolling. */
 export const SETUP_ALERTS: ReadonlyArray<{
   key: AlertKey
+  group: 'friends' | 'inbox'
   label: string
   description: string
   aria: string
 }> = [
   {
     key: 'notifyFriendOnline',
+    group: 'friends',
     label: 'settings.notifications.online.label',
     description: 'settings.notifications.online.description',
     aria: 'settings.notifications.online.aria'
   },
   {
     key: 'notifyFriendInGame',
+    group: 'friends',
     label: 'settings.notifications.inGame.label',
     description: 'settings.notifications.inGame.description',
     aria: 'settings.notifications.inGame.aria'
   },
   {
     key: 'notifyFriendOffline',
+    group: 'friends',
     label: 'settings.notifications.offline.label',
     description: 'settings.notifications.offline.description',
     aria: 'settings.notifications.offline.aria'
   },
   {
     key: 'notifyHotInstance',
+    group: 'friends',
     label: 'settings.notifications.hotInstance.label',
     description: 'settings.notifications.hotInstance.description',
     aria: 'settings.notifications.hotInstance.aria'
+  },
+  {
+    key: 'notifyInvites',
+    group: 'inbox',
+    label: 'settings.notifications.invites.label',
+    description: 'settings.notifications.invites.description',
+    aria: 'settings.notifications.invites.aria'
+  },
+  {
+    key: 'notifyFriendRequests',
+    group: 'inbox',
+    label: 'settings.notifications.friendRequests.label',
+    description: 'settings.notifications.friendRequests.description',
+    aria: 'settings.notifications.friendRequests.aria'
   }
 ]
 

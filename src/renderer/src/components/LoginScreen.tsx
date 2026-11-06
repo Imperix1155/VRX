@@ -10,6 +10,7 @@ import CredentialsForm from './auth/CredentialsForm'
 import ImportSignInAction from './auth/ImportSignInAction'
 import TwoFactorForm from './auth/TwoFactorForm'
 import { loginCopy } from './auth/copy'
+import FinePrint from './FinePrint'
 
 /**
  * Two-tab login screen (VRX-217): VRChat | ChilloutVR above ONE shared
@@ -63,12 +64,16 @@ function PlatformLoginForm({
   platform,
   initialTwoFactor = null,
   onSubmittingChange,
+  onTabsLockChange,
   onSubmissionSettled
 }: {
   platform: Platform
   initialTwoFactor?: TwoFactorMethod | null
   /** Lifts the flow's pending state so the screen can lock the platform tabs. */
   onSubmittingChange: (isSubmitting: boolean) => void
+  /** Lifts whether the platform tabs must stay put: a request in flight or a
+   *  code prompt open. */
+  onTabsLockChange: (locked: boolean) => void
   /** Records terminal session cleanup before the screen applies a deferred 2FA transition. */
   onSubmissionSettled: (sessionCleared: boolean) => void
 }): React.JSX.Element {
@@ -87,6 +92,13 @@ function PlatformLoginForm({
   useEffect(() => {
     onSubmittingChange(flow.isSubmitting)
   }, [flow.isSubmitting, onSubmittingChange])
+  // The code prompt holds a sign-in that has already started: a tab switch
+  // would throw it away (and a new try sends the password again). Back is the
+  // way out, and it unlocks the tabs.
+  const tabsLocked = flow.isSubmitting || flow.pending2fa !== null
+  useEffect(() => {
+    onTabsLockChange(tabsLocked)
+  }, [tabsLocked, onTabsLockChange])
 
   const formAriaLabel = t('login.formAria', { platform: t(config.labelKey) })
   const submitClassName = `${SUBMIT_BASE_CLASS} ${PLATFORM_SUBMIT_CLASS[platform]}`
@@ -150,6 +162,8 @@ export default function LoginScreen({
   )
   // Lifted from the active form: true while its login/verify IPC is in flight.
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Lifted from the active form: true while a request runs or the code prompt is open.
+  const [tabsLocked, setTabsLocked] = useState(false)
   const [previousInitialTwoFactor, setPreviousInitialTwoFactor] = useState<TwoFactorMethod | null>(
     initialTwoFactor
   )
@@ -182,7 +196,7 @@ export default function LoginScreen({
        screen is its own scroller, and the card centers with auto margins
        rather than align-items: a taller card (Japanese copy, an error or the
        2FA prompt in a short window) scrolls instead of losing its bottom. */
-    <div className="flex h-screen overflow-y-auto px-[var(--space-4)] py-[var(--space-10)]">
+    <main className="flex h-screen overflow-y-auto px-[var(--space-4)] py-[var(--space-10)]">
       {/*
         Glass card with the active platform's tint (DESIGN.md §3 / §3A).
         .glass and .tint-vrc/.tint-cvr classes are defined in main.css; all rgba
@@ -190,25 +204,28 @@ export default function LoginScreen({
         parity is automatic.
       */}
       <div
-        className={`glass glass-information ${config.tintClass} relative m-auto w-full max-w-sm shrink-0 overflow-hidden p-[var(--space-8)]`}
+        className={`glass glass-layer ${config.tintClass} relative m-auto w-full max-w-sm shrink-0 overflow-hidden p-[var(--space-8)]`}
       >
         {/*
           The .glass::before sheen is defined in CSS.
           This wrapper isolates content above the ::before pseudo-element.
         */}
         <div className="relative">
-          {/* Brand mark (DESIGN.md §1: per-letter spans, VT323, platform colors) */}
+          {/* Brand mark (DESIGN.md §1: per-letter spans, VT323, platform colors),
+              the screen's heading, sized like the sidebar wordmark. */}
           <div className="mb-[var(--space-6)] text-center">
-            <div
-              className="inline-block font-mono text-4xl leading-none tracking-wider"
-              role="img"
-              aria-label="VRX"
-            >
-              <span style={{ color: 'var(--vrc)' }}>V</span>
-              <span style={{ color: 'var(--bridge)' }}>R</span>
-              <span style={{ color: 'var(--cvr)' }}>X</span>
-            </div>
-            <p className="mt-[var(--space-1)] text-xs text-[var(--text-faint)]">
+            <h1>
+              <span
+                className="inline-block font-mono text-[40px] leading-none tracking-[2px]"
+                role="img"
+                aria-label="VRX"
+              >
+                <span style={{ color: 'var(--vrc)' }}>V</span>
+                <span style={{ color: 'var(--bridge)' }}>R</span>
+                <span style={{ color: 'var(--cvr)' }}>X</span>
+              </span>
+            </h1>
+            <p className="mt-[var(--space-1)] text-[11px] tracking-[0.5px] text-[var(--text-faint)]">
               {t('login.subtitle')}
             </p>
           </div>
@@ -226,7 +243,7 @@ export default function LoginScreen({
                 setLastSubmissionClearedSession(false)
                 setPlatform(nextPlatform)
               }}
-              disabled={isSubmitting}
+              disabled={tabsLocked}
             />
           </div>
 
@@ -237,18 +254,31 @@ export default function LoginScreen({
             platform={platform}
             initialTwoFactor={initialTwoFactor}
             onSubmittingChange={handleSubmittingChange}
+            onTabsLockChange={setTabsLocked}
             onSubmissionSettled={handleSubmissionSettled}
           />
 
-          <p className="mt-[var(--space-6)] text-center text-xs text-[var(--text-dim)]">
-            {t(platform === 'vrchat' ? 'login.disclaimerVrchat' : 'login.disclaimerChilloutvr')}
-          </p>
+          {/* One short line; the storage details are behind Show more, as in
+              the welcome setup (simple by default, more on demand). */}
+          <div className="mt-[var(--space-6)] flex justify-center">
+            <FinePrint
+              centered
+              summary={t(
+                platform === 'vrchat'
+                  ? 'login.disclaimerShortVrchat'
+                  : 'login.disclaimerShortChilloutvr'
+              )}
+              full={t(
+                platform === 'vrchat' ? 'login.disclaimerVrchat' : 'login.disclaimerChilloutvr'
+              )}
+            />
+          </div>
           {/* Names both platforms in one line on either tab (equal weight). */}
           <p className="mt-[var(--space-2)] text-center text-xs text-[var(--text-dim)]">
             {t('shell.unofficialNotice')}
           </p>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

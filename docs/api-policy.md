@@ -32,20 +32,47 @@ are outside the platform queues.
 
 VRX signs in as the user, on the user's own machine, and reads that user's own
 social data: friends, presence, locations, instance details, and public worlds
-for Explore. It launches the game through local URL schemes.
+for Explore. On the Avatars page it reads the user's own uploaded avatars and
+the one they wear, and switches avatar when the user presses Wear. The
+Dashboard reads only the worn avatar. On request it also reads a person's
+profile, searches people and worlds by name, lists New and Recently updated
+worlds, the user's own groups, and each platform's player count (see
+[Search, profile and group limits](#search-profile-and-group-limits)). It keeps
+the user's private note on a friend on their account too, as VRCX and CVRX do
+(see [Friend note limits](#friend-note-limits)). From a full profile the user
+can unfriend, block or unblock one person after a confirmation (see
+[Unfriend and block](#unfriend-and-block)). From Settings → Accounts it reads
+and, on Save, changes the user's own bio and pronouns on both platforms and
+their VRChat status and status text (see [Own profile limits](#own-profile-limits)).
+On a press it also accepts or declines a friend request from the Inbox, or
+sends one from a profile (see [Friend action limits](#friend-action-limits)).
+It launches
+the game through local URL schemes, or, when the game is already open, hands
+the Join to that copy (see
+[Joining a game that is already open](#joining-a-game-that-is-already-open)).
+When the user presses **Set as home world** on a world sheet and confirms, it
+makes that world their home (see [Home world limits](#home-world-limits)).
+It reads the favorite groups in the user's own account once per sign-in and,
+when the user picks a group in a star's panel, puts a friend or world in it or
+takes it out, as VRCX and CVRX do (see [Favorite limits](#favorite-limits)).
 
-| Area                  | VRChat                                                                                                 | ChilloutVR                                                                        |
-| --------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| REST base             | `https://api.vrchat.cloud/api/1`                                                                       | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net` |
-| Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                                        | `wss://api.chilloutvr.net/1/users/ws`                                             |
-| Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie                     | `Username` and `AccessKey` upgrade headers, the same headers REST uses            |
-| Socket traffic        | Receive-only                                                                                           | Receive-only today; outgoing sender methods exist but nothing calls them          |
-| Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline                      | One `GET /friends`                                                                |
-| Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds) | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                     |
-| Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                    | Username and access key                                                           |
-| Platform write action | Self-invite, `POST /invite/myself/to/{location}`, for a non-public friend instance only                | None                                                                              |
-| Join                  | Local `vrchat://launch` URL; no API call                                                               | Local `chilloutvr://instance/join` URL; no API call                               |
-| API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days             | None; ChilloutVR images come from CDN hosts                                       |
+| Area                  | VRChat                                                                                                                                                                                                                                                                                                                                                                                                                                                 | ChilloutVR                                                                                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REST base             | `https://api.vrchat.cloud/api/1`                                                                                                                                                                                                                                                                                                                                                                                                                       | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net`                                                                                                                                                                       |
+| Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                                                                                                                                                                                                                                                                                                                                                                                        | `wss://api.chilloutvr.net/1/users/ws`                                                                                                                                                                                                                   |
+| Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie                                                                                                                                                                                                                                                                                                                                                                     | `Username` and `AccessKey` upgrade headers, the same headers REST uses                                                                                                                                                                                  |
+| Socket traffic        | Receive-only                                                                                                                                                                                                                                                                                                                                                                                                                                           | Receive-only, except a pressed friend action (`RequestType` 5, 6 or 7) and the profile's confirmed Unfriend, Block and Unblock (8, 30, 31)                                                                                                              |
+| Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline                                                                                                                                                                                                                                                                                                                                                                      | One `GET /friends`                                                                                                                                                                                                                                      |
+| Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                                                                                                                                                                                                                                                                                                 | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                                                                                                                                                                           |
+| Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                                                                                                                                                                                                                                                                                                    | Username and access key                                                                                                                                                                                                                                 |
+| Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                                                                                                                                                                                                                                                                  | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open                                                                                                                                                         |
+| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`; whether the user blocks someone, `GET /auth/user/playermoderations?type=block&targetUserId=`                                                                                                                                                                                                                                     | `GET /users/{id}` (also whether the user blocks them), `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`                                                                                                                        |
+| Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`; home world, `PUT /users/{me}`; own profile, `PUT /users/{me}` and `PUT /profile/{me}`; friend note, `POST /userNotes`; from a profile, unfriend `DELETE /auth/user/friends/{id}`, block `POST /auth/user/playermoderations`, unblock `PUT /auth/user/unplayermoderate` | Avatar switch, `GET /avatars/{id}/switchAvatar`; home world, `GET /worlds/{id}/sethome`; friend note, `POST /users/{id}/note`; from a profile, unfriend, block and unblock over `/users/ws`; own profile, multipart `POST /users/self` (one field each) |
+| Game favorites        | Once per sign-in: `GET /auth/user/favoritelimits`, `GET /favorite/groups?n=50`, `GET /favorites?type=friend` and `GET /worlds/favorites`, pages of 100. Per press: `POST /favorites` to add, `DELETE /favorites/{id}` to remove                                                                                                                                                                                                                        | Once per sign-in: `GET /categories`, then `GET /2/worlds/list/{category}` pages for each of the user's world categories. Per press: `GET /users/{id}` or `GET /1/worlds/{id}`, then `POST /categories/assign`                                           |
+| Friend actions        | Accept `PUT /auth/user/notifications/{id}/accept`, decline `PUT /auth/user/notifications/{id}/hide`, add `POST /user/{id}/friendRequest`; no body                                                                                                                                                                                                                                                                                                      | Socket frames `{ RequestType, Data: { id } }`: 6 accept, 7 decline, 5 add, as CVRX sends them                                                                                                                                                           |
+| Own profile read      | `GET /profile/{me}?asSelf=true` when the editor opens                                                                                                                                                                                                                                                                                                                                                                                                  | `GET /users/{me}` when the editor opens                                                                                                                                                                                                                 |
+| Join                  | Local `vrchat://launch` URL; no API call. With VRChat open: the same URL over VRChat's local URL pipe (Windows), else one self-invite                                                                                                                                                                                                                                                                                                                  | Local `chilloutvr://instance/join` URL; no API call, also when the game is open                                                                                                                                                                         |
+| API-host images       | `api.vrchat.cloud` image hops share VRChat admission; results are kept on disk for 14 days. World and avatar pictures ask for the full picture in place of the 256 px thumbnail: still one request each. The renderer hands main at most 2 of these downloads at a time, pictures for tiles on screen first; a picture whose tile is gone before its turn is never requested                                                                           | None; ChilloutVR images come from CDN hosts                                                                                                                                                                                                             |
 
 VRX never stores a password. A sign-in exchanges the password once for the
 session material in the table, which [`credentials.ts`](../src/main/services/credentials.ts)
@@ -60,8 +87,39 @@ before it saves anything.
   anyone except the signed-in user.
 - **No presence polling.** Live presence comes only from the two sockets above.
   VRX never polls a friend's status or location.
-- **No mass actions.** No bulk invites, friend requests, messages, or blocks.
-  The only platform write is one user-initiated VRChat self-invite at a time.
+- **No answering for the user.** The Inbox lists invites, invite requests and
+  friend requests that the sockets already deliver; no extra request reads
+  them. VRX answers a friend request only when the user presses Accept or
+  Decline on that row, and never answers invites. Hide only removes a row
+  inside VRX.
+- **No favorite changes VRX was not asked for.** VRX's own star lives only on
+  the user's computer and sends nothing. The game's own favorite groups change
+  only when the user picks a group in a star's panel, one group for one friend
+  or world per press. VRX never creates, renames, clears or reorders a group,
+  and never copies stars into the game. A favorite world's picture and sheet
+  load exactly like any other Explore world's, only when shown or opened.
+- **No mass actions.** No bulk invites, friend requests, messages, unfriends
+  or blocks, and no Accept all.
+  The only platform writes are one user-initiated VRChat self-invite at a time,
+  one user-initiated avatar switch per platform at a time, to an avatar VRX
+  listed for that signed-in account, one confirmed home-world change per
+  platform at a time, to a world VRX showed that account, the user's own
+  note on one friend after they edit it (see
+  [Friend note limits](#friend-note-limits)), one confirmed unfriend, block
+  or unblock of one person per platform at a time, one pressed friend action
+  (accept, decline or add) per platform at a time (see
+  [Friend action limits](#friend-action-limits)), one user-initiated Save
+  of the user's own profile per platform at a time, and one favorite group
+  change for one friend or world per press (see
+  [Favorite limits](#favorite-limits)). VRX never sends existing notes in bulk
+  and never changes anyone else's profile.
+- **No avatar crawling.** VRX lists only the user's own uploads and the avatar
+  they wear. It never searches other people's avatars or uses third-party
+  avatar databases.
+- **No people crawling.** Search sends one request per platform for each
+  Enter, at most one every 2 seconds, and keeps 10 people and 10 worlds. Main
+  reads a full profile only for a friend or someone a search just listed, so
+  the renderer cannot walk arbitrary profiles.
 - **No crawling.** VRChat roster pagination stops at 5,000 friends, and
   ChilloutVR returns its roster in one read. Explore stops at fixed budgets and
   reports incomplete coverage instead of reading further.
@@ -105,14 +163,21 @@ what each counts.
 - Every attempt, including every retry, re-enters admission and waits for the
   latest cooldown before it can send.
 - **Batch work stops at the first 429.** Roster pages, world, group, and
-  instance enrichment, background CVR instance lookups, and Explore reads use
-  no-retry admission. A 429 ends the batch, rejects its queued requests, and
-  stops later pages. A cooldown expiring never resumes the old batch.
+  instance enrichment, background CVR instance lookups, Explore reads, and
+  avatar reads use no-retry admission. A 429 ends the batch, rejects its
+  queued requests, and stops later pages. A cooldown expiring never resumes
+  the old batch.
   Completed data still publishes. An interrupted roster is marked partial, and
   friends it missed stay from the cache.
-- **Other requests retry a 429 at most 3 times.** This covers sign-in, session
-  checks, the VRChat pipeline token exchange, the VRChat self-invite, and
-  interactive CVR instance lookups.
+- **A sign-in is never sent again on its own.** A password sign-in, a 2FA
+  code, and "Use my sign-in from this PC" each send their details or code in
+  one request. A 429 ends that try, and the sign-in form says to wait a
+  minute. A sign-in pressed while a cooldown runs sends nothing and says the
+  same. The user decides when to try again. After VRChat accepts a code, the
+  one read of the account that says who signed in is a session check.
+- **Other requests retry a 429 at most 3 times.** This covers session checks,
+  the VRChat pipeline token exchange, the VRChat self-invite, and interactive
+  CVR instance lookups.
 - **Sockets share the cooldown.** A rejected socket upgrade with status 429
   extends the platform's REST cooldown, and every socket connect waits for that
   cooldown first. Sockets do not take an admission slot.
@@ -146,21 +211,40 @@ Both pipelines share [`ReconnectingPipeline`](../src/main/services/adapters/Reco
 | On connect        | One REST roster read to catch up                                              | One REST roster read to catch up; a roster-changed message also triggers one |
 
 Full REST rosters run on first load, on manual refresh, after a socket
-reconnects, and on the background reconcile timer. The timer defaults to 1
+reconnects, once after a Join that main turned down because the friend's
+place had changed (`target-changed`), and on the background reconcile timer.
+After a direct Join, that read runs only while the friend list still shows
+the old place (so the next Join sends the current place; when the friend's
+live update has already landed, nothing is read). After Confirm in the Join
+dialog, it runs unless the list already shows the friend at a new place the
+dialog can offer for review. The timer defaults to 1
 hour, the cadence VRCX uses for its full friend list. It can be set to 5, 10
 or 30 minutes or manual, and varies ±10% per run. Settings files from before
 schema v14 that held the old 5-minute default move to 1 hour. It is a safety
 net, not a presence poll. A VRChat reconcile re-reads every online and offline
-roster page, so a short cadence costs the most for large friend lists.
+roster page, so a short cadence costs the most for large friend lists. The
+timer skips its read while the window is hidden or minimized; live events and
+the read after a reconnect still arrive.
 Concurrent roster requests in one session share a single run. Events that
-arrive during that run add at most one final read.
+arrive during that run add at most one final read. An event that arrives once
+that final read is out makes the next roster request wait for it and read once
+more, so the change is not missed; a 429 or cooldown during the run skips
+that read. The open window runs the reconnect read. With no window open
+(macOS keeps VRX running after its window closes), main runs that one read
+itself, except for a platform whose session failed a check, until a read
+works again. The timer and manual refresh still need the window.
 
 Sign-in status is checked on demand, never on a timer and never because a page
 opened: the renderer keeps a settled status until a sign-in, sign-out or
 `auth-invalidated` event replaces it. The one exception: a status of `error`
-(the check could not reach the platform, for example when VRX starts offline)
-is checked again once a minute (`AUTH_ERROR_RECHECK_MS`) until a check
-succeeds. Each check is one request through the admission queue.
+is checked again once a minute (`AUTH_ERROR_RECHECK_MS`) while the window
+shows, until a check succeeds. While the window is hidden in the tray, only a
+check that got no answer at all (`unreachable`: offline, a name that didn't
+resolve, or no reply within 15 seconds) repeats, once a minute; a platform
+that answered and refused (429, 403, 5xx, an unreadable reply) is not asked
+again until the window shows. Only a successful check starts a restored
+session's live connection. Each check goes through the admission queue and
+waits out a cooldown; a 429 gets the bounded session-check retries above.
 
 ## Explore limits
 
@@ -169,36 +253,287 @@ It has no polling timer. It stops when the window is hidden or minimized, and it
 is cleared when the account changes. All Explore reads use the platform's
 admission queue with no retries.
 
-| Limit                             | Value                                                                                                                                                                     |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Explore read starts               | 20 per platform per rolling 60 seconds, shared across accounts                                                                                                            |
-| VRChat candidate refresh          | 1 read, at most 12 worlds                                                                                                                                                 |
-| ChilloutVR candidate refresh      | At most 13 reads: 1 active-worlds list, 6 world details, 6 room details                                                                                                   |
-| Opening a world                   | At most 7 reads: 1 world detail and 6 rooms                                                                                                                               |
-| Rooms tracked per world           | 100; beyond that coverage is reported as partial                                                                                                                          |
-| Job deadline                      | 45 seconds                                                                                                                                                                |
-| Freshness                         | Evidence is fresh for 60 seconds                                                                                                                                          |
-| Refresh eligibility               | Automatic candidate refresh at most every 5 minutes; manual candidate or world refresh at most every 60 seconds                                                           |
-| Explore images                    | 6 new image fetches per platform per 60 seconds, 2 outstanding                                                                                                            |
-| Deferred image retries (renderer) | At most 2 per visible world. A full queue waits 2.0–2.75 s; a full window waits until its oldest start expires, plus up to 750 ms. Every wait is clamped to 250–60,000 ms |
+| Limit                             | Value                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Explore read starts               | 20 per platform per rolling 60 seconds, shared across accounts                                                                                                                                                                                                                                                                                                                                                                                    |
+| VRChat candidate refresh          | 1 read, at most 12 worlds                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ChilloutVR candidate refresh      | At most 13 reads: 1 active-worlds list, 6 world details, 6 room details                                                                                                                                                                                                                                                                                                                                                                           |
+| Opening a world                   | At most 7 reads: 1 world detail and 6 rooms                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Rooms tracked per world           | 100; beyond that coverage is reported as partial                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Job deadline                      | 45 seconds                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Freshness                         | Evidence is fresh for 60 seconds                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Refresh eligibility               | Automatic candidate refresh at most every 5 minutes; manual candidate or world refresh at most every 60 seconds                                                                                                                                                                                                                                                                                                                                   |
+| Explore images                    | 24 new image fetches per platform per 60 seconds (a full Search page or Explore list), 2 outstanding. A picture already kept in memory or on disk shows at once and counts toward neither. VRChat ones still start at most one per second in the shared queue                                                                                                                                                                                     |
+| Deferred image retries (renderer) | At most 2 window waits per visible world, plus up to 40 "busy" waits behind other downloads (no platform request). A busy card does not poll: it gets its turn when one of its platform's downloads finishes, with a 20 s fallback timer, so a page stays inside the `get-explore-image` IPC budget. A full queue waits 2.0–2.75 s; a full window waits until its oldest start expires, plus up to 750 ms. Every wait is clamped to 250–60,000 ms |
 
 Joining from Explore stays main-owned and requires fresh room evidence.
 VRChat may re-check one stale room once before launch. ChilloutVR never
 re-checks; a stale room is not joinable.
 
+## Joining a game that is already open
+
+VRCX and CVRX both check whether the game is running before a Join and, if it
+is, send the player there instead of starting a second copy. VRX does the same,
+under **Settings → Behavior → When the game is already open** (Go there by
+default; Off always launches).
+
+- **The check is local.** Main reads process image names (`tasklist` on
+  Windows, `/proc/<pid>/comm` on Linux, which Wine and Proton set to the game's
+  `.exe` name) only when a Join dialog opens or a Join runs, and keeps the
+  answer for 2 seconds. It never logs process names and never polls.
+- **ChilloutVR:** the usual `chilloutvr://instance/join` link, which the open
+  game picks up (the VR or desktop choice no longer applies). No API call.
+- **VRChat on Windows**, with **When the game is already open** set to **Go there**:
+  the main-built, allowlisted `vrchat://launch` URL goes to VRChat's local
+  `VRChatURLLaunchPipe`, the pipe VRChat's own launcher uses. VRChat answers
+  one byte; only `1` counts as taken. No API call.
+- **VRChat otherwise** (the pipe refused or timed out after 3 seconds, Linux
+  and Proton, where the pipe sits inside the game's container, or the user
+  picked **Send invite**): one self-invite to the friend's main-owned location,
+  public instances included. It is the same single write VRX already makes,
+  under the Join's lock and cooldown. VRX never launches a second copy in this
+  case.
+- **Same account only.** A Join remembers the signed-in account when it
+  starts. If that sign-in changes while VRX checks for the game or waits on the
+  pipe, the Join stops: no link opens and no invite goes out.
+
+## Avatar limits
+
+The Avatars page reads only when it opens with a platform in view and when the
+user presses Refresh. The Dashboard's Wearing now reads only the worn avatar,
+when the Dashboard opens with no answer from the last 5 minutes. There is no timer and no read on window focus. Reads use
+the platform's admission queue at interactive priority with no automatic
+retry: a 429 ends the read and its later list pages, and VRX says to try
+again in a minute. The renderer keeps a result fresh for 5 minutes per
+account. It keeps the last result in memory for the rest of the session, so
+reopening the page shows it at once and reads again only once it is older
+than 5 minutes.
+
+| Limit                 | Value                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| VRChat page open      | At most 6 reads: up to 5 list pages of 100, and the worn avatar queued beside the first |
+| ChilloutVR page open  | 2 reads: the avatar list and the user record                                            |
+| Opening an avatar     | VRChat: none (the list carries every field). ChilloutVR: 1 read, cached for the session |
+| Avatar switch         | One at a time per platform, 5 s after any attempt, never retried                        |
+| Concurrent page reads | Share one run per platform                                                              |
+| Dashboard open        | 1 read per platform (worn avatar only); none if the Avatars page read it in 5 min       |
+
+Main accepts a switch only for an avatar it listed for the current session, so
+the renderer cannot name an arbitrary avatar. A Wear press or details open that
+arrives while the list is still loading waits for that read. When the current
+session has not read the list yet (for example after a session renewal while
+the page still shows the earlier result), main makes that one page-open read
+first; it does so at most once per session, whatever the outcome. Avatar state
+is cleared at every sign-out, account change, and invalidated session.
+
+## Search, profile and group limits
+
+Search, the full profile, the Groups page, Explore's New and Recently updated
+tabs, and the top bar's player counts read only on a user action: Enter,
+opening the page or tab, a Show worlds or Show groups press, or Refresh. The
+player counts read once when VRX opens and again on a page switch once the
+last answer is 5 minutes old. Nothing runs on a timer, on window focus or on
+reconnect. Every answer
+is cached in main for 5 minutes per account, and concurrent asks share one
+read. Refresh re-reads only once the answer is at least 30 seconds old. A
+person's full profile and, on ChilloutVR, their block check read the same
+`GET /users/{id}` as their note check, so they use an answer under 30 seconds
+old, or one still on its way, instead of reading again. The note check itself
+always reads, because a note save must see what the account holds now. A
+second Search press for the same text reuses a good answer; only a refused one
+(searches too close together, rate limited, unreachable) is asked again, once
+per press. All reads use the platform's admission queue at interactive
+priority with no automatic retry, and all state is cleared at every sign-out,
+account change and invalidated session.
+
+| Limit             | Value                                                                      |
+| ----------------- | -------------------------------------------------------------------------- |
+| Search            | VRChat 2 reads (people, worlds), ChilloutVR 1; at most one every 2 s each  |
+| Opening a profile | 1 read; worlds and groups 1 read each, only after their Show press         |
+| Groups page open  | 1 read per platform                                                        |
+| Explore list tab  | 1 read per platform                                                        |
+| Player counts     | 1 read per shown platform at start and on a page switch; none within 5 min |
+
+## Home world limits
+
+**Set as home world** on a world sheet (Explore's Popular now, New and
+Recently updated, and Search results) changes the signed-in account's home
+world. It asks first ("It replaces the one you have now"), so a stray click
+sends nothing.
+
+| Limit       | Value                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| Requests    | 1 per confirmed press, at interactive priority, never retried                                      |
+| Pacing      | One change at a time per platform; 5 s after any attempt, failed or not (`HOME_WORLD_COOLDOWN_MS`) |
+| Which world | Only one main issued a reference for, for the current account; the renderer never names an ID      |
+| Reads       | None. VRX remembers a success for the session; it never reads the home world back                  |
+
+## Friend note limits
+
+A friend's note in VRX can also live on the user's own account, as it does in
+VRCX and CVRX. Settings → Behavior → **Save notes to my accounts** turns this
+off; it is on by default. With it off VRX sends nothing for notes.
+
+| Action                  | Requests                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| Drawer stays open 0.7 s | 1 read of `GET /users/{id}`, reused for 5 minutes; flicking through friends sends nothing            |
+| Note edit saved         | 1 read, then 1 write only when the account copy is the one VRX last matched                          |
+| Save, Keep mine         | The user's press: 1 read, then 1 write only when the account still holds the copy the user was shown |
+| Use the account note    | None; VRX saves the copy it already read                                                             |
+
+- Every read and write follows a user action, uses the platform's admission
+  queue at interactive priority, and is never sent again on its own. Writes on
+  one platform wait at least 2 s after the last one; one call per friend runs
+  at a time.
+- VRX only writes for a current friend, and only after reading what the
+  account holds in the same call. When both copies changed since they last
+  matched, VRX writes nothing and asks the user which to keep. A reply that
+  does not say what the account holds blocks the write.
+- A linked person's shared note stays in VRX.
+- What VRX saw on an account is forgotten at every sign-out, account change and
+  invalidated session.
+
+## Favorite limits
+
+A star's panel shows VRX's own star and the favorite groups in the user's own
+VRChat or ChilloutVR account, as VRCX's and CVRX's pickers do. Settings →
+Behavior → **Use my game favorites** turns the account side off; it is on by
+default. With it off VRX reads and writes no favorites on either platform.
+
+The two apps differ, and VRX takes the stricter choice each time:
+
+| Point                 | VRCX (VRChat)                         | CVRX (ChilloutVR)                           | VRX, both platforms                                                                                                                         |
+| --------------------- | ------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| When it reads         | At sign-in                            | At sign-in                                  | The first time a page needs them after a sign-in, then from memory. A Refresh press in Explore → Favorites reads again after 60 s at most   |
+| After a failed read   | Retries with its bulk reader          | Logs it                                     | Waits 5 minutes before reading on its own; never retried within a read                                                                      |
+| Groups offered        | Every slot the limits allow, VRC+ too | The user's own categories                   | VRChat's regular slots, VRC+ world groups only when the account already has them; ChilloutVR's own categories. Never creates or renames one |
+| What a write replaces | One favorite record                   | The item's whole category list, from memory | ChilloutVR: reads the item's categories right before the write and keeps every one of the user's categories it did not change               |
+| Writes                | One per pick                          | One per Apply                               | One per press, at interactive priority, never retried; 2 s apart per platform (`GAME_FAVORITE_WRITE_SPACING_MS`)                            |
+
+- VRChat keeps a favorite in one group, so VRX offers the other groups only
+  after the item leaves its group, and refuses a group at its limit before
+  sending anything.
+- A friend change goes only to a current friend. A world is named by the
+  Explore reference main issued, never by an id from the renderer.
+- A reply that does not say which categories a ChilloutVR item has blocks the
+  write. Built-in categories (online, offline, active and the like) are never
+  sent.
+- What VRX read is forgotten at every sign-out, account change and invalidated
+  session.
+
+## Unfriend and block
+
+A full profile (friend details or a Search result) ends with **Unfriend or
+block**. VRCX and CVRX both offer the same three actions from a profile, each
+behind a confirmation. VRX keeps them to the same shape:
+
+- **Read on a press.** The options read nothing until the user opens them.
+  Then one request asks whether the user blocks that person: VRChat
+  `GET /auth/user/playermoderations?type=block&targetUserId=<id>` (filtered to
+  that one person), ChilloutVR `GET /users/<id>` (its `isBlocked` field; a
+  profile or note read of that person under 30 seconds old serves it). The
+  answer is kept for 5 minutes per account. Whether they are a friend comes
+  from the roster VRX already has.
+- **One confirmed change for one person.** Each action needs its own
+  confirmation that names the person and the platform. Main accepts one
+  person per call, only a friend or someone a search listed this session, and
+  unfriend only for a current friend. There is no list, multi-select or
+  "block all".
+- **One at a time, then a pause.** One action per platform at a time, and the
+  next waits 3 seconds after the platform answered (or failed). Each is sent
+  once with no automatic retry; the user can press again.
+- **VRChat** writes go through the normal admission queue at interactive
+  priority: unfriend `DELETE /auth/user/friends/<id>`, block
+  `POST /auth/user/playermoderations` and unblock
+  `PUT /auth/user/unplayermoderate`, both with `{ moderated, type: "block" }`.
+  The Pipeline's own `friend-delete` message then removes the friend.
+- **ChilloutVR** writes are one message on the already open `/users/ws`
+  socket of the same account, as CVRX sends them: `{ RequestType, Data: { id } }`
+  with 8 (unfriend), 30 (block) or 31 (unblock). A closed socket sends
+  nothing and the user is told so; nothing is queued. The socket gives no
+  reply, so VRX reports the message as sent. The `FRIEND_LIST_UPDATED` message
+  then refreshes the roster with the usual single `/friends` read.
+
+## Own profile limits
+
+Settings → Accounts → Edit profile reads the signed-in user's own profile when
+the editor opens and writes it only when the user presses Save. Nothing runs on
+a timer, on window focus or on reconnect, and a write is never resent on its
+own. Requests use the platform's admission queue at interactive priority with
+no automatic retry. State is cleared at every sign-out, account change and
+invalidated session.
+
+| Limit           | VRChat                                                                                                                | ChilloutVR                                                                      |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Editor opens    | 1 read; none if the last answer is under 30 s old                                                                     | Same                                                                            |
+| Save            | 1 `PUT /users/{me}` (pronouns, status) and 1 `PUT /profile/{me}` (bio), each only when it carries a change; at most 2 | 1 `POST /users/self` per changed field (bio, pronouns), as CVRX does; at most 2 |
+| Fields          | Bio (512), pronouns (32), status, status text (32)                                                                    | Bio (512), pronouns (32). ChilloutVR has no status to set                       |
+| Spacing         | One Save at a time per platform; 5 s after any attempt                                                                | Same                                                                            |
+| Nothing to save | No request when nothing differs from the last read                                                                    | Same                                                                            |
+
+Main compares the request with what it last read and sends only what differs.
+After a failed Save (part of a ChilloutVR Save may have gone through) the next
+editor open and the next Save read the profile again before comparing. The editor sends every field it shows and main
+sends only what differs; the renderer never names an account.
+
+## Friend action limits
+
+Accept, Decline and Add friend are the only friend writes. Each follows one
+press, goes out once, and is never retried; the user can press again.
+[`FriendActionsService`](../src/main/services/friendActions.ts) decides what
+goes out:
+
+- **Accept and Decline** name an Inbox friend-request row that main holds. Main
+  looks up the platform record itself (VRChat's notification ID, ChilloutVR's
+  sender ID), and hides the row once the answer went out. VRChat confirms an
+  accept with its usual friend-added push; ChilloutVR with its roster-changed
+  push and one roster read, as for any new friend.
+- **Add friend** goes only to someone a search listed in the current session
+  who is not already a friend and is not the signed-in user. When an Unfriend
+  VRX sent goes through, main takes that person off its friends list at once,
+  as the platform's own message does a moment later, so Add friend can follow
+  it. A second press for the same person in the same session reports "sent"
+  again without a request, until VRX unfriends them.
+- **Pacing:** one action at a time per platform, at least 2 seconds after the
+  last attempt (`FRIEND_ACTION_SPACING_MS`), failed ones included. Up to 5
+  presses wait their turn (`FRIEND_ACTION_MAX_WAITING`); more are refused as
+  busy. A waiting press is dropped at an account change.
+- **VRChat** writes use the admission queue at interactive priority with no
+  429 retry. A 4xx answer is a refusal; a 401 ends the session as for any
+  data request.
+- **ChilloutVR** writes are one frame on the live `/users/ws` socket, which
+  takes no admission slot, but none is sent during a 429 cooldown. A closed
+  socket fails the action instead of queueing it. 🟡 The frame shape follows
+  CVRX and is not yet confirmed live.
+
 ## Local action limits
 
 Main also rate-limits the renderer's requests before any network work starts.
 
-| Action                   | Limit                                                                                     |
-| ------------------------ | ----------------------------------------------------------------------------------------- |
-| Sign-in                  | 6 per minute                                                                              |
-| Two-factor code          | 10 per minute                                                                             |
-| Sign-in from this PC     | 6 per minute                                                                              |
-| Roster request           | 12 per 30 seconds                                                                         |
-| Join a friend's instance | 20 per minute; one launch per platform at a time; 3 s cooldown per friend and destination |
-| VRChat self-invite       | 20 per minute; one at a time; 3 s cooldown                                                |
-| Join from Explore        | 20 per minute; one launch per platform at a time; 3 s cooldown per destination            |
+| Action                   | Limit                                                                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Sign-in                  | 6 per minute                                                                                                                             |
+| Two-factor code          | 10 per minute                                                                                                                            |
+| Sign-in from this PC     | 6 per minute                                                                                                                             |
+| Roster request           | 12 per 30 seconds                                                                                                                        |
+| Join a friend's instance | 20 per minute; one launch per platform at a time; 3 s cooldown per friend and destination; this also covers the hand-off to an open game |
+| VRChat self-invite       | 20 per minute; one at a time; 3 s cooldown                                                                                               |
+| Avatar list              | 30 per minute; concurrent reads share one run                                                                                            |
+| Avatar details           | 60 per minute                                                                                                                            |
+| Avatar switch            | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
+| Set as home world        | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
+| Unfriend or block check  | 30 per minute; cached 5 min per person                                                                                                   |
+| Unfriend, block, unblock | 20 per minute; one per platform at a time; 3 s after each answer                                                                         |
+| Friend note on account   | 60 per minute; one per friend at a time; writes 2 s apart per platform                                                                   |
+| Own profile read         | 30 per minute; main reuses an answer for 30 s                                                                                            |
+| Own profile save         | 12 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
+| Answer a friend request  | 30 per minute; one friend action at a time per platform, 2 s apart, at most 5 waiting                                                    |
+| Send a friend request    | 20 per minute; same pacing; only to someone a search listed, once per session                                                            |
+| Profile                  | 60 per minute; a person's worlds and groups 30 per minute each                                                                           |
+| Search                   | 60 per minute; one platform search every 2 s                                                                                             |
+| World lists              | 60 per minute                                                                                                                            |
+| Players online, groups   | 30 per minute each                                                                                                                       |
+| Join from Explore        | 20 per minute; one launch per platform at a time; 3 s cooldown per destination                                                           |
 
 The full table is `IPC_RATE_LIMIT_BUDGETS` in
 [`rate-limit.ts`](../src/main/ipc/rate-limit.ts). Every join also respects the
@@ -235,7 +570,12 @@ account. VRX limits that risk by:
 - behaving like one careful client: one request per second at most, server
   waits honored, batches stopped at the first 429;
 - using the platforms' own sockets for live data instead of polling;
-- limiting writes to one user-initiated VRChat self-invite at a time;
+- limiting writes to one user-initiated VRChat self-invite at a time, sent
+  only from a Join the user pressed, one user-initiated avatar switch per
+  platform at a time, one confirmed home-world change per platform at a
+  time, the user's own note on one friend after an edit, and one confirmed
+  unfriend, block or unblock of one person per platform at a time, and one
+  user-initiated Save of the user's own profile per platform at a time;
 - never storing passwords, and keeping session material in main, encrypted at
   rest and invisible to the renderer;
 - validating a restored ChilloutVR session once per launch, and confirming a

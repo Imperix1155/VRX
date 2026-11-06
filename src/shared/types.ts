@@ -10,6 +10,8 @@
  * and friendly to the Zod validation layer.
  */
 
+import type { InboxChange } from './inbox'
+
 // ─── Platform ────────────────────────────────────────────────────────────────
 export type Platform = 'vrchat' | 'chilloutvr'
 
@@ -209,10 +211,28 @@ export const THEMES = ['dark', 'system', 'light'] as const
 export type Theme = (typeof THEMES)[number]
 
 // ─── Background glow (VRX-211) ───────────────────────────────────────────────
-/** Three-level background aurora intensity. Single source for both the
- *  `BackgroundGlow` type and the settings schema's `backgroundGlow` enum. */
-export const BACKGROUND_GLOWS = ['muted', 'standard', 'vivid'] as const
+/** Background aurora intensity, with `off` for no glow at all. Single source
+ *  for both the `BackgroundGlow` type and the settings schema's `backgroundGlow`
+ *  enum. Order is the display order. */
+export const BACKGROUND_GLOWS = ['off', 'muted', 'standard', 'vivid'] as const
 export type BackgroundGlow = (typeof BACKGROUND_GLOWS)[number]
+
+// ─── Friend alert scope ──────────────────────────────────────────────────────
+/** Which friends can trigger the online, joins-a-world and offline alerts:
+ *  everyone, or only the friends the user picked in the friend details panel. */
+export const FRIEND_ALERT_SCOPES = ['everyone', 'picked'] as const
+export type FriendAlertScope = (typeof FRIEND_ALERT_SCOPES)[number]
+
+/** How long an alert stays in view in the VR headset (XSOverlay). */
+export const VR_ALERT_DURATIONS = ['short', 'medium', 'long'] as const
+export type VrAlertDuration = (typeof VR_ALERT_DURATIONS)[number]
+
+// ─── Background picture fade ─────────────────────────────────────────────────
+/** How strongly the user's own background picture fades toward the theme's
+ *  base colour so text over it stays readable. Single source for both the
+ *  `BackgroundPictureFade` type and the settings schema's enum. */
+export const BACKGROUND_PICTURE_FADES = ['low', 'medium', 'high'] as const
+export type BackgroundPictureFade = (typeof BACKGROUND_PICTURE_FADES)[number]
 
 // ─── Friends reconcile interval (VRX-77) ───────────────────────────────────
 /** Friends-list background reconcile cadence. Single source for both the
@@ -249,6 +269,49 @@ export type DrawerOpener = (typeof DRAWER_OPENERS)[number]
 export const DASHBOARD_SECTION_ORDERS = ['popular-first', 'hot-first'] as const
 export type DashboardSectionOrder = (typeof DASHBOARD_SECTION_ORDERS)[number]
 
+/** Every Dashboard section below the numbers, in the DEFAULT display order
+ *  (owner, 2026-10-27). The user can move each one in Settings → Dashboard. */
+export const DASHBOARD_SECTIONS = ['wearing-now', 'invites', 'popular', 'hot'] as const
+export type DashboardSection = (typeof DASHBOARD_SECTIONS)[number]
+
+/** Every section once: known ones in the given order, missing ones appended. */
+export function normalizeDashboardSections(value: readonly unknown[]): DashboardSection[] {
+  const known = new Set<string>(DASHBOARD_SECTIONS)
+  const out: DashboardSection[] = []
+  for (const item of value) {
+    if (typeof item === 'string' && known.has(item) && !out.includes(item as DashboardSection)) {
+      out.push(item as DashboardSection)
+    }
+  }
+  for (const section of DASHBOARD_SECTIONS) if (!out.includes(section)) out.push(section)
+  return out
+}
+
+/** The section list that matches an older Popular now / Hot Instances order. */
+export function dashboardSectionsFromOrder(order: DashboardSectionOrder): DashboardSection[] {
+  return order === 'hot-first'
+    ? ['wearing-now', 'invites', 'hot', 'popular']
+    : ['wearing-now', 'invites', 'popular', 'hot']
+}
+
+/** Which of Popular now and Hot Instances comes first in a section list. */
+export function dashboardSectionOrderOf(
+  sections: readonly DashboardSection[]
+): DashboardSectionOrder {
+  return sections.indexOf('hot') < sections.indexOf('popular') ? 'hot-first' : 'popular-first'
+}
+
+/** Swap Popular now and Hot Instances, when needed, to match `order`. */
+export function withDashboardSectionOrder(
+  sections: readonly DashboardSection[],
+  order: DashboardSectionOrder
+): DashboardSection[] {
+  if (dashboardSectionOrderOf(sections) === order) return [...sections]
+  return sections.map((section) =>
+    section === 'hot' ? 'popular' : section === 'popular' ? 'hot' : section
+  )
+}
+
 // ─── Friends-list presence sections (VRX-67) ─────────────────────────────────
 /** Collapsible section grouping in the friends list — DISPLAY order. Distinct
  *  from `PresenceState`: `active` (web/desktop, not in a world) maps to the
@@ -257,6 +320,19 @@ export type DashboardSectionOrder = (typeof DASHBOARD_SECTION_ORDERS)[number]
  *  `collapsedFriendSections` array element enum. */
 export const FRIEND_SECTIONS = ['in-game', 'online', 'offline'] as const
 export type FriendSection = (typeof FRIEND_SECTIONS)[number]
+/** Every friends-list section in display order: Favorites (starred friends
+ *  who are on now, owner 2026-11-01) leads the presence sections. Element
+ *  enum of the settings schema's `collapsedFriendSections`. */
+export const FRIEND_LIST_SECTIONS = ['favorites', ...FRIEND_SECTIONS] as const
+export type FriendListSection = (typeof FRIEND_LIST_SECTIONS)[number]
+
+/** The order inside each friends-list group (owner, 2026-11-02). Display
+ *  order; `name` (A to Z) is the default. `recent` = the newest Activity
+ *  first, `world` = friends in the same instance together (the biggest crowd
+ *  first), `joinable` = the most open instance you can join first. Every
+ *  choice falls back to the name. */
+export const FRIEND_SORTS = ['name', 'recent', 'world', 'joinable'] as const
+export type FriendSort = (typeof FRIEND_SORTS)[number]
 
 // ─── Auth (VRX-16/18 — direct login + hybrid import) ─────────────────────────
 export type AuthState = 'authenticated' | 'unauthenticated' | 'needs-2fa' | 'error'
@@ -274,6 +350,14 @@ export interface AuthStatus {
    * cookie expired; VRX-173). Drives the method-aware reprompt copy.
    */
   twoFactorMethod?: TwoFactorMethod
+  /**
+   * Present ONLY when `state` is `'error'` and the check got no answer at all
+   * (offline, a name that didn't resolve, or no reply within the request
+   * timeout). A platform that answered and refused (429, 403, 5xx, an
+   * unreadable reply) leaves it out, so the renderer never repeats those
+   * checks while the window is hidden.
+   */
+  unreachable?: true
 }
 
 /**
@@ -322,6 +406,17 @@ export type JoinMode = 'desktop' | 'vr'
 /** Persisted Join preference; unlike wire JoinMode, `ask` defers selection to action time. */
 export const JOIN_MODE_PREFERENCES = ['ask', 'vr', 'desktop'] as const
 export type JoinModePreference = (typeof JOIN_MODE_PREFERENCES)[number]
+
+/** How VRChat should take you to a friend when the game is already open:
+ *  `go` hands the join to the running game, `invite` sends you a self-invite
+ *  to accept there. ChilloutVR has one way only (its join link). */
+export const VRCHAT_OPEN_GAME_JOINS = ['go', 'invite'] as const
+export type VrchatOpenGameJoin = (typeof VRCHAT_OPEN_GAME_JOINS)[number]
+
+/** What a Join did, or would do now: start the game, hand the join to the
+ *  game that is already open, or send a VRChat self-invite into it. */
+export const JOIN_HANDOFFS = ['launch', 'in-game', 'invite'] as const
+export type JoinHandoff = (typeof JOIN_HANDOFFS)[number]
 
 /** Which GitHub update feed Settings follows. `stable` is the public release. */
 export const UPDATE_CHANNELS = ['stable', 'beta', 'dev'] as const
@@ -397,6 +492,12 @@ export type AdapterEvent =
    * VRX-147). Trigger-only: the consumer refetches the list over REST.
    */
   | { type: 'roster-changed'; platform: Platform }
+  /**
+   * Invites, invite requests and friend requests read from the socket. Only
+   * the main-process inbox consumes these; they are never broadcast as
+   * friend events.
+   */
+  | { type: 'inbox'; platform: Platform; change: InboxChange }
   | { type: 'connection'; platform: Platform; health: ConnectionHealth }
   /**
    * The platform's session was invalidated OUT OF BAND — a data-path request

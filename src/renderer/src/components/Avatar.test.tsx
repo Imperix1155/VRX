@@ -144,10 +144,10 @@ describe('status badge (VRX-69 — empty colored dot, glyph retired)', () => {
     const { container } = render(
       <Avatar friend={{ ...friend, status: 'join-me' }} variant="small" />
     )
-    // The face (placeholder or image) carries the scaled ring.
-    const face = container.querySelector('[style*="0 0 0 1.5px"]')
-    expect(face).not.toBeNull()
-    expect(face?.className).toContain('h-[24px]')
+    // The ring's own layer around the 24px face carries the scaled ring.
+    const ring = container.querySelector('[style*="0 0 0 1.5px"]')
+    expect(ring?.className).toContain('presence-ring')
+    expect(ring?.parentElement?.className).toContain('h-[24px]')
     // Badge scaled from 16px @ 42px → 9px @ 24px.
     const badge = container.querySelector('.h-\\[9px\\]')
     expect(badge).not.toBeNull()

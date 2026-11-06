@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { CVR_API_BASE, CVR_PLATFORM } from '@shared/constants'
+import { isCvrUserCategory } from './GameFavoritesAdapter'
 import type { Platform } from '@shared/types'
+import type { WorldList } from '@shared/community'
 import { BaseAdapter, type AdapterRequestOptions, type RequestInitSource } from './BaseAdapter'
 import type { RequestLease } from './RequestLease'
 import {
@@ -22,8 +24,18 @@ const cvrInstanceId = /^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$/i
 
 type CvrDiscoveryRoute =
   | { kind: 'active-worlds' }
+  | { kind: 'world-list'; list: WorldList }
+  | { kind: 'players-online' }
   | { kind: 'world'; worldId: string }
   | { kind: 'room'; instanceId: string }
+  /** One page of the user's own world category (CVRX's My Worlds read). */
+  | { kind: 'category-worlds'; categoryId: string; page: number }
+
+/** ChilloutVR's world category for each Explore list (the ones CVRX shows). */
+const CVR_WORLD_LIST_CATEGORY: Record<WorldList, string> = {
+  new: 'wrldnew',
+  updated: 'wrldrecentlyupdated'
+}
 
 // Only username, accessKey and userId are read. The rest of CVR's auth reply is
 // left unvalidated so a renamed or dropped field there cannot fail every sign-in
@@ -103,6 +115,28 @@ export abstract class CvrApiClient extends BaseAdapter {
   }
 
   /**
+   * POST `fields` as a multipart form to an authenticated CVR endpoint and
+   * unwrap its validated data envelope. fetch sets the multipart boundary.
+   */
+  protected async postForm<T>(
+    path: string,
+    fields: Readonly<Record<string, string>>,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions
+  ): Promise<T> {
+    return await this.requestData(
+      CVR_API_BASE + path,
+      schema,
+      () => {
+        const form = new FormData()
+        for (const [name, value] of Object.entries(fields)) form.append(name, value)
+        return { method: 'POST', headers: this.authenticatedHeaders(), body: form }
+      },
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+  }
+
+  /**
    * Closed discovery-route surface: callers choose a typed route, never a URL,
    * host, query string, or renderer-provided path. Auth headers are still built
    * lazily after shared admission succeeds through requestData's init factory.
@@ -177,6 +211,10 @@ export abstract class CvrApiClient extends BaseAdapter {
     switch (route.kind) {
       case 'active-worlds':
         return `${CVR_DISCOVERY_BASE}/2/worlds/list/wrldactive?page=0&sort=Default&direction=Ascending`
+      case 'world-list':
+        return `${CVR_DISCOVERY_BASE}/2/worlds/list/${CVR_WORLD_LIST_CATEGORY[route.list]}?page=0&sort=Default&direction=Ascending`
+      case 'players-online':
+        return `${CVR_DISCOVERY_BASE}/1/public/userstats`
       case 'world':
         if (!cvrWorldId.test(route.worldId))
           throw new CVRNetworkError('Invalid CVR discovery world id')
@@ -186,6 +224,16 @@ export abstract class CvrApiClient extends BaseAdapter {
           throw new CVRNetworkError('Invalid CVR discovery instance id')
         }
         return `${CVR_DISCOVERY_BASE}/1/instances/${encodeURIComponent(route.instanceId)}`
+      case 'category-worlds':
+        if (
+          !isCvrUserCategory('world', route.categoryId) ||
+          !Number.isInteger(route.page) ||
+          route.page < 0 ||
+          route.page > 99
+        ) {
+          throw new CVRNetworkError('Invalid CVR discovery category')
+        }
+        return `${CVR_DISCOVERY_BASE}/2/worlds/list/${encodeURIComponent(route.categoryId)}?page=${route.page}&sort=Default&direction=Ascending`
     }
   }
 

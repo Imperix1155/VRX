@@ -5,10 +5,13 @@ import LoginScreen from './components/LoginScreen'
 import BootSplash from './components/BootSplash'
 import SetupWizard from './components/setup/SetupWizard'
 import { useAuthStatus } from './queries/auth'
+import { isAuthCheckFailing } from './queries/authCheck'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useApplyGlow } from './hooks/useApplyGlow'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
 import { useLinkedProfileEvents } from './queries/linkedProfiles'
+import { useActivityEvents } from './queries/activity'
+import { useInboxEvents } from './queries/inbox'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
 import { usePlatformFilterSettings } from './hooks/usePlatformFilterSettings'
 import { useSettingsStore } from './stores/settings'
@@ -46,6 +49,8 @@ function App(): React.JSX.Element {
   // no-ops until a friends fetch has populated the cache.
   useLiveFriendEvents()
   useLinkedProfileEvents()
+  useActivityEvents()
+  useInboxEvents()
   // Native hot-instance toast clicks focus the window in main, then push this
   // one-shot navigation request through the preload bridge (VRX-85). The
   // channel keeps its original name, but it opens the Hot Instances page: the
@@ -64,12 +69,16 @@ function App(): React.JSX.Element {
   const {
     data: vrcAuthStatus,
     isPending: isVrcPending,
-    isError: isVrcError
+    isError: isVrcError,
+    status: vrcCheck,
+    errorUpdatedAt: vrcFailedAt
   } = useAuthStatus('vrchat')
   const {
     data: cvrAuthStatus,
     isPending: isCvrPending,
-    isError: isCvrError
+    isError: isCvrError,
+    status: cvrCheck,
+    errorUpdatedAt: cvrFailedAt
   } = useAuthStatus('chilloutvr')
 
   // Platform parity: keep account management reachable while either platform is
@@ -78,6 +87,8 @@ function App(): React.JSX.Element {
   // (API outage / schema drift — only the status reply was unreadable), so
   // falling to LoginScreen would invite re-entering credentials and creating a
   // duplicate session. The shell (AccountCard) is where the error is presented.
+  // A failed check stays in the shell while Retry runs it again, so its notice
+  // and keyboard focus stay (see isAuthCheckFailing).
   const entersShell = (state?: AuthState): boolean => state === 'authenticated' || state === 'error'
 
   // Hydration gate (VRX-212): do not reveal the UI until the persisted settings
@@ -94,8 +105,8 @@ function App(): React.JSX.Element {
   if (
     entersShell(vrcAuthStatus?.state) ||
     entersShell(cvrAuthStatus?.state) ||
-    isVrcError ||
-    isCvrError
+    isAuthCheckFailing({ isError: isVrcError, status: vrcCheck, errorUpdatedAt: vrcFailedAt }) ||
+    isAuthCheckFailing({ isError: isCvrError, status: cvrCheck, errorUpdatedAt: cvrFailedAt })
   ) {
     return <AppShell />
   }

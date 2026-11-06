@@ -1,4 +1,5 @@
 import { RosterRefresh } from './RosterRefresh'
+import { UserReadShare } from './UserReadShare'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
@@ -21,14 +22,19 @@ import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import type { AdapterEvent } from '@shared/types'
 import type { AdapterRequestOptions } from './BaseAdapter'
 import { assertRequestLease, type RequestLease, type AvatarRequestLease } from './RequestLease'
-import { AuthError, AuthSessionPendingError, NetworkError, RateLimitError } from './errors'
+import {
+  AuthError,
+  AuthSessionPendingError,
+  NetworkError,
+  RateLimitError,
+  signInFailure
+} from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
 import { toBucketSets, type VrcCurrentUserBucketSets } from './vrchat/parsePresence'
 import { fetchWorldMetadata } from './vrchat/fetchWorldMetadata'
 import { fetchGroupMetadata } from './vrchat/fetchGroupMetadata'
-import { parseInstanceType } from './vrchat/parseInstanceType'
 import { WorldResolver, type WorldMeta, type WorldSnapshotEntry } from './vrchat/WorldResolver'
 import {
   createGroupResolver,
@@ -51,6 +57,70 @@ import {
   parseVrcExploreRoom,
   parseVrcExploreWorld
 } from './vrchat/parseExplore'
+import { AVATAR_LIBRARY_MAX_ITEMS, isAvatarId, type AvatarItem } from '@shared/avatarLibrary'
+import {
+  AvatarDataError,
+  type AvatarLibraryAdapter,
+  type OwnAvatarsPage
+} from './AvatarLibraryAdapter'
+import { parseVrcAvatar, parseVrcAvatarPage } from './vrchat/parseAvatars'
+import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
+import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
+import { parseVrcOwnProfile, vrcOwnProfileBody, vrcOwnUserBody } from './vrchat/parseOwnProfile'
+import { SocialDataError, type SocialActionAdapter } from './SocialActionAdapter'
+import { parseVrcBlocked } from './vrchat/parseBlocked'
+import {
+  COMMUNITY_LIST_MAX_WORLDS,
+  COMMUNITY_MY_GROUPS_MAX,
+  COMMUNITY_PROFILE_MAX_ITEMS,
+  COMMUNITY_SEARCH_MAX_RESULTS,
+  isCommunityUserId,
+  type CommunityGroup,
+  type CommunityWorld,
+  type PersonProfile,
+  type WorldList
+} from '@shared/community'
+import { isHomeWorldId } from '@shared/homeWorld'
+import {
+  FriendActionRefusedError,
+  type FriendActionsAdapter,
+  type FriendRequestRecord
+} from './FriendActionsAdapter'
+import type { FriendRequestAnswer } from '@shared/friendActions'
+import { isInboxId } from '@shared/inbox'
+import {
+  CommunityDataError,
+  type CommunityAdapter,
+  type CommunityList,
+  type CommunitySearchPage
+} from './CommunityAdapter'
+import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
+import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
+import {
+  buildVrcGroups,
+  GameFavoritesDataError,
+  isGameFavoriteId,
+  parseVrcAddedFavorite,
+  parseVrcFavoriteGroups,
+  parseVrcFavoriteLimits,
+  parseVrcFriendFavoritePage,
+  parseVrcGroupKey,
+  parseVrcWorldFavoritePage,
+  vrcGroupKey,
+  type GameFavoriteChange,
+  type GameFavoriteMembership,
+  type GameFavoritesAdapter,
+  type GameFavoritesRead
+} from './GameFavoritesAdapter'
+import { GAME_FAVORITE_FRIENDS_MAX, GAME_FAVORITE_WORLDS_MAX } from '@shared/gameFavorites'
+import type { RequestPriority } from './ApiAdmissionController'
+import {
+  parseVrcGroups,
+  parseVrcPeople,
+  parseVrcPlayersOnline,
+  parseVrcProfile,
+  parseVrcProfileWorlds
+} from './vrchat/parseCommunity'
 
 /**
  * Persistence for the VRChat session cookie (safeStorage-backed in production —
@@ -97,11 +167,12 @@ export interface VrcMetadataPersistence {
 export const VRC_METADATA_SAVE_DELAY_MS = 5_000
 
 const canonicalVrcUserId = /^usr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-// No exact legacy-id grammar is evidenced in this codebase. Keep the fallback
-// conservative: non-empty, at most 64 characters, and no whitespace, control
-// characters, colon, or malformed canonical `usr_` prefix.
-// eslint-disable-next-line no-control-regex -- rejecting control chars is the contract
-const conservativeLegacyVrcUserId = /^(?!usr_)[^\s\u0000-\u001f\u007f:]{1,64}$/
+// No exact legacy-id grammar is evidenced in this codebase (known ones are short
+// letters and digits). Keep the fallback conservative and inside the account-id
+// grammar AccountSession keys on, so an id VRX cannot keep fails the sign-in
+// before anything is saved: 1 to 64 letters, digits, `_` or `-`, and never a
+// malformed canonical `usr_` prefix.
+const conservativeLegacyVrcUserId = /^(?!usr_)[A-Za-z0-9_-]{1,64}$/
 const vrcUserIdSchema = z
   .string()
   .refine((id) => canonicalVrcUserId.test(id) || conservativeLegacyVrcUserId.test(id))
@@ -216,13 +287,39 @@ function isInstanceLocation(location: string): boolean {
  * breaker lockout after 3 wrong attempts. Data methods (getFriends, …) are
  * scaffolded as not-yet-implemented and land in later issues (getFriends = VRX-43).
  */
-export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
+/** VRChat's largest `n` for avatar lists. */
+const VRC_AVATAR_PAGE_SIZE = 100
+
+/** Sort for each Explore list (VRCX's world search uses the same ones). */
+/** VRChat's page size for favorites, as in the roster reads. */
+const VRC_FAVORITE_PAGE = 100
+
+const VRC_WORLD_LIST_SORT: Record<WorldList, string> = {
+  new: 'publicationDate',
+  updated: 'updated'
+}
+
+export class VrcAdapter
+  extends VrcApiClient
+  implements
+    ExploreAdapter,
+    AvatarLibraryAdapter,
+    CommunityAdapter,
+    OwnProfileAdapter,
+    SocialActionAdapter,
+    AccountNoteAdapter,
+    HomeWorldAdapter,
+    GameFavoritesAdapter,
+    FriendActionsAdapter
+{
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
     () => this.admission.cooldownRemainingMs,
     () => this.live?.captureRosterRevision?.(),
     () => this.admission.rateLimitRevision
   )
+  /** One person's `/users/{id}` answer for the profile and the note check. */
+  private readonly userReads = new UserReadShare()
   private sessionAbort = new AbortController()
   private authOperationAbort = new AbortController()
   private cookie: string | null = null
@@ -344,20 +441,15 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
 
     let response: Response
     try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}/auth/user`,
-        () => ({
-          method: 'GET',
-          headers: {
-            Authorization: basicAuthHeader(creds.username, creds.password),
-            'User-Agent': VRC_USER_AGENT
-          }
-        }),
-        { priority: 'interactive', lease: this.authRequestLease(operationId) }
-      )
-    } catch {
-      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      response = await this.signInRequest(operationId, '/auth/user', () => ({
+        method: 'GET',
+        headers: {
+          Authorization: basicAuthHeader(creds.username, creds.password),
+          'User-Agent': VRC_USER_AGENT
+        }
+      }))
+    } catch (error) {
+      return this.unansweredSignIn(operationId, error)
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
 
@@ -472,17 +564,12 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
 
     let response: Response
     try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}/auth/user`,
-        () => ({
-          method: 'GET',
-          headers: { Cookie: cookie, 'User-Agent': VRC_USER_AGENT }
-        }),
-        { priority: 'interactive', lease: this.authRequestLease(operationId) }
-      )
-    } catch {
-      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      response = await this.signInRequest(operationId, '/auth/user', () => ({
+        method: 'GET',
+        headers: { Cookie: cookie, 'User-Agent': VRC_USER_AGENT }
+      }))
+    } catch (error) {
+      return this.unansweredSignIn(operationId, error)
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
     if (response.status === 401) {
@@ -566,25 +653,21 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
 
     let response: Response
     try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}${endpoint}`,
-        () => ({
-          method: 'POST',
-          headers: {
-            ...(verificationCookie ? { Cookie: verificationCookie } : {}),
-            'User-Agent': VRC_USER_AGENT,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ code })
-        }),
-        { priority: 'interactive', lease: this.authRequestLease(operationId) }
-      )
-    } catch {
+      response = await this.signInRequest(operationId, endpoint, () => ({
+        method: 'POST',
+        headers: {
+          ...(verificationCookie ? { Cookie: verificationCookie } : {}),
+          'User-Agent': VRC_USER_AGENT,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ code })
+      }))
+    } catch (error) {
       if (!this.isAuthOperationCurrent(operationId)) {
         return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
       }
       this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
-      return { ok: false, needs2fa: false, error: 'network_error' }
+      return { ok: false, needs2fa: false, error: signInFailure(error) }
     }
     if (!this.isAuthOperationCurrent(operationId)) {
       return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
@@ -592,7 +675,9 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
 
     if (!response.ok) {
       this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
-      return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
+      // A server error says nothing about the code.
+      const error = response.status >= 500 ? `http_${response.status}` : 'invalid_2fa_code'
+      return { ok: false, needs2fa: false, error }
     }
 
     // Require VRChat's explicit `verified: true` — a 204, malformed body, or
@@ -708,7 +793,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
             lease: this.captureSessionLease()
           }
         )
-      } catch {
+      } catch (error) {
         if (this.authPersistencePending) {
           const tentative = await this.awaitTentativeAuthStatus()
           if (tentative !== null) return tentative
@@ -720,7 +805,11 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
           if (this.cookie) continue
           return this.status('unauthenticated')
         }
-        return this.status('error')
+        // No answer at all (offline, timeout) is the one error a hidden window
+        // may re-check; a 429 that outlasted its retries is a refusal.
+        return error instanceof NetworkError
+          ? { ...this.status('error'), unreachable: true }
+          : this.status('error')
       }
       // Fence every response outcome before it can describe or mutate the current
       // session. In particular, an old 401 must never clear a newly logged-in user.
@@ -967,6 +1056,558 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       return value
     } catch (error) {
       if (context.lease.isCurrent() && error instanceof AuthError && error.status === 401) {
+        this.invalidateDataPathSession()
+      }
+      throw error
+    }
+  }
+
+  // ── Avatar library (user-initiated reads and one switch at a time) ──────────
+
+  captureAvatarLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnAvatars(lease: RequestLease): Promise<OwnAvatarsPage> {
+    const avatars: AvatarItem[] = []
+    const seen = new Set<string>()
+    let complete = true
+    for (let offset = 0; offset < AVATAR_LIBRARY_MAX_ITEMS; offset += VRC_AVATAR_PAGE_SIZE) {
+      const query = new URLSearchParams({
+        user: 'me',
+        releaseStatus: 'all',
+        sort: 'updated',
+        order: 'descending',
+        n: String(VRC_AVATAR_PAGE_SIZE),
+        offset: String(offset)
+      })
+      const raw = await this.runCommunityRequest(lease, () =>
+        this.get(`/avatars?${query.toString()}`, z.unknown(), this.communityOptions(lease))
+      )
+      const page = parseVrcAvatarPage(raw)
+      if (!page) throw new AvatarDataError('VRChat avatar list response was malformed')
+      if (page.skipped > 0) complete = false
+      for (const avatar of page.avatars) {
+        if (seen.has(avatar.avatarId)) continue
+        seen.add(avatar.avatarId)
+        avatars.push(avatar)
+      }
+      if (page.received < VRC_AVATAR_PAGE_SIZE) return { avatars, complete }
+    }
+    return { avatars, complete: false }
+  }
+
+  async getCurrentAvatar(lease: RequestLease): Promise<AvatarItem | null> {
+    const accountId = this.accountId
+    if (accountId === null) return null
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/users/${encodeURIComponent(accountId)}/avatar`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    return parseVrcAvatar(raw)
+  }
+
+  async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
+    if (!isAvatarId('vrchat', avatarId)) throw new AvatarDataError('Invalid VRChat avatar id')
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/avatars/${encodeURIComponent(avatarId)}`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const avatar = parseVrcAvatar(raw)
+    return avatar?.avatarId === avatarId ? avatar : null
+  }
+
+  async switchAvatar(avatarId: string, lease: RequestLease): Promise<void> {
+    if (!isAvatarId('vrchat', avatarId)) throw new AvatarDataError('Invalid VRChat avatar id')
+    await this.runCommunityRequest(lease, () =>
+      this.put(`/avatars/${encodeURIComponent(avatarId)}/select`, z.unknown(), {
+        ...this.communityOptions(lease),
+        // A write is never sent twice on its own; the user can press again.
+        retry: 'none'
+      })
+    )
+  }
+
+  // ── Friend actions (one press, one write, never resent) ─────────────────────
+
+  captureFriendActionLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  /** VRChat friend actions are REST requests; the admission line handles the rest. */
+  canSendFriendAction(): boolean {
+    return true
+  }
+
+  /**
+   * Accept answers the friend-request notification
+   * (`PUT /auth/user/notifications/{id}/accept`); decline hides it
+   * (`PUT /auth/user/notifications/{id}/hide`), as VRChat and VRCX do.
+   */
+  async answerFriendRequest(
+    record: FriendRequestRecord,
+    answer: FriendRequestAnswer,
+    lease: RequestLease
+  ): Promise<void> {
+    if (!isInboxId(record.sourceId)) {
+      throw new FriendActionRefusedError('Invalid VRChat notification id')
+    }
+    const verb = answer === 'accept' ? 'accept' : 'hide'
+    await this.friendWrite(
+      lease,
+      'PUT',
+      `/auth/user/notifications/${encodeURIComponent(record.sourceId)}/${verb}`
+    )
+  }
+
+  /** `POST /user/{id}/friendRequest`, no body, as VRCX sends it. */
+  async sendFriendRequest(userId: string, lease: RequestLease): Promise<void> {
+    if (!isCommunityUserId('vrchat', userId) || userId === this.accountId) {
+      throw new FriendActionRefusedError('Not a VRChat user VRX can send a request to')
+    }
+    await this.friendWrite(lease, 'POST', `/user/${encodeURIComponent(userId)}/friendRequest`)
+  }
+
+  private async friendWrite(
+    lease: RequestLease,
+    method: 'PUT' | 'POST',
+    path: string
+  ): Promise<void> {
+    const status = await this.sendWrite(method, path, {
+      lease,
+      priority: 'interactive',
+      // A write is never sent twice on its own; the user can press again.
+      retry: 'none'
+    })
+    assertRequestLease(lease)
+    if (status >= 200 && status < 300) return
+    if (status === 401) {
+      if (lease.isCurrent()) this.invalidateDataPathSession()
+      throw new AuthError(undefined, status)
+    }
+    if (status >= 400 && status < 500) {
+      throw new FriendActionRefusedError(`VRChat refused the friend action (HTTP ${status})`)
+    }
+    throw new NetworkError(`HTTP ${status}`)
+  }
+
+  // ── Home world (one user-pressed write at a time) ───────────────────────────
+
+  captureHomeWorldLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async setHomeWorld(worldId: string, lease: RequestLease): Promise<void> {
+    if (!isHomeWorldId('vrchat', worldId)) throw new HomeWorldIdError('Invalid VRChat world id')
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    // VRCX sends the same one-field update to the signed-in user.
+    await this.runCommunityRequest(lease, () =>
+      this.putJson(
+        `/users/${encodeURIComponent(accountId)}`,
+        { homeLocation: worldId },
+        z.unknown(),
+        {
+          ...this.communityOptions(lease),
+          // A write is never sent twice on its own; the user can press again.
+          retry: 'none'
+        }
+      )
+    )
+  }
+
+  // ── Community reads (profiles, search, lists, players online, groups) ───────
+  // Read-only; each one follows a user action and waits in the shared line.
+
+  captureCommunityLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.userReads.shared(lease.generation, userId, () => this.readUser(userId, lease))
+    )
+    const profile = parseVrcProfile(raw)
+    return profile?.userId === userId ? profile : null
+  }
+
+  async getProfileWorlds(
+    userId: string,
+    lease: RequestLease
+  ): Promise<CommunityList<CommunityWorld>> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    const query = new URLSearchParams({
+      userId,
+      releaseStatus: 'public',
+      sort: 'updated',
+      order: 'descending',
+      n: String(COMMUNITY_PROFILE_MAX_ITEMS)
+    })
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/worlds?${query.toString()}`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsed = parseVrcProfileWorlds(raw)
+    if (!parsed) throw new CommunityDataError('VRChat world list response was malformed')
+    return parsed
+  }
+
+  async getProfileGroups(
+    userId: string,
+    lease: RequestLease
+  ): Promise<CommunityList<CommunityGroup>> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/users/${encodeURIComponent(userId)}/groups`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const parsed = parseVrcGroups(raw, null, COMMUNITY_PROFILE_MAX_ITEMS)
+    if (!parsed) throw new CommunityDataError('VRChat group list response was malformed')
+    return parsed
+  }
+
+  async search(query: string, lease: RequestLease): Promise<CommunitySearchPage> {
+    const n = String(COMMUNITY_SEARCH_MAX_RESULTS)
+    const users = new URLSearchParams({ search: query, n })
+    const people = await this.runCommunityRequest(lease, () =>
+      this.get(`/users?${users.toString()}`, z.unknown(), this.communityOptions(lease))
+    )
+    const worlds = new URLSearchParams({
+      search: query,
+      sort: 'relevance',
+      tag: 'system_approved',
+      n
+    })
+    const worldsRaw = await this.runCommunityRequest(lease, () =>
+      this.get(`/worlds?${worlds.toString()}`, z.unknown(), this.communityOptions(lease))
+    )
+    const parsedPeople = parseVrcPeople(people, COMMUNITY_SEARCH_MAX_RESULTS)
+    if (!parsedPeople || !Array.isArray(worldsRaw)) {
+      throw new CommunityDataError('VRChat search response was malformed')
+    }
+    return {
+      people: parsedPeople.items,
+      worlds: parseVrcExploreCandidates(worldsRaw.slice(0, COMMUNITY_SEARCH_MAX_RESULTS))
+    }
+  }
+
+  async getWorldList(list: WorldList, lease: RequestLease): Promise<ExploreWorldEvidence[]> {
+    const query = new URLSearchParams({
+      sort: VRC_WORLD_LIST_SORT[list],
+      order: 'descending',
+      tag: 'system_approved',
+      n: String(COMMUNITY_LIST_MAX_WORLDS)
+    })
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(`/worlds?${query.toString()}`, z.unknown(), this.communityOptions(lease))
+    )
+    if (!Array.isArray(raw))
+      throw new CommunityDataError('VRChat world list response was malformed')
+    return parseVrcExploreCandidates(raw.slice(0, COMMUNITY_LIST_MAX_WORLDS))
+  }
+
+  async getPlayersOnline(lease: RequestLease): Promise<number | null> {
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get('/visits', z.unknown(), this.communityOptions(lease))
+    )
+    return parseVrcPlayersOnline(raw)
+  }
+
+  async getMyGroups(lease: RequestLease): Promise<CommunityList<CommunityGroup>> {
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/users/${encodeURIComponent(accountId)}/groups`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const parsed = parseVrcGroups(raw, accountId, COMMUNITY_MY_GROUPS_MAX)
+    if (!parsed) throw new CommunityDataError('VRChat group list response was malformed')
+    return parsed
+  }
+
+  // ── Own profile (read when the editor opens, written on Save) ───────────────
+
+  captureOwnProfileLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnProfile(lease: RequestLease): Promise<OwnProfile> {
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    // The bio lives on the profile, not on `/users/{me}`; one read as VRCX's
+    // own editor does, with the pronouns and status alongside it.
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/profile/${encodeURIComponent(accountId)}?asSelf=true`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const profile = parseVrcOwnProfile(raw, accountId)
+    if (!profile) throw new OwnProfileDataError('VRChat profile response was malformed')
+    return profile
+  }
+
+  async saveOwnProfile(changes: OwnProfileChanges, lease: RequestLease): Promise<null> {
+    const accountId = this.accountId
+    if (accountId === null) throw new AuthError()
+    const path = encodeURIComponent(accountId)
+    // Pronouns and status are user fields; the bio is a profile field. Each
+    // PUT goes out only when it carries a change, one after the other in the
+    // shared line, and a write is never sent twice on its own.
+    const userBody = vrcOwnUserBody(changes)
+    if (userBody) {
+      await this.runCommunityRequest(lease, () =>
+        this.putJson(`/users/${path}`, userBody, z.unknown(), this.communityOptions(lease))
+      )
+    }
+    const profileBody = vrcOwnProfileBody(changes)
+    if (profileBody) {
+      await this.runCommunityRequest(lease, () =>
+        this.putJson(`/profile/${path}`, profileBody, z.unknown(), this.communityOptions(lease))
+      )
+    }
+    // Neither reply is the whole editor: main keeps its last read plus what was sent.
+    return null
+  }
+
+  // ── Unfriend, block and unblock (one confirmed write for one person) ─────────
+
+  captureSocialLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
+    const id = this.socialUserId(userId)
+    const query = new URLSearchParams({ type: 'block', targetUserId: id })
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.get(
+        `/auth/user/playermoderations?${query.toString()}`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+    const blocked = parseVrcBlocked(raw, id)
+    if (blocked === null) throw new SocialDataError('VRChat block list response was malformed')
+    return blocked
+  }
+
+  async unfriend(userId: string, lease: RequestLease): Promise<void> {
+    const id = this.socialUserId(userId)
+    await this.runCommunityRequest(lease, () =>
+      this.delete(
+        `/auth/user/friends/${encodeURIComponent(id)}`,
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  async block(userId: string, lease: RequestLease): Promise<void> {
+    const id = this.socialUserId(userId)
+    await this.runCommunityRequest(lease, () =>
+      this.post(
+        '/auth/user/playermoderations',
+        { moderated: id, type: 'block' },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  async unblock(userId: string, lease: RequestLease): Promise<void> {
+    const id = this.socialUserId(userId)
+    await this.runCommunityRequest(lease, () =>
+      this.putJson(
+        '/auth/user/unplayermoderate',
+        { moderated: id, type: 'block' },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  private socialUserId(userId: string): string {
+    if (!isCommunityUserId('vrchat', userId)) throw new SocialDataError('Invalid VRChat user id')
+    return userId
+  }
+
+  // ── Game favorites (the account's own VRChat favorite groups) ───────────────
+  // VRCX's requests: the limits, the groups and the favorites once per
+  // sign-in; one POST to add and one DELETE to remove, never resent.
+
+  captureFavoritesLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async readGameFavorites(
+    lease: RequestLease,
+    priority: RequestPriority = 'background'
+  ): Promise<GameFavoritesRead> {
+    const options = { ...this.communityOptions(lease), priority }
+    const limits = parseVrcFavoriteLimits(
+      await this.runCommunityRequest(lease, () =>
+        this.get('/auth/user/favoritelimits', z.unknown(), options)
+      )
+    )
+    const server = parseVrcFavoriteGroups(
+      await this.runCommunityRequest(lease, () =>
+        this.get('/favorite/groups?n=50&offset=0', z.unknown(), options)
+      )
+    )
+    const groups = buildVrcGroups(limits, server)
+
+    const friends = new Map<string, GameFavoriteMembership[]>()
+    const friendMax = Math.min(
+      limits.friend.groups * limits.friend.perGroup,
+      GAME_FAVORITE_FRIENDS_MAX
+    )
+    for (let offset = 0; offset < friendMax; offset += VRC_FAVORITE_PAGE) {
+      const query = new URLSearchParams({
+        type: 'friend',
+        n: String(VRC_FAVORITE_PAGE),
+        offset: String(offset)
+      })
+      const page = await this.runCommunityRequest(lease, () =>
+        this.get(`/favorites?${query.toString()}`, z.unknown(), options)
+      )
+      for (const entry of parseVrcFriendFavoritePage(page)) {
+        const memberships = friends.get(entry.userId) ?? []
+        memberships.push({ key: vrcGroupKey('friend', entry.groupName), entryId: entry.entryId })
+        friends.set(entry.userId, memberships)
+      }
+      if (!Array.isArray(page) || page.length < VRC_FAVORITE_PAGE) break
+    }
+
+    const worlds = new Map<string, GameFavoriteMembership[]>()
+    const worldEvidence: ExploreWorldEvidence[] = []
+    const typeOf = new Map(groups.world.map((group) => [group.key.split(':')[1], group.key]))
+    for (let offset = 0; offset < GAME_FAVORITE_WORLDS_MAX; offset += VRC_FAVORITE_PAGE) {
+      const query = new URLSearchParams({ n: String(VRC_FAVORITE_PAGE), offset: String(offset) })
+      const page = await this.runCommunityRequest(lease, () =>
+        this.get(`/worlds/favorites?${query.toString()}`, z.unknown(), options)
+      )
+      for (const entry of parseVrcWorldFavoritePage(page)) {
+        if (worlds.has(entry.worldId)) continue
+        const key = typeOf.get(entry.groupName) ?? vrcGroupKey('world', entry.groupName)
+        worlds.set(entry.worldId, [{ key, entryId: entry.entryId }])
+      }
+      for (const world of parseVrcExploreCandidates(page)) {
+        if (worldEvidence.some((known) => known.worldId === world.worldId)) continue
+        worldEvidence.push({ ...world, sourceOrder: worldEvidence.length })
+      }
+      if (!Array.isArray(page) || page.length < VRC_FAVORITE_PAGE) break
+    }
+    return { oneGroupPerItem: true, groups, friends, worlds, worldEvidence }
+  }
+
+  async writeGameFavorite(
+    change: GameFavoriteChange,
+    lease: RequestLease
+  ): Promise<GameFavoriteMembership[]> {
+    const { kind, id, group, on, current } = change
+    const target = parseVrcGroupKey(group.key)
+    if (
+      !target ||
+      !isGameFavoriteId('vrchat', kind, id) ||
+      (kind === 'friend') !== (target.type === 'friend')
+    ) {
+      throw new GameFavoritesDataError('Invalid VRChat favorite')
+    }
+    // A write is never sent twice on its own; the user can press again.
+    const options: AdapterRequestOptions = { ...this.communityOptions(lease), retry: 'none' }
+    if (on) {
+      const reply = await this.runCommunityRequest(lease, () =>
+        this.post(
+          '/favorites',
+          { type: target.type, favoriteId: id, tags: [target.name] },
+          z.unknown(),
+          options
+        )
+      )
+      return [
+        ...current.filter((m) => m.key !== group.key),
+        { key: group.key, entryId: parseVrcAddedFavorite(reply, id) }
+      ]
+    }
+    // VRCX removes by the friend's or world's own id; the record id from the
+    // read is the documented form and is used when VRX has it.
+    const entryId = current.find((m) => m.key === group.key)?.entryId ?? id
+    await this.runCommunityRequest(lease, () =>
+      this.delete(`/favorites/${encodeURIComponent(entryId)}`, z.unknown(), options)
+    )
+    return current.filter((m) => m.key !== group.key)
+  }
+
+  // ── Account notes (the user's private note on a friend) ─────────────────────
+  // A read and a write each follow a user action; a write is never resent.
+
+  captureNoteLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async readAccountNote(userId: string, lease: RequestLease): Promise<string | null> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    // Always a new read, since a save must see what the account holds now; the
+    // full profile that follows may use the same answer.
+    const raw = await this.runCommunityRequest(lease, () =>
+      this.userReads.fresh(lease.generation, userId, () => this.readUser(userId, lease))
+    )
+    return parseAccountNoteReply(raw, userId, (left, right) => left === right)
+  }
+
+  async writeAccountNote(userId: string, note: string, lease: RequestLease): Promise<void> {
+    if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
+    await this.runCommunityRequest(lease, () =>
+      this.post(
+        '/userNotes',
+        { targetUserId: userId, note },
+        z.unknown(),
+        this.communityOptions(lease)
+      )
+    )
+  }
+
+  private communityOptions(lease: RequestLease): AdapterRequestOptions {
+    return {
+      lease,
+      priority: 'interactive',
+      // A read is never resent on its own, and a 429 stops a list's paging;
+      // the user can press again.
+      retry: 'none',
+      // A missing person, world or avatar is an ordinary answer; only sign-in
+      // failures count.
+      recordCircuitFailure: 'auth'
+    }
+  }
+
+  private readUser(userId: string, lease: RequestLease): Promise<unknown> {
+    return this.get(
+      `/users/${encodeURIComponent(userId)}`,
+      z.unknown(),
+      this.communityOptions(lease)
+    )
+  }
+
+  private async runCommunityRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
+    try {
+      const value = await request()
+      assertRequestLease(lease)
+      return value
+    } catch (error) {
+      if (lease.isCurrent() && error instanceof AuthError && error.status === 401) {
         this.invalidateDataPathSession()
       }
       throw error
@@ -1263,15 +1904,11 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     return buildVrcJoinUrl(instance.worldId, instance.instanceId, instance.region ?? undefined)
   }
   async selfInvite(instanceId: string): Promise<void> {
-    // Validate the location BEFORE classification or URL use: a crafted instanceId
-    // could otherwise satisfy the public-instance check via a `#~private(...)`
-    // fragment yet rewrite the authenticated POST path (VRX-51 security review).
+    // Validate the location BEFORE URL use: a crafted instanceId could otherwise
+    // rewrite the authenticated POST path (VRX-51 security review). Callers own
+    // when an invite is wanted; a public instance is fine when VRChat is open.
     if (!isInstanceLocation(instanceId)) {
       throw new Error('Invalid instance location')
-    }
-    // Public instances don't require an invite — the user can just join.
-    if (parseInstanceType(instanceId) === 'public') {
-      throw new Error('No invite needed for public instances')
     }
     this.assertDurableSession()
 
@@ -1572,6 +2209,29 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     this.activeAuthOperation = null
   }
 
+  /**
+   * One sign-in request: a password, an imported session, or a code. It is
+   * never sent again on its own. A request VRChat asks to slow down ends that
+   * try, since resending would only stretch the limit (docs/api-policy.md).
+   */
+  private signInRequest(
+    operationId: number,
+    path: string,
+    init: () => RequestInit
+  ): Promise<Response> {
+    return this.rawRequest(`${VRC_API_BASE}${path}`, init, {
+      priority: 'interactive',
+      lease: this.authRequestLease(operationId),
+      retry: 'none'
+    })
+  }
+
+  /** The result of a password or imported-session sign-in that got no answer. */
+  private unansweredSignIn(operationId: number, error: unknown): LoginResult {
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    return { ok: false, needs2fa: false, error: signInFailure(error) }
+  }
+
   private supersededAuthResult(): LoginResult {
     return { ok: false, needs2fa: false, error: 'unexpected_response' }
   }
@@ -1693,6 +2353,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     this.authBucketRevision += 1
     this.freshAuthBuckets = null
     this.rosterRefresh.clear()
+    this.userReads.clear()
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.worldResolver.clear()

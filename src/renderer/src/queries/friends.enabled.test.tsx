@@ -8,7 +8,7 @@
  * is isPending forever (no auth polling), hanging social views on "Loading…".
  */
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider, type QueryObserverOptions } from '@tanstack/react-query'
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthState, AuthStatus, Friend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -91,33 +91,120 @@ describe('useFriends enabled gate', () => {
   })
 })
 
+describe('useFriends while the OS reports offline', () => {
+  // The read is local IPC and main decides reachability, so a pause here would
+  // hide the failure: an old roster looked current, or Loading never ended.
+  function renderOffline(cached?: Friend[]): {
+    result: { current: ReturnType<typeof useFriends> }
+    getFriends: ReturnType<typeof vi.fn>
+  } {
+    const getFriends = vi.fn().mockRejectedValue(new Error('network_error'))
+    Object.assign(window, { vrx: { getFriends } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    if (cached) {
+      queryClient.setQueryData(friendsQueryKey('vrchat'), cached, {
+        updatedAt: Date.now() - 3 * 3_600_000
+      })
+    }
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(() => useFriends('vrchat'), { wrapper })
+    return { result, getFriends }
+  }
+
+  afterEach(() => {
+    onlineManager.setOnline(true)
+  })
+
+  it('still asks main, so a first read that fails ends Loading with an error', async () => {
+    mockAuthState('error')
+    onlineManager.setOnline(false)
+    const { result, getFriends } = renderOffline()
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    expect(result.current.isPending).toBe(false)
+  })
+
+  it('revalidates a restored roster, so a failure shows beside the old list', async () => {
+    mockAuthState('authenticated')
+    onlineManager.setOnline(false)
+    const old = { ...fullFriend('Old', 'vrchat'), presence: { state: 'in-game' as const } }
+    const { result, getFriends } = renderOffline([old])
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    expect(result.current.data).toEqual([old])
+  })
+})
+
 describe('useFriends background reconcile cadence (VRX-77)', () => {
-  it('applies fresh ±10% jitter on every reconcile interval tick', () => {
+  it('draws its ±10% jitter once per run and counts down to that run', async () => {
+    vi.useFakeTimers()
+    const randomValues = [0, 0.999]
+    let randomIndex = 0
+    vi.spyOn(Math, 'random').mockImplementation(
+      () => randomValues[randomIndex++ % randomValues.length]!
+    )
     mockAuthState('authenticated')
     useSettingsStore.setState({
       settings: { ...DEFAULT_SETTINGS, reconcileInterval: '5m' },
       dirty: false
     })
-    const randomValues = [0, 0.5, 0.999]
-    let randomIndex = 0
-    vi.spyOn(Math, 'random').mockImplementation(
-      () => randomValues[randomIndex++ % randomValues.length]!
-    )
-    const { queryClient } = renderFriends()
-    const query = queryClient.getQueryCache().find({
-      queryKey: ['friends', 'vrchat']
+    const { getFriends } = renderFriends()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
     })
-    const interval = (query?.options as QueryObserverOptions | undefined)?.refetchInterval
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    // First run drew -10%: due at 270 s.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(269_999)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(2)
+    // Second run drew almost +10%: due 329.94 s after it started.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(329_939)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(3)
+  })
 
-    expect(typeof interval).toBe('function')
-    if (typeof interval !== 'function' || query === undefined) {
-      throw new Error('expected a query-backed interval function')
+  it('still reconciles on time while live events keep writing the roster', async () => {
+    vi.useFakeTimers()
+    mockAuthState('authenticated')
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, reconcileInterval: '1h' },
+      dirty: false
+    })
+    const getFriends = vi.fn().mockResolvedValue([fullFriend('usr_a', 'vrchat')])
+    Object.assign(window, { vrx: { getFriends } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const view = renderHook(() => useFriends('vrchat'), { wrapper })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    // A live event a minute (each one a cache write) plus a re-render: the
+    // timer restarts every time, yet the hourly reconcile (±10%) still runs.
+    for (let minute = 1; minute <= 70; minute++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000)
+        queryClient.setQueryData<Friend[]>(friendsQueryKey('vrchat'), (old) => [...(old ?? [])])
+      })
+      view.rerender()
     }
-    const values = [interval(query), interval(query), interval(query)]
-    const numericValues = values.filter((value): value is number => typeof value === 'number')
-    expect(numericValues).toHaveLength(3)
-    expect(numericValues.every((value) => value >= 270_000 && value <= 330_000)).toBe(true)
-    expect(new Set(numericValues).size).toBeGreaterThan(1)
+    expect(getFriends).toHaveBeenCalledTimes(2)
   })
 
   it.each([

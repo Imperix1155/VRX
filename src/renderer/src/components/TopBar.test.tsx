@@ -5,13 +5,29 @@
  * Pins the §8 status indicator: online = presence 'active' OR 'in-game',
  * summed across BOTH platforms, with the i18next _one/_other plural applied.
  */
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach, onTestFinished } from 'vitest'
 import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
 import { useFriendsStore } from '../stores/friends'
 import TopBar from './TopBar'
+
+// The top bar's player counts read through their own queries (TopBarCounts.test.tsx).
+vi.mock('../queries/community', () => ({
+  usePlayersOnline: () => ({ data: undefined, fetchStatus: 'idle', dataUpdatedAt: 0 })
+}))
+
+/** The visible friend count, without the bold markup around the number. */
+function friendsText(count: number): string {
+  return i18n.t('shell.friendCount', { count }).replace(/<\/?b>/g, '')
+}
+
+/** Finds the friend count line; the number sits in its own bold element. */
+function friendsMatcher(count: number): (content: string, element: Element | null) => boolean {
+  return (_content, element) =>
+    element?.tagName === 'SPAN' && element.textContent === friendsText(count)
+}
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
@@ -70,7 +86,7 @@ afterEach(() => {
 
 /** The health dot, once its hidden status line reads `label`. */
 async function findIndicator(label: string): Promise<HTMLElement> {
-  const line = await screen.findByText(label)
+  const line = await screen.findByText(label, { selector: '[role=status]' })
   expect(line.getAttribute('role')).toBe('status')
   return line.parentElement!.querySelector<HTMLElement>('[data-health]')!
 }
@@ -82,19 +98,19 @@ describe('TopBar onlineCount (W6)', () => {
       [friend('in-game'), friend('offline')]
     )
     render(<TopBar />)
-    expect(screen.getByText(i18n.t('shell.onlineCount', { count: 3 }))).toBeTruthy()
+    expect(screen.getByText(friendsMatcher(3))).toBeTruthy()
   })
 
-  it('uses the singular "N online" form for exactly one online friend', () => {
+  it('uses the singular "N friend" form for exactly one online friend', () => {
     stubFriends([friend('active')], [])
     render(<TopBar />)
-    expect(screen.getByText('1 online')).toBeTruthy()
+    expect(screen.getByText(friendsMatcher(1))).toBeTruthy()
   })
 
   it('renders zero (plural form) when queries have no data yet', () => {
     useFriendsMock.mockImplementation(() => ({ data: undefined }))
     render(<TopBar />)
-    expect(screen.getByText(i18n.t('shell.onlineCount', { count: 0 }))).toBeTruthy()
+    expect(screen.getByText(friendsMatcher(0))).toBeTruthy()
   })
 })
 
@@ -117,7 +133,7 @@ describe('TopBar contextual slot (VRX-186)', () => {
     expect(live.textContent).toBe(
       screen.getByTestId('topbar-status').querySelector('[data-health]')?.getAttribute('title')
     )
-    expect(live.textContent).not.toContain(i18n.t('shell.onlineCount', { count: 0 }))
+    expect(live.textContent).not.toContain(friendsText(0))
     expect(screen.getByTestId('topbar-status').closest('[aria-live]')).toBeNull()
   })
 
@@ -180,6 +196,24 @@ describe('TopBar connection health (VRX-223)', () => {
     expect(indicator.className).toContain('motion-safe:animate-pulse')
   })
 
+  it('holds the live dot still on Linux, where the pulse shifted the picture', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const userAgent = vi
+      .spyOn(navigator, 'userAgent', 'get')
+      .mockReturnValue(
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Electron/45.0.0'
+      )
+    onTestFinished(() => userAgent.mockRestore())
+    stubFriends([], [])
+    stubAppStatus('live', 'live')
+    render(<TopBar />)
+
+    const indicator = await findIndicator('VRChat: Live; ChilloutVR: Live')
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
+    expect(indicator.className).toContain('rounded-full')
+    expect(indicator.className).not.toContain('animate-pulse')
+  })
+
   it('holds the live dot still while the window is not focused', async () => {
     const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
     stubFriends([], [])
@@ -239,6 +273,19 @@ describe('TopBar connection health (VRX-223)', () => {
     expect(indicator.getAttribute('style')).toContain('var(--error)')
   })
 
+  it('never shows the live dot when neither platform is signed in', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    stubFriends([], [])
+    // The shell can open on a failed status read with no status at all.
+    useAuthStatusMock.mockImplementation(() => ({ data: undefined }))
+    stubAppStatus('live', 'live')
+    render(<TopBar />)
+
+    const indicator = await findIndicator('VRChat: Signed out; ChilloutVR: Signed out')
+    expect(indicator.getAttribute('style')).toContain('var(--error)')
+    expect(indicator.className).not.toContain('animate-pulse')
+  })
+
   it('names a VRChat session waiting for a code as Needs code, not Signed out', async () => {
     stubFriends([], [])
     useAuthStatusMock.mockImplementation((platform: Platform) => ({
@@ -269,8 +316,9 @@ it.each(['dashboard', 'friends', 'explore'] as const)(
     useUiStore.setState({ activeTab })
     render(<TopBar />)
     expect(screen.queryByRole('button', { name: i18n.t('settings.dashboard.shortcut') })).toBeNull()
-    expect(screen.getByTestId('topbar-contextual-dock').nextElementSibling).toBe(
-      screen.getByTestId('topbar-status')
-    )
+    // The counts block (friend count, then player counts) sits right after it.
+    const counts = screen.getByTestId('topbar-contextual-dock').nextElementSibling
+    expect(counts).toBe(screen.getByTestId('topbar-counts'))
+    expect(counts?.firstElementChild).toBe(screen.getByTestId('topbar-status'))
   }
 )

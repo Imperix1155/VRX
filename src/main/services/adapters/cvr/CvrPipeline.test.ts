@@ -562,7 +562,7 @@ describe('CvrPipeline', () => {
     r.sockets[0]!.fire('open')
     const baseline = r.events.length
 
-    r.sockets[0]!.fire('message', frame({ ResponseType: 25, Data: [] })) // FRIEND_REQUESTS: unrouted
+    r.sockets[0]!.fire('message', frame({ ResponseType: 25, Data: [] })) // FRIEND_REQUESTS: nothing in it
     r.sockets[0]!.fire('message', frame({ ResponseType: 2, Data: {} })) // PUSH_NOTIFICATION: unrouted
     r.sockets[0]!.fire('message', frame({ ResponseType: 99, Data: {} })) // unknown
     r.sockets[0]!.fire('message', 'not json')
@@ -571,6 +571,116 @@ describe('CvrPipeline', () => {
 
     expect(r.events.length).toBe(baseline + 1) // only the Buffer roster-changed
     expect(r.events.at(-1)).toEqual({ type: 'roster-changed', platform: 'chilloutvr' })
+    r.pipeline.stop()
+  })
+
+  it('routes invites, invite requests and friend requests to the inbox in either casing', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    const baseline = r.events.length
+
+    r.sockets[0]!.fire(
+      'message',
+      frame({
+        ResponseType: 15,
+        Data: [
+          {
+            Id: 'inv-1',
+            User: { Id: G1.toUpperCase(), Name: 'Alice' },
+            World: { Id: 'w-1', Name: 'Pug Lounge' },
+            InstanceId: 'i+abc',
+            InstanceName: 'Pug Lounge (#42)'
+          },
+          // No world object: the instance name stands in, without its number.
+          { id: 'inv-2', user: { id: G2, name: 'Bob' }, instanceName: 'Cafe (#7)' },
+          { Id: 'inv-3', User: { Id: 'not-a-guid', Name: 'Mallory' } }
+        ]
+      })
+    )
+    r.sockets[0]!.fire(
+      'message',
+      frame({ responseType: 20, data: { id: 'req-1', sender: { id: G2, name: 'Bob' } } })
+    )
+    r.sockets[0]!.fire('message', frame({ ResponseType: 25, Data: [{ Id: G1, Name: 'Alice' }] }))
+
+    expect(r.events.slice(baseline)).toEqual([
+      {
+        type: 'inbox',
+        platform: 'chilloutvr',
+        change: {
+          op: 'add',
+          entries: [
+            {
+              sourceId: 'inv-1',
+              kind: 'invite',
+              senderId: G1,
+              senderName: 'Alice',
+              worldName: 'Pug Lounge'
+            },
+            {
+              sourceId: 'inv-2',
+              kind: 'invite',
+              senderId: G2,
+              senderName: 'Bob',
+              worldName: 'Cafe'
+            }
+          ]
+        }
+      },
+      {
+        type: 'inbox',
+        platform: 'chilloutvr',
+        change: {
+          op: 'add',
+          entries: [
+            {
+              sourceId: 'req-1',
+              kind: 'invite-request',
+              senderId: G2,
+              senderName: 'Bob',
+              worldName: null
+            }
+          ]
+        }
+      },
+      {
+        type: 'inbox',
+        platform: 'chilloutvr',
+        change: {
+          op: 'add',
+          entries: [
+            {
+              sourceId: G1,
+              kind: 'friend-request',
+              senderId: G1,
+              senderName: 'Alice',
+              worldName: null
+            }
+          ]
+        }
+      }
+    ])
+    r.pipeline.stop()
+  })
+
+  it('reads at most one bounded batch of inbox records from a frame', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    const many = Array.from({ length: 80 }, (_, i) => ({
+      Id: `${String(i).padStart(8, '0')}-1111-1111-1111-111111111111`,
+      Name: `P${i}`
+    }))
+
+    r.sockets[0]!.fire('message', frame({ ResponseType: 25, Data: many }))
+
+    const event = r.events.at(-1)
+    expect(event?.type).toBe('inbox')
+    if (event?.type !== 'inbox' || event.change.op !== 'add') throw new Error('expected an add')
+    expect(event.change.entries).toHaveLength(50)
     r.pipeline.stop()
   })
 

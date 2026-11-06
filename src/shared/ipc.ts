@@ -15,15 +15,43 @@ import type {
   AuthStatus,
   Credentials,
   Friend,
+  JoinHandoff,
   JoinMode,
   LoginResult,
   Platform
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
+import type {
+  AvatarDetailsResult,
+  AvatarLibraryResult,
+  AvatarSwitchResult,
+  CurrentAvatarResult
+} from './avatarLibrary'
+import type { BackgroundPictureRefusal } from './backgroundPicture'
+import type { RelationshipResult, SocialAction, SocialActionResult } from './socialActions'
+import type { AccountNoteSyncMode, AccountNoteSyncResult } from './accountNotes'
+import type {
+  CommunitySearchResult,
+  MyGroupsResult,
+  PlayersOnlineResult,
+  ProfileGroupsResult,
+  ProfileResult,
+  ProfileWorldsResult,
+  WorldList,
+  WorldListResult
+} from './community'
+import type { OwnProfileChanges, OwnProfileResult, SaveOwnProfileResult } from './ownProfile'
+import type { SetHomeWorldResult } from './homeWorld'
+import type { InboxSnapshot } from './inbox'
+import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
+import type { ActivityEntry, ActivityFilter } from './activity'
+import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
+import type { GameFavoritesResult, GameFavoriteWriteResult } from './gameFavorites'
 import type {
   ExplorePlatformSnapshot,
   ExploreImageResult,
+  ExploreWorld,
   ExploreWorldSnapshot,
   ExploreRefreshReason,
   ExploreWorldReason
@@ -43,8 +71,26 @@ export interface UpdaterSnapshot {
   failure: UpdaterFailure | null
 }
 
+/** Result of picking a background picture. Failures carry only a typed reason. */
+export type AppBackgroundResult =
+  | { ok: true; dataUrl: string }
+  | {
+      ok: false
+      reason:
+        | 'cancelled'
+        | 'unsupported'
+        | 'too-large'
+        | BackgroundPictureRefusal
+        | 'unreadable'
+        | 'save-failed'
+    }
+
 export type InstanceActionResult =
-  | { ok: true }
+  | {
+      ok: true
+      /** How the join reached the game. Absent on actions that are not a Join. */
+      handoff?: JoinHandoff
+    }
   | {
       ok: false
       reason:
@@ -75,7 +121,10 @@ export interface FriendRosterResponse {
   provenance?: FriendRosterProvenance
 }
 
-export type FriendEvent = AdapterEvent & { rosterRevision?: number }
+/** Inbox events stay in main (the inbox service); they never reach `friend-event`. */
+export type BroadcastAdapterEvent = Exclude<AdapterEvent, { type: 'inbox' }>
+
+export type FriendEvent = BroadcastAdapterEvent & { rosterRevision?: number }
 
 /**
  * Request/response channels — renderer asks, main answers:
@@ -100,6 +149,11 @@ export interface IpcInvoke {
     req: { platform: Platform; selectionRef: string; mode: JoinMode }
     res: InstanceActionResult
   }
+  /** Make an Explore world the signed-in account's home; by main's reference only. */
+  'set-home-world': {
+    req: { platform: Platform; worldRef: string }
+    res: SetHomeWorldResult
+  }
   'get-linked-profiles': { req: void; res: LinkResult<LinkSnapshot> }
   'change-linked-profile': {
     req: { lease: string; change: LinkRequest }
@@ -110,10 +164,56 @@ export interface IpcInvoke {
     // VRChat carries physical-read ordering; legacy/CVR complete results remain arrays.
     res: Friend[] | FriendRosterResponse
   }
-  /** `rendition: 'avatar'` asks for the small copy used by round friend pictures. */
+  /**
+   * `rendition: 'avatar'` asks for the small copy used by round friend pictures;
+   * `'picture'` for a sharp, card-sized world or avatar picture.
+   */
   'get-avatar': {
-    req: { url: string; rendition?: 'avatar' }
+    /** `keptOnly`: answer only from a copy already kept; never a request. */
+    req: { url: string; rendition?: 'avatar' | 'picture'; keptOnly?: true }
     res: { ok: true; dataUrl: string } | null
+  }
+  /** The signed-in user's own avatars and the one they wear now. Never on a timer. */
+  'get-avatar-library': { req: { platform: Platform }; res: AvatarLibraryResult }
+  /** Only the avatar the user wears now (the Dashboard). Never on a timer. */
+  'get-current-avatar': { req: { platform: Platform }; res: CurrentAvatarResult }
+  /** One listed avatar's details; ChilloutVR reads them on demand. */
+  'get-avatar-details': {
+    req: { platform: Platform; avatarId: string }
+    res: AvatarDetailsResult
+  }
+  /** Wear a listed avatar. Main checks the ID against its own list first. */
+  'switch-avatar': { req: { platform: Platform; avatarId: string }; res: AvatarSwitchResult }
+  /** A friend's (or a searched person's) full profile. One read, reused for 5 minutes. */
+  'get-profile': { req: { platform: Platform; userId: string }; res: ProfileResult }
+  /** That person's public worlds, read when the user asks to see them. */
+  'get-profile-worlds': { req: { platform: Platform; userId: string }; res: ProfileWorldsResult }
+  /** That person's groups, read when the user asks to see them. */
+  'get-profile-groups': { req: { platform: Platform; userId: string }; res: ProfileGroupsResult }
+  /** People and worlds matching a typed search, sent on Enter. */
+  'search-community': { req: { platform: Platform; query: string }; res: CommunitySearchResult }
+  /** Explore's New or Recently updated list. `refresh` is a Refresh press. */
+  'get-world-list': {
+    req: { platform: Platform; list: WorldList; refresh?: boolean }
+    res: WorldListResult
+  }
+  /** Everyone playing the platform now, for the Dashboard. Reused for 5 minutes. */
+  'get-players-online': { req: { platform: Platform }; res: PlayersOnlineResult }
+  /** The signed-in user's groups. `refresh` is a Refresh press. */
+  'get-my-groups': { req: { platform: Platform; refresh?: boolean }; res: MyGroupsResult }
+  /** The signed-in user's own bio, pronouns and (VRChat) status, for the editor. */
+  'get-own-profile': { req: { platform: Platform }; res: OwnProfileResult }
+  /** Save the fields the user changed. One Save per platform, 5 s apart. */
+  'save-own-profile': {
+    req: { platform: Platform; changes: OwnProfileChanges }
+    res: SaveOwnProfileResult
+  }
+  /** Whether a friend or searched person is a friend and blocked, read when the profile's options open. */
+  'get-relationship': { req: { platform: Platform; userId: string }; res: RelationshipResult }
+  /** One confirmed Unfriend, Block or Unblock for one person. */
+  'social-action': {
+    req: { platform: Platform; userId: string; action: SocialAction }
+    res: SocialActionResult
   }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
@@ -140,10 +240,44 @@ export interface IpcInvoke {
     req: { platform: 'vrchat'; friendId: string }
     res: InstanceActionResult
   }
+  /** What a Join on this platform would do right now, for the dialog's copy.
+   *  Main decides again when the Join happens. */
+  'get-join-handoff': { req: { platform: Platform }; res: JoinHandoff }
   'get-app-status': { req: void; res: AppStatus }
+  /** The in-memory activity list, newest first. Main records it from the live
+   *  sockets; reading it makes no platform request. */
+  'get-activity': { req: void; res: ActivityEntry[] }
+  /** Forget the activity the page shows: these platforms' entries of the
+   *  shown kind (`all` for every kind). Anything else stays. */
+  'clear-activity': { req: { platforms: Platform[]; filter: ActivityFilter }; res: void }
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */
   'open-logs-folder': { req: void; res: void }
+  /** Open GitHub's bug report form in the browser. Main fills in the app
+   *  version, install type and system; nothing from the user's accounts. */
+  'open-bug-report': { req: void; res: void }
+  /** Send one test alert to XSOverlay on this computer. VRX cannot know whether
+   *  it showed: `ok` means the alert left VRX. */
+  'test-vr-alert': {
+    req: void
+    res: { ok: true } | { ok: false; reason: 'failed' | 'rate-limited' }
+  }
+  /** The user's own background picture as a `data:` URL, or null when none is set. */
+  'get-app-background': { req: void; res: { dataUrl: string } | null }
+  /** Open the native picture dialog; main reads, re-encodes, and keeps the picked file. */
+  'choose-app-background': { req: void; res: AppBackgroundResult }
+  /** Forget the background picture. */
+  'clear-app-background': { req: void; res: void }
+  /** Invites and requests that arrived while VRX was open. */
+  'get-inbox': { req: void; res: InboxSnapshot }
+  /** Hide one row in VRX. Never answers or declines anything on the platform. */
+  'dismiss-inbox-item': { req: { platform: Platform; id: string }; res: void }
+  /** Hide every row for these platforms, in VRX only. */
+  'clear-inbox': { req: { platforms: Platform[] }; res: void }
+  /** Accept or decline one friend request row. Main looks the row up itself. */
+  'answer-friend-request': { req: AnswerFriendRequest; res: FriendActionResult }
+  /** Send a friend request to someone a search listed this session. */
+  'send-friend-request': { req: SendFriendRequest; res: FriendActionResult }
   'get-settings': { req: void; res: Settings & { unsaved?: true; fallback?: true } }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }
@@ -165,6 +299,101 @@ export interface IpcInvoke {
       | { ok: true }
       | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'rate-limited' }
   }
+  /** Compare (and, on a save or a choice, update) the note on the user's own
+   *  account with VRX's copy. Echo the note read's revision. */
+  'sync-friend-note': {
+    req: {
+      platform: Platform
+      friendId: string
+      revision: { platformAccountId: string; epoch: number }
+      mode: AccountNoteSyncMode
+    }
+    res: AccountNoteSyncResult
+  }
+  /** The signed-in account's friends picked for alerts. Local only. */
+  'get-alert-picks': {
+    req: { platform: Platform }
+    res: { friendIds: string[]; revision?: { platformAccountId: string; epoch: number } }
+  }
+  /** Pick or unpick friends for alerts in one write; echo the read's revision. */
+  'set-alert-pick': {
+    req: {
+      platform: Platform
+      friendIds: string[]
+      picked: boolean
+      revision: { platformAccountId: string; epoch: number }
+    }
+    res:
+      | { ok: true }
+      | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'full' | 'rate-limited' }
+  }
+  /** The signed-in account's favorite friends. Kept only in VRX. */
+  'get-favorite-friends': {
+    req: { platform: Platform }
+    res: { friendIds: string[]; revision?: FavoritesRevision }
+  }
+  /** Star or unstar friends in one write; echo the read's revision. */
+  'set-favorite-friend': {
+    req: {
+      platform: Platform
+      friendIds: string[]
+      favorite: boolean
+      revision: FavoritesRevision
+    }
+    res: FavoriteWriteResult
+  }
+  /**
+   * The signed-in account's favorite worlds, newest first, as Explore worlds
+   * with fresh references (no platform request). Kept only in VRX.
+   */
+  'get-favorite-worlds': {
+    req: { platform: Platform }
+    res: { worlds: ExploreWorld[]; revision?: FavoritesRevision }
+  }
+  /**
+   * Star a world by the reference main handed out, or unstar it by id; echo
+   * the read's revision.
+   */
+  'set-favorite-world': {
+    req:
+      | { platform: Platform; favorite: true; worldRef: string; revision: FavoritesRevision }
+      | { platform: Platform; favorite: false; worldId: string; revision: FavoritesRevision }
+    res: FavoriteWriteResult
+  }
+  /**
+   * The favorites in the signed-in user's own game account: groups, who and
+   * what sits in them, and the favorite worlds as Explore worlds. Read once
+   * per sign-in; `refresh` (a Refresh press) may read again after a cooldown.
+   */
+  'get-game-favorites': {
+    req: { platform: Platform; refresh?: boolean }
+    res: GameFavoritesResult
+  }
+  /**
+   * Put a friend or world in one of the account's own favorite groups, or
+   * take it out: one write. A world is named by the reference main handed
+   * out; echo the read's revision.
+   */
+  'set-game-favorite': {
+    req:
+      | {
+          platform: Platform
+          kind: 'friend'
+          friendId: string
+          groupKey: string
+          on: boolean
+          revision: FavoritesRevision
+        }
+      | {
+          platform: Platform
+          kind: 'world'
+          worldRef: string
+          groupKey: string
+          on: boolean
+          revision: FavoritesRevision
+        }
+    res: GameFavoriteWriteResult
+  }
 }
 
 /**
@@ -175,6 +404,10 @@ export interface IpcInvoke {
 export interface IpcEvents {
   'explore-changed': { platform: Platform }
   'linked-profiles-changed': void
+  /** The activity list changed; coalesced, carries nothing. */
+  'activity-changed': void
+  /** The inbox changed; read it again with `get-inbox`. */
+  'inbox-changed': void
   'friend-event': FriendEvent
   'identity-boundary': { platform: Platform }
   /** A hot-instance alert click: open Hot Instances with this platform in view. */
@@ -196,5 +429,4 @@ export type IpcNotificationChannel = keyof IpcNotifications
 
 // Channels deliberately deferred until their feature exists — we don't define
 // payload types for things that aren't built yet (keeps the contract honest):
-//   'get-notifications'              → Notification[] (notifications, M3)
 //   'launch-app'                     → LaunchResult (process launch, VRX-98)

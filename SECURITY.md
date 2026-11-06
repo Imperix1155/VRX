@@ -2,7 +2,8 @@
 
 ## Supported versions
 
-Only the latest release and the current `main` branch receive security fixes.
+Only the latest stable release and the current `main` branch receive security
+fixes. Fixes reach `dev` builds too.
 
 | Version                   | Supported |
 | ------------------------- | --------- |
@@ -33,9 +34,8 @@ out of scope; report those to the platforms.
 - **Sessions.** Saved sessions are encrypted with Electron `safeStorage`, which
   uses your operating system's secure storage. If that is unavailable or fails,
   VRX encrypts them with authenticated encryption and a random key created for
-  your installation, kept in VRX's private app files. That fallback is weaker:
-  anyone who can read both the key and the encrypted session can reuse the
-  session. VRX never uses Electron's `basic_text` mode and never saves
+  your installation, kept in VRX's private app files. That fallback is weaker
+  than the operating system's storage. VRX never uses Electron's `basic_text` mode and never saves
   passwords. Signing out deletes the saved session.
 - **Isolation.** The app window runs with `contextIsolation`, `sandbox`, and
   no Node integration. The page can reach the main process only through a
@@ -56,63 +56,46 @@ out of scope; report those to the platforms.
   at once on the next launch. Signing out of VRChat in VRX deletes them.
 - **Updates.** Updates come only from this repository's GitHub Releases and
   never install without your consent.
-- **Repository.** CI scans every pull request and every push to `main` for
-  committed secrets (gitleaks) and for high or critical dependency advisories,
-  and CodeQL scans the code weekly and on every pull request.
+- **Repository.** CI scans every push and pull request for committed secrets
+  (gitleaks) and for high or critical dependency advisories, and CodeQL scans
+  `main` weekly and on every pull request into it.
 
 No local encryption can protect a session from malware that runs as you or
 from someone who can read your files.
 
-## Temporary dependency exception
+## Development-only HTTP cache patch
 
-One development-only advisory is temporarily accepted.
-[`scripts/audit-policy.mjs`](scripts/audit-policy.mjs) enforces it in CI, and
-this section is the record of the owner's approval.
+The packaging tool pulls in `http-cache-semantics` through
+`app-builder-lib → @electron/get → got → cacheable-request`. It is a
+development dependency and is not part of the installed app.
 
-- **Advisory:** [GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)
-  (high) in `http-cache-semantics` 4.2.0. A shared HTTP cache could serve one
-  user's cached response to another.
-- **Where it comes from:** the packaging tool only:
-  `app-builder-lib@26.17.0 → @electron/get@3.1.0 → got@11.8.6 → cacheable-request@7.0.4 → http-cache-semantics@4.2.0`.
-  It is a development dependency and is not part of the installed app. The
-  production audit is clean.
-- **Mitigation:** `npm ci` runs
-  [`scripts/patch-http-cache.mjs`](scripts/patch-http-cache.mjs), which patches
-  the locked library so security-related reuse rules can't be overridden by
-  `max-stale`, `stale-while-revalidate`, or `stale-if-error`. Builds verify the
-  patch first. The downloader's HTTP cache is also off by default.
-- **Why no upgrade:** `http-cache-semantics` 4.3.0 does not fix this advisory
-  (it changed only `Vary` matching), and the compatible packaging tool still
-  pulls 4.2.0. npm's advisory range predates 4.3.0, so a clean audit after
-  upgrading would be a false result.
-- **Approval:** approved by the owner (Imperix1155) on 2026-10-03, extended
-  after upstream reviews on 2026-10-09 and 2026-10-19. Tracking:
-  [PR #345](https://github.com/Imperix1155/VRX/pull/345).
-- **Expiry:** review by **2027-01-30**. CI stops accepting the exception at
-  **2027-01-31 00:00 UTC**. A further extension needs a new owner decision.
-- **Removal:** remove the exception as soon as a compatible fixed release
-  removes this chain, or at once if the package ever reaches the installed app.
-- **Rechecked 2026-10-22** (Vigil report): still no fix. The advisory lists no
-  patched version, `npm audit fix` offers no non-breaking path, the newest
-  packaging tool on the 26.x line still uses `@electron/get` 3 → `got` 11, and
-  an override to 4.3.0 would only silence the audit (see above).
+As security hardening, `npm ci` runs
+[`scripts/patch-http-cache.mjs`](scripts/patch-http-cache.mjs), which patches
+the locked version of that library, and every build verifies the patch first.
+An unexpected library version or source fails closed and needs a reviewed
+update. Remove the patch when an upstream release makes it unnecessary and
+[`scripts/http-cache-security.test.mjs`](scripts/http-cache-security.test.mjs)
+passes without it. If this package ever reaches the installed app, review that
+path before dropping the patch.
 
-### Dependency overrides
+## Dependency overrides
 
-`package.json` `overrides` pins a dependency when the parent package has not
-shipped the fixed release yet. Remove a pin when the parent does.
+`package.json` `overrides` pins a dependency to a hardened release when its
+parent package hasn't moved to that release yet. Each pin stays only until
+every parent asks for a fixed release itself; then remove it.
 
-- **`undici` 7.30.1 under `@electron/get`, and 6.29.1 under `node-gyp`:**
-  [GHSA-xjj6-f33q-929c](https://github.com/advisories/GHSA-xjj6-f33q-929c)
-  (high) is fixed in those versions. `@electron/get` 5.0.0 still requests
-  `undici` ^7.24.4 and resolves 7.30.0; npm counts that copy as production
-  because `electron` satisfies the `@electron-toolkit/utils` peer dependency.
-  `node-gyp` 12.4.0 still resolves `undici` 6.29.0, which is development-only.
-  jsdom already uses `undici` 8.12.3, outside the advisory range. Remove the
-  pins when those parents depend on a patched release themselves.
+- **`undici`** under `@electron/get` and `node-gyp`.
+- **`minimatch`** everywhere, and **`glob`** for the affected range only. A
+  global `glob` pin would break the callback API that `@electron/asar` 3 and
+  `rimraf` 2 still use, so older `glob` 7 stays. These are build and lint
+  tools, and the packaging path VRX uses doesn't call the patterns that newer
+  `minimatch` rejects. Check packaging still works when you change them.
 
-The policy fails the audit on any other high or critical advisory, any
-production high or critical advisory, a changed version or dependency path,
-a critical severity, expiry, or a malformed report. No other advisory is
-excluded. No exception applies to production findings, and no branch
-protection or release approval is waived.
+## Audit policy
+
+[`scripts/audit-policy.mjs`](scripts/audit-policy.mjs) fails CI on any high or
+critical advisory, including production findings, and on a malformed audit
+report. No advisory is excluded, and no branch protection or release approval
+is waived. An exception is allowed only for a development-only advisory with
+no fixed release; [Development](docs/DEVELOPMENT.md#dependency-and-security-changes)
+has the rule.

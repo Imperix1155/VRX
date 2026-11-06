@@ -25,8 +25,8 @@ describe('PolicySpacePill', () => {
       expect(markup).toContain('text-[12px]')
       expect(markup).toContain('font-semibold')
       expect(markup).toContain(`var(${text})`)
-      expect(markup).toContain(`var(${base}) 13%`)
-      expect(markup).toContain(`var(${base}) 36%`)
+      expect(markup).toContain(`var(${base}) var(--pill-tint)`)
+      expect(markup).toContain(`var(${base}) var(--pill-edge)`)
     }
   )
 

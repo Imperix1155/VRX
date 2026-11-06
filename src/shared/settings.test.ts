@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { RECONCILE_INTERVAL_MS } from './constants'
 import {
+  DASHBOARD_SECTIONS,
+  dashboardSectionOrderOf,
+  withDashboardSectionOrder,
+  type DashboardSection
+} from './types'
+import {
   SETTINGS_VERSION,
   DEFAULT_SETTINGS,
   parseSettings,
@@ -20,9 +26,21 @@ describe('settings schema', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardWearingNow: true,
+      dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
+      showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
       setupPending: false,
       theme: 'system',
       language: 'en',
@@ -32,16 +50,25 @@ describe('settings schema', () => {
       labelScheme: 'vrchat',
       hotInstanceThreshold: 2,
       collapsedFriendSections: ['offline'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: false,
       notifyHotInstance: false,
+      friendAlertScope: 'everyone',
+      notifyInvites: false,
+      notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       backgroundGlow: 'standard',
+      backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       allowJoinInstances: true,
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable'
     })
@@ -88,12 +115,22 @@ describe('settings schema', () => {
   })
 
   it('backgroundGlow: accepts every level, defaults missing/invalid to standard', () => {
+    expect(parseSettings({ backgroundGlow: 'off' }).backgroundGlow).toBe('off')
     expect(parseSettings({ backgroundGlow: 'muted' }).backgroundGlow).toBe('muted')
     expect(parseSettings({ backgroundGlow: 'standard' }).backgroundGlow).toBe('standard')
     expect(parseSettings({ backgroundGlow: 'vivid' }).backgroundGlow).toBe('vivid')
     expect(parseSettings({ theme: 'dark' }).backgroundGlow).toBe('standard')
     expect(parseSettings({ backgroundGlow: 'neon' }).backgroundGlow).toBe('standard')
     expect(parseSettings({ backgroundGlow: 1 }).backgroundGlow).toBe('standard')
+  })
+
+  it('backgroundPictureFade: accepts every level, defaults missing/invalid to medium', () => {
+    for (const fade of ['low', 'medium', 'high'] as const) {
+      expect(parseSettings({ backgroundPictureFade: fade }).backgroundPictureFade).toBe(fade)
+    }
+    expect(parseSettings({}).backgroundPictureFade).toBe('medium')
+    expect(parseSettings({ backgroundPictureFade: 'max' }).backgroundPictureFade).toBe('medium')
+    expect(parseSettings({ backgroundPictureFade: 2 }).backgroundPictureFade).toBe('medium')
   })
 
   it('reconcileInterval: accepts every cadence, defaults missing/invalid to 1h', () => {
@@ -252,6 +289,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -266,15 +304,35 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardWearingNow: true,
+      dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
+      showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       backgroundGlow: 'standard',
+      backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -292,6 +350,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -306,15 +365,35 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardWearingNow: true,
+      dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
+      showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       backgroundGlow: 'standard',
+      backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -332,6 +411,7 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -347,14 +427,34 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardWearingNow: true,
+      dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
+      showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
+      backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -372,11 +472,14 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
+      backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: 'manual'
     }
 
@@ -388,13 +491,31 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardWearingNow: true,
+      dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
+      showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -412,11 +533,14 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
+      backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: 'manual',
       drawerOpener: 'avatar'
     }
@@ -429,12 +553,30 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardWearingNow: true,
+      dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
+      showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -452,11 +594,14 @@ describe('migration runner', () => {
       labelScheme: 'chilloutvr',
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
+      friendSort: 'name',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
+      backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: 'manual',
       drawerOpener: 'avatar',
       confirmJoin: false,
@@ -471,10 +616,28 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardWearingNow: true,
+      dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
+      showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      saveNotesToAccounts: true,
+      useGameFavorites: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false,
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -738,6 +901,214 @@ describe('shouldPersistSettings (rollback safety)', () => {
     expect(disk.updateChannel).toBe('dev')
     expect(parseSettings(disk).updateChannel).toBe('dev')
   })
+
+  it('prevents a v15 build from undoing glow off or the picture fade during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 16,
+      backgroundGlow: 'off',
+      backgroundPictureFade: 'high'
+    }
+    // A v15 build reads `off` as invalid (standard) and drops the fade key.
+    const oldNormalized = { ...disk, version: 15, backgroundGlow: 'standard' }
+    Reflect.deleteProperty(oldNormalized, 'backgroundPictureFade')
+
+    if (shouldPersistSettings(disk, 15)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      backgroundGlow: 'off',
+      backgroundPictureFade: 'high'
+    })
+  })
+
+  it('defaults friend alerts to everyone and keeps a picked scope through a v17 round-trip', () => {
+    expect(parseSettings({ version: 17 }).friendAlertScope).toBe('everyone')
+    expect(parseSettings({ friendAlertScope: 'some' }).friendAlertScope).toBe('everyone')
+
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 18,
+      friendAlertScope: 'picked'
+    }
+    // A v17 build does not know the key and would strip it.
+    const oldNormalized = { ...disk, version: 17 }
+    Reflect.deleteProperty(oldNormalized, 'friendAlertScope')
+
+    if (shouldPersistSettings(disk, 17)) disk = oldNormalized
+
+    expect(parseSettings(disk).friendAlertScope).toBe('picked')
+  })
+
+  it('keeps the Activity page switch and its filters across a v16 round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 17,
+      showActivityPage: false,
+      activityFilter: 'offline'
+    }
+    const oldNormalized = { ...disk, version: 16 }
+    Reflect.deleteProperty(oldNormalized, 'showActivityPage')
+    Reflect.deleteProperty(oldNormalized, 'activityFilter')
+
+    if (shouldPersistSettings(disk, 16)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      showActivityPage: false,
+      activityFilter: 'offline'
+    })
+  })
+
+  it('migrates a v16 file with the Activity page on and every kind shown', () => {
+    const migrated = parseSettings({ ...DEFAULT_SETTINGS, version: 16 })
+    expect(migrated).toMatchObject({
+      version: SETTINGS_VERSION,
+      showActivityPage: true,
+      activityFilter: 'all'
+    })
+    expect(
+      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'friends' })
+    ).toMatchObject({ showActivityPage: true, activityFilter: 'all' })
+  })
+
+  it('defaults Join in the open game on, and keeps a valid stored choice', () => {
+    expect(parseSettings({})).toMatchObject({ joinOpenGame: true, vrchatOpenGameJoin: 'go' })
+    expect(parseSettings({ joinOpenGame: false, vrchatOpenGameJoin: 'invite' })).toMatchObject({
+      joinOpenGame: false,
+      vrchatOpenGameJoin: 'invite'
+    })
+    for (const vrchatOpenGameJoin of ['launch', '', null, 1]) {
+      expect(parseSettings({ vrchatOpenGameJoin }).vrchatOpenGameJoin).toBe('go')
+    }
+    expect(parseSettings({ joinOpenGame: 'no' }).joinOpenGame).toBe(true)
+  })
+
+  it('prevents a v18 build from undoing the open-game Join choices during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 19,
+      joinOpenGame: false,
+      vrchatOpenGameJoin: 'invite'
+    }
+    // A v18 build does not know either key and strips both.
+    const oldNormalized = { ...disk, version: 18 }
+    Reflect.deleteProperty(oldNormalized, 'joinOpenGame')
+    Reflect.deleteProperty(oldNormalized, 'vrchatOpenGameJoin')
+
+    if (shouldPersistSettings(disk, 18)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      joinOpenGame: false,
+      vrchatOpenGameJoin: 'invite'
+    })
+  })
+})
+
+describe('Inbox settings', () => {
+  it('defaults the page on and both alerts off, and keeps explicit choices', () => {
+    expect(parseSettings({ version: 18 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      showInboxPage: true,
+      notifyInvites: false,
+      notifyFriendRequests: false
+    })
+    expect(
+      parseSettings({ showInboxPage: false, notifyInvites: true, notifyFriendRequests: 'yes' })
+    ).toMatchObject({ showInboxPage: false, notifyInvites: true, notifyFriendRequests: false })
+  })
+
+  it('prevents a v19 build from stripping the inbox choices during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 20,
+      showInboxPage: false,
+      notifyInvites: true
+    }
+    const oldNormalized = { ...disk, version: 19 }
+    Reflect.deleteProperty(oldNormalized, 'showInboxPage')
+    Reflect.deleteProperty(oldNormalized, 'notifyInvites')
+
+    if (shouldPersistSettings(disk, 19)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({ showInboxPage: false, notifyInvites: true })
+  })
+})
+
+describe('Dashboard glance settings', () => {
+  it('defaults both sections on and keeps explicit choices', () => {
+    expect(parseSettings({ version: 20 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      dashboardWearingNow: true,
+      dashboardInvites: true,
+      dashboardHideEmpty: true
+    })
+    expect(parseSettings({ dashboardWearingNow: false, dashboardInvites: 'no' })).toMatchObject({
+      dashboardWearingNow: false,
+      dashboardInvites: true
+    })
+  })
+
+  it('prevents a v20 build from stripping the section choices during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 21,
+      dashboardWearingNow: false,
+      dashboardInvites: false,
+      dashboardHideEmpty: false
+    }
+    const oldNormalized = { ...disk, version: 20 }
+    Reflect.deleteProperty(oldNormalized, 'dashboardWearingNow')
+    Reflect.deleteProperty(oldNormalized, 'dashboardInvites')
+    Reflect.deleteProperty(oldNormalized, 'dashboardHideEmpty')
+
+    if (shouldPersistSettings(disk, 20)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      dashboardWearingNow: false,
+      dashboardInvites: false,
+      dashboardHideEmpty: false
+    })
+  })
+})
+
+describe('Dashboard sections', () => {
+  it('takes the order from the older Popular now / Hot Instances choice', () => {
+    expect(parseSettings({ version: 20, dashboardSectionOrder: 'hot-first' })).toMatchObject({
+      dashboardSections: ['wearing-now', 'invites', 'hot', 'popular'],
+      dashboardSectionOrder: 'hot-first'
+    })
+    expect(parseSettings({ version: 20 }).dashboardSections).toEqual([...DASHBOARD_SECTIONS])
+  })
+
+  it('keeps a saved list and makes the older field follow it', () => {
+    const parsed = parseSettings({
+      dashboardSections: ['hot', 'invites', 'popular', 'wearing-now'],
+      dashboardSectionOrder: 'popular-first'
+    })
+    expect(parsed.dashboardSections).toEqual(['hot', 'invites', 'popular', 'wearing-now'])
+    expect(parsed.dashboardSectionOrder).toBe('hot-first')
+  })
+
+  it('drops unknown and repeated entries and appends missing ones', () => {
+    expect(
+      parseSettings({ dashboardSections: ['popular', 'nope', 7, 'popular', 'invites'] })
+        .dashboardSections
+    ).toEqual(['popular', 'invites', 'wearing-now', 'hot'])
+    expect(parseSettings({ dashboardSections: 'popular' }).dashboardSections).toEqual([
+      ...DASHBOARD_SECTIONS
+    ])
+  })
+
+  it('swaps only Popular now and Hot Instances to match an order', () => {
+    const sections: DashboardSection[] = ['popular', 'wearing-now', 'hot', 'invites']
+    expect(withDashboardSectionOrder(sections, 'hot-first')).toEqual([
+      'hot',
+      'wearing-now',
+      'popular',
+      'invites'
+    ])
+    expect(withDashboardSectionOrder(sections, 'popular-first')).toEqual(sections)
+    expect(dashboardSectionOrderOf(sections)).toBe('popular-first')
+  })
 })
 
 describe('Explore settings migration', () => {
@@ -853,6 +1224,16 @@ describe('Optional pages and first-run setup', () => {
       version: SETTINGS_VERSION,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
+      showInboxPage: true,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
+      vrOverlayAlerts: false,
+      vrOverlayAlertDuration: 'medium',
       setupPending: false
     })
     expect(shouldPersistSettings({ version: 13, showExplorePage: false }, 12)).toBe(false)
@@ -874,5 +1255,107 @@ describe('Optional pages and first-run setup', () => {
   it('queues setup only in the fresh-install defaults', () => {
     expect(freshInstallSettings()).toEqual({ ...DEFAULT_SETTINGS, setupPending: true })
     expect(DEFAULT_SETTINGS.setupPending).toBe(false)
+  })
+})
+
+describe('Search, Groups and players-online settings', () => {
+  it('defaults all three on and keeps explicit choices', () => {
+    expect(parseSettings({ version: 22 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      showSearchPage: true,
+      showGroupsPage: true,
+      dashboardPlayersOnline: true
+    })
+    expect(
+      parseSettings({ showSearchPage: false, showGroupsPage: 'no', dashboardPlayersOnline: false })
+    ).toMatchObject({ showSearchPage: false, showGroupsPage: true, dashboardPlayersOnline: false })
+  })
+
+  it('prevents a v22 build from stripping them during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 23,
+      showSearchPage: false,
+      showGroupsPage: false,
+      dashboardPlayersOnline: false
+    }
+    const oldNormalized = { ...disk, version: 22 }
+    Reflect.deleteProperty(oldNormalized, 'showSearchPage')
+    Reflect.deleteProperty(oldNormalized, 'showGroupsPage')
+    Reflect.deleteProperty(oldNormalized, 'dashboardPlayersOnline')
+
+    if (shouldPersistSettings(disk, 22)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      showSearchPage: false,
+      showGroupsPage: false,
+      dashboardPlayersOnline: false
+    })
+  })
+})
+
+describe('Account notes setting', () => {
+  it('defaults on and keeps an explicit Off', () => {
+    expect(parseSettings({ version: 24 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      saveNotesToAccounts: true
+    })
+    expect(parseSettings({ saveNotesToAccounts: false })).toMatchObject({
+      saveNotesToAccounts: false
+    })
+    expect(parseSettings({ saveNotesToAccounts: 'no' })).toMatchObject({
+      saveNotesToAccounts: true
+    })
+  })
+
+  it('prevents a v24 build from stripping an Off during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 25,
+      saveNotesToAccounts: false
+    }
+    const oldNormalized = { ...disk, version: 24 }
+    Reflect.deleteProperty(oldNormalized, 'saveNotesToAccounts')
+
+    if (shouldPersistSettings(disk, 24)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({ saveNotesToAccounts: false })
+  })
+
+  it('reads Use my game favorites (default on) and keeps an Off across a v25 round-trip', () => {
+    expect(parseSettings({ version: 25 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      useGameFavorites: true
+    })
+    expect(parseSettings({ useGameFavorites: 'no' })).toMatchObject({ useGameFavorites: true })
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 26,
+      useGameFavorites: false
+    }
+    const oldNormalized = { ...disk, version: 25 }
+    Reflect.deleteProperty(oldNormalized, 'useGameFavorites')
+    if (shouldPersistSettings(disk, 25)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ useGameFavorites: false })
+  })
+})
+
+describe('Friends order setting', () => {
+  it('reads the friends order (default Name) and keeps a choice across a v26 round-trip', () => {
+    expect(parseSettings({ version: 26 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      friendSort: 'name'
+    })
+    expect(parseSettings({ friendSort: 'joinable' })).toMatchObject({ friendSort: 'joinable' })
+    expect(parseSettings({ friendSort: 'loudest' })).toMatchObject({ friendSort: 'name' })
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 27,
+      friendSort: 'world'
+    }
+    const oldNormalized = { ...disk, version: 26 }
+    Reflect.deleteProperty(oldNormalized, 'friendSort')
+    if (shouldPersistSettings(disk, 26)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ friendSort: 'world' })
   })
 })

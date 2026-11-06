@@ -22,16 +22,43 @@
  *   collapsedFriendSections → friends-list presence-section grouping (VRX-67; Offline collapsed by default)
  *   notifyFriend*          → native friend transition alerts (VRX-84; ALL opt-in, VRX-205)
  *   notifyHotInstance      → hot-instance threshold crossings (VRX-85; opt-in, VRX-205)
+ *   friendAlertScope       → everyone, or only picked friends, for friend alerts (owner, 2026-10-27;
+ *                            default everyone; the picks are per account in SocialStore)
  *   reconcileInterval      → friends-list background safety-net cadence (VRX-77; WS remains live path;
  *                            1h default matches VRCX, v14)
  *   drawerOpener           → friend-drawer pointer opener surface (VRX-228; whole-card default, owner ruling 2026-07-27)
  *   allowJoinInstances     → whether VRX may launch a friend's instance (VRX-39; default ON)
  *   confirmJoin            → whether joining requires confirmation (VRX-210; confirmation default ON)
  *   joinMode               → preferred launch mode (VRX-210; ask every time by default)
+ *   joinOpenGame           → Join uses a game that is already open instead of starting it
+ *                            again, as VRCX and CVRX do (owner, 2026-10-27; default ON)
+ *   vrchatOpenGameJoin     → how VRChat joins when open: go there, or a self-invite
+ *                            (owner, 2026-10-27; default go there)
  *   autoUpdate             → opt-in automatic download of updates (VRX-113; default OFF)
  *   updateChannel          → stable, beta, or dev feed (default stable; invalid values stay stable)
  *   dashboardSectionOrder  → which Dashboard section comes first (default Popular now first)
+ *   dashboardWearingNow, dashboardInvites → the Dashboard's worn-avatar and latest-invite
+ *                            sections (owner, 2026-10-27; default shown, v21)
+ *   dashboardSections      → the order of every Dashboard section below the numbers (owner,
+ *                            2026-10-27; v21). It owns the order: dashboardSectionOrder is kept
+ *                            in step (Popular now vs Hot Instances) for older builds.
+ *   dashboardHideEmpty     → Dashboard sections with nothing to show step aside so the rest
+ *                            use the space (owner, 2026-10-27; default on, v21)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
+ *   showActivityPage       → the Activity page and its in-memory record (owner, 2026-10-27; default on)
+ *   activityFilter         → which kind the Activity page lists (owner, 2026-10-27; all)
+ *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v20)
+ *   notifyInvites, notifyFriendRequests → inbox alerts (owner, 2026-10-27; opt-in like every alert, v20)
+ *   vrOverlayAlerts, vrOverlayAlertDuration → the same alerts in the VR headset through
+ *                            XSOverlay, which VRCX and CVRX both support (owner, 2026-10-31;
+ *                            default off, v22)
+ *   backgroundPictureFade  → how much the user's own background picture fades (owner, 2026-10-26)
+ *   saveNotesToAccounts    → friend notes also go to the user's own account, as in VRCX and
+ *                            CVRX (owner, 2026-11-01; default on, v24)
+ *   useGameFavorites       → stars also use the favorites in the user's own accounts, as in
+ *                            VRCX and CVRX (owner, 2026-11-01; default on, v26)
+ *   friendSort             → the order inside each friends-list group: Name, Recent, World
+ *                            or Joinable (owner, 2026-11-02; default name, v27)
  *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
  *                            only for a brand-new settings file or "Run setup again")
  */
@@ -43,21 +70,31 @@ import {
 } from './constants'
 import {
   BACKGROUND_GLOWS,
+  BACKGROUND_PICTURE_FADES,
   DASHBOARD_SECTION_ORDERS,
+  DASHBOARD_SECTIONS,
+  dashboardSectionOrderOf,
+  dashboardSectionsFromOrder,
+  normalizeDashboardSections,
   DRAWER_OPENERS,
-  FRIEND_SECTIONS,
+  FRIEND_ALERT_SCOPES,
+  FRIEND_LIST_SECTIONS,
+  FRIEND_SORTS,
   JOIN_MODE_PREFERENCES,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
   THEMES,
-  UPDATE_CHANNELS
+  UPDATE_CHANNELS,
+  VR_ALERT_DURATIONS,
+  VRCHAT_OPEN_GAME_JOINS
 } from './types'
+import { ACTIVITY_FILTERS } from './activity'
 
 /** Additive-at-the-same-version fields can be silently stripped and rewritten by
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 15 as const
+export const SETTINGS_VERSION = 27 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -68,9 +105,36 @@ export const SettingsSchema = z.object({
   hotInstancesEnabled: z.boolean().catch(true),
   /** Dashboard section order; the first section shows picture cards. */
   dashboardSectionOrder: z.enum(DASHBOARD_SECTION_ORDERS).catch('popular-first'),
+  /** The worn avatar per platform, and the latest invite per platform, under the
+   *  Dashboard numbers. Hiding either keeps the Avatars and Inbox pages. */
+  dashboardWearingNow: z.boolean().catch(true),
+  dashboardInvites: z.boolean().catch(true),
+  /** The order of every section below the Dashboard numbers. Unknown or repeated
+   *  entries drop and missing ones are appended; a file without it takes the order
+   *  from `dashboardSectionOrder` (see `parseSettings`). */
+  dashboardSections: z
+    .array(z.unknown())
+    .max(16)
+    .transform(normalizeDashboardSections)
+    .catch([...DASHBOARD_SECTIONS]),
+  /** Sections with nothing to show (no invites, no hot instances) step aside and
+   *  the first shown section takes the picture cards. Off shows their empty states. */
+  dashboardHideEmpty: z.boolean().catch(true),
   /** Optional sidebar pages. Hiding a page keeps its Dashboard section and alerts. */
   showHotInstancesPage: z.boolean().catch(true),
   showExplorePage: z.boolean().catch(true),
+  /** The Activity page. Off also stops VRX keeping activity and forgets what it kept. */
+  showActivityPage: z.boolean().catch(true),
+  /** Which kind the Activity page lists. Filters the view only; nothing is lost. */
+  activityFilter: z.enum(ACTIVITY_FILTERS).catch('all'),
+  /** The Inbox page. Hiding it keeps its alerts, which have their own switches. */
+  showInboxPage: z.boolean().catch(true),
+  /** The Search page (people and worlds on both platforms). */
+  showSearchPage: z.boolean().catch(true),
+  /** The Groups page (the user's own groups, read only). */
+  showGroupsPage: z.boolean().catch(true),
+  /** The "playing now" line under the Dashboard numbers: everyone on each platform. */
+  dashboardPlayersOnline: z.boolean().catch(true),
   /** First-run welcome setup is waiting. Missing or invalid data never starts it:
    *  main marks only a brand-new install (see `freshInstallSettings`). */
   setupPending: z.boolean().catch(false),
@@ -98,7 +162,9 @@ export const SettingsSchema = z.object({
     .max(HOT_INSTANCE_THRESHOLD_MAX)
     .catch(HOT_INSTANCE_THRESHOLD),
   /** Friends-list presence sections the user collapsed (VRX-67). Offline is collapsed by default. */
-  collapsedFriendSections: z.array(z.enum(FRIEND_SECTIONS)).catch(['offline']),
+  collapsedFriendSections: z.array(z.enum(FRIEND_LIST_SECTIONS)).catch(['offline']),
+  /** The order inside each friends-list group. Groups stay; the name breaks ties. */
+  friendSort: z.enum(FRIEND_SORTS).catch('name'),
   /** Native friend-transition alert toggles (VRX-84). */
   // VRX-205 (owner, 2026-07-11): QUIET DEFAULTS — every alert ships OFF; the
   // user opts in (and VRX-203's follow-a-friend becomes the natural opt-in
@@ -109,8 +175,24 @@ export const SettingsSchema = z.object({
   notifyFriendOffline: z.boolean().catch(false),
   /** Native hot-instance crossing alert (VRX-85). Ships OFF like every alert (VRX-205). */
   notifyHotInstance: z.boolean().catch(false),
-  /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default. */
+  /** Who the three friend alerts above cover (owner, 2026-10-27). `picked` limits
+   *  them to the friends chosen in the details panel; hot-instance alerts are
+   *  about groups and stay unaffected. Default everyone keeps today's behavior. */
+  friendAlertScope: z.enum(FRIEND_ALERT_SCOPES).catch('everyone'),
+  /** Native alerts for a new invite or invite request, and a new friend request. Off by default. */
+  notifyInvites: z.boolean().catch(false),
+  notifyFriendRequests: z.boolean().catch(false),
+  /** Also show every alert switched on above in the VR headset through XSOverlay,
+   *  over this computer only. Off by default; the switches above still pick which alerts fire. */
+  vrOverlayAlerts: z.boolean().catch(false),
+  /** How long each VR alert stays in view. */
+  vrOverlayAlertDuration: z.enum(VR_ALERT_DURATIONS).catch('medium'),
+  /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default;
+   *  `off` hides the glow (owner, 2026-10-26). */
   backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard'),
+  /** Fade over the user's own background picture. The picture itself is a file
+   *  main keeps in app storage, never a setting. */
+  backgroundPictureFade: z.enum(BACKGROUND_PICTURE_FADES).catch('medium'),
   /** Friends-list background reconcile cadence (VRX-77). The WebSocket remains the live path. */
   reconcileInterval: z.enum(RECONCILE_INTERVALS).catch('1h'),
   /** Friend-drawer POINTER opener surface (VRX-228): `card` = the whole row opens
@@ -123,6 +205,19 @@ export const SettingsSchema = z.object({
   confirmJoin: z.boolean().catch(true),
   /** Preferred Join launch mode (VRX-210). `ask` defers the choice to each Join action. */
   joinMode: z.enum(JOIN_MODE_PREFERENCES).catch('ask'),
+  /** Join sends you into VRChat or ChilloutVR when it is already open on this
+   *  computer, instead of starting a second copy. Off always starts the game. */
+  joinOpenGame: z.boolean().catch(true),
+  /** How VRChat joins when it is already open. Main falls back to `invite`
+   *  wherever the game cannot take the join directly. */
+  vrchatOpenGameJoin: z.enum(VRCHAT_OPEN_GAME_JOINS).catch('go'),
+  /** Friend notes are also saved to the user's own VRChat or ChilloutVR account,
+   *  as VRCX and CVRX do. Off keeps notes on this computer only. */
+  saveNotesToAccounts: z.boolean().catch(true),
+  /** Stars also show and change the favorites in the user's own VRChat and
+   *  ChilloutVR accounts, as VRCX and CVRX do. Off keeps stars in VRX only
+   *  and reads nothing. */
+  useGameFavorites: z.boolean().catch(true),
   /** Opt-in automatic update download (VRX-113). Default OFF — consent-first. */
   autoUpdate: z.boolean().catch(false),
   /**
@@ -144,7 +239,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v15 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v27 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -178,7 +273,46 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   // v14 → v15: `updateChannel` is additive. The version boundary keeps a stored
   // beta or dev choice if an older build loads the file and would otherwise
   // strip the key. Missing values still parse as stable.
-  14: (prev) => ({ ...prev })
+  14: (prev) => ({ ...prev }),
+  // v15 → v16: `backgroundGlow: 'off'` and `backgroundPictureFade` are
+  // additive. The version boundary stops an older build from turning a stored
+  // `off` back into standard or stripping the fade.
+  15: (prev) => ({ ...prev }),
+  // v16 → v17: the Activity page switch and its filters are additive. The
+  // version boundary stops an older build from stripping a user's Off.
+  16: (prev) => ({ ...prev }),
+  // v17 → v18: `friendAlertScope` is additive. The version boundary stops an
+  // older build from stripping a stored `picked` and alerting for everyone.
+  17: (prev) => ({ ...prev }),
+  // v18 → v19: `joinOpenGame` and `vrchatOpenGameJoin` are additive. The
+  // version boundary keeps a stored choice if an older build loads the file.
+  18: (prev) => ({ ...prev }),
+  // v19 → v20: `showInboxPage`, `notifyInvites` and `notifyFriendRequests` are
+  // additive. The version boundary stops an older build from stripping them.
+  19: (prev) => ({ ...prev }),
+  // v20 → v21: `dashboardWearingNow`, `dashboardInvites`, `dashboardSections`
+  // and `dashboardHideEmpty` are additive. The
+  // version boundary stops an older build from stripping a user's Off.
+  20: (prev) => ({ ...prev }),
+  // v21 → v22: `vrOverlayAlerts` and `vrOverlayAlertDuration` are additive. The
+  // version boundary stops an older build from stripping a user's choice.
+  21: (prev) => ({ ...prev }),
+  // v22 → v23: `showSearchPage`, `showGroupsPage` and `dashboardPlayersOnline`
+  // are additive. The version boundary stops an older build from stripping them.
+  22: (prev) => ({ ...prev }),
+  // v23 → v24: `collapsedFriendSections` may hold the new `favorites` section.
+  // An older build would throw the whole list away (the array falls back to
+  // its default), so the version boundary stops it from saving that loss.
+  23: (prev) => ({ ...prev }),
+  // v24 → v25: `saveNotesToAccounts` is additive. The version boundary stops an
+  // older build from stripping a user's Off.
+  24: (prev) => ({ ...prev }),
+  // v25 → v26: `useGameFavorites` is additive. The version boundary stops an
+  // older build from stripping a user's Off.
+  25: (prev) => ({ ...prev }),
+  // v26 → v27: `friendSort` is additive. The version boundary stops an older
+  // build from stripping a user's chosen order.
+  26: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -239,7 +373,18 @@ export function runMigrations(
  */
 export function parseSettings(raw: unknown): Settings {
   const migrated = runMigrations(isRecord(raw) ? raw : {})
-  return SettingsSchema.parse(migrated)
+  const parsed = SettingsSchema.parse(migrated)
+  // The section list owns the Dashboard order. A file from before it existed
+  // keeps its Popular now / Hot Instances order; afterwards the older field
+  // follows the list so an older build still shows the same two in order.
+  const sections = Array.isArray(migrated.dashboardSections)
+    ? parsed.dashboardSections
+    : dashboardSectionsFromOrder(parsed.dashboardSectionOrder)
+  return {
+    ...parsed,
+    dashboardSections: sections,
+    dashboardSectionOrder: dashboardSectionOrderOf(sections)
+  }
 }
 
 /**

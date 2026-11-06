@@ -6,6 +6,8 @@ import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { stubPlatformAdapter } from '../services/adapters/__testutils__/adapterTestKit'
 import { LocationAuthority } from '../services/locationAuthority'
 import { JoinCoordinator } from '../services/joinCoordinator'
+import { GameHandoff, type GameHandoffSettings } from '../services/gameHandoff'
+import { AccountSession } from '../services/accountSession'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 
 const handlers = new Map<string, (event: unknown, req: unknown) => unknown>()
@@ -134,7 +136,10 @@ describe('join-instance handler', () => {
     })
     expect(openExternal).not.toHaveBeenCalled()
     now += 3_000
-    await expect(call('join-instance', joinReq(target))).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(target))).resolves.toEqual({
+      ok: true,
+      handoff: 'launch'
+    })
     expect(openExternal).toHaveBeenCalledTimes(1)
     expect(coordinator.acquire('vrchat', key)).toBeNull()
   })
@@ -270,7 +275,8 @@ describe('join-instance handler', () => {
   it('builds, validates, launches, and returns a typed success', async () => {
     seed()
     await expect(call('join-instance', joinReq(friend(), { mode: 'desktop' }))).resolves.toEqual({
-      ok: true
+      ok: true,
+      handoff: 'launch'
     })
     expect(adapter.buildJoinUrl).toHaveBeenCalledWith(friend().instance, 'desktop')
     expect(openExternal).toHaveBeenCalledWith(launchUrl)
@@ -291,7 +297,7 @@ describe('join-instance handler', () => {
       reason: 'cooldown'
     })
     release()
-    await expect(first).resolves.toEqual({ ok: true })
+    await expect(first).resolves.toEqual({ ok: true, handoff: 'launch' })
   })
 
   it('allows a different destination immediately but retains the existing per-friend cooldown', async () => {
@@ -304,8 +310,14 @@ describe('join-instance handler', () => {
     const revision = authority.captureSeedRevision('vrchat')
     authority.seed('vrchat', [friend(), friendB], revision)
 
-    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({ ok: true })
-    await expect(call('join-instance', joinReq(friendB))).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'launch'
+    })
+    await expect(call('join-instance', joinReq(friendB))).resolves.toEqual({
+      ok: true,
+      handoff: 'launch'
+    })
     await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
       ok: false,
       reason: 'cooldown'
@@ -317,7 +329,10 @@ describe('join-instance handler', () => {
       reason: 'cooldown'
     })
     now += 1
-    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'launch'
+    })
   })
 
   it('returns launch-failed without leaking the rejection and releases the lock', async () => {
@@ -339,7 +354,10 @@ describe('join-instance handler', () => {
     await expect(first).resolves.toEqual({ ok: false, reason: 'launch-failed' })
 
     openExternal.mockResolvedValueOnce(undefined)
-    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'launch'
+    })
     expect(log).toHaveBeenCalledWith('warn', 'instance action denied', {
       platform: 'vrchat',
       reason: 'launch-failed'
@@ -376,7 +394,8 @@ describe('join-instance handler', () => {
     expect(openExternal).not.toHaveBeenCalled()
 
     await expect(call('join-instance', joinReq(atB, { mode: 'desktop' }))).resolves.toEqual({
-      ok: true
+      ok: true,
+      handoff: 'launch'
     })
     expect(adapter.buildJoinUrl).toHaveBeenCalledWith(atB.instance, 'desktop')
     expect(openExternal).toHaveBeenCalledWith(launchUrl)
@@ -426,7 +445,10 @@ describe('self-invite handler', () => {
 
   it('does not share its cooldown with join', async () => {
     seed()
-    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'launch'
+    })
     await expect(
       call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
     ).resolves.toEqual({ ok: true })
@@ -462,7 +484,7 @@ describe('self-invite handler', () => {
         'join-instance',
         joinReq(friend(), { expectedTarget: { worldId: 'wrld_example', instanceId: 'instance-1' } })
       )
-    ).resolves.toEqual({ ok: true })
+    ).resolves.toEqual({ ok: true, handoff: 'launch' })
     await expect(
       call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
     ).resolves.toEqual({ ok: true })
@@ -485,5 +507,229 @@ describe('self-invite handler', () => {
       reason: 'invite-failed'
     })
     expect(JSON.stringify(log.mock.calls)).not.toContain('wrld_example:instance-1')
+  })
+})
+
+describe('join in a game that is already open', () => {
+  let running: Set<Platform>
+  let handoffSettings: GameHandoffSettings
+  let hostPlatform: NodeJS.Platform
+  let sendToVrchat: ReturnType<
+    typeof vi.fn<(url: string, stillCurrent: () => boolean) => Promise<boolean>>
+  >
+  let cvrAdapter: IPlatformAdapter
+  let accountSession: AccountSession
+  const cvrInstance = 'i+0123456789abcdef-012345-6789ab-01234567'
+  const cvrUrl = `chilloutvr://instance/join?instanceId=${encodeURIComponent(cvrInstance)}&startInVR=true`
+
+  function cvrFriend(): Friend {
+    return friend({
+      platform: 'chilloutvr',
+      platformUserId: 'cvr_friend',
+      instance: { ...friend().instance!, worldId: 'cvr-world', instanceId: cvrInstance }
+    })
+  }
+
+  beforeEach(() => {
+    handlers.clear()
+    running = new Set()
+    handoffSettings = { joinOpenGame: true, vrchatOpenGameJoin: 'go' }
+    hostPlatform = 'win32'
+    sendToVrchat = vi
+      .fn<(url: string, stillCurrent: () => boolean) => Promise<boolean>>()
+      .mockResolvedValue(true)
+    cvrAdapter = stubPlatformAdapter({ platform: 'chilloutvr' })
+    vi.mocked(cvrAdapter.buildJoinUrl).mockReturnValue(cvrUrl)
+    accountSession = new AccountSession()
+    accountSession.setIdentity('vrchat', 'usr_me')
+    accountSession.setIdentity('chilloutvr', 'cvr_me')
+    registerInstanceHandlers(
+      new Map<Platform, IPlatformAdapter>([
+        ['vrchat', adapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      authority,
+      {
+        clock: () => now,
+        log,
+        isJoinAllowed: () => true,
+        accountSession,
+        gameHandoff: new GameHandoff({
+          get hostPlatform() {
+            return hostPlatform
+          },
+          isRunning: async (platform) => running.has(platform),
+          settings: () => handoffSettings,
+          openExternal,
+          sendToVrchat
+        })
+      }
+    )
+  })
+
+  function seedCvr(target = cvrFriend()): void {
+    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+    const revision = authority.captureSeedRevision('chilloutvr')
+    authority.seed('chilloutvr', [target], revision)
+  }
+
+  it('launches as before when the game is not open', async () => {
+    seed()
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'launch'
+    })
+    expect(openExternal).toHaveBeenCalledWith(launchUrl)
+    expect(sendToVrchat).not.toHaveBeenCalled()
+    expect(adapter.selfInvite).not.toHaveBeenCalled()
+  })
+
+  it('hands the VRChat join to the open game on Windows, with no second launch', async () => {
+    seed()
+    running.add('vrchat')
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'in-game'
+    })
+    expect(sendToVrchat).toHaveBeenCalledWith(launchUrl, expect.any(Function))
+    expect(openExternal).not.toHaveBeenCalled()
+    expect(adapter.selfInvite).not.toHaveBeenCalled()
+  })
+
+  it('sends one self-invite to the main-owned location when the game refuses the URL', async () => {
+    seed()
+    running.add('vrchat')
+    sendToVrchat.mockResolvedValue(false)
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'invite'
+    })
+    expect(adapter.selfInvite).toHaveBeenCalledExactlyOnceWith('wrld_example:instance-1')
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('uses a self-invite on Linux and when the user picked invites', async () => {
+    seed()
+    running.add('vrchat')
+    hostPlatform = 'linux'
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'invite'
+    })
+    now += 3_000
+    hostPlatform = 'win32'
+    handoffSettings = { joinOpenGame: true, vrchatOpenGameJoin: 'invite' }
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'invite'
+    })
+    expect(sendToVrchat).not.toHaveBeenCalled()
+    expect(adapter.selfInvite).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports invite-failed and keeps the destination retryable', async () => {
+    seed()
+    running.add('vrchat')
+    hostPlatform = 'linux'
+    vi.mocked(adapter.selfInvite).mockRejectedValueOnce(new Error('403 for wrld_example'))
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'invite-failed'
+    })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'invite'
+    })
+    expect(JSON.stringify(log.mock.calls)).not.toContain('wrld_example')
+  })
+
+  it('opens the ChilloutVR link, which the open game picks up', async () => {
+    seedCvr()
+    running.add('chilloutvr')
+    await expect(call('join-instance', joinReq(cvrFriend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'in-game'
+    })
+    expect(openExternal).toHaveBeenCalledExactlyOnceWith(cvrUrl)
+    expect(cvrAdapter.selfInvite).not.toHaveBeenCalled()
+  })
+
+  it('always launches when the setting is off', async () => {
+    seed()
+    running.add('vrchat')
+    handoffSettings = { joinOpenGame: false, vrchatOpenGameJoin: 'go' }
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: true,
+      handoff: 'launch'
+    })
+    expect(sendToVrchat).not.toHaveBeenCalled()
+  })
+
+  it('sends no invite for the old account when the sign-in changes during the pipe wait', async () => {
+    seed()
+    running.add('vrchat')
+    sendToVrchat.mockImplementation(async () => {
+      accountSession.setIdentity('vrchat', 'usr_other')
+      return false
+    })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'stale'
+    })
+    expect(adapter.selfInvite).not.toHaveBeenCalled()
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('opens no link for the old account when the sign-in changes during the process check', async () => {
+    seedCvr()
+    running.add('chilloutvr')
+    const check = running.has.bind(running)
+    running.has = (platform) => {
+      accountSession.setIdentity('chilloutvr', null)
+      return check(platform)
+    }
+    await expect(call('join-instance', joinReq(cvrFriend()))).resolves.toEqual({
+      ok: false,
+      reason: 'stale'
+    })
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('refuses a Join with no signed-in account', async () => {
+    seed()
+    accountSession.setIdentity('vrchat', null)
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'stale'
+    })
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('previews the handoff for each platform and validates the request', async () => {
+    running.add('vrchat')
+    running.add('chilloutvr')
+    await expect(call('get-join-handoff', { platform: 'vrchat' })).resolves.toBe('in-game')
+    await expect(call('get-join-handoff', { platform: 'chilloutvr' })).resolves.toBe('in-game')
+    hostPlatform = 'linux'
+    await expect(call('get-join-handoff', { platform: 'vrchat' })).resolves.toBe('invite')
+    running.clear()
+    await expect(call('get-join-handoff', { platform: 'vrchat' })).resolves.toBe('launch')
+    await expect(call('get-join-handoff', { platform: 'steam' })).rejects.toThrow(
+      'Invalid get-join-handoff request'
+    )
+    trusted.value = false
+    await expect(call('get-join-handoff', { platform: 'vrchat' })).rejects.toThrow(
+      'Untrusted IPC sender'
+    )
+  })
+})
+
+describe('self-invite outside a Join', () => {
+  it('still refuses a public instance without an API call', async () => {
+    seed(friend({ instance: { ...friend().instance!, instanceId: '22222', type: 'public' } }))
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    ).resolves.toEqual({ ok: false, reason: 'invite-failed' })
+    expect(adapter.selfInvite).not.toHaveBeenCalled()
   })
 })

@@ -52,18 +52,25 @@ clears per-session caches, and restarts or stops its socket.
 
 `main/app.ts` handles each adapter's `onSessionBoundary`:
 
-| Consumer                     | VRChat                                               | ChilloutVR      |
-| ---------------------------- | ---------------------------------------------------- | --------------- |
-| `FriendAlerts`               | `resetPlatform`                                      | `resetPlatform` |
-| `LocationAuthority`          | `clearPlatform`                                      | `clearPlatform` |
-| `ExploreService`             | `clearPlatform`                                      | `clearPlatform` |
-| `AvatarCache`                | Drops cached failures; successful images stay        | Not touched     |
-| Renderer `identity-boundary` | Sent, except for an identity-retaining data-path 401 | Always sent     |
+| Consumer                                                                                                                                                                                                                | VRChat                                                  | ChilloutVR                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------- |
+| `FriendAlerts`                                                                                                                                                                                                          | `resetPlatform`                                         | `resetPlatform`                              |
+| `ActivityFeed`                                                                                                                                                                                                          | `resetPlatform` (keeps entries for a retained identity) | `resetPlatform`                              |
+| `InboxService`                                                                                                                                                                                                          | `resetPlatform`, unless the identity is retained        | `resetPlatform`                              |
+| `LocationAuthority`, `ExploreService`, `AvatarLibraryService`, `CommunityService`, `OwnProfileService`, `SocialActionService`, `AccountNoteService`, `GameFavoritesService`, `HomeWorldService`, `FriendActionsService` | `clearPlatform`                                         | `clearPlatform`                              |
+| `AvatarCache`                                                                                                                                                                                                           | Drops cached failures; successful images stay           | Not touched                                  |
+| Renderer `identity-boundary`                                                                                                                                                                                            | Sent, except for an identity-retaining data-path 401    | Sent, except for a same-account key rotation |
 
 A VRChat data-path 401 sets `identityRetained`. The same account may only need
 its second factor again, so `AccountSession` keeps the identity and epoch, and
 main clears its own state but sends no `identity-boundary`. The `auth-invalidated` event that follows quarantines the
-renderer instead. ChilloutVR has no second factor, so it has no such case.
+renderer instead.
+
+ChilloutVR sets `identityRetained` when it confirms a data-path 403 by signing
+in again and gets a new access key for the same account. Requests are still
+fenced, but nothing account-scoped changed, so main clears nothing for
+ChilloutVR and sends no `identity-boundary`. Every other ChilloutVR boundary
+clears every row in the table and sends it.
 
 In the renderer, `useLiveFriendEvents` handles `identity-boundary` for that
 platform only. It drops buffered live state, cancels and removes friend-note
@@ -81,6 +88,9 @@ checks ownership at the point of the write:
 | Network requests    | A request lease bound to the adapter's session generation, checked before admission, after admission, and after the response |
 | `SocialStore.write` | `{ platform, platformAccountId, epoch }` must equal the current `resolve()` result, or it throws `stale account epoch`       |
 | Friend notes IPC    | `get-friend-note` returns `{ platformAccountId, epoch }`; `set-friend-note` must echo it, or the result is `stale`           |
+| Alert picks IPC     | `get-alert-picks` returns the same revision; `set-alert-pick` must echo it, or the result is `stale`                         |
+| Favorites IPC       | `get-favorite-*` and `get-game-favorites` return the same revision; every `set-*favorite*` must echo it, or it is `stale`    |
+| Note sync IPC       | `sync-friend-note` carries the revision; a changed account or epoch answers `stale` and nothing is sent                      |
 | `AccountRegistry`   | `recordAuthenticated` requires the reported account and epoch to match `AccountSession`                                      |
 | Linked profiles IPC | A lease that rotates whenever either platform's resolution changes, plus a per-profile revision on every change              |
 | `ExploreService`    | Per-platform state tied to `accountKey` and epoch; work from an older state is cancelled and discarded                       |
@@ -133,13 +143,23 @@ Each namespace is an `AccountScoped<T>` envelope (`schemaVersion`, `platform`,
 | Namespace                            | Bound                                        | Used today     |
 | ------------------------------------ | -------------------------------------------- | -------------- |
 | `notes`                              | 5,000 friends, 10,000 characters each        | Yes            |
-| `favorites`                          | 5,000 friends                                | No             |
+| `noteSync`                           | 5,000 friends, 10,000 characters each        | Yes            |
+| `favorites`                          | 5,000 friends                                | Yes            |
+| `favoriteWorlds`                     | 100 worlds (name, picture address, added at) | Yes            |
 | `tags`                               | 5,000 friends, 25 tags of 64 characters each | No             |
-| `socialPrefs`                        | Notification flags and followed friend ids   | No             |
+| `socialPrefs`                        | Notification flags and followed friend ids   | Followed ids   |
 | `perFriendOptOuts`                   | 5,000 friends                                | No             |
 | `instanceHistory`, `activityHistory` | 200-entry ring type                          | Writes refused |
 
-Only friend notes are wired. The notes IPC limits a note to 500 characters. A
+Friend notes, note sync, favorites and alert picks are wired. The notes IPC
+limits a note to 500 characters. `noteSync` holds the last note text VRX and
+the account both agreed on, so a later change on either side can be told
+apart from one on both (then the user picks). `favorites` and
+`favoriteWorlds` are VRX's own stars; favorites saved to the platform account
+(VRChat favorite groups, ChilloutVR categories) live in the account and are
+held only in memory by `GameFavoritesService`. Alert picks live in
+`socialPrefs.followedFriendIds`; the notification flags in that namespace stay
+unused. A
 read that fails validation or names a different account returns nothing.
 
 ### Linked profiles
@@ -193,11 +213,12 @@ another account does not change settings.
 
 - An account switcher, saved accounts per platform, or an add-account flow.
 - Per-account credential slots.
-- Per-account settings. The `socialPrefs` and `perFriendOptOuts` namespaces
-  exist but nothing reads or writes them.
-- Favorites, tags, followed friends, and history. `Friend.isFavorite`,
-  `favoriteGroupIds`, and `linkedPersonId` are placeholders that adapters always
-  set to defaults.
+- Per-account settings. Only `socialPrefs.followedFriendIds` (alert picks) is
+  used; its notification flags and the `perFriendOptOuts` namespace exist but
+  nothing reads or writes them.
+- Tags and history. `Friend.isFavorite`, `favoriteGroupIds` and
+  `linkedPersonId` are placeholders that adapters always set to defaults;
+  favorites come from the `favorites` IPC instead.
 - Account removal, data wipe, and a recovery path for an unreadable store.
 - A UI for the account registry. The renderer's `stores/accounts.ts` calls
   `get-accounts`, but no component uses it.

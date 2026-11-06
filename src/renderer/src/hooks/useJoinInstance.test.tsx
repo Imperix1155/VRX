@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import type { ExploreRoom, ExploreWorld } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
+import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import { queryClient } from '../queries/queryClient'
 import { friendsQueryKey } from '../queries/friends'
@@ -268,9 +269,68 @@ describe('useJoinInstance', () => {
   it('says a friend is no longer joinable instead of blaming the game', () => {
     expect(joinFailureMessageKey('not-joinable')).toBe('friends.joinFailure.notJoinable')
     expect(joinFailureMessageKey('unknown-friend')).toBe('friends.joinFailure.notJoinable')
-    // A failed launch or invite keeps the check-the-game advice.
-    expect(joinFailureMessageKey('invite-failed')).toBe('friends.joinFailed')
-    expect(joinFailureMessageKey('launch-failed')).toBe('friends.joinFailed')
+    // A failed invite says so; anything unexplained keeps the general advice.
+    expect(joinFailureMessageKey('invite-failed')).toBe('friends.joinFailure.inviteFailed')
+    expect(joinFailureMessageKey('unknown')).toBe('friends.joinFailed')
+  })
+
+  it('says to check the game is installed when its link did not open, not the connection', () => {
+    // Nothing on this PC opened the game's link: retrying or the network
+    // will not change that.
+    expect(joinFailureMessageKey('launch-failed')).toBe('friends.joinFailure.launchFailed')
+    expect(i18n.t('friends.joinFailure.launchFailed')).toBe(
+      "Couldn't start the game. Check that it is installed."
+    )
+  })
+
+  it('says where a Join went when it used the open game, then clears on its own', async () => {
+    vi.useFakeTimers()
+    joinInstance.mockResolvedValueOnce({ ok: true, handoff: 'invite' })
+    const { result } = renderHook(() => useJoinInstance())
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('invite-sent')
+    expect(result.current.joinFailedFor(friend)).toBe(false)
+    expect(joinFailureMessageKey('invite-sent')).toBe('friends.joinNotice.inviteSent')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(7_999)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('invite-sent')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(result.current.joinFailureFor(friend)).toBeNull()
+
+    joinInstance.mockResolvedValueOnce({ ok: true, handoff: 'in-game' })
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('in-game')
+    expect(joinFailureMessageKey('in-game')).toBe('friends.joinNotice.inGame')
+    // A plain launch says nothing, and replaces the earlier note.
+    joinInstance.mockResolvedValueOnce({ ok: true, handoff: 'launch' })
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    expect(result.current.joinFailureFor(friend)).toBeNull()
+  })
+
+  it('a later failure is not cleared by an earlier note’s timer', async () => {
+    vi.useFakeTimers()
+    joinInstance.mockResolvedValueOnce({ ok: true, handoff: 'in-game' })
+    const { result } = renderHook(() => useJoinInstance())
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    joinInstance.mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('cooldown')
   })
 
   it('cross-surface latch: while ANY join is in flight, every other surface no-ops', async () => {
@@ -477,6 +537,76 @@ describe('useJoinInstance', () => {
     expect(result).toBe('review-required')
     expect(hook.result.current.pendingConfirm?.awaitingCacheAfter).not.toBeNull()
     expect(joinInstance).toHaveBeenCalledOnce()
+  })
+
+  it('a direct join told the location changed reads the friend list once, so Join again can work', async () => {
+    // Confirmation off: the renderer cache is behind main (it still shows the
+    // place main turned down), and nothing else refreshes it while the
+    // reconcile cadence is manual.
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+    const refetch = vi.spyOn(queryClient, 'refetchQueries').mockResolvedValue(undefined)
+    try {
+      joinInstance.mockResolvedValueOnce({ ok: false, reason: 'target-changed' })
+      const hook = renderHook(() => useJoinInstance())
+
+      await act(async () => {
+        await hook.result.current.join(friend)
+      })
+
+      expect(hook.result.current.joinFailureFor(friend)).toBe('target-changed')
+      expect(refetch).toHaveBeenCalledOnce()
+      // Never a second read while one is already running.
+      expect(refetch).toHaveBeenCalledWith(
+        { queryKey: friendsQueryKey('vrchat') },
+        { cancelRefetch: false }
+      )
+
+      // Any other denial reads nothing.
+      joinInstance.mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+      await act(async () => {
+        await hook.result.current.join(friend)
+      })
+      expect(hook.result.current.joinFailureFor(friend)).toBe('cooldown')
+      expect(refetch).toHaveBeenCalledOnce()
+    } finally {
+      refetch.mockRestore()
+    }
+  })
+
+  it('a direct join told the location changed reads nothing once the list shows the move', async () => {
+    // The friend's live update lands before main's answer, as it does when the
+    // move reached main over the live connection: the list is already current.
+    const moved: Friend = {
+      ...friend,
+      instance: { ...friend.instance!, instanceId: `${friend.instance!.instanceId}-moved` }
+    }
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+    const refetch = vi.spyOn(queryClient, 'refetchQueries').mockResolvedValue(undefined)
+    try {
+      joinInstance.mockImplementationOnce(async () => {
+        queryClient.setQueryData(friendsQueryKey('vrchat'), [moved])
+        return { ok: false, reason: 'target-changed' }
+      })
+      const hook = renderHook(() => useJoinInstance())
+      await act(async () => {
+        await hook.result.current.join(friend)
+      })
+      expect(hook.result.current.joinFailureFor(friend)).toBe('target-changed')
+      expect(refetch).not.toHaveBeenCalled()
+
+      // Nor when the move made them not joinable: the row already says so.
+      queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+      joinInstance.mockImplementationOnce(async () => {
+        queryClient.setQueryData(friendsQueryKey('vrchat'), [{ ...friend, instance: null }])
+        return { ok: false, reason: 'target-changed' }
+      })
+      await act(async () => {
+        await hook.result.current.join(friend)
+      })
+      expect(refetch).not.toHaveBeenCalled()
+    } finally {
+      refetch.mockRestore()
+    }
   })
 
   it('confirmPending returns unavailable when the live friend is no longer joinable', async () => {

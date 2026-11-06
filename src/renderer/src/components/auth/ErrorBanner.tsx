@@ -15,10 +15,13 @@ export default function ErrorBanner({
   if (!errorKey) return null
   return (
     <p
-      className={`flex items-center gap-[var(--space-2)] text-sm text-[var(--error)]${className ? ` ${className}` : ''}`}
+      className={`flex items-start gap-[var(--space-2)] text-sm text-[var(--error)]${className ? ` ${className}` : ''}`}
       role="alert"
     >
-      <span aria-hidden="true">⚠</span>
+      {/* Beside the first line, so a long message reads from the warning sign. */}
+      <span aria-hidden="true" className="shrink-0">
+        ⚠
+      </span>
       {t(errorKey)}
     </p>
   )

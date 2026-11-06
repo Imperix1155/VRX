@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { ExploreService } from '../services/exploreService'
+import type { HomeWorldService } from '../services/homeWorldService'
 
 const { handlers, trusted } = vi.hoisted(() => ({
   handlers: new Map<string, (event: IpcMainInvokeEvent, request: unknown) => unknown>(),
@@ -13,7 +14,7 @@ vi.mock('electron', () => ({
   }
 }))
 vi.mock('./security', () => ({ isTrustedIpcSender: () => trusted.value }))
-import { registerExploreHandlers } from './explore'
+import { registerExploreHandlers, registerHomeWorldHandler } from './explore'
 
 const event = { senderFrame: {} } as IpcMainInvokeEvent
 const service = {
@@ -91,5 +92,36 @@ describe('Explore IPC boundary', () => {
     expect(service.getImage).toHaveBeenCalledWith('vrchat', 'world-ref')
     expect(service.joinRoom).toHaveBeenCalledWith('chilloutvr', 'room-ref', 'vr')
     expect(service.setActive).toHaveBeenCalledWith(['vrchat'])
+  })
+})
+
+describe('Home world IPC boundary', () => {
+  const homeWorld = { setHomeWorld: vi.fn(() => Promise.resolve({ ok: true })) }
+  beforeEach(() => {
+    registerHomeWorldHandler(homeWorld as unknown as HomeWorldService)
+  })
+
+  it('guards set-home-world before parsing or delegating', () => {
+    trusted.value = false
+    expect(() => call('set-home-world', { platform: 'vrchat', worldRef: 'ref' })).toThrow(
+      'Untrusted IPC sender'
+    )
+    expect(homeWorld.setHomeWorld).not.toHaveBeenCalled()
+  })
+
+  it('takes only a platform and a bounded reference, never a world ID field', () => {
+    for (const req of [
+      null,
+      {},
+      { platform: 'steam', worldRef: 'ref' },
+      { platform: 'vrchat', worldRef: '' },
+      { platform: 'vrchat', worldRef: 'x'.repeat(129) },
+      { platform: 'vrchat', worldRef: 'ref', worldId: 'wrld_x' }
+    ]) {
+      expect(() => call('set-home-world', req)).toThrow()
+    }
+    expect(homeWorld.setHomeWorld).not.toHaveBeenCalled()
+    void call('set-home-world', { platform: 'chilloutvr', worldRef: 'ref' })
+    expect(homeWorld.setHomeWorld).toHaveBeenCalledWith('chilloutvr', 'ref')
   })
 })

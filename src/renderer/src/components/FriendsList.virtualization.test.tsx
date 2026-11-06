@@ -451,7 +451,7 @@ describe('FriendsList virtualization (VRX-63)', () => {
     let sawOverscan = false
 
     for (const button of screen.getAllByRole<HTMLButtonElement>('button', {
-      name: /^Join Friend/
+      name: /: Join Friend/
     })) {
       const row = button.closest<HTMLElement>('[data-friend-key]')
       if (row === null) throw new Error('join button had no friend row')
@@ -471,7 +471,7 @@ describe('FriendsList virtualization (VRX-63)', () => {
     const main = view.container.querySelector('main')
     if (main === null) throw new Error('missing test scroll container')
     const firstJoin = screen.getByRole<HTMLButtonElement>('button', {
-      name: 'Join Friend 0000 in Synthetic World'
+      name: 'Public: Join Friend 0000 in Synthetic World'
     })
     firstJoin.focus()
 
@@ -494,7 +494,7 @@ describe('FriendsList virtualization (VRX-63)', () => {
     vrchatFriends = Array.from({ length: 12 }, (_, index) => makeJoinableFriend(index))
     const view = renderInScrollContainer()
     const targetJoin = screen.getByRole<HTMLButtonElement>('button', {
-      name: 'Join Friend 0003 in Synthetic World'
+      name: 'Public: Join Friend 0003 in Synthetic World'
     })
     targetJoin.focus()
 

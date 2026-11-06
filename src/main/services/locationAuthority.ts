@@ -318,6 +318,12 @@ export class LocationAuthority {
     }
   }
 
+  /** Whether the last roster or live update named this friend. Says nothing about location. */
+  hasFriend(platform: Platform, friendId: string): boolean {
+    const entry = this.states[platform].friends.get(friendId)
+    return entry !== undefined && (entry.friend !== null || entry.pendingProfile !== undefined)
+  }
+
   resolve(platform: Platform, friendId: string): LocationResolution {
     const state = this.states[platform]
     if (!state.seeded || state.stale) return { ok: false, reason: 'stale' }

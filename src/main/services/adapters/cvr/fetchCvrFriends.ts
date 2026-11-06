@@ -44,6 +44,8 @@ export interface FetchCvrFriendsResult {
   friends: CvrFriend[]
   /** Number of individual roster entries skipped for malformed critical fields. */
   skippedRecords: number
+  /** Friend id → the category ids the roster lists (favorites read these). */
+  categories: Map<string, string[]>
 }
 
 // ─── Normalizer ───────────────────────────────────────────────────────────────
@@ -76,6 +78,7 @@ function normalize(raw: RawCvrFriend, platformUserId: string): CvrFriend {
 export async function fetchCvrFriends(fetcher: CvrFetcher): Promise<FetchCvrFriendsResult> {
   const roster = await fetcher('/friends', cvrRosterSchema)
   const friends: CvrFriend[] = []
+  const categories = new Map<string, string[]>()
   let skippedRecords = 0
 
   for (const entry of roster) {
@@ -92,7 +95,10 @@ export async function fetchCvrFriends(fetcher: CvrFetcher): Promise<FetchCvrFrie
     }
 
     friends.push(normalize(parsed.data, id.platformUserId))
+    if (parsed.data.categories.length > 0) {
+      categories.set(id.platformUserId, parsed.data.categories.slice(0, 64))
+    }
   }
 
-  return { friends, skippedRecords }
+  return { friends, skippedRecords, categories }
 }

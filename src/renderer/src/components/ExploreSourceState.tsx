@@ -28,7 +28,7 @@ export default function ExploreSourceState({
     )
   if (!initiallyLoading && states.length === 0) return null
   return (
-    <ul className="grid gap-[var(--space-1)] text-sm">
+    <ul className="canvas-text grid gap-[var(--space-1)] text-sm">
       {initiallyLoading ? (
         <li className="text-[var(--text-dim)]">{t('explore.sourceState.loading')}</li>
       ) : null}

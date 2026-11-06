@@ -121,6 +121,26 @@ describe('LinkedWorlds', () => {
     expect(container.querySelectorAll('img')).toHaveLength(1)
   })
 
+  it('names each platform on a split card, not only by color, and keeps the whole world in a tooltip', () => {
+    const { container } = render(
+      <LinkedWorlds
+        variant="drawer"
+        accounts={[friend('vrchat', 'vrc'), friend('chilloutvr', 'cvr')]}
+      />
+    )
+    const upper = container.querySelector('[data-linked-world-position="vrc-upper-right"]')!
+    const lower = container.querySelector('[data-linked-world-position="cvr-lower-left"]')!
+    expect(upper.querySelector('[data-linked-world-platform]')?.textContent).toBe('VRC')
+    expect(lower.querySelector('[data-linked-world-platform]')?.textContent).toBe('CVR')
+    for (const half of [upper, lower]) {
+      const caption = half.querySelector('.linked-world-caption')!
+      expect(caption.getAttribute('title')).toBe(caption.textContent)
+    }
+    // One world needs no platform word: its own outline and the account pills say it.
+    const single = render(<LinkedWorlds variant="drawer" accounts={[friend('vrchat', 'one')]} />)
+    expect(single.container.querySelector('[data-linked-world-platform]')).toBeNull()
+  })
+
   it('never starts an avatar request for the compact row variant', () => {
     render(<LinkedWorlds variant="row" accounts={[friend('vrchat', 'vrc')]} />)
     expect(avatar).not.toHaveBeenCalled()
@@ -147,7 +167,9 @@ describe('LinkedWorlds', () => {
       <LinkedWorlds variant="drawer" accounts={[hidden, friend('chilloutvr', 'visible')]} />
     )
     const upper = container.querySelector('[data-linked-world-position="vrc-upper-right"]')!
-    expect(upper.textContent).toBe('Hidden')
+    // The half still names its platform; its world stays hidden.
+    expect(upper.querySelector('[data-linked-world-platform]')?.textContent).toBe('VRC')
+    expect(upper.querySelector('.linked-world-caption')?.textContent).toBe('Hidden')
     expect(upper.querySelector('[data-instance-pill]')).toBeNull()
     expect(container.querySelector('[data-linked-world-layer="vrchat"] img')).toBeNull()
     expect(container.querySelectorAll('[data-instance-pill]')).toHaveLength(1)

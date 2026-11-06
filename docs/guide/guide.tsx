@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import mainCss from '@renderer/assets/main.css?raw'
 import { applyTheme } from '@renderer/hooks/useApplyTheme'
 import './guide.css'
+import { CSS_SAMPLES, JSX_SAMPLES, type CssSelector, type JsxSampleId } from './codeSamples'
+import { extractCssRule, groupDesignTokens, readDesignTokens } from './cssTokens'
 import {
   desktopScenes,
   drawerScenarios,
+  joinScenarios,
   exploreScenarios,
   friendsScenarios,
   sourceScenarios
@@ -14,7 +18,7 @@ declare const __APP_VERSION__: string
 declare const __GUIDE_REVISION__: string
 
 type Theme = 'dark' | 'light'
-type Glow = 'muted' | 'standard' | 'vivid'
+type Glow = 'off' | 'muted' | 'standard' | 'vivid'
 
 type SceneProps = {
   name: string
@@ -24,20 +28,36 @@ type SceneProps = {
   source: string
   height?: 'short' | 'standard' | 'tall'
   paired?: boolean
+  picture?: boolean
   variants?: readonly { value: string; label: string }[]
 }
 
 const nav = [
-  ['current', 'Current app'],
-  ['identity', 'Identity'],
-  ['color', 'Tokens and materials'],
-  ['channels', 'Meaning and state'],
-  ['ladder', 'Instance schemes'],
+  ['start', 'Start here'],
+  ['app', 'Every page'],
+  ['layers', 'Layered glass'],
+  ['color', 'Color and tokens'],
+  ['canvas', 'Canvas and glow'],
+  ['meaning', 'Meaning and state'],
+  ['ladder', 'Instance labels'],
   ['type', 'Type and layout'],
-  ['components', 'Controls and sheets'],
+  ['components', 'Controls'],
+  ['overlays', 'Drawers, sheets, dialogs'],
   ['linking', 'Friends and links'],
-  ['feedback', 'Loading and errors'],
-  ['donot', 'Contributor checks']
+  ['feedback', 'Loading, errors, setup'],
+  ['identity', 'Identity'],
+  ['donot', 'Before you ship']
+] as const
+
+const principles = [
+  ['Equal platforms', 'VRChat and ChilloutVR get the same layout, fields, order, size and words.'],
+  ['Brand colors', 'VRChat is blue, ChilloutVR is orange, All is the blend between them.'],
+  ['Color plus a word', 'Every color has a job and a word, glyph or shape beside it.'],
+  ['One exception', 'The friends-list avatar ring and dot show presence by color alone.'],
+  ['Missing red, stale dim', 'Never loaded uses --error. Older data uses --text-dim.'],
+  ['Layered glass', 'Canvas, panels, cards, chips: frosted panes stacked on each other.'],
+  ['Privacy first', 'Ask Me and Do Not Disturb never reveal a world, anywhere.'],
+  ['Simple by default', 'Few words up front. More behind ?, Show more, Settings or About.']
 ] as const
 
 function Brand(): React.JSX.Element {
@@ -54,6 +74,116 @@ function Source({ children }: { children: string }): React.JSX.Element {
   return <code className="design-guide__source">{children}</code>
 }
 
+/** One rule from the shipped stylesheet, read at build time. */
+function CssCode({ selector }: { selector: CssSelector }): React.JSX.Element {
+  const sample = CSS_SAMPLES.find((item) => item.selector === selector)
+  const rule = useMemo(() => extractCssRule(mainCss, selector), [selector])
+  return (
+    <figure className="design-guide__code">
+      <figcaption>
+        <Source>{selector}</Source>
+        {sample ? <span>{sample.note}</span> : null}
+      </figcaption>
+      <pre>
+        <code>{rule ?? `/* ${selector} is not in main.css */`}</code>
+      </pre>
+    </figure>
+  )
+}
+
+function JsxCode({ id, title }: { id: JsxSampleId; title: string }): React.JSX.Element {
+  return (
+    <figure className="design-guide__code">
+      <figcaption>
+        <span>{title}</span>
+      </figcaption>
+      <pre>
+        <code>{JSX_SAMPLES[id]}</code>
+      </pre>
+    </figure>
+  )
+}
+
+function CodeGroup({
+  summary,
+  open = false,
+  children
+}: {
+  summary: string
+  open?: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <details className="design-guide__codegroup" open={open}>
+      <summary>{summary}</summary>
+      <div className="design-guide__codegrid">{children}</div>
+    </details>
+  )
+}
+
+function isSwatch(name: string, value: string | null): boolean {
+  if (value === null) return false
+  if (
+    /(shadow|depth|blur|filter|size|fade|space|width|inset|corner|max|tint|edge|opacity|blend)/.test(
+      name
+    )
+  )
+    return false
+  if (/^--(glow|wisp)-a-/.test(name)) return false
+  return /#|rgb|color-mix|gradient|var\(--/.test(value)
+}
+
+/** Every theme token from the shipped stylesheet, with a live swatch. */
+function TokenTables(): React.JSX.Element {
+  const groups = useMemo(() => groupDesignTokens(readDesignTokens(mainCss)), [])
+  return (
+    <div className="design-guide__tokens">
+      {groups.map((group) => (
+        <details key={group.title} open={group.title.startsWith('Canvas')}>
+          <summary>
+            {group.title} <span>({group.rows.length})</span>
+          </summary>
+          <div className="design-guide__token-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Swatch</th>
+                  <th scope="col">Token</th>
+                  <th scope="col">Dark</th>
+                  <th scope="col">Light</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.rows.map((row) => (
+                  <tr key={row.name}>
+                    <td>
+                      {isSwatch(row.name, row.dark ?? row.light) ? (
+                        <i
+                          className="design-guide__swatch"
+                          style={{ background: `var(${row.name})` }}
+                        />
+                      ) : null}
+                    </td>
+                    <td>
+                      <Source>{row.name}</Source>
+                    </td>
+                    <td>
+                      <Source>{row.dark ?? '(light only)'}</Source>
+                    </td>
+                    <td>
+                      <Source>{row.light ?? '(same as dark)'}</Source>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      ))}
+    </div>
+  )
+}
+
 function Scene({
   name,
   title,
@@ -62,26 +192,22 @@ function Scene({
   source,
   height = 'standard',
   paired = false,
+  picture: initialPicture = false,
   variants
 }: SceneProps): React.JSX.Element {
   const desktop = desktopScenes.includes(name)
   const [theme, setTheme] = useState<Theme>('dark')
   const [glow, setGlow] = useState<Glow>('standard')
+  const [picture, setPicture] = useState(initialPicture)
   const [selectedVariant, setSelectedVariant] = useState(variant ?? variants?.[0]?.value)
-  const src = useMemo(() => {
-    const params = new URLSearchParams({ scene: name, theme, glow })
+  const srcFor = (frameTheme: Theme): string => {
+    const params = new URLSearchParams({ scene: name, theme: frameTheme, glow })
     if (selectedVariant) params.set('variant', selectedVariant)
+    if (picture) params.set('picture', '1')
     return `./glass.html?${params.toString()}`
-  }, [glow, name, selectedVariant, theme])
-  const alternateSrc = useMemo(() => {
-    const params = new URLSearchParams({
-      scene: name,
-      theme: theme === 'dark' ? 'light' : 'dark',
-      glow
-    })
-    if (selectedVariant) params.set('variant', selectedVariant)
-    return `./glass.html?${params.toString()}`
-  }, [glow, name, selectedVariant, theme])
+  }
+  const src = srcFor(theme)
+  const other: Theme = theme === 'dark' ? 'light' : 'dark'
 
   return (
     <figure
@@ -106,9 +232,20 @@ function Scene({
           <label>
             Glow
             <select value={glow} onChange={(event) => setGlow(event.target.value as Glow)}>
+              <option value="off">Off</option>
               <option value="muted">Muted</option>
               <option value="standard">Standard</option>
               <option value="vivid">Vivid</option>
+            </select>
+          </label>
+          <label>
+            Picture
+            <select
+              value={picture ? 'on' : 'off'}
+              onChange={(event) => setPicture(event.target.value === 'on')}
+            >
+              <option value="off">None</option>
+              <option value="on">Sample</option>
             </select>
           </label>
           {variants && (
@@ -130,8 +267,8 @@ function Scene({
       </figcaption>
       {desktop && (
         <p className="design-guide__note">
-          Desktop sample at the minimum supported app window size. Scroll the frame sideways when
-          the guide is narrow, or open the scene.
+          Desktop sample at the minimum supported window size, 900×670. Scroll the frame sideways
+          when the guide is narrow, or open the scene.
         </p>
       )}
       <div className="design-guide__frame-grid">
@@ -141,30 +278,34 @@ function Scene({
         </div>
         {paired && (
           <div className="design-guide__frame-wrap">
-            <span className="design-guide__frame-label">{theme === 'dark' ? 'light' : 'dark'}</span>
+            <span className="design-guide__frame-label">{other}</span>
             <iframe
               loading="lazy"
-              title={`${title}, ${theme === 'dark' ? 'light' : 'dark'} fixture`}
-              src={`${alternateSrc}&render=1`}
+              title={`${title}, ${other} fixture`}
+              src={`${srcFor(other)}&render=1`}
             />
           </div>
         )}
       </div>
       <details>
-        <summary>Fixture source</summary>
+        <summary>Component source</summary>
         <p>
           {source.split(' · ').map((path, index) => (
             <span key={path}>
               {index > 0 ? ' · ' : ''}
               <a
-                href={`https://github.com/Imperix1155/VRX/tree/${__GUIDE_REVISION__}/src/renderer/src/${path.includes('/') ? path : `components/${path}`}`}
+                href={`https://github.com/Imperix1155/VRX/tree/${__GUIDE_REVISION__}/${
+                  path.startsWith('build/') || path.startsWith('docs/')
+                    ? path
+                    : `src/renderer/src/${path.includes('/') ? path : `components/${path}`}`
+                }`}
               >
                 <Source>{path}</Source>
               </a>
             </span>
           ))}{' '}
-          at {__GUIDE_REVISION__.slice(0, 7)}. This is a local synthetic fixture. It does not use an
-          account, credentials, or network data.
+          at {__GUIDE_REVISION__.slice(0, 7)}. A local sample: no account, credentials, or network
+          data.
         </p>
       </details>
     </figure>
@@ -175,16 +316,21 @@ function Section({
   id,
   kicker,
   title,
+  rule,
   children
 }: {
   id: string
   kicker: string
   title: string
+  /** The DESIGN.md section this one illustrates. */
+  rule: string
   children: React.ReactNode
 }): React.JSX.Element {
   return (
     <section id={id} className="design-guide__section glass">
-      <p className="design-guide__kicker">{kicker}</p>
+      <p className="design-guide__kicker">
+        {kicker} <span className="design-guide__rule">DESIGN.md {rule}</span>
+      </p>
       <h2>{title}</h2>
       {children}
     </section>
@@ -203,11 +349,11 @@ export default function Guide(): React.JSX.Element {
 
   return (
     <div className="design-guide" data-guide-theme={guideTheme}>
-      <a className="design-guide__skip" href="#current">
+      <a className="design-guide__skip" href="#start">
         Skip navigation
       </a>
       <aside className="design-guide__sidebar glass" aria-label="Guide navigation">
-        <a className="design-guide__home" href="#current">
+        <a className="design-guide__home" href="#start">
           <Brand />
           <span>Design guide</span>
         </a>
@@ -236,35 +382,53 @@ export default function Guide(): React.JSX.Element {
       </aside>
 
       <main className="design-guide__main">
-        <header id="current" className="design-guide__intro glass">
+        <header id="start" className="design-guide__intro glass">
+          <span id="current" className="design-guide__alias" />
           <p className="design-guide__kicker">VRX interface guide</p>
-          <h1>The VRX visual language</h1>
+          <h1>Layered glass over an aurora</h1>
           <p>
-            Liquid glass, an aurora canvas, and restrained retro type. VRX gives VRChat and
-            ChilloutVR equal importance, with the same words and controls for equivalent concepts.
-            These are real app components using local sample data.
+            VRX shows VRChat and ChilloutVR side by side with equal weight. Its look is frosted
+            glass panes stacked over a dark canvas with a blue glow in one corner and an orange glow
+            in the other. Everything on this page is the real app: production components, the
+            shipped stylesheet and translations, with invented sample data.
           </p>
+          <p>
+            Each section shows the rule, the live example, and the code behind it. The code comes
+            straight from <Source>main.css</Source> and the components, so it can&apos;t drift. The
+            full written rules, every token value, and copy-ready recipes are in{' '}
+            <Source>docs/DESIGN.md</Source>; hand that file to an agent and it has everything it
+            needs.
+          </p>
+          <div className="design-guide__rules design-guide__rules--four">
+            {principles.map(([title, text]) => (
+              <p key={title}>
+                <b>{title}</b>
+                <span>{text}</span>
+              </p>
+            ))}
+          </div>
           <p className="design-guide__status">
-            <span aria-hidden="true">●</span> Dark is the default. Light uses the same layout,
-            names, and controls.
+            <span aria-hidden="true">●</span> Dark is the stylesheet baseline. Light uses the same
+            layout, names, and controls. Every frame has its own Theme, Glow and Picture choice.
           </p>
         </header>
 
-        <Section id="app" kicker="01 · current app" title="The app, assembled">
+        <Section id="app" kicker="01 · every page" title="The app, page by page" rule="§8–§9">
           <p className="design-guide__lead">
-            Start here when checking hierarchy. Stats, Popular now, and Hot Instances each keep
-            their own state instead of collapsing into a single empty dashboard. The section
-            headings share subdued gray text at normal weight, with their existing sizes.
+            Start here when checking hierarchy. Each page is the real view inside the real shell:
+            sidebar, top bar with the VRC / ALL / CVR filter and counts, and the page content on its
+            panel.
           </p>
           <Scene
             name="dashboard"
             title="Dashboard"
-            note="Interactive fixture. The composition includes statistics, discovery, and hot instances. Each section shows two cards; the first section uses picture cards and the second uses bars with the world picture behind them."
-            source="DashboardView.tsx · HotInstanceCard.tsx · ExploreWorldCard.tsx"
-            variant="popular-first"
+            note="Statistics, then Wearing now and Latest invites side by side, then Popular now and Hot Instances. The first of those two uses picture cards; the second uses bars with the picture behind them."
+            source="DashboardView.tsx · DashboardGlance.tsx · HotInstanceCard.tsx · ExploreWorldCard.tsx"
+            variant="ready"
             variants={[
-              { value: 'popular-first', label: 'Popular now first' },
+              { value: 'ready', label: 'Popular now first' },
               { value: 'hot-first', label: 'Hot Instances first' },
+              { value: 'reordered', label: 'Sections moved' },
               { value: 'needs-code', label: 'VRChat needs a code' }
             ]}
             height="tall"
@@ -272,193 +436,320 @@ export default function Guide(): React.JSX.Element {
           />
           <Scene
             name="hot"
-            title="Hot Instances page"
-            note="Interactive fixture. Every hot instance, most friends first, as picture cards with the same header and sheet as the Dashboard."
-            source="HotInstancesView.tsx · HotInstanceCard.tsx"
+            title="Hot Instances"
+            note="Every hot instance as a picture card, most friends first, with the same header and sheet as the Dashboard."
+            source="HotInstancesView.tsx · HotInstanceCard.tsx · HotInstancesHeader.tsx"
             height="tall"
           />
           <Scene
+            name="friends"
+            title="Friends"
+            note="The list sits on a frosted back panel. Section headers, search and every row are their own glass layer; rails and pills are chips on top. Failure states name the platform that could not refresh."
+            source="FriendsList.tsx · FriendsSourceNotice.tsx · Avatar.tsx"
+            variants={friendsScenarios}
+            height="tall"
+            paired
+          />
+          <Scene
+            name="activity"
+            title="Activity"
+            note="Friends coming online, joining worlds and going offline, newest first. One row layout for both platforms, the platform named in a fixed-width pill. Ask Me and Do Not Disturb rows never name a world."
+            source="ActivityView.tsx · queries/activity.ts"
+            height="tall"
+            variant="ready"
+            variants={[
+              { value: 'ready', label: 'With activity' },
+              { value: 'empty', label: 'Nothing yet' }
+            ]}
+          />
+          <Scene
+            name="inbox"
+            title="Inbox"
+            note="Invites and friend requests from both platforms in one list. A friend request has Accept, its row's one filled button, and quiet Decline and Hide."
+            source="InboxView.tsx · utils/friendActions.ts"
+            height="tall"
+            variant="ready"
+            variants={[
+              { value: 'ready', label: 'With rows' },
+              { value: 'empty', label: 'Empty' }
+            ]}
+          />
+          <Scene
             name="explore"
-            title="Explore worlds and rooms"
-            note="Interactive fixture. Both platforms use the same card. Open View rooms, change Worlds shown, and inspect shared initial loading and platform-specific failures."
+            title="Explore"
+            note="Popular now, New, Recently updated and Favorites. Both platforms use the same world card and sheet. Try View rooms, Worlds shown, and the source states."
             source="ExploreView.tsx · ExploreWorldCard.tsx · ExploreWorldSheet.tsx"
             height="tall"
             variant="ready"
             variants={exploreScenarios}
           />
-        </Section>
-
-        <Section id="identity" kicker="Identity · app icon" title="The VRX launcher mark">
-          <p className="design-guide__lead">
-            The launcher icon sets a blue V, a silver R and an orange X in one row at equal size.
-            Its smoked-glass case retains the diagonal cuts and colored rails, with softly rounded
-            transitions. The horizontal VT323 wordmark inside the app stays distinct.
-          </p>
           <Scene
-            name="icons"
-            title="App icon and taskbar sizes"
-            note="Static sample. These are the actual packaged PNG assets, with dedicated optical lettering at 16 and 24 pixels. Grayscale is available in the standalone scene controls."
-            source="build/icon.svg · build/icon-16.svg · build/icon-24.svg · docs/APP-ICON.md"
-            height="short"
-            paired
+            name="search"
+            title="Search"
+            note="People and worlds from both platforms, alternating so neither leads. Search sends only on Enter or the button."
+            source="SearchView.tsx · CommunityParts.tsx · WorldResults.tsx"
+            height="tall"
           />
-        </Section>
-
-        <Section id="color" kicker="02 · identity" title="Tokens give color a job">
-          <span id="glass" className="design-guide__alias" />
-          <span id="bg" className="design-guide__alias" />
-          <span id="light" className="design-guide__alias" />
-          <p className="design-guide__lead">
-            Blue identifies VRChat. Orange identifies ChilloutVR. The corner glow and quiet
-            scanlines make the shared space feel like VRX without competing with the information.
-          </p>
-          <p>
-            Information cards and panels keep an opaque neutral backing beneath their existing
-            gradients, so the background glow cannot change their intended colors. Platform tints,
-            artwork, and neutral sheen remain. Decorative chrome such as the sidebar may pick up
-            ambient color. These examples import the production material directly.
-          </p>
-          <div className="design-guide__swatches" aria-label="Token swatches">
-            {[
-              '--bg-base',
-              '--glass-information',
-              '--text',
-              '--text-dim',
-              '--text-faint',
-              '--vrc',
-              '--cvr',
-              '--bridge',
-              '--ingame',
-              '--policy-public',
-              '--policy-private',
-              '--active',
-              '--offline',
-              '--error'
-            ].map((token) => (
-              <div key={token}>
-                <i style={{ background: `var(${token})` }} />
-                <Source>{token}</Source>
-              </div>
-            ))}
-          </div>
           <Scene
-            name="materials"
-            title="Glass over content"
-            note="Interactive fixture. Open View rooms to compare the ordinary card with the frosted sheet over detailed local artwork."
-            source="assets/main.css · ExploreWorldCard.tsx · ExploreWorldSheet.tsx"
-            paired
+            name="groups"
+            title="Groups"
+            note="Cards wider than tall: the group's banner across the top with its icon in the corner, then the name and a VRC or CVR chip."
+            source="GroupsView.tsx · CommunityParts.tsx · CommunitySheet.tsx"
+            height="tall"
+          />
+          <Scene
+            name="avatars"
+            title="Avatars"
+            note="The avatars uploaded on each platform and the one worn now, as picture cards with a platform chip."
+            source="AvatarsView.tsx · AvatarCard.tsx · AvatarSheet.tsx"
+            height="tall"
           />
           <Scene
             name="settings"
-            title="Settings cards and Dashboard controls"
-            note="Interactive fixture. Try the Dashboard and Behavior categories: On/Off controls retain child choices while collapsing their cards. Dashboard settings independently hide Popular now and Hot Instances. The Dashboard’s bottom Settings button opens this category; its circular question mark reveals Hot Instances help without adding a permanent label to the selector. Appearance controls change the actual theme and glow. About keeps Stable, Beta, and Dev in the Automatic updates card, next to the on/off control. The Save error variant shows the compact failure strip with its warning glyph and Retry. All choices last only in this sample."
-            source="assets/main.css · SettingsView.tsx"
-            height="short"
+            title="Settings"
+            note="Six categories, each fitting the default window without scrolling. The page sits on a frosted panel and each setting is a compact layered card. Try Appearance (theme, glow, Choose picture), Dashboard (Sections), Behavior (collapsing parent cards) and About."
+            source="SettingsView.tsx · DashboardSectionsCard.tsx · PickedFriendsDialog.tsx"
+            variants={[
+              { value: 'ready', label: 'Ready' },
+              { value: 'save-error', label: 'Save error' },
+              { value: 'read-error', label: 'Could not read' },
+              { value: 'picked-alerts', label: 'Picked-friend alerts' }
+            ]}
+            height="tall"
           />
         </Section>
 
+        <Section id="layers" kicker="02 · material" title="Layered glass" rule="§3">
+          <span id="glass" className="design-guide__alias" />
+          <p className="design-guide__lead">
+            The interface is one material in layers. The canvas (a picture or the aurora) is at the
+            bottom. Back panels and sheets frost it. Cards and rows are their own frosted pane on
+            the panel. Pills, badges and rails are glossy chips on the cards. Menus and dialogs are
+            opaque so their meaning never changes with the background. Words that must be read, such
+            as names and custom status messages, stay plain text and never become chips.
+          </p>
+          <Scene
+            name="layers"
+            title="The five layers"
+            note="Static sample over a busy local picture. Each pane is labeled with its production class. Switch the theme and glow to see each layer keep its words readable."
+            source="assets/main.css · PlatformPill.tsx · InstancePill.tsx · Avatar.tsx"
+            height="tall"
+            paired
+          />
+          <CodeGroup summary="Code: the material classes, from main.css" open>
+            <CssCode selector=".glass" />
+            <CssCode selector=".glass::before" />
+            <CssCode selector=".glass-panel::after, .glass-sheet::after" />
+            <CssCode selector=".glass-sheet::after" />
+            <CssCode selector=".glass-layer" />
+            <CssCode selector=".glass-chip" />
+            <CssCode selector=".glass-chip::after" />
+            <CssCode selector=".glass-information" />
+            <CssCode selector=".glass-frosted-heavy" />
+          </CodeGroup>
+          <CodeGroup summary="Code: rows and cards that carry a platform or a setting">
+            <CssCode selector=".platform-row" />
+            <CssCode selector=".platform-row--vrx" />
+            <CssCode selector=".tint-vrc" />
+            <CssCode selector=".setting-card" />
+          </CodeGroup>
+          <CodeGroup summary="Code: stacking the layers in a component">
+            <JsxCode id="layers" title="JSX" />
+          </CodeGroup>
+          <p className="design-guide__note">
+            Never put a <Source>backdrop-filter</Source> on an element that contains a fixed
+            overlay: it becomes the overlay&apos;s containing block. That is why panels and sheets
+            blur on an <Source>::after</Source> layer.
+          </p>
+          <Scene
+            name="materials"
+            title="Glass over a busy picture"
+            note="Interactive fixture. Open View rooms to compare the layered card with the frosted sheet over detailed local artwork."
+            source="assets/main.css · ExploreWorldCard.tsx · ExploreWorldSheet.tsx"
+            paired
+          />
+        </Section>
+
+        <Section id="color" kicker="03 · color" title="Every color has a job" rule="§2, Appendix A">
+          <p className="design-guide__lead">
+            Colors are CSS variables. Dark is <Source>:root</Source>; light overrides the same names
+            under <Source>[data-theme=&apos;light&apos;]</Source>. Blue means VRChat, orange means
+            ChilloutVR, and every other hue has one meaning too. These tables are read from the
+            shipped stylesheet, and each swatch is drawn in the guide theme chosen at the top left.
+          </p>
+          <div className="design-guide__rules">
+            <p>
+              <b>Text</b>
+              <span>
+                --text for anything that must be read, --text-dim for labels and notices,
+                --text-faint only for placeholders, disabled controls and IDs.
+              </span>
+            </p>
+            <p>
+              <b>Light is not inverted dark</b>
+              <span>
+                White cards on a gray canvas. Brand colors stay full strength; words in a brand
+                color use a deeper companion that clears 4.5:1.
+              </span>
+            </p>
+            <p>
+              <b>Never a raw value</b>
+              <span>
+                Components use var(--token) through Tailwind arbitrary values. Add a token only for
+                a need no existing one meets.
+              </span>
+            </p>
+          </div>
+          <TokenTables />
+        </Section>
+
         <Section
-          id="channels"
-          kicker="03 · meanings"
-          title="Keep presence, intent, and access separate"
+          id="canvas"
+          kicker="04 · canvas"
+          title="Aurora, scanlines, and your picture"
+          rule="§4"
         >
+          <span id="bg" className="design-guide__alias" />
+          <span id="light" className="design-guide__alias" />
+          <p className="design-guide__lead">
+            The canvas is a blue glow top-left and an orange glow bottom-right over the base color,
+            with faint scanlines. Background glow has four levels; Standard is the default. People
+            can put their own picture behind the app with a fade; the glass shows it blurred and
+            information surfaces keep their colors.
+          </p>
+          <Scene
+            name="dashboard"
+            title="Dashboard over a background picture"
+            note="Interactive fixture with the sample picture on. Compare glow levels, and the light theme, where words on the canvas get a small crisp backing instead of a glow."
+            source="AppBackdrop.tsx · hooks/useApplyGlow.ts · assets/main.css"
+            variant="ready"
+            picture
+            height="tall"
+            paired
+          />
+          <CodeGroup summary="Code: canvas, glow and picture, from main.css">
+            <CssCode selector="body::before" />
+            <CssCode selector="body::after" />
+            <CssCode selector="[data-glow='vivid']" />
+            <CssCode selector=".app-backdrop::after" />
+            <CssCode selector="[data-theme='light'][data-app-background] .canvas-text:not(:empty)" />
+            <JsxCode id="theme" title="Theme and glow" />
+          </CodeGroup>
+        </Section>
+
+        <Section
+          id="meaning"
+          kicker="05 · meanings"
+          title="Keep presence, intent, and access separate"
+          rule="§5"
+        >
+          <span id="channels" className="design-guide__alias" />
           <p className="design-guide__lead">
             Presence and VRChat status are separate inputs. The avatar ring shows status for an
-            in-game friend and presence for an active or offline friend. Its corner marker has no
-            glyph. The drawer supplies written status. Instance access is the worded pill.
+            in-game friend and presence otherwise. Its corner dot has no glyph, the one color-only
+            cue in the app; the drawer spells the status out. Instance access is a worded pill.
           </p>
           <div className="design-guide__rules">
             <p>
               <b>Platform</b>
-              <span>Blue or orange plus VRC or CVR text.</span>
+              <span>Blue or orange plus the words VRChat / VRC or ChilloutVR / CVR.</span>
             </p>
             <p>
               <b>Friend state</b>
-              <span>Status or presence ring and marker, with an accessible label.</span>
+              <span>Ring and dot, with an accessible label; the drawer writes the status.</span>
             </p>
             <p>
               <b>Access</b>
-              <span>Visible instance words. Unknown and hidden stay neutral.</span>
+              <span>Visible instance words. Unknown, Private and Offline stay neutral.</span>
             </p>
           </div>
           <Scene
             name="semantics"
             title="Friend meaning"
-            note="Static samples of the real Avatar and PolicySpacePill components. The full rows and drawers appear below."
-            source="FriendsList.tsx · FriendDrawer.tsx · Avatar.tsx"
+            note="Static samples of the real Avatar and PolicySpacePill components."
+            source="Avatar.tsx · PolicySpacePill.tsx · utils/statusRing.ts"
             paired
           />
           <p className="design-guide__note">
-            Ask to join is not an implemented VRX flow. Direct Join appears only when the current
-            eligibility rules allow it. Available VRChat trust rank stays quiet plain text below
-            Notes; names remain neutral. There is no row rank pill or trust-display setting.
+            There is no Ask to join. Join appears only when the joinability rules allow it. VRChat
+            trust rank is quiet plain text below Notes; names stay neutral.
           </p>
         </Section>
 
         <Section
           id="ladder"
-          kicker="04 · instances"
-          title="Use the selected label scheme, then show the words"
+          kicker="06 · instances"
+          title="Show the words, then the color"
+          rule="§6"
         >
           <p className="design-guide__lead">
-            The pill vocabulary can use VRChat, ChilloutVR, or per-platform wording. VRChat wording
-            is the default. The color supports the label. It never replaces it.
+            Access pills use VRChat, per-platform or ChilloutVR wording (VRChat by default). Friend
+            tiers run green to orange, group tiers are purple. The color supports the word; it never
+            replaces it.
           </p>
           <Scene
             name="instances"
             title="Instance labels"
-            note="Interactive fixture. All eight VRChat and nine ChilloutVR model types use the production label resolver, plus the neutral Private and Unknown states."
+            note="Interactive fixture. All eight VRChat and nine ChilloutVR types through the production label resolver, plus the neutral Private, Offline and Unknown states."
             source="InstancePill.tsx · PolicySpacePill.tsx · utils/instancePill.ts"
             paired
           />
-          <p className="design-guide__note">
-            Some CVR wire forms remain conservatively mapped; this displays the app model, not a
-            claim that every upstream form is verified. Policy space is separate from access.
-            Public, Private, and Unknown describe moderation context where the app has that
-            information.
-          </p>
+          <CodeGroup summary="Code: pills">
+            <JsxCode id="pills" title="Usage" />
+          </CodeGroup>
         </Section>
 
         <Section
           id="type"
-          kicker="05 · type and space"
+          kicker="07 · type and space"
           title="Inter carries the interface. VT323 adds a small signal."
+          rule="§7–§8"
         >
           <span id="shell" className="design-guide__alias" />
           <p className="design-guide__lead">
-            Use Inter for names, labels, body text, status, and help. VT323 is reserved for the VRX
-            mark, section kickers, and prominent counts. Technical IDs use a readable monospace
-            face.
+            Inter for names, labels, body text, status and help. VT323 only for the wordmark,
+            section kickers and big numbers. Spacing is a 4 px scale; panels round at 20 px,
+            controls at 12 px, pills at 9–10 px. The window floor is 900×670.
           </p>
           <Scene
             name="typography"
             title="Real hierarchy"
-            note="Real TopBar and Dashboard components show page, section, count, card, body, and control hierarchy at their actual sizes. Open a Hot Instance for its technical identifier."
-            source="assets/main.css · TopBar.tsx · DashboardView.tsx · HotInstanceSheet.tsx"
+            note="The real TopBar and Dashboard, with their computed type measured live in the table."
+            source="assets/main.css · TopBar.tsx · DashboardView.tsx"
           />
-          <Scene
-            name="dashboard"
-            title="App shell"
-            note="Interactive fixture. Dashboard, Hot Instances, Friends, Explore, and Settings are the navigation destinations. The sidebar stays fixed while content owns scrolling."
-            source="AppShell.tsx · Sidebar.tsx · TopBar.tsx"
-            height="short"
-          />
+          <CodeGroup summary="Code: headings and numbers">
+            <JsxCode id="heading" title="JSX" />
+            <CssCode selector=".picture-grid" />
+            <CssCode selector="body:lang(ja)" />
+          </CodeGroup>
         </Section>
 
-        <Section id="components" kicker="06 · controls" title="Controls state the choice in words">
+        <Section
+          id="components"
+          kicker="08 · controls"
+          title="Controls say the choice in words"
+          rule="§8"
+        >
           <p className="design-guide__lead">
-            Segmented controls are radiogroups with one tab stop and arrow-key movement. The
-            selection bubble measures its label. A toggle also shows its on or off position.
+            Choices are segmented controls: radiogroups with one tab stop and arrow keys, a measured
+            bubble behind the chosen label. On/Off is the same control. Buttons are quiet fills; a
+            row has at most one filled action. A busy button stays focusable.
           </p>
           <Scene
             name="controls"
-            title="Shared segmented control"
-            note="Interactive fixture. The 20px glass track and 16px inset selection are deliberate, including the unequal-width labels."
-            source="SegmentedControl.tsx · hooks/useSegmentedBubble.ts"
+            title="Shared controls"
+            note="Interactive fixture. Each control is the production component or class, named on the left."
+            source="SegmentedControl.tsx · Toggle.tsx · NumberStepper.tsx · FavoriteStar.tsx · FinePrint.tsx · NotConnectedCard.tsx"
+            height="tall"
           />
+          <CodeGroup summary="Code: controls and buttons">
+            <JsxCode id="segmented" title="Choices" />
+            <JsxCode id="buttons" title="Buttons" />
+            <CssCode selector=".favorite-star[data-on='true']" />
+          </CodeGroup>
           <Scene
             name="updater"
-            title="Update states"
+            title="Update button"
             note="Interactive fixture. Available, downloading, downloaded, and idle are separate states. The sample keeps actions local."
             source="Sidebar.tsx · hooks/useUpdater.ts"
             variant="available"
@@ -470,77 +761,83 @@ export default function Guide(): React.JSX.Element {
             ]}
             height="short"
           />
+        </Section>
+
+        <Section
+          id="overlays"
+          kicker="09 · overlays"
+          title="Drawers and sheets are frosted; confirmations are modal"
+          rule="§3, §9.2–§9.3"
+        >
+          <p className="design-guide__lead">
+            Friend details and the bottom sheets are non-modal glass sheets: the page behind stays
+            usable, Escape and a click outside close them, and focus goes back to the opener. A
+            confirmation is a heavy-frosted true modal that keeps focus inside.
+          </p>
           <Scene
             name="drawer"
-            title="Friend drawer"
-            note="Interactive fixture. Compare both platforms, inspect Notes and quiet Trust, and open the real frosted drawer. Failure states recover through Retry."
-            source="FriendDrawer.tsx · JoinConfirmDialog.tsx"
+            title="Friend details"
+            note="Interactive fixture. Compare both platforms, the status band, Where, Notes and quiet Trust, and the star and bell panels in the footer. Failure states recover through Retry."
+            source="FriendDrawer.tsx · FriendAlertBell.tsx · FriendFavoriteStar.tsx · FavoriteMenu.tsx"
             variant="vrchat"
             variants={drawerScenarios}
           />
           <Scene
             name="join"
             title="Join confirmation"
-            note="Interactive fixture. Open the real heavy-frosted modal. Confirm returns a local sample denial and cannot launch a game."
-            source="JoinConfirmDialog.tsx"
+            note="Interactive fixture. The heavy-frosted modal for either platform. Game open shows the note that replaces the mode choice. Confirm returns a local sample denial and cannot launch a game."
+            source="JoinConfirmDialog.tsx · hooks/useJoinInstance.ts"
+            variants={joinScenarios}
           />
+          <CodeGroup summary="Code: overlays">
+            <JsxCode id="sheet" title="Components" />
+          </CodeGroup>
         </Section>
 
         <Section
           id="linking"
-          kicker="07 · people"
-          title="Friends stay recognizable when accounts connect"
+          kicker="10 · people"
+          title="Linked friends stay two accounts"
+          rule="§10"
         >
           <p className="design-guide__lead">
-            Rows carry a platform tab with text as well as color. A linked person keeps their
-            account details visible, then adds the local connection without pretending two accounts
-            are one platform identity.
+            A person links one VRChat and one ChilloutVR friend by hand. The row becomes a VRX row
+            running blue into orange, and two locations split the picture on a diagonal, without
+            pretending the accounts are one platform identity.
           </p>
-          <Scene
-            name="friends"
-            title="Friends list"
-            note="Interactive fixture. Rows show the real platform tab, avatar treatment, and contextual action space. Failure states name the platform that could not refresh and retry only that platform."
-            source="FriendsList.tsx · FriendsSourceNotice.tsx · Avatar.tsx"
-            variants={friendsScenarios}
-            paired
-          />
           <Scene
             name="linked"
             title="Linked identities"
             note="Interactive fixture. Open the linked Nyx profile to inspect its account labels, shared note, Where cards, and Identities controls."
-            source="FriendDrawer.tsx · LinkedDialog.tsx"
+            source="FriendDrawer.tsx · LinkedDialog.tsx · LinkedWorlds.tsx"
           />
         </Section>
 
         <Section
           id="feedback"
-          kicker="08 · feedback"
-          title="Loading and failure should say what happened"
+          kicker="11 · feedback"
+          title="Loading and failure say what happened"
+          rule="§9.4"
         >
           <span id="login-persistence" className="design-guide__alias" />
           <p className="design-guide__lead">
-            Explore and Popular now share one Worlds loading… message while any selected source is
-            initially loading, keeping available cards visible. Ordinary background refresh stays
-            quiet; failures and unavailable sources keep their platform labels. Linked-profile load
-            failures offer an explicit local-read retry in Friends and Identities. Join failures
-            remain readable below row controls until another attempt or account boundary; use the
-            existing Join control to retry through the same safety checks. Login uses the same app
-            language and never places credentials in a fixture. Sign-in copy explains OS-backed
-            encryption and the weaker local-key fallback; every sign-in form has the same quieter
-            Use my sign-in from… button for both platforms, which reads this PC only when pressed.
+            One Worlds loading… line while a platform loads for the first time, cards from the other
+            platform stay. A refresh with cards shown is silent. Missing data is red and names its
+            platform; stale data is dim. Sign-in is the password form first, with the quieter Use my
+            sign-in from… button below it for both platforms.
           </p>
           <Scene
             name="feedback"
             title="Loading, empty, and error"
-            note="Interactive fixture. These states use real component copy and local retry affordances only."
+            note="Interactive fixture. Real component copy and local retry only."
             source="ExploreSourceState.tsx · ExploreDashboardPreview.tsx"
             variant="loading"
             variants={sourceScenarios}
           />
           <Scene
             name="login"
-            title="Login and secure-store feedback"
-            note="Interactive fixture. Use invented text only. Submitting shows the app's secure-store failure message locally; no credentials leave this page."
+            title="Sign-in"
+            note="Interactive fixture. Use invented text only. Submitting shows the secure-store failure message locally; nothing leaves this page."
             source="LoginScreen.tsx · components/auth"
             variants={[
               { value: 'ready', label: 'Credentials' },
@@ -551,30 +848,50 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="setup"
             title="Welcome setup"
-            note="Interactive fixture. A brand-new install sees this before the app. Skip setup is on every screen before the summary; choices change the synthetic settings only. Signed out shows the sign-in step as a new user meets it."
+            note="Interactive fixture. A brand-new install sees this first. Skip setup is a visible button on every screen before the summary; choices change only the sample settings."
             source="components/setup"
             variants={[
               { value: 'ready', label: 'Accounts connected' },
-              { value: 'signed-out', label: 'Signed out' }
+              { value: 'signed-out', label: 'Signed out' },
+              { value: 'save-error', label: 'Save error' }
             ]}
           />
         </Section>
 
-        <Section id="donot" kicker="09 · contributor checks" title="Before changing a component">
+        <Section id="identity" kicker="12 · identity" title="The VRX mark" rule="§1">
+          <p className="design-guide__lead">
+            Inside the app the brand is the horizontal VT323 wordmark: blue V, silver R, orange X.
+            The launcher icon sets the same letters at equal size in a smoked-glass case with
+            colored rails, so neither platform outweighs the other.
+          </p>
+          <Scene
+            name="icons"
+            title="App icon and small sizes"
+            note="Static sample. The packaged PNGs, with dedicated optical lettering at 16 and 24 pixels. Grayscale is in the standalone scene controls."
+            source="build/icon.svg · build/icon-16.svg · build/icon-24.svg · docs/APP-ICON.md"
+            height="short"
+            paired
+          />
+        </Section>
+
+        <Section id="donot" kicker="13 · before you ship" title="Contributor checks" rule="§12">
           <ul className="design-guide__checklist">
-            <li>Use the component and token already in the renderer when one exists.</li>
-            <li>Keep dark and light as the same interface. Check both.</li>
-            <li>Make platform and meaning readable without color alone.</li>
-            <li>Keep a drawer frosted and a true modal heavily frosted over busy content.</li>
+            <li>Reuse the component, class and token that already exist. No raw colors.</li>
+            <li>Pick the right glass layer; keep names and custom status as plain text.</li>
+            <li>Put a word, glyph or shape beside every color. Treat both platforms the same.</li>
+            <li>Look at dark and light, every glow level, with and without a picture.</li>
+            <li>Check 900×670, Japanese, keyboard focus, reduced motion, High Contrast.</li>
+            <li>Cover loading, empty, error, stale and disabled states the change can reach.</li>
+            <li>Keep the screen short; put extra words behind ? or Show more.</li>
+            <li>Label a proposal as a proposal. Never document it as shipped.</li>
             <li>
-              Test keyboard focus, reduced motion, loading, and error states that the change can
-              reach.
+              Update <Source>docs/DESIGN.md</Source> and this guide in the same change. Token edits
+              run <Source>npm run design:tokens</Source>.
             </li>
-            <li>Label a proposal as a proposal. Do not document it as shipped behavior.</li>
           </ul>
           <p className="design-guide__note">
-            Source truth is the renderer. This guide is a local review tool, not proof of a live
-            account or external platform behavior.
+            The renderer is the source of truth. This guide is a local review tool, not proof of a
+            live account, a packaged install, or platform behavior.
           </p>
         </Section>
       </main>

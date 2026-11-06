@@ -56,7 +56,9 @@ beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'vrx-avatar-rendition-'))
 })
 afterEach(async () => {
-  await rm(root, { recursive: true, force: true })
+  // A picture save a test did not wait for can land mid-delete; Windows then
+  // refuses to remove the folder, so retry instead of failing the run.
+  await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
 })
 
 describe('AvatarCache avatar rendition', () => {

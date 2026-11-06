@@ -5,7 +5,7 @@ import type { Platform } from '@shared/types'
  * families. Each surface keeps its own namespace even when the copy is equal.
  */
 export const NOT_CONNECTED_KEY: Record<
-  'friends' | 'dashboard' | 'explore',
+  'friends' | 'dashboard' | 'explore' | 'activity' | 'inbox',
   Record<Platform, string>
 > = {
   friends: {
@@ -19,5 +19,13 @@ export const NOT_CONNECTED_KEY: Record<
   explore: {
     vrchat: 'explore.notConnected.vrchat',
     chilloutvr: 'explore.notConnected.chilloutvr'
+  },
+  activity: {
+    vrchat: 'activity.notConnected.vrchat',
+    chilloutvr: 'activity.notConnected.chilloutvr'
+  },
+  inbox: {
+    vrchat: 'inbox.notConnected.vrchat',
+    chilloutvr: 'inbox.notConnected.chilloutvr'
   }
 }

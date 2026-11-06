@@ -5,9 +5,10 @@
  * `settings.confirmJoin` is on.
  *
  * A TRUE modal (aria-modal) — the app's first. Per the owner's ruling it still
- * wears the VRX-225 drawer's SOFT scrim + outside-pointerdown close; DESIGN.md
- * reserves the heavier `--scrim` for true modals, so the scrim choice is
- * flagged for the owner's eyeball rather than silently "upgraded".
+ * wears the VRX-225 drawer's SOFT scrim, and a press or tap on it closes the
+ * dialog (useScrimDismiss); DESIGN.md reserves the heavier `--scrim` for true
+ * modals, so the scrim choice is flagged for the owner's eyeball rather than
+ * silently "upgraded".
  *
  * Visual-weight order (owner-ruled): type-named headline → policy space (the
  * moderation context) → who's-there → mode → actions. The "More info" expander
@@ -29,15 +30,19 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, JoinMode, JoinModePreference, Platform } from '@shared/types'
+import type { Friend, JoinHandoff, JoinMode, JoinModePreference, Platform } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { useFriends } from '../queries/friends'
 import {
+  friendForPending,
   resolveWireMode,
   useJoinInstance,
   type FriendPendingConfirm
 } from '../hooks/useJoinInstance'
+import { useJoinHandoff } from '../hooks/useJoinHandoff'
+import { useScrimDismiss } from '../hooks/useScrimDismiss'
+import { keepTabInModal } from '../utils/modalTab'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { policySpaceFor, type PolicySpace } from '../utils/instancePolicySpace'
@@ -74,12 +79,58 @@ const WILL_LAUNCH_KEYS: Record<Exclude<JoinModePreference, 'ask'>, string> = {
   desktop: 'joinConfirm.willLaunch.desktop'
 }
 
+/** What Join does when the game is already open, per platform. Quoted-literal
+ *  map so the i18n parity scan covers the keys. ChilloutVR has one way only. */
+const OPEN_GAME_KEYS: Record<Platform, Partial<Record<JoinHandoff, string>>> = {
+  vrchat: {
+    'in-game': 'joinConfirm.openGame.vrchatInGame',
+    invite: 'joinConfirm.openGame.vrchatInvite'
+  },
+  chilloutvr: { 'in-game': 'joinConfirm.openGame.chilloutvrInGame' }
+}
+
+/** The copy for a Join into an already-open game, or null when Join launches
+ *  (or main has not answered yet). */
+function openGameKey(platform: Platform, handoff: JoinHandoff | 'pending' | null): string | null {
+  return handoff === null || handoff === 'pending'
+    ? null
+    : (OPEN_GAME_KEYS[platform][handoff] ?? null)
+}
+
+/**
+ * The launch line (mode picker or launch note) while main checks whether the
+ * game is already open: it keeps its place but stays hidden and inert, so the
+ * dialog never shows a picker that then turns into the open-game note.
+ */
+function LaunchLine({
+  checking,
+  children
+}: {
+  checking: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div
+      className={checking ? 'invisible' : undefined}
+      inert={checking}
+      aria-hidden={checking || undefined}
+    >
+      {children}
+    </div>
+  )
+}
+
 /** The one modal shell renders a distinct, typed Explore source; it never fabricates a Friend. */
 function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const { t } = useTranslation()
   const { pendingConfirm, isJoining, confirmPending, cancelPending, invalidatePending } =
     useJoinInstance()
+  const { onPointerDown: onScrimPointerDown, onClick: onScrimClick } = useScrimDismiss(
+    !isJoining,
+    cancelPending
+  )
   const joinMode = useSettingsStore((state) => state.settings.joinMode)
+  const labelScheme = useSettingsStore((state) => state.settings.labelScheme)
   const updateSettings = useSettingsStore((state) => state.updateSettings)
   const [mode, setMode] = useState<JoinMode>('desktop')
   const [moreOpen, setMoreOpen] = useState(false)
@@ -89,6 +140,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const launchInitiatedRef = useRef(false)
   const joiningRef = useRef(isJoining)
   const pending = pendingConfirm?.source === 'explore' ? pendingConfirm : null
+  const handoff = useJoinHandoff(pending?.platform ?? null, pending?.requestId ?? null)
   useEffect(() => {
     joiningRef.current = isJoining
   }, [isJoining])
@@ -102,30 +154,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
       if (event.key !== 'Tab') return
       const panel = panelRef.current
       if (panel === null) return
-      const focusables = getFocusables(panel)
-      const active = document.activeElement
-      if (focusables.length === 0) {
-        panel.focus({ preventScroll: true })
-        event.preventDefault()
-        return
-      }
-      const first = focusables[0]
-      const last = focusables[focusables.length - 1]
-      if (first === undefined || last === undefined) return
-      if (
-        active === null ||
-        !panel.contains(active) ||
-        !focusables.includes(active as HTMLElement)
-      ) {
-        first.focus({ preventScroll: true })
-        event.preventDefault()
-      } else if (event.shiftKey && active === first) {
-        last.focus()
-        event.preventDefault()
-      } else if (!event.shiftKey && active === last) {
-        first.focus()
-        event.preventDefault()
-      }
+      keepTabInModal(event, panel, getFocusables(panel))
     }
     document.addEventListener('keydown', onKey)
     const boundary = window.vrx?.onIdentityBoundary?.(({ platform }) => invalidatePending(platform))
@@ -153,8 +182,16 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   }, [isJoining, pending])
   if (pending === null) return null
   const { world, room } = pending
-  const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
-  const showModePicker = world.platform === 'chilloutvr' && joinMode === 'ask'
+  // The same access pill as the friend dialog and the world sheet.
+  const accessPill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
+  // The game that is already open ignores VR/desktop, so it gets no picker.
+  const openGame = openGameKey(world.platform, handoff)
+  const checkingGame = handoff === 'pending'
+  const asksMode = world.platform === 'chilloutvr' && joinMode === 'ask'
+  // A picker hidden while VRX checks offers no choice yet (see LaunchLine).
+  const showModePicker = openGame === null && !checkingGame && asksMode
+  // Join waits for the check rather than guess a mode while the answer is out.
+  const awaitingChoice = checkingGame && asksMode
   const resolvedMode = showModePicker ? mode : resolveWireMode(world, joinMode)
   async function joinAndNeverAskAgain(): Promise<void> {
     const result = await confirmPending(resolvedMode)
@@ -170,9 +207,8 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
       <div
         data-testid="join-confirm-scrim"
         aria-hidden="true"
-        onPointerDown={() => {
-          if (!isJoining) cancelPending()
-        }}
+        onPointerDown={onScrimPointerDown}
+        onClick={onScrimClick}
         className="absolute inset-0 bg-[var(--scrim-soft)]"
       />
       <div
@@ -200,16 +236,18 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
           >
             {world.name}
           </h2>
-          <PlatformPill platform={world.platform} />
+          <div className="flex flex-col items-end gap-[var(--space-1)]">
+            <PlatformPill platform={world.platform} />
+            <InstancePill label={t(accessPill.labelKey)} tier={accessPill.tier} />
+          </div>
         </div>
-        <p className="text-sm text-[var(--text-dim)]">{access}</p>
         <div>
           <PolicySpacePill space="public" />
         </div>
         <p className="text-sm text-[var(--text-dim)]">
           {room.occupancy.state === 'complete'
             ? t('joinConfirm.peopleCount', { count: room.occupancy.value })
-            : t('explore.unknownCount')}
+            : t('explore.countUnknown')}
         </p>
         <div>
           <button
@@ -227,20 +265,26 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
             </p>
           ) : null}
         </div>
-        {showModePicker ? (
-          <SegmentedControl
-            values={MODE_VALUES}
-            active={mode}
-            labelKeys={MODE_LABEL_KEYS}
-            ariaLabel={t('joinConfirm.mode.aria')}
-            disabled={isJoining}
-            onChange={setMode}
-          />
-        ) : world.platform === 'vrchat' ? (
-          <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
-        ) : joinMode !== 'ask' ? (
-          <p className="text-xs text-[var(--text-dim)]">{t(WILL_LAUNCH_KEYS[joinMode])}</p>
-        ) : null}
+        {openGame !== null ? (
+          <p className="text-xs text-[var(--text-dim)]">{t(openGame)}</p>
+        ) : (
+          <LaunchLine checking={checkingGame}>
+            {world.platform === 'vrchat' ? (
+              <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
+            ) : joinMode === 'ask' ? (
+              <SegmentedControl
+                values={MODE_VALUES}
+                active={mode}
+                labelKeys={MODE_LABEL_KEYS}
+                ariaLabel={t('joinConfirm.mode.aria')}
+                disabled={isJoining || checkingGame}
+                onChange={setMode}
+              />
+            ) : (
+              <p className="text-xs text-[var(--text-dim)]">{t(WILL_LAUNCH_KEYS[joinMode])}</p>
+            )}
+          </LaunchLine>
+        )}
         <div className="mt-[var(--space-1)] flex items-center justify-end gap-[var(--space-2)]">
           <button
             ref={cancelRef}
@@ -253,14 +297,16 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
           </button>
           <button
             type="button"
-            disabled={isJoining || room.action.state !== 'available'}
+            disabled={isJoining || room.action.state !== 'available' || awaitingChoice}
             onClick={() => {
               void confirmPending(resolvedMode)
             }}
             className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] disabled:pointer-events-none disabled:opacity-50"
             style={{
-              borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-              background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+              borderColor:
+                'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+              background:
+                'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
               color: 'var(--op-public-text)'
             }}
           >
@@ -270,7 +316,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
         <button
           type="button"
           onClick={() => void joinAndNeverAskAgain()}
-          disabled={isJoining || room.action.state !== 'available'}
+          disabled={isJoining || room.action.state !== 'available' || awaitingChoice}
           className="self-center text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
         >
           {t('joinConfirm.dontAskAgain')}
@@ -317,6 +363,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
     invalidateFriendPending
   } = joinState
   const pendingConfirm = rawPendingConfirm as FriendPendingConfirm | null
+  const { onPointerDown: onScrimPointerDown, onClick: onScrimClick } = useScrimDismiss(
+    !isJoining,
+    cancelPending
+  )
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -328,9 +378,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   const liveQuery = useFriends(pendingConfirm?.platform ?? 'vrchat')
   const dataUpdatedAt = liveQuery.dataUpdatedAt ?? 0
 
-  const liveFriend = pendingConfirm
-    ? liveQuery.data?.find((f) => f.platformUserId === pendingConfirm.platformUserId)
-    : undefined
+  // The same pick as Confirm: for a Join from a hot instance, a friend still
+  // in it stands in once the one Join went through has left.
+  const liveFriend = pendingConfirm ? friendForPending(liveQuery.data, pendingConfirm) : undefined
 
   const liveInstance = liveFriend?.instance ?? null
   const liveKey =
@@ -371,6 +421,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   const wasOpenRef = useRef(false)
 
   const isOpen = pendingConfirm !== null
+  const handoff = useJoinHandoff(
+    pendingConfirm?.platform ?? null,
+    pendingConfirm?.requestId ?? null
+  )
 
   // Reset the per-open UI state whenever the dialog (re)opens — keyed to
   // requestId, never to Friend object identity (VRX-239). Focus init also runs
@@ -466,29 +520,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
       if (event.key !== 'Tab') return
       const panel = panelRef.current
       if (panel === null) return
-      const focusables = getFocusables(panel)
-      const first: HTMLElement | undefined = focusables[0]
-      const last: HTMLElement | undefined = focusables[focusables.length - 1]
-      const active = document.activeElement
-      if (
-        active === null ||
-        !panel.contains(active) ||
-        (active !== null && !focusables.some((el) => el === active))
-      ) {
-        // Focus is OUTSIDE the panel, on a disabled/hidden element, or the
-        // panel itself while every control is inert — pull it to a valid anchor.
-        const target = first ?? panel
-        target.focus({ preventScroll: true })
-        event.preventDefault()
-      } else if (first !== undefined && last !== undefined) {
-        if (event.shiftKey && active === first) {
-          last.focus()
-          event.preventDefault()
-        } else if (!event.shiftKey && active === last) {
-          first.focus()
-          event.preventDefault()
-        }
-      }
+      // Focus OUTSIDE the panel, on a disabled/hidden element, or on the panel
+      // itself while every control is inert goes back to a valid anchor.
+      keepTabInModal(event, panel, getFocusables(panel))
     }
     document.addEventListener('keydown', onKeyDown)
     return () => {
@@ -541,7 +575,15 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   // CVR's deep link genuinely honors startInVR). VRChat can never select a
   // mode over its launch URI, so it gets the honest one-line note instead of
   // a fake control.
-  const showModePicker = friendForCopy.platform === 'chilloutvr' && joinMode === 'ask'
+  // A game that is already open ignores VR/desktop, so it gets a note instead.
+  // While VRX checks, the launch line keeps its place hidden (LaunchLine), and
+  // that hidden picker offers no choice yet.
+  const openGame = openGameKey(friendForCopy.platform, handoff)
+  const checkingGame = handoff === 'pending'
+  const asksMode = friendForCopy.platform === 'chilloutvr' && joinMode === 'ask'
+  const showModePicker = openGame === null && !checkingGame && asksMode
+  // Join waits for the check rather than guess a mode while the answer is out.
+  const awaitingChoice = checkingGame && asksMode
   const resolvedMode: JoinMode = showModePicker ? mode : resolveWireMode(friendForCopy, joinMode)
 
   // Who's-there: the SHARED hot-instance derivation (VRX-237) — same platform
@@ -560,6 +602,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
       hotInstanceKey(f.platform, f.instance?.instanceId ?? null, f.instance?.worldId ?? null) ===
         parkedKey
   )
+  // Alphabetical, like the hot card and sheet, so the faces come in the same
+  // order everywhere this instance shows them.
+  present.sort((a, b) => a.displayName.localeCompare(b.displayName))
   const shown = present.slice(0, WHO_THERE_MAX_AVATARS)
   const overflow = present.length - shown.length
   const whoHereAria = t('dashboard.friendsHereAria', {
@@ -585,15 +630,14 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-[var(--space-6)]">
-      {/* Soft scrim (owner-ruled, the VRX-225 pattern) — pure depth; outside
-          pointerdown closes like the drawer, but not while the launch is in
-          flight (the modal is inert then). */}
+      {/* Soft scrim (owner-ruled, the VRX-225 pattern) — pure depth; a press
+          or tap on it closes only this dialog (useScrimDismiss), but not while
+          the launch is in flight (the modal is inert then). */}
       <div
         data-testid="join-confirm-scrim"
         aria-hidden="true"
-        onPointerDown={() => {
-          if (!isJoining) cancelPending()
-        }}
+        onPointerDown={onScrimPointerDown}
+        onClick={onScrimClick}
         className="absolute inset-0 bg-[var(--scrim-soft)]"
       />
       <div
@@ -684,7 +728,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
             className="flex items-center gap-[var(--space-2)]"
           >
             {shown.map((f) => (
-              <span role="listitem" key={`${f.platform}:${f.platformUserId}`}>
+              <span role="listitem" key={`${f.platform}:${f.platformUserId}`} title={f.displayName}>
                 <Avatar friend={f} ariaLabel={f.displayName} />
               </span>
             ))}
@@ -696,23 +740,27 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
           </div>
         )}
 
-        {showModePicker ? (
-          <SegmentedControl
-            values={MODE_VALUES}
-            active={mode}
-            labelKeys={MODE_LABEL_KEYS}
-            ariaLabel={t('joinConfirm.mode.aria')}
-            disabled={isInert}
-            onChange={setMode}
-          />
-        ) : isVrc ? (
-          <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
+        {openGame !== null ? (
+          <p className="text-xs text-[var(--text-dim)]">{t(openGame)}</p>
         ) : (
-          // CVR with an explicit preference: no picker, but the dialog still
-          // says what confirming will do. ('ask' is the picker branch above.)
-          <p className="text-xs text-[var(--text-dim)]">
-            {t(WILL_LAUNCH_KEYS[joinMode === 'ask' ? 'desktop' : joinMode])}
-          </p>
+          <LaunchLine checking={checkingGame}>
+            {isVrc ? (
+              <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
+            ) : joinMode === 'ask' ? (
+              <SegmentedControl
+                values={MODE_VALUES}
+                active={mode}
+                labelKeys={MODE_LABEL_KEYS}
+                ariaLabel={t('joinConfirm.mode.aria')}
+                disabled={isInert || checkingGame}
+                onChange={setMode}
+              />
+            ) : (
+              // CVR with an explicit preference: no picker, but the dialog
+              // still says what confirming will do.
+              <p className="text-xs text-[var(--text-dim)]">{t(WILL_LAUNCH_KEYS[joinMode])}</p>
+            )}
+          </LaunchLine>
         )}
 
         <div className="mt-[var(--space-1)] flex items-center justify-end gap-[var(--space-2)]">
@@ -729,15 +777,17 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
           <button
             type="button"
             onClick={() => void confirmPending(resolvedMode)}
-            disabled={isInert}
+            disabled={isInert || awaitingChoice}
             className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] disabled:pointer-events-none disabled:opacity-50"
             style={{
-              borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-              background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+              borderColor:
+                'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+              background:
+                'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
               color: 'var(--op-public-text)'
             }}
           >
-            {t('joinConfirm.confirm')}
+            {isJoining ? t('explore.joinDenied.busy') : t('joinConfirm.confirm')}
           </button>
         </div>
 
@@ -755,7 +805,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
           <button
             type="button"
             onClick={() => void joinAndNeverAskAgain()}
-            disabled={isInert}
+            disabled={isInert || awaitingChoice}
             className="self-center text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
           >
             {t('joinConfirm.dontAskAgain')}

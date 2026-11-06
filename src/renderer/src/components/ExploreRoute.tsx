@@ -10,15 +10,22 @@ import { useFriendsStore } from '../stores/friends'
 import { requestExplore, useExploreCachedSnapshot, useExploreSnapshot } from '../queries/explore'
 import { queryClient } from '../queries/queryClient'
 import { authStatusQueryKey } from '../queries/auth'
-import { useExploreImage } from '../hooks/useExploreImage'
 import { useExploreWorldSelection } from '../hooks/useExploreWorldSelection'
 import { useJoinInstance } from '../hooks/useJoinInstance'
 import { isNotConnectedAuth } from '../hooks/useNotConnectedGate'
 import { useUiStore } from '../stores/ui'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { EXPLORE_SESSION_SEEDS } from '../utils/exploreSeeds'
+import { fillRows } from '../utils/pictureColumns'
+import { usePictureColumns } from '../hooks/usePictureColumns'
 import ExploreView from './ExploreView'
-import ExploreWorldCard from './ExploreWorldCard'
+import { ResolvedCard } from './WorldResults'
+import ExploreListPanel from './ExploreLists'
+import ExploreFavorites from './ExploreFavorites'
+import SegmentedControl from './SegmentedControl'
+import { useRefreshWorldList } from '../queries/community'
+import { refreshGameFavorites } from '../queries/gameFavorites'
+import { shownPlatforms } from '../utils/community'
 import ExploreWorldSheet from './ExploreWorldSheet'
 import { PopularNowSection } from './ExploreDashboardPreview'
 import { isPopularNowHidden } from '../utils/popularNow'
@@ -77,21 +84,15 @@ function shownUnderFilter(
   return snapshot.platform === platformFilter
 }
 
-function ResolvedCard({
-  world,
-  onOpen,
-  layout = 'card'
-}: {
-  world: ExploreWorld
-  onOpen: (world: ExploreWorld, opener: HTMLElement) => void
-  layout?: 'card' | 'bar'
-}): React.JSX.Element {
-  const { ref, image } = useExploreImage(world.platform, world.worldRef)
-  return (
-    <div ref={ref} className="h-full w-full">
-      <ExploreWorldCard world={world} image={image} onOpen={onOpen} layout={layout} />
-    </div>
-  )
+/** Popular now, then the two lists every platform offers (owner, 2026-10-31),
+ *  then the worlds you starred (owner, 2026-11-01). */
+const EXPLORE_TABS = ['popular', 'new', 'updated', 'favorites'] as const
+type ExploreTab = (typeof EXPLORE_TABS)[number]
+const EXPLORE_TAB_KEYS: Record<ExploreTab, string> = {
+  popular: 'explore.popularNow',
+  new: 'explore.lists.new',
+  updated: 'explore.lists.updated',
+  favorites: 'explore.lists.favorites'
 }
 
 /** Production Explore route. Data fetching is intentionally delegated to AppShell's coordinator. */
@@ -122,6 +123,9 @@ export default function ExploreRoute(): React.JSX.Element {
     platformFilter !== 'all' && isNotConnected(platformFilter === 'vrchat' ? vrcAuth : cvrAuth)
       ? platformFilter
       : null
+  // A wide window fills whole rows instead of leaving space beside them.
+  const columns = usePictureColumns()
+  const worldCount = fillRows(worldsShown, columns)
   const worlds = useMemo(() => {
     const lists = {
       vrchat: rankExploreWorlds('vrchat', vrc.data?.worlds ?? []),
@@ -130,10 +134,10 @@ export default function ExploreRoute(): React.JSX.Element {
     return selectExploreWorlds({
       lists,
       filter: platformFilter,
-      total: worldsShown,
+      total: worldCount,
       listSeeds: EXPLORE_SESSION_SEEDS
     })
-  }, [vrc.data?.worlds, cvr.data?.worlds, platformFilter, worldsShown])
+  }, [vrc.data?.worlds, cvr.data?.worlds, platformFilter, worldCount])
   const {
     selected,
     sheet,
@@ -145,16 +149,49 @@ export default function ExploreRoute(): React.JSX.Element {
   const [focusFallback, setFocusFallback] = useState<HTMLDivElement | null>(null)
   const { isJoining, joinExplore, joinExploreFailureFor, pendingConfirm } = useJoinInstance()
 
+  const [tab, setTab] = useState<ExploreTab>('popular')
+  // Like Groups and Avatars: Refresh reads "Refreshing…" and stays off until
+  // the reads its press started answer. Status lines stay quiet (§9.4).
+  const [refreshingTabs, setRefreshingTabs] = useState<ReadonlySet<ExploreTab>>(new Set())
+  const track = useCallback((pressed: ExploreTab, reads: ReadonlyArray<Promise<unknown>>) => {
+    setRefreshingTabs((tabs) => new Set(tabs).add(pressed))
+    void Promise.allSettled(reads).then(() =>
+      setRefreshingTabs((tabs) => new Set([...tabs].filter((other) => other !== pressed)))
+    )
+  }, [])
+  const refreshList = useRefreshWorldList()
+  const refreshShownList = useCallback(() => {
+    if (tab === 'popular' || tab === 'favorites') return
+    track(
+      tab,
+      shownPlatforms(platformFilter).map((platform) => refreshList(platform, tab))
+    )
+  }, [platformFilter, refreshList, tab, track])
+  const gameFavoritesOn = useSettingsStore((s) => s.settings.useGameFavorites) === true
+  const refreshFavorites = useCallback(() => {
+    track(
+      'favorites',
+      shownPlatforms(platformFilter).map((platform) => refreshGameFavorites(platform))
+    )
+  }, [platformFilter, track])
   const refresh = useCallback(() => {
     const platforms =
       platformFilter === 'all' ? (['vrchat', 'chilloutvr'] as const) : ([platformFilter] as const)
-    for (const platform of platforms) void requestExplore(platform, 'manual').catch(() => undefined)
-  }, [platformFilter])
+    track(
+      'popular',
+      platforms.map((platform) => requestExplore(platform, 'manual'))
+    )
+  }, [platformFilter, track])
+  // Popular now answers at once and keeps finding worlds after; it is busy
+  // until no shown platform is still loading.
+  const refreshing =
+    refreshingTabs.has(tab) ||
+    (tab === 'popular' && snapshots.some((snapshot) => snapshot.status === 'loading'))
 
   if (notConnectedPlatform !== null) {
     // The same Connect gate as the Dashboard and Hot Instances pages.
     return (
-      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
+      <div className="glass glass-layer flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
         <p className="text-sm font-semibold text-[var(--text-dim)]">
           {t(NOT_CONNECTED_KEY.explore[notConnectedPlatform])}
         </p>
@@ -174,47 +211,76 @@ export default function ExploreRoute(): React.JSX.Element {
 
   const shell = (
     <>
-      <div className="mb-[var(--space-3)] flex justify-end">
-        <button
-          type="button"
-          onClick={refresh}
-          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text-dim)] hover:bg-[var(--surface-hover)]"
-        >
-          {t('explore.refresh')}
-        </button>
+      <div className="mb-[var(--space-3)] flex flex-wrap items-center justify-between gap-[var(--space-3)]">
+        <SegmentedControl
+          values={EXPLORE_TABS}
+          active={tab}
+          labelKeys={EXPLORE_TAB_KEYS}
+          ariaLabel={t('explore.lists.aria')}
+          onChange={(next) => {
+            // A Popular now sheet belongs to that tab's cards.
+            closeSheet()
+            setTab(next)
+          }}
+        />
+        {/* On Favorites, Refresh reads the account's own favorites again
+            (VRX's stars need none); hidden while game favorites are off. */}
+        {tab !== 'favorites' || gameFavoritesOn ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (refreshing) return
+              if (tab === 'popular') refresh()
+              else if (tab === 'favorites') refreshFavorites()
+              else refreshShownList()
+            }}
+            // aria-disabled, not disabled: a pressed Refresh that turned itself
+            // off would drop keyboard focus to the page.
+            aria-disabled={refreshing || undefined}
+            className="canvas-control shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] disabled:cursor-default disabled:opacity-60 aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-colors"
+          >
+            {refreshing ? t('explore.refreshing') : t('explore.refresh')}
+          </button>
+        ) : null}
       </div>
-      <ExploreView
-        worlds={worlds}
-        total={worldsShown}
-        platformSnapshots={snapshots}
-        sheet={sheet}
-        sheetOpener={selected?.opener ?? null}
-        focusFallback={focusFallback}
-        images={sheet && sheetImage ? { [sheet.world.worldRef]: sheetImage } : undefined}
-        onTotalChange={(exploreWorldsShown) => updateSettings({ exploreWorldsShown })}
-        onOpenWorld={openWorld}
-        onCloseSheet={closeSheet}
-        onJoinRoom={(room: ExploreRoom) => {
-          if (sheet !== null) void joinExplore(sheet.world, room)
-        }}
-        renderWorld={(world) => (
-          <ResolvedCard
-            key={`${world.platform}:${world.worldId}`}
-            world={world}
-            onOpen={openWorld}
-          />
-        )}
-        sheetDismissable={pendingConfirm === null}
-        isJoining={isJoining}
-        onRefreshSheet={refreshSheet}
-        joinFailureFor={(room) =>
-          sheet !== null ? joinExploreFailureFor(sheet.world, room) : null
-        }
-      />
+      {tab === 'new' || tab === 'updated' ? <ExploreListPanel list={tab} /> : null}
+      {tab === 'favorites' ? <ExploreFavorites /> : null}
+      {tab === 'popular' ? (
+        <ExploreView
+          worlds={worlds}
+          total={worldsShown}
+          platformSnapshots={snapshots}
+          sheet={sheet}
+          sheetOpener={selected?.opener ?? null}
+          focusFallback={focusFallback}
+          images={sheet && sheetImage ? { [sheet.world.worldRef]: sheetImage } : undefined}
+          onTotalChange={(exploreWorldsShown) => updateSettings({ exploreWorldsShown })}
+          onOpenWorld={openWorld}
+          onCloseSheet={closeSheet}
+          onJoinRoom={(room: ExploreRoom) => {
+            if (sheet !== null) void joinExplore(sheet.world, room)
+          }}
+          renderWorld={(world) => (
+            <ResolvedCard
+              key={`${world.platform}:${world.worldId}`}
+              world={world}
+              onOpen={openWorld}
+            />
+          )}
+          sheetDismissable={pendingConfirm === null}
+          isJoining={isJoining}
+          onRefreshSheet={refreshSheet}
+          joinFailureFor={(room) =>
+            sheet !== null ? joinExploreFailureFor(sheet.world, room) : null
+          }
+        />
+      ) : null}
     </>
   )
   return (
-    <div ref={setFocusFallback} tabIndex={-1}>
+    // Focus lands here only when a closed sheet's opener is gone; like the main
+    // region, it draws no ring around the whole page.
+    <div ref={setFocusFallback} tabIndex={-1} className="outline-none">
       {shell}
     </div>
   )
@@ -224,12 +290,15 @@ export default function ExploreRoute(): React.JSX.Element {
 export function ExploreDashboardPreviewRoute({
   onSheetOpen,
   dismissSignal = 0,
-  cardLayout = 'card'
+  cardLayout = 'card',
+  onShownChange
 }: {
   onSheetOpen?: () => void
   dismissSignal?: number
   /** `bar` when Popular now is the second Dashboard section (owner, 2026-10-18). */
   cardLayout?: 'card' | 'bar'
+  /** Told whether the section shows, so the Dashboard can give its space away. */
+  onShownChange?: (shown: boolean) => void
 } = {}): React.JSX.Element | null {
   const platformFilter = useFriendsStore((state) => state.platformFilter)
   const vrc = useExploreCachedSnapshot('vrchat')
@@ -242,13 +311,15 @@ export function ExploreDashboardPreviewRoute({
     shownUnderFilter(platformFilter, vrcSource, vrcAuth) ? vrcSource : undefined,
     shownUnderFilter(platformFilter, cvrSource, cvrAuth) ? cvrSource : undefined
   ].filter((value) => value !== undefined)
+  // Picture cards fill one row on wide windows; bars stay two across.
+  const columns = usePictureColumns()
   const worlds = selectExploreWorlds({
     lists: {
       vrchat: rankExploreWorlds('vrchat', vrc?.worlds ?? []),
       chilloutvr: rankExploreWorlds('chilloutvr', cvr?.worlds ?? [])
     },
     filter: platformFilter,
-    total: 2,
+    total: cardLayout === 'card' ? Math.max(2, columns) : 2,
     listSeeds: EXPLORE_SESSION_SEEDS
   })
   const { isJoining, joinExplore, joinExploreFailureFor, pendingConfirm } = useJoinInstance()
@@ -283,7 +354,11 @@ export function ExploreDashboardPreviewRoute({
     if (sheet !== null) suppressFocusRestore.current = true
     close()
   }, [close, dismissSignal, sheet])
-  if (isPopularNowHidden(worlds, snapshots)) return null
+  const hidden = isPopularNowHidden(worlds, snapshots)
+  useEffect(() => {
+    onShownChange?.(!hidden)
+  }, [hidden, onShownChange])
+  if (hidden) return null
   return (
     <PopularNowSection
       platformSnapshots={snapshots}

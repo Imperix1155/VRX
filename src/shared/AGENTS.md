@@ -15,14 +15,31 @@ through `@shared`.
   choice, and adapter event vocabulary.
 - `settings.ts`: schema, defaults, `SETTINGS_VERSION`, migrations,
   `parseSettings`, and `shouldPersistSettings`.
+- `inbox.ts`: inbox vocabulary (kinds, entries, changes, rows), its size
+  bounds, and the ID and text guards the parsers share. `friendActions.ts`:
+  friend request answers and sends, their pacing values and typed results.
 - `explore.ts`: display-only discovery values, opaque main-issued `worldRef`
   and `selectionRef`, typed refresh reasons, and the 2/4/6 world totals.
   `exploreRanking.ts`: pure per-platform ranking and balanced cross-platform
   selection.
+- `community.ts`: read-only profile, search, world-list, players-online and
+  group values, their limits, and the user-ID and search-text guards.
+- `socialActions.ts`: the profile's Unfriend, Block and Unblock vocabulary,
+  the relationship result, and the action pause and cache times.
 - `linkedProfiles.ts`: versioned linked-person values, changes, and snapshots.
+- `activity.ts`: Activity entry values and the page's Show filter. Entries
+  carry no location, only a world name that is null for hidden worlds.
 - `joinability.ts` and `hotInstanceKey.ts`: the shared privacy, joinability,
   hot-membership, and hot-grouping predicates.
-- `constants.ts`: the single source for limits, TTLs, and API endpoints.
+- `backgroundPicture.ts`: which background pictures main refuses and which
+  Settings warns about (size and shape against the landscape window).
+- More vocabularies for user actions, with their limits, pacing values and
+  typed results where they have them: `accountNotes.ts` (note sync),
+  `favorites.ts` (local stars),
+  `gameFavorites.ts` (account favorite groups and categories), `homeWorld.ts`,
+  `ownProfile.ts` and `avatarLibrary.ts` (avatar lists and Wear).
+- `constants.ts`: the single source for API endpoints and app-wide limits
+  and TTLs. A feature's own limits live in its module above.
 - Look up symbols in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md).
 
 ## Local Contracts
@@ -40,15 +57,18 @@ through `@shared`.
 - Every additive persisted setting bumps `SETTINGS_VERSION` and registers an
   identity migration from the previous version, so an older build cannot strip
   it during a downgrade. Keep the full migration chain.
-- `cvrSessionImportChoice` has no reader since the startup import was removed;
-  it stays in the schema so older builds keep their saved answer. Alerts and
-  `autoUpdate` default off. `updateChannel` is `stable`, `beta`, or `dev`
-  (default `stable`); anything else stays `stable`. `SETTINGS_VERSION` 15
-  keeps that choice across a downgrade. `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
-  off. The Dashboard section switches hide sections only and change no other
-  preference. The page switches (`showHotInstancesPage`, `showExplorePage`)
-  hide sidebar pages only. Missing or invalid `setupPending` is `false`, so
+- Settings rules that must survive future changes: alerts, `autoUpdate` and
+  `vrOverlayAlerts` default off; `updateChannel` is `stable`, `beta` or `dev`
+  (anything else is `stable`). `confirmJoin` and `joinMode` keep their values
+  while `allowJoinInstances` is off. Dashboard section switches and the page
+  switches (`show*Page`) only hide things and change no other preference;
+  `showActivityPage` also stops main keeping activity. `dashboardSections`
+  owns the Dashboard order, and every order change writes both it and
+  `dashboardSectionOrder`. A missing or invalid `setupPending` is `false`, so
   only `freshInstallSettings` (a brand-new install) starts the welcome setup.
+  `cvrSessionImportChoice` has no reader but stays in the schema so older
+  builds keep their saved answer. The migration chain in `settings.ts` is the
+  version history.
 - The renderer sends friend IDs and opaque Explore references, never a launch
   URL or an authoritative location. Typed denials stay structured; never pass
   exception text, tokens, cooldowns, or session data across IPC.

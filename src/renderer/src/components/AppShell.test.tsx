@@ -22,6 +22,11 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: () => ({ data: [], isPending: false, isError: false })
 }))
+// The top bar's player counts read through their own queries (CommunityPages.test.tsx).
+vi.mock('../queries/community', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/community')>()),
+  usePlayersOnline: () => ({ data: undefined, fetchStatus: 'idle', dataUpdatedAt: 0 })
+}))
 vi.mock('../queries/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/auth')>()),
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
@@ -80,6 +85,19 @@ describe('AppShell optional pages (owner, 2026-10-20)', () => {
     render(<AppShell />)
     expect(useUiStore.getState().activeTab).toBe('dashboard')
     expect(screen.getByRole('main', { name: msg('shell.nav.dashboard') })).toBeTruthy()
+  })
+
+  it('falls back to the Dashboard when the Inbox page is turned off', () => {
+    useUiStore.setState({ activeTab: 'inbox' })
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, showInboxPage: false } })
+    render(<AppShell />)
+    expect(useUiStore.getState().activeTab).toBe('dashboard')
+  })
+
+  it('opens the Inbox page under its own title', () => {
+    useUiStore.setState({ activeTab: 'inbox' })
+    render(<AppShell />)
+    expect(screen.getByRole('main', { name: msg('shell.nav.inbox') })).toBeTruthy()
   })
 
   it('shows a hidden Hot Instances page when a hot alert opens it, until the user moves on', () => {

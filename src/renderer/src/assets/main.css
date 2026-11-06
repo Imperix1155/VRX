@@ -4,10 +4,16 @@
 .linked-platform-vrchat {
   --linked-platform: var(--vrc);
   --linked-platform-text: var(--plat-vrc-ghost-text);
+  --linked-badge-bg: var(--plat-vrc-rail-bg);
+  --linked-badge-border: var(--plat-vrc-rail-border);
+  --linked-badge-text: var(--plat-vrc-badge-text);
 }
 .linked-platform-chilloutvr {
   --linked-platform: var(--cvr);
   --linked-platform-text: var(--plat-cvr-ghost-text);
+  --linked-badge-bg: var(--plat-cvr-rail-bg);
+  --linked-badge-border: var(--plat-cvr-rail-border);
+  --linked-badge-text: var(--plat-cvr-badge-text);
 }
 .linked-world-pair {
   display: flex;
@@ -26,9 +32,14 @@
 .linked-world-platform {
   flex-shrink: 0;
   border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--linked-platform) 36%, transparent);
-  background: color-mix(in srgb, var(--linked-platform) 13%, transparent);
-  color: var(--linked-platform-text);
+  border: 1px solid var(--linked-badge-border);
+  background:
+    var(--glass-chip-sheen), linear-gradient(var(--linked-badge-bg), var(--linked-badge-bg));
+  /* Glass chip (see .glass-chip). */
+  box-shadow: var(--glass-chip-depth);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  color: var(--linked-badge-text);
   padding-inline: var(--space-1);
   font-size: 10px;
   font-weight: 600;
@@ -121,16 +132,33 @@
     0 0 3px var(--bg-base),
     0 1px 6px var(--bg-base);
 }
+.linked-world-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+/* Over a picture the platform tag keeps its own tint on a heavy card-color
+   frost, so its word stays readable on bright art while the art glows
+   through the glass. */
+.linked-world-tags .linked-world-platform {
+  background:
+    var(--glass-chip-sheen), linear-gradient(var(--linked-badge-bg), var(--linked-badge-bg)),
+    color-mix(in srgb, var(--glass-information) 74%, transparent);
+}
 .linked-world-pill {
   display: inline-flex;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--bg-base) 42%, transparent);
-  backdrop-filter: blur(10px);
+  /* A glass chip on a heavy card-color frost, as the VRC and CVR tags beside
+     it: the art glows through, blurred, and the access word stays readable. */
+  background:
+    var(--glass-chip-sheen), color-mix(in srgb, var(--glass-information) 74%, transparent);
+  box-shadow: var(--glass-chip-depth);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
-/* Light pictures stay bright, so the light pill takes the card-color backing
-   other pills over a picture use (PictureBackedPill) and its word keeps 4.5:1. */
+/* The backing already carries the word; a pale glow would only blur it. */
 [data-theme='light'] .linked-world-pill {
-  background: color-mix(in srgb, var(--glass-information) 78%, transparent);
+  text-shadow: none;
 }
 .linked-identities,
 .linked-platform-rail {
@@ -159,14 +187,16 @@
   color: transparent;
 }
 .linked-platform-rail::before {
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--cvr) 36%, transparent),
-    color-mix(in srgb, var(--vrc) 36%, transparent)
-  );
+  background: linear-gradient(to top, var(--plat-cvr-rail-border), var(--plat-vrc-rail-border));
 }
 .linked-platform-rail .linked-gradient-text {
-  background-image: linear-gradient(to top, var(--plat-cvr-ghost-text), var(--plat-vrc-ghost-text));
+  background-image: linear-gradient(to top, var(--plat-cvr-rail-text), var(--plat-vrc-rail-text));
+}
+/* Light rails are solid brand color, so the linked rail's word is plain ink
+   on its blue-to-orange fill instead of a gradient that would vanish into it. */
+[data-theme='light'] .linked-platform-rail .linked-gradient-text {
+  background-image: none;
+  color: var(--linked-rail-text);
 }
 .linked-location-button {
   position: relative;
@@ -179,8 +209,8 @@
   color: var(--text-dim);
   background: linear-gradient(
     45deg,
-    color-mix(in srgb, var(--linked-cvr-tier) 13%, transparent) 50%,
-    color-mix(in srgb, var(--linked-vrc-tier) 13%, transparent) 50%
+    color-mix(in srgb, var(--linked-cvr-tier) var(--pill-tint), transparent) 50%,
+    color-mix(in srgb, var(--linked-vrc-tier) var(--pill-tint), transparent) 50%
   );
 }
 .linked-location-button::before {
@@ -191,8 +221,8 @@
   padding: 1px;
   background: linear-gradient(
     45deg,
-    color-mix(in srgb, var(--linked-cvr-tier) 36%, transparent) 50%,
-    color-mix(in srgb, var(--linked-vrc-tier) 36%, transparent) 50%
+    color-mix(in srgb, var(--linked-cvr-tier) var(--pill-edge), transparent) 50%,
+    color-mix(in srgb, var(--linked-vrc-tier) var(--pill-edge), transparent) 50%
   );
   mask:
     linear-gradient(white 0 0) content-box,
@@ -238,8 +268,8 @@
 
 /* ── §2 Tokens — dark (default) ───────────────────────────────────────────── */
 :root {
-  /* Native controls (checkboxes, selects, radios) and default scrollbars in the
-     drawer, sheets and dialogs follow the theme instead of staying light. */
+  /* Native controls (checkboxes, selects, radios) follow the theme instead of
+     staying light. Scrollbars have their own rules below. */
   color-scheme: dark;
   --linked-world-corner: 14px;
   --linked-world-name-max: 145px;
@@ -255,6 +285,10 @@
   /* Lifted from #f87171, which fell to 3.7:1 on glass over the aurora. */
   --error: #fca5a5;
   --warning: #f59e0b;
+  /* Favorite star (friends and worlds). Always the star shape, filled when
+     starred, so the yellow never stands alone. Yellow, not amber, so it
+     reads apart from ChilloutVR orange. */
+  --favorite: #fcd34d;
   --space-0-5: 2px;
   --space-1: 4px;
   --space-2: 8px;
@@ -339,6 +373,30 @@
   --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 15%, transparent);
   --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 72%, white);
   --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 17%, transparent);
+  /* PLATFORM BADGES — every small VRChat / ChilloutVR label (pills, the
+     friends-list rail, the short badge on a picture). Dark keeps the quiet
+     outline: the word and edge already glow against the dark glass. Light
+     swaps in a solid brand fill (see the light block). */
+  --plat-vrc-badge-bg: color-mix(in srgb, var(--vrc) 10%, transparent);
+  --plat-cvr-badge-bg: color-mix(in srgb, var(--cvr) 10%, transparent);
+  --plat-vrc-badge-text: var(--plat-vrc-ghost-text);
+  --plat-cvr-badge-text: var(--plat-cvr-ghost-text);
+  --plat-vrc-badge-border: var(--plat-vrc-ghost-border);
+  --plat-cvr-badge-border: var(--plat-cvr-ghost-border);
+  /* Badges over a picture are glass chips (.glass-chip): a heavy card-color
+     frost over the blurred art, so the brand-tinted word stays readable on
+     bright pictures while the art still glows through. */
+  --plat-vrc-picture-badge-bg: color-mix(in srgb, var(--glass-information) 74%, transparent);
+  --plat-cvr-picture-badge-bg: color-mix(in srgb, var(--glass-information) 74%, transparent);
+  /* Friends-list rail: it sits on a row already washed in the same hue, so it
+     takes a stronger tint and edge than the other pills to stand out from it. */
+  --plat-vrc-rail-bg: color-mix(in srgb, var(--vrc) 30%, transparent);
+  --plat-cvr-rail-bg: color-mix(in srgb, var(--cvr) 30%, transparent);
+  --plat-vrc-rail-border: color-mix(in srgb, var(--vrc) 70%, transparent);
+  --plat-cvr-rail-border: color-mix(in srgb, var(--cvr) 70%, transparent);
+  --plat-vrc-rail-text: color-mix(in srgb, var(--vrc) 50%, white);
+  --plat-cvr-rail-text: color-mix(in srgb, var(--cvr) 55%, white);
+  --linked-rail-text: var(--text);
 
   /* DRAWER — scrim behind the friend drawer (VRX-69, owner-approved 2026-07-17;
      softened + made non-blocking in VRX-225, owner live session 2026-07-23:
@@ -353,6 +411,12 @@
      upward shadow + banner text-shadows baked verbatim from the mock. These are
      structural shadow tints, not themeable surface colors. */
   --hot-sheet-shadow: 0 -12px 44px rgba(0, 0, 0, 0.34);
+  /* The icon on a Groups page card, lifted off its banner: a thin ring keeps a
+     dark logo apart from a dark banner, and a soft shade under the bottom edge
+     keeps a bright banner from swallowing the icon. */
+  --group-icon-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  --group-icon-ring: rgba(255, 255, 255, 0.22);
+  --group-banner-scrim: linear-gradient(to top, rgba(0, 0, 0, 0.32), transparent 62%);
   --hot-sheet-banner-title-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
   --hot-sheet-banner-subtitle-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
   /* Pictures behind banner text: dark dims the picture under light text; light
@@ -382,10 +446,41 @@
   /* Heavy translucent frost for TRUE modals (VRX-245) — behind content must never be legible;
      the drawer keeps the lighter --glass-frost. */
   --glass-frost-heavy: rgba(13, 15, 22, 0.94);
+  /* BACK PANEL (owner, 2026-11-04): the panel a page's cards sit on (the
+     Friends list, Settings) shows the background through the sidebar's blur.
+     Thinner than the frost so the picture reads as soft color; the cards and
+     rows on it keep the opaque information backing. */
+  --glass-panel: rgba(13, 15, 22, 0.5);
+  /* Drawers and sheets float over live cards: a heavier frost, still lighter
+     than --glass-frost, so the background reads as glow and never as words. */
+  --glass-sheet: rgba(13, 15, 22, 0.66);
+  /* LAYERED GLASS (owner, 2026-11-04): cards and rows are their own frosted
+     pane with the sidebar's blur, stacked on the frosted panel below them, so
+     the stack reads glass over glass. A lit top edge and a soft drop shadow
+     lift each pane off the one under it. */
+  --glass-layer: rgba(13, 15, 22, 0.44);
+  --glass-layer-depth: 0 6px 18px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  /* Glass chips (owner, 2026-11-04): pills, badges and the friends-list rail
+     are the top pane of the stack, glass on a card on a panel. A brighter lit
+     edge and a short, tight shadow make them pop off the card. */
+  --glass-chip-depth:
+    0 3px 8px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  --glass-chip-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 60%);
   --tint-vrc-bg: linear-gradient(135deg, rgba(43, 124, 232, 0.22), rgba(43, 124, 232, 0.05));
   --tint-vrc-border: rgba(43, 124, 232, 0.34);
   --tint-cvr-bg: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
   --tint-cvr-border: rgba(243, 113, 30, 0.36);
+  /* Platform rows (.platform-row): platform tint, stronger at the platform edge. */
+  --platform-row-tint-strong: 24%;
+  --platform-row-tint-soft: 12%;
+  /* Colored pills (instance access, policy space, platform rails): how much
+     of the pill's hue fills it and edges it. The Strong pair is for pills
+     that call out a single state, such as Public in a join dialog. */
+  --pill-tint: 13%;
+  --pill-edge: 36%;
+  --pill-tint-strong: 16%;
+  --pill-edge-strong: 45%;
 
   /* TEXT ON PLATFORM surfaces (login button, etc.) */
   --text-on-vrc: #ffffff;
@@ -460,56 +555,60 @@
 /* ── §2A Tokens — light (override only; same semantic names) ───────────────── */
 [data-theme='light'] {
   color-scheme: light;
-  --bg-base: #eef3f8;
-  --text: #14131c;
-  --text-dim: rgba(30, 28, 42, 0.72);
-  --text-faint: rgba(52, 49, 70, 0.48);
-  --border: rgba(40, 48, 68, 0.16);
-  --surface-hover: rgba(20, 19, 28, 0.045);
-  --control-fill: rgba(20, 19, 28, 0.045);
-  --control-fill-hover: rgba(20, 19, 28, 0.09);
+  /* Light theme (reworked 2026-10-28): cards are white and the canvas sits a
+     step darker, so panels read as raised instead of melting into the page.
+     Brand colors stay at full strength for fills, rings, edges and the glow;
+     words in a brand color use a deeper companion so they clear 4.5:1. */
+  --bg-base: #e7ecf3;
+  --text: #12111a;
+  --text-dim: rgba(26, 24, 38, 0.76);
+  --text-faint: rgba(44, 41, 62, 0.56);
+  --border: rgba(36, 44, 64, 0.15);
+  --surface-hover: rgba(20, 19, 28, 0.05);
+  --control-fill: rgba(20, 19, 28, 0.05);
+  --control-fill-hover: rgba(20, 19, 28, 0.1);
   --error: #b4232c;
   --warning: #a15c00;
+  --favorite: #a16207;
 
-  --vrc: #1f6fd3;
-  --cvr: #d85f18;
+  --vrc: #1769e8;
+  --cvr: #ec6210;
   --bridge: #30323b;
 
-  --ingame: #0f9f6e;
-  --active: #0d9488;
-  --offline: #8a8d99;
+  --ingame: #08a56a;
+  --active: #0a9a8f;
+  --offline: #868a97;
 
-  --st-joinme: #1d78d8;
-  --st-online: #169a4a;
-  --st-askme: #cf6a18;
-  --st-dnd: #c9363a;
+  --st-joinme: #1772e0;
+  --st-online: #13a04b;
+  --st-askme: #e46a0e;
+  --st-dnd: #d9363b;
   --st-joinme-text: #124e91;
   --st-online-text: #0f6e35;
   --st-askme-text: #91480e;
   --st-dnd-text: #8d2428;
-  --ingame-text: color-mix(in srgb, var(--ingame) 75%, black);
-  --active-text: color-mix(in srgb, var(--active) 75%, black);
+  --ingame-text: color-mix(in srgb, var(--ingame) 72%, black);
+  --active-text: color-mix(in srgb, var(--active) 72%, black);
   --offline-text: color-mix(in srgb, var(--offline) 70%, black);
 
-  /* OPENNESS — light: darkened hues (tint/border) + darker text for contrast.
-     The friend-ladder words sit ~12% darker than their first pass so each one
-     clears 4.5:1 on its own tint over rows, cards and banner scrims. */
-  --op-public: #1fae4e;
-  --op-friends-plus: #7fa821;
-  --op-friends: #b28a1d;
-  --op-invite-plus: #d98324;
-  --op-invite: #c96a20;
-  --op-group-public: #7a5fd0;
-  --op-group-plus: #6d4fc9;
-  --op-group: #5f3fc4;
-  --op-public-text: #126b30;
-  --op-friends-plus-text: #516b13;
-  --op-friends-text: #725917;
-  --op-invite-plus-text: #885112;
-  --op-invite-text: #7e4312;
-  --op-group-public-text: #5b429e;
-  --op-group-plus-text: #4f38a0;
-  --op-group-text: #452f96;
+  /* OPENNESS — light: deeper hues for the tint and edge, darker words so each
+     one clears 4.5:1 on its own tint over rows, cards and banner scrims. */
+  --op-public: #16ad48;
+  --op-friends-plus: #7ba51a;
+  --op-friends: #c29410;
+  --op-invite-plus: #e58a1f;
+  --op-invite: #dd6a14;
+  --op-group-public: #7d5ce0;
+  --op-group-plus: #6c48d6;
+  --op-group: #5c37cf;
+  --op-public-text: #11652d;
+  --op-friends-plus-text: #4c6512;
+  --op-friends-text: #6c5410;
+  --op-invite-plus-text: #804c10;
+  --op-invite-text: #7a3f10;
+  --op-group-public-text: #553c98;
+  --op-group-plus-text: #4a3399;
+  --op-group-text: #412b8f;
 
   /* POLICY SPACE — light-mode contrast companions for Rose and Ice. */
   --policy-public: #c84f91;
@@ -517,42 +616,80 @@
   --policy-private: #228eaa;
   --policy-private-text: #17667a;
 
-  /* DASHBOARD CARD — light (§9/VRX-198). Ghost label mixes toward BLACK (light
-     --cvr/--vrc are already darkened) so it stays legible on the light card;
-     names-lift is a darker/more-opaque dim. WCAG AA re-verified in light. */
-  --names-lift: rgba(30, 28, 42, 0.86);
-  /* CVR mixes darker (70%) than VRC: at 76% its rail and card labels fell to
-     4.2-4.4:1 while VRC read 5.0-5.4:1. */
-  --plat-cvr-ghost-text: color-mix(in srgb, var(--cvr) 70%, black);
-  --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 30%, transparent);
-  --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 76%, black);
-  --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 32%, transparent);
+  /* Colored pills: a fuller tint and a firmer edge than dark. On a white card
+     a 13% wash reads as gray; this keeps each pill's hue clear at a glance. */
+  --pill-tint: 17%;
+  --pill-edge: 55%;
+  --pill-tint-strong: 20%;
+  --pill-edge-strong: 62%;
 
-  --glass-blur: blur(24px) saturate(142%);
+  /* DASHBOARD CARD — light. Platform words mix the brand hue toward black so
+     they read on white, on the platform tint, and on the canvas; borders keep
+     enough hue to name the platform at a glance. */
+  --names-lift: rgba(26, 24, 38, 0.86);
+  /* Deep but still saturated, so the words read as blue and orange rather
+     than navy and brown: VRChat 6.6:1 and ChilloutVR 6.0:1 on white, both
+     above 4.5:1 on the strongest platform tint. */
+  --plat-cvr-ghost-text: #b03c08;
+  --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 55%, transparent);
+  --plat-vrc-ghost-text: #1155c8;
+  --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 50%, transparent);
+  /* Platform badges are solid brand color in light, so blue and orange read
+     at a glance down a list, the way the glow does in dark. Both carry white
+     words: VRChat blue as is (5.0:1), ChilloutVR one step deeper than the
+     raw orange so its white word keeps AA too (4.7:1; raw orange is 3.3:1). */
+  --plat-cvr-solid: #c84c08;
+  --plat-badge-ink: #ffffff;
+  --plat-vrc-badge-bg: var(--vrc);
+  --plat-cvr-badge-bg: var(--plat-cvr-solid);
+  --plat-vrc-badge-text: var(--plat-badge-ink);
+  --plat-cvr-badge-text: var(--plat-badge-ink);
+  --plat-vrc-badge-border: var(--vrc);
+  --plat-cvr-badge-border: var(--plat-cvr-solid);
+  --plat-vrc-picture-badge-bg: var(--vrc);
+  --plat-cvr-picture-badge-bg: var(--plat-cvr-solid);
+  --plat-vrc-rail-bg: var(--vrc);
+  --plat-cvr-rail-bg: var(--plat-cvr-solid);
+  --plat-vrc-rail-border: var(--vrc);
+  --plat-cvr-rail-border: var(--plat-cvr-solid);
+  --plat-vrc-rail-text: var(--plat-badge-ink);
+  --plat-cvr-rail-text: var(--plat-badge-ink);
+  --linked-rail-text: var(--plat-badge-ink);
+
+  /* Higher saturation keeps a background picture's color under the glass
+     instead of letting the white pane gray it out. */
+  --glass-blur: blur(24px) saturate(175%);
 
   /* GLASS material — light overrides (§3A) */
-  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.28));
-  --glass-border: rgba(40, 48, 68, 0.16);
+  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.34));
+  --glass-border: rgba(36, 44, 64, 0.13);
   --glass-shadow:
-    0 16px 46px rgba(59, 72, 93, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    inset 0 -1px 1px rgba(40, 48, 68, 0.08);
-  --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.72), transparent 48%);
-  --glass-frost: rgba(244, 247, 252, 0.84);
-  --glass-information: rgb(244, 247, 252);
-  --glass-blur-frosted: blur(30px) saturate(142%);
-  --glass-frost-heavy: rgba(244, 247, 252, 0.96);
-  --tint-vrc-bg: linear-gradient(135deg, rgba(31, 111, 211, 0.18), rgba(255, 255, 255, 0.34));
-  --tint-vrc-border: rgba(31, 111, 211, 0.28);
-  --tint-cvr-bg: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
-  --tint-cvr-border: rgba(216, 95, 24, 0.3);
+    0 1px 2px rgba(31, 38, 56, 0.07), 0 12px 34px rgba(31, 38, 56, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.6), transparent 48%);
+  --glass-frost: rgba(250, 251, 253, 0.86);
+  --glass-information: rgb(255, 255, 255);
+  --glass-blur-frosted: blur(30px) saturate(175%);
+  --glass-frost-heavy: rgba(250, 251, 253, 0.96);
+  --glass-panel: rgba(250, 251, 253, 0.56);
+  --glass-sheet: rgba(250, 251, 253, 0.76);
+  --glass-layer: rgba(255, 255, 255, 0.6);
+  --glass-layer-depth: 0 4px 14px rgba(31, 38, 56, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-chip-depth: 0 2px 6px rgba(31, 38, 56, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --glass-chip-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 60%);
+  --tint-vrc-bg: linear-gradient(135deg, rgba(23, 105, 232, 0.24), rgba(23, 105, 232, 0.1));
+  --tint-vrc-border: rgba(23, 105, 232, 0.72);
+  --tint-cvr-bg: linear-gradient(135deg, rgba(236, 98, 16, 0.24), rgba(236, 98, 16, 0.1));
+  --tint-cvr-border: rgba(236, 98, 16, 0.76);
+  --platform-row-tint-strong: 28%;
+  --platform-row-tint-soft: 12%;
 
   --text-on-vrc: #ffffff;
-  /* Same dark ink on the light-theme CVR fill (4.89:1; white = 3.77:1 fails). */
+  /* Dark ink on the light-theme CVR fill (white falls under 3.5:1). */
   --text-on-cvr: #14131c;
 
-  /* LOGIN TAB / PLATFORM words — light: BOTH raw hues fail on light glass (vrc
-     3.57:1, cvr 2.74:1), so both take their ghost companions (vrc 5.40:1, cvr
-     at its darker 70% mix 4.90:1). */
+  /* LOGIN TAB / PLATFORM words — light: both raw hues fall short as words on
+     light glass, so both take their deeper ghost companions. */
   --login-tab-vrc: var(--plat-vrc-word);
   --login-tab-cvr: var(--plat-cvr-word);
   --plat-vrc-word: var(--plat-vrc-ghost-text);
@@ -560,7 +697,12 @@
 
   /* HOT-INSTANCE SHEET — light: dark text needs a light scrim, not a dimmed
      picture and black shadows (that left the world name unreadable). */
-  --hot-sheet-banner-title-shadow: 0 1px 8px var(--glass-information);
+  --hot-sheet-shadow: 0 -12px 44px rgba(31, 38, 56, 0.2);
+  --group-icon-shadow: 0 4px 14px rgba(31, 38, 56, 0.2);
+  --group-icon-ring: rgba(255, 255, 255, 0.9);
+  --group-banner-scrim: linear-gradient(to top, rgba(31, 38, 56, 0.16), transparent 62%);
+  /* The light scrim carries the title; no glow, so the words stay crisp. */
+  --hot-sheet-banner-title-shadow: none;
   --hot-sheet-banner-subtitle-shadow: none;
   --hot-sheet-banner-image-filter: none;
   --hot-sheet-group-image-filter: none;
@@ -571,35 +713,34 @@
     color-mix(in srgb, var(--glass-information) 24%, transparent) 100%
   );
 
-  /* ACTIVE CONTROL surfaces (§8 nav active, §9 segmented bubble) — light overrides */
-  --control-active-bg: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.78),
-    rgba(255, 255, 255, 0.38)
-  );
-  --control-active-border: rgba(40, 48, 68, 0.16);
+  /* ACTIVE CONTROL surfaces (§8 nav active, §9 segmented bubble) — light:
+     solid white with a soft drop, so the selected item stands clear of the
+     frosted pane around it. */
+  --control-active-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.8));
+  --control-active-border: rgba(36, 44, 64, 0.14);
   --control-active-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 2px 12px rgba(59, 72, 93, 0.12);
-  --seg-bubble-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.38));
-  --seg-bubble-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 2px 12px rgba(59, 72, 93, 0.12);
-  --sidebar-foot-border: rgba(40, 48, 68, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 10px rgba(31, 38, 56, 0.12);
+  --seg-bubble-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.8));
+  --seg-bubble-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 2px 10px rgba(31, 38, 56, 0.14);
+  --sidebar-foot-border: rgba(36, 44, 64, 0.1);
 
   /* AURORA (§4A) — light overrides */
-  --aurora-vrc: rgba(31, 111, 211, 0.18);
-  --aurora-cvr: rgba(216, 95, 24, 0.15);
-  --aurora-gradient: linear-gradient(180deg, #fbfcff 0%, var(--bg-base) 48%, #e7edf4 100%);
+  --aurora-vrc: rgba(23, 105, 232, 0.26);
+  --aurora-cvr: rgba(236, 98, 16, 0.22);
+  --aurora-gradient: linear-gradient(180deg, #f3f6fa 0%, var(--bg-base) 50%, #dfe5ee 100%);
 
-  /* GLOW — light standard (intensity 1.15) */
-  --glow-a-vrc: 0.207;
-  --glow-a-cvr: 0.1725;
+  /* GLOW — light standard. Strong enough that the brand corners read as
+     clearly as they do in dark, never a faint pastel haze. */
+  --glow-a-vrc: 0.42;
+  --glow-a-cvr: 0.38;
   --wisp-a-vrc: 0;
   --wisp-a-cvr: 0;
-  --scanline-color: rgba(20, 19, 28, 0.026);
+  --scanline-color: rgba(20, 19, 28, 0.024);
   --scanline-blend: multiply;
-  --scanline-opacity: 0.42;
+  --scanline-opacity: 0.4;
 
   /* SCROLLBAR — light */
-  --scrollbar-thumb: rgba(20, 19, 28, 0.16);
+  --scrollbar-thumb: rgba(20, 19, 28, 0.2);
 }
 
 /* ── Static scale → Tailwind utilities (never theme-switches) ──────────────── */
@@ -625,6 +766,81 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden; /* §8: shell fixed; only .main scrolls */
 }
+/* Every scroll area (the main page, friend details, sheets, dialogs, the
+   welcome setup) uses one slim rounded scrollbar instead of the system one with
+   arrow buttons, which looked out of place on the glass. Unlayered on purpose,
+   so these beat any utility: a scroll area that ever needs a different bar must
+   change it here, not with a utility (see the glass note below). */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* High Contrast (forced colors) repaints the thumb in the page color, which
+   hid it; the text color keeps it visible. */
+@media (forced-colors: active) {
+  ::-webkit-scrollbar-thumb {
+    background: CanvasText;
+  }
+}
+
+/* High Contrast also drops box shadows and author colors, and VRX draws its
+   focus rings, the chosen option and the status dot with them, so all three
+   vanished there. System colors bring them back in High Contrast only. */
+@media (forced-colors: active) {
+  /* Keyboard focus. Spots that take focus only from code (tabindex -1: the
+     main region, notice lines, dialog panels) stay unmarked, as elsewhere. */
+  :focus-visible:not([tabindex='-1']),
+  .peer:focus-visible + * {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px;
+  }
+  /* Rows whose own ring is inset keep the outline inside, unclipped. */
+  [class~='focus-visible:ring-inset']:focus-visible {
+    outline-offset: -2px;
+  }
+  /* The chosen option: a segmented control's bubble, the current sidebar page
+     and its spine, a chosen status, a setup choice's dot and progress bars. */
+  .segmented-bubble,
+  [aria-current='page'] > [data-platform-filter] {
+    background: Highlight !important;
+  }
+  /* Chosen words are painted by hand: High Contrast's own plate behind text
+     would hide HighlightText on Highlight. */
+  .segmented-bubble ~ [aria-checked='true'] {
+    forced-color-adjust: none;
+    color: HighlightText !important;
+  }
+  [aria-current='page'],
+  .peer:checked + * {
+    forced-color-adjust: none;
+    border-color: Highlight !important;
+    background: Highlight !important;
+    color: HighlightText !important;
+  }
+  .setup-theme-choice[aria-checked='true'] {
+    border-color: Highlight;
+  }
+  [aria-checked='true'] .setup-radio::after,
+  .setup-progress-step[data-state='done'] .setup-progress-bar,
+  .setup-progress-step[data-state='current'] .setup-progress-bar {
+    background: Highlight;
+  }
+  /* A friend's presence and status live in the ring's and the dot's hues
+     (DESIGN.md §9.1), so they keep them. */
+  .presence-ring,
+  .status-badge {
+    forced-color-adjust: none;
+  }
+}
+
 /* Japanese wraps at phrase boundaries, never mid-word (Chromium's auto-phrase);
    break-word still splits a phrase that cannot fit its line. Inherited, so any
    element that sets its own word-break keeps it. Other languages are untouched. */
@@ -662,7 +878,15 @@ body::before {
       color-mix(in srgb, var(--cvr) calc(var(--wisp-a-cvr) * 100%), transparent),
       transparent var(--wisp-fade)
     ),
-    var(--aurora-gradient);
+    var(--aurora-floor, var(--aurora-gradient));
+}
+
+/* Off = no glow at all: the plain base canvas (owner, 2026-10-26). */
+[data-glow='off'] {
+  --glow-a-vrc: 0;
+  --glow-a-cvr: 0;
+  --wisp-a-vrc: 0;
+  --wisp-a-cvr: 0;
 }
 
 /* Muted = old shipped look (intensity 1.00, no wisps). */
@@ -689,14 +913,90 @@ body::before {
 
 /* Light + muted: keep muted size/fade, switch to light base alphas. */
 [data-theme='light'][data-glow='muted'] {
-  --glow-a-vrc: 0.18;
-  --glow-a-cvr: 0.15;
+  --glow-a-vrc: 0.3;
+  --glow-a-cvr: 0.27;
 }
 
 /* Light + vivid: keep vivid size/fade/wisps, switch to light base alphas. */
 [data-theme='light'][data-glow='vivid'] {
-  --glow-a-vrc: 0.27;
-  --glow-a-cvr: 0.225;
+  --glow-a-vrc: 0.54;
+  --glow-a-cvr: 0.48;
+}
+
+/* Background picture (owner, 2026-10-26): the user's own picture replaces the
+   base canvas. The aurora drops its opaque floor so the picture shows through,
+   and any glow the user keeps sits over it. The fade layer pulls the picture
+   toward the theme's base colour so words over it stay readable; information
+   panels keep their own solid backing either way. */
+[data-app-background] {
+  --aurora-floor: transparent;
+}
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  pointer-events: none;
+  background: var(--bg-base);
+}
+.app-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.app-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg-base) var(--app-backdrop-fade), transparent);
+}
+.app-backdrop[data-fade='low'] {
+  --app-backdrop-fade: 35%;
+}
+.app-backdrop[data-fade='medium'] {
+  --app-backdrop-fade: 55%;
+}
+.app-backdrop[data-fade='high'] {
+  --app-backdrop-fade: 75%;
+}
+/* Light (owner, 2026-10-28): a heavy pale wash turned pictures milky white.
+   Light keeps more of the picture and its color. Words on the canvas stay
+   crisp (no glow, which read as fuzzy): they turn near-solid ink instead. */
+[data-theme='light'] .app-backdrop[data-fade='low'] {
+  --app-backdrop-fade: 18%;
+}
+[data-theme='light'] .app-backdrop[data-fade='medium'] {
+  --app-backdrop-fade: 34%;
+}
+[data-theme='light'] .app-backdrop[data-fade='high'] {
+  --app-backdrop-fade: 55%;
+}
+[data-theme='light'] .app-backdrop img {
+  filter: saturate(1.15);
+}
+/* Dark ink straight on a dark picture would vanish, and a glow around it
+   reads as fuzzy. So over a light-theme picture, words on the canvas sit on
+   a small crisp card-color backing, like the small buttons beside them, and
+   their dim and faint tones turn near-solid. */
+[data-theme='light'][data-app-background] .canvas-text:not(:empty) {
+  --text-dim: color-mix(in srgb, var(--text) 84%, transparent);
+  --text-faint: color-mix(in srgb, var(--text) 74%, transparent);
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background-color: color-mix(in srgb, var(--glass-information) 78%, transparent);
+}
+[data-theme='light'][data-app-background] .canvas-control {
+  --control-fill: color-mix(in srgb, var(--glass-information) 78%, transparent);
+  --control-fill-hover: var(--glass-information);
+}
+/* Settings preview of the kept picture, beside its Change and Remove buttons. */
+.background-picture-thumb {
+  width: 48px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  object-fit: cover;
 }
 
 /* §4 CRT scanlines — faint texture, never a visible grid */
@@ -775,6 +1075,84 @@ body::after {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+
+  /* Back panels and side sheets (owner, 2026-11-04): the sidebar's blur
+     carried onto the panel a page's cards sit on (.glass-panel: the Friends
+     list, Settings) and onto drawers and sheets (.glass-sheet: the friend
+     details drawer, the world, hot instance, avatar and group sheets).
+     The background shows through as soft color; the cards and rows on it are
+     layered glass (.glass-layer) or keep an opaque .glass-information backing.
+     The blur lives on a layer UNDER the content instead of on the element:
+     a backdrop-filter makes its element the containing block for fixed
+     descendants, which would pin the friend drawer inside the list panel.
+     z-index -2 puts it under the .glass sheen (-1) and above the element's own
+     background. Composes with or without .glass; follows .glass-information so
+     its transparent backing wins. */
+  .glass-panel,
+  .glass-sheet {
+    position: relative;
+    isolation: isolate;
+    background-color: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-panel::after,
+  .glass-sheet::after {
+    content: '';
+    position: absolute;
+    z-index: -2;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background-color: var(--glass-panel);
+    -webkit-backdrop-filter: var(--glass-blur-frosted);
+    backdrop-filter: var(--glass-blur-frosted);
+  }
+  /* Layered glass: a card, row, header or field that is its own frosted pane
+     (the sidebar's blur, a thinner fill) lifted by --glass-layer-depth. On a
+     .glass-panel it blurs the already frosted panel, so it reads more frosted
+     than the panel; on the bare background it is as frosted as the sidebar.
+     No fixed-position children may live inside one (see .glass-panel). */
+  .glass-layer {
+    background-color: var(--glass-layer);
+    box-shadow: var(--glass-layer-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+
+  /* Glass chip: the top pane of the stack (pills, platform badges, the
+     friends-list rail, small counts). The sidebar's blur under the chip's own
+     tinted fill, with a lit edge and a tight lift. Words, names, pictures and
+     status dots never get one. */
+  .glass-chip {
+    /* Positioning utilities (absolute) still win: this is the components layer. */
+    position: relative;
+    isolation: isolate;
+    box-shadow: var(--glass-chip-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  /* A glossy top light on the chip's own fill, under its word (z-index -1 in
+     the chip's stacking context), so it never washes out the text. */
+  .glass-chip::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--glass-chip-sheen);
+  }
+  /* Presence dots on avatars: opaque color, so only the chip's lift, no blur. */
+  .status-badge {
+    box-shadow: var(--glass-chip-depth);
+  }
+
+  /* Sheets float over live cards, so they take the heavier sheet frost:
+     what is behind reads as glow, never as text. */
+  .glass-sheet::after {
+    background-color: var(--glass-sheet);
+  }
 }
 
 .tint-vrc {
@@ -843,6 +1221,116 @@ body::after {
 }
 
 /**
+ * Picture card grids (Explore, Popular now, world results; Hot Instances via
+ * `.hot-grid--picture`). Two columns from the window floor, then one more
+ * column each time a column would pass about 730px (owner, 2026-11-01:
+ * pictures looked blurry on an ultrawide, a TV and 1080p fullscreen because
+ * two columns stretched each picture far past its source). Narrower columns
+ * keep pictures close to their real size and use the extra width for more
+ * cards. `.picture-gridwrap` is the grid-only query container, like
+ * `.hotwrap`, so it never wraps a heading.
+ */
+.picture-gridwrap {
+  container-type: inline-size;
+}
+
+.picture-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@container (min-width: 440px) {
+  .picture-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1480px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 2200px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 2920px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 3640px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 4360px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 5080px) {
+  .picture-grid,
+  .hot-grid--picture {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+/**
+ * Dashboard glance row (owner, 2026-10-27): "Wearing now" and "Latest invites"
+ * side by side under the numbers, one column on a narrow pane. A lone section
+ * fills the row. The wrapper is the query container, like `.hotwrap`.
+ */
+.glancewrap {
+  container-type: inline-size;
+}
+
+.glance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 26px;
+}
+
+@container (min-width: 520px) {
+  .glance-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.glance-grid > :only-child {
+  grid-column: 1 / -1;
+}
+
+/* Each section's rows: stacked with a divider, or, when the section has the
+   row to itself (the other one is off or empty), its two platform rows side
+   by side so the width is used instead of left blank. */
+.glance-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+@container (min-width: 520px) {
+  .glance-grid > :only-child .glance-list {
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  }
+}
+
+/**
  * Reduced motion (DESIGN.md R10): VRX never animates by default for users who opt
  * out. Apply all animation/transition utilities behind Tailwind's `motion-safe:`
  * variant (e.g. `motion-safe:transition`) so reduced-motion users get none — with
@@ -851,6 +1339,63 @@ body::after {
 
 /* Settings: compact information cards over a neutral backing panel. */
 @layer components {
+  /* Activity entries (owner, 2026-10-27): each entry is its own capsule tinted
+     with its platform's brand color plus a 3px platform edge, so VRChat and
+     ChilloutVR read apart at a glance. Both platforms share one recipe; only
+     the color differs. The platform pill stays the non-color cue. */
+  /* Platform-tinted rows (Activity, Friends, Inbox, the Dashboard glance):
+     a card-color capsule washed in its platform's hue from the left, a
+     platform-colored edge and a 3px platform bar. A linked person carries
+     both platforms, blue into orange. */
+  .platform-row {
+    --platform-row-from: var(--platform-row-color);
+    --platform-row-to: var(--platform-row-color);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--platform-row-border);
+    border-radius: var(--radius-control);
+    /* Layered glass (see .glass-layer): its own frosted pane, tinted. */
+    background-color: var(--glass-layer);
+    box-shadow: var(--glass-layer-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--platform-row-from) var(--platform-row-tint-strong), transparent),
+      color-mix(in srgb, var(--platform-row-to) var(--platform-row-tint-soft), transparent)
+    );
+  }
+  .platform-row::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: linear-gradient(var(--platform-row-from), var(--platform-row-to));
+    pointer-events: none;
+  }
+  .platform-row--vrchat {
+    --platform-row-color: var(--vrc);
+    --platform-row-border: var(--tint-vrc-border);
+  }
+  .platform-row--chilloutvr {
+    --platform-row-color: var(--cvr);
+    --platform-row-border: var(--tint-cvr-border);
+  }
+  .platform-row--vrx {
+    --platform-row-color: var(--vrc);
+    --platform-row-to: var(--cvr);
+    --platform-row-border: var(--tint-vrc-border);
+    border-right-color: var(--tint-cvr-border);
+    border-bottom-color: var(--tint-cvr-border);
+  }
+  /* Rows without a platform (loading, empty) keep the same capsule, plain. */
+  .platform-row--none {
+    --platform-row-color: transparent;
+    --platform-row-border: var(--border);
+  }
+  .platform-row--none::before {
+    content: none;
+  }
   .settings-cards {
     display: grid;
     gap: var(--space-2);
@@ -860,8 +1405,12 @@ body::after {
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-control);
-    background: var(--glass-information);
+    /* Layered glass (see .glass-layer) on the frosted Settings panel. */
+    background-color: var(--glass-layer);
     background-image: var(--glass-sheen);
+    box-shadow: var(--glass-layer-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
   }
   .setting-row {
     display: flex;
@@ -884,6 +1433,14 @@ body::after {
   .setting-disclosure-clip {
     min-height: 0;
     overflow: hidden;
+  }
+  /* Clip, not hide: the clip margin lets a light control's soft shadow reach
+     past the rows instead of ending on a hard line. */
+  @supports (overflow-clip-margin: 8px) {
+    .setting-disclosure-clip {
+      overflow: clip;
+      overflow-clip-margin: 8px;
+    }
   }
   .setting-children {
     display: grid;
@@ -957,9 +1514,13 @@ body::after {
     gap: var(--space-2);
     padding: 8px;
     border: 1px solid var(--border);
-    border-radius: 14px;
-    background: var(--glass-information);
+    border-radius: var(--radius-control);
+    /* Layered glass (see .glass-layer) on the frosted setup panel. */
+    background-color: var(--glass-layer);
     background-image: var(--glass-sheen);
+    box-shadow: var(--glass-layer-depth);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     color: var(--text-dim);
     cursor: pointer;
   }
@@ -1049,9 +1610,238 @@ body::after {
   }
 }
 
+/* Bottom-sheet "more" details (grab bar expanded): the extra section rises
+   in as the sheet grows. Reduced motion shows it without movement. */
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .sheet-more {
+      animation: sheet-more-in 260ms ease-out;
+    }
+  }
+}
+
+/* Community tile pictures (owner, 2026-11-04: Groups and Search pictures
+   popped in one by one). While a picture is on its way its box breathes softly
+   instead of showing the "no picture" letter, and a picture that arrives after
+   the page is up fades in. Reduced motion shows both states without motion. */
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .picture-arrive {
+      animation: picture-arrive 260ms ease-out;
+    }
+    .picture-waiting {
+      animation: picture-waiting 1.8s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes picture-arrive {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes picture-waiting {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes sheet-more-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+/* A group banner fades in over the icon's soft copy once it arrives.
+   Reduced motion shows it at once. */
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .group-banner-in {
+      animation: group-banner-in 240ms ease-out;
+    }
+  }
+}
+
+@keyframes group-banner-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @keyframes setup-step-in {
   from {
     transform: translateX(10px);
     opacity: 0.5;
+  }
+}
+
+/* Friend details alerts bell (owner, 2026-10-27). The panel springs out of
+   the bell and its rows follow one after another; the bell swings when it
+   opens and when a friend starts alerting. Open state lives in data-open,
+   which utilities cannot animate as one rule set. Reduced motion shows and
+   hides the panel without movement. */
+@layer components {
+  /* Favorite star (FavoriteStar.tsx): outline and dim until starred, then a
+     filled star in the favorite yellow. The shape changes with the color. */
+  .favorite-star {
+    color: var(--text-dim);
+  }
+  .favorite-star[data-on='false']:hover:not(:disabled),
+  .favorite-star[data-on='false'][aria-expanded='true'] {
+    color: var(--text);
+  }
+  .favorite-star[data-on='true'] {
+    color: var(--favorite);
+  }
+  .favorite-star[aria-expanded='true'] {
+    background-color: var(--surface-hover);
+  }
+  .favorite-choice-box {
+    border-color: var(--text-faint);
+  }
+  .favorite-choice[aria-pressed='true'] .favorite-choice-box {
+    border-color: var(--favorite);
+    color: var(--favorite);
+  }
+  .alert-bell {
+    color: var(--text-dim);
+  }
+  .alert-bell[data-on='true'],
+  .alert-bell[aria-expanded='true'],
+  .alert-bell:hover {
+    color: var(--text);
+  }
+  .alert-bell[aria-expanded='true'] {
+    background-color: var(--surface-hover);
+  }
+  .alert-bell-panel {
+    border-radius: 16px;
+    transform-origin: calc(100% - 16px) calc(100% + 24px);
+    visibility: hidden;
+    opacity: 0;
+  }
+  .alert-bell-panel[data-open='true'] {
+    visibility: visible;
+    opacity: 1;
+  }
+  .alert-bell-kind {
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .alert-bell-kind[data-kind-on='false'] {
+    color: var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .alert-bell-panel {
+      transform: translateY(6px) scale(0.55);
+      transition:
+        opacity 120ms ease-in,
+        transform 160ms ease-in,
+        visibility 160ms;
+    }
+    .alert-bell-panel[data-open='true'] {
+      transform: none;
+      transition:
+        opacity 140ms ease-out,
+        transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
+        visibility 0ms;
+    }
+    .alert-bell-panel[data-open='true'] .alert-bell-step {
+      animation: alert-bell-step-in 260ms ease-out both;
+      animation-delay: calc(70ms + var(--alert-step, 0) * 55ms);
+    }
+    .alert-bell {
+      transition:
+        color 160ms ease,
+        background-color 160ms ease,
+        transform 160ms ease;
+    }
+    .alert-bell:active {
+      transform: scale(0.92);
+    }
+    .favorite-star {
+      transition:
+        color 160ms ease,
+        background-color 160ms ease,
+        transform 160ms ease;
+    }
+    .favorite-star:active:not(:disabled) {
+      transform: scale(0.92);
+    }
+    .alert-bell-glyph[data-ring='true'] .alert-bell-body {
+      transform-box: fill-box;
+      transform-origin: 50% 8%;
+      animation: alert-bell-swing 720ms ease-out;
+    }
+    .alert-bell-glyph[data-ring='true'] .alert-bell-clapper {
+      transform-box: fill-box;
+      transform-origin: 50% -200%;
+      animation: alert-bell-clapper 720ms ease-out;
+    }
+    .alert-bell-glyph[data-ring='true'] .alert-bell-waves {
+      animation: alert-bell-waves 720ms ease-out;
+    }
+  }
+}
+
+@keyframes alert-bell-step-in {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+}
+@keyframes alert-bell-swing {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  15% {
+    rotate: 16deg;
+  }
+  32% {
+    rotate: -13deg;
+  }
+  48% {
+    rotate: 9deg;
+  }
+  64% {
+    rotate: -5deg;
+  }
+  80% {
+    rotate: 2deg;
+  }
+}
+@keyframes alert-bell-clapper {
+  0%,
+  100% {
+    translate: 0;
+  }
+  20% {
+    translate: -1.5px;
+  }
+  38% {
+    translate: 1.5px;
+  }
+  56% {
+    translate: -1px;
+  }
+  72% {
+    translate: 0.5px;
+  }
+}
+@keyframes alert-bell-waves {
+  0% {
+    opacity: 0;
+    scale: 0.6;
+  }
+  40% {
+    opacity: 1;
+    scale: 1.08;
+  }
+  100% {
+    scale: 1;
   }
 }

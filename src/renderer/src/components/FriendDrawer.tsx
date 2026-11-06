@@ -1,14 +1,15 @@
 /**
  * FriendDrawer: account and linked-person details (VRX-69/143).
  *
- * A floating `.glass glass-frosted` card pinned to the right edge (14px
+ * A floating `.glass glass-sheet` card pinned to the right edge (14px
  * top/right/bottom inset, 372px wide, panel-scale 20px radius from `.glass`
  * itself) over a
  * `--scrim` backdrop; slides in/out over 260ms cubic-bezier(.32,.72,.29,1),
  * `motion-safe:` guarded. Stays mounted while closed (translated off-screen,
- * `inert` + aria-hidden) so the exit transition can play. The `glass-frosted`
- * variant (VRX-226) adds an opaque underlay + stronger blur: the panel floats
- * OVER the live friend list, so base glass let row text read through it.
+ * `inert` + aria-hidden) so the exit transition can play. The `glass-sheet`
+ * frost (VRX-226, blurred background since 2026-11-04) adds a heavy underlay
+ * + stronger blur: the panel floats OVER the live friend list, so row text
+ * reads as glow, never as words.
  *
  * Content uses the selected person or explicitly selected account:
  *   1. Header: 64px ringed avatar, name, attributed status and platform identity.
@@ -20,10 +21,20 @@
  *      privacy-safe Hidden layers. No policy-space pill or raw instance ID here.
  *   4. Join: linked people choose a reviewed destination before the existing
  *      bridge flow, confirmation and in-flight guard (VRX-166).
- *      Copy link / self-invite / favorite remain separate issues; no
- *      placeholders here.
- *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
- *      explicit Retry after failure, then quiet VRChat trust when known.
+ *      Copy link and self-invite remain separate issues; no placeholders
+ *      here.
+ *   5. Notes: person-shared or account-private owner, save-on-blur/navigation
+ *      and when the page closes (a quit), explicit Retry after failure. An account-private note also goes to the
+ *      user's own VRChat or ChilloutVR account (AccountNoteStatus). Then
+ *      quiet VRChat trust when known, then
+ *      "Full profile" (owner, 2026-10-31): bio, pronouns, rank, badges, and
+ *      worlds and groups on demand, read only after the press.
+ *   6. Pinned footer: Identities, and across from it the favorite star
+ *      (FriendFavoriteStar: VRX's star plus the account's own favorite
+ *      groups) and the alerts bell
+ *      (FriendAlertBell) with "Alert me about this friend" while Settings
+ *      limits alerts to picked friends. A linked person is one star and
+ *      one pick.
  *
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
  * card stays fully interactive — the soft scrim (`--scrim-soft`) is
@@ -38,13 +49,15 @@
  * the opening row on close (owner of that contract is FriendsList's
  * `closeDrawer`).
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, Platform, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
-import { useFriendNote } from '../hooks/useFriendNote'
+import { isOverNoteLimit, useFriendNote } from '../hooks/useFriendNote'
 import { usePersonNote } from '../hooks/usePersonNote'
+import { useAccountNote } from '../hooks/useAccountNote'
+import AccountNoteStatus from './AccountNoteStatus'
 import { ringFor } from '../utils/statusRing'
 import { inPlatformOrder } from '../utils/platformOrder'
 import { Avatar } from './Avatar'
@@ -52,6 +65,10 @@ import LinkedWorlds from './LinkedWorlds'
 import LinkedDestinationChooser from './LinkedDestinationChooser'
 import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
 import IdentitiesDialog from './IdentitiesDialog'
+import FriendAlertBell from './FriendAlertBell'
+import FriendFavoriteStar from './FriendFavoriteStar'
+import PlatformPill from './PlatformPill'
+import ProfileDetails from './ProfileDetails'
 
 /** Status-band descriptor per ring label (quoted literals so the i18n
  *  key-existence scan sees them). Web-active has no owner-approved descriptor
@@ -116,6 +133,7 @@ export default function FriendDrawer({
     setIdentityDialogOwner(null)
 
   const panelRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   // Moving between the combined and per-account views removes the button that
   // was pressed. This names where focus goes next, so it doesn't fall to the page.
@@ -142,6 +160,14 @@ export default function FriendDrawer({
     if (!open) return
     closeButtonRef.current?.focus()
   }, [open])
+
+  // A different friend, or the same one reopened, starts at the top. The panel
+  // stays mounted between selections, so its scroll position would otherwise
+  // carry over and open the next card partway down.
+  const scrollOwner = identityOwner ?? (shown ? `${shown.platform}:${shown.platformUserId}` : null)
+  useLayoutEffect(() => {
+    if (open && scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [open, scrollOwner])
 
   useLayoutEffect(() => {
     const destination = navigationFocusRef.current
@@ -223,6 +249,13 @@ export default function FriendDrawer({
     friendId: combined ? '' : (shown?.platformUserId ?? '')
   })
   const sharedNote = usePersonNote(combined ? (selection.profile?.id ?? null) : null)
+  // The copy on the user's own account follows the account-private note only;
+  // a linked person's shared note stays in VRX.
+  const accountSync = useAccountNote(
+    shown?.platform ?? 'vrchat',
+    open && !combined ? (shown?.platformUserId ?? '') : '',
+    accountNote
+  )
   const note = combined ? sharedNote : accountNote
   const {
     value: noteValue,
@@ -234,6 +267,8 @@ export default function FriendDrawer({
     saveFailed: noteSaveFailed,
     retry: retryNoteSave
   } = note
+  // Shown instead of a save that main would refuse (see isOverNoteLimit).
+  const noteOverLimit = !noteLoadFailed && isOverNoteLimit(noteValue)
   const noteOwner = !open
     ? 'closed'
     : combined
@@ -247,7 +282,17 @@ export default function FriendDrawer({
     committedNote.current = note
   })
   useLayoutEffect(() => () => committedNote.current.onBlur(), [noteOwner])
+  // Quitting (Ctrl+Q, Cmd+Q, the tray's Quit) closes the page with no blur
+  // and no unmount, so the field would never save. The page still gets
+  // beforeunload, and a save sent from it reaches main before the window goes.
+  useEffect(() => {
+    const flush = (): void => committedNote.current.onBlur()
+    window.addEventListener('beforeunload', flush)
+    return () => window.removeEventListener('beforeunload', flush)
+  }, [])
   const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
+  // Where the account line's next state shows; its buttons send focus here.
+  const accountLineRef = useRef<HTMLDivElement>(null)
   const retryNote = (): void => {
     // The Retry button is conditionally removed after success; retain a useful
     // keyboard target before starting the mutation.
@@ -276,7 +321,7 @@ export default function FriendDrawer({
         data-friend-drawer
         role="dialog"
         aria-label={profileName || t('linking.unknownName')}
-        className={`glass glass-frosted glass-information fixed top-[14px] right-[14px] bottom-[14px] z-50 flex w-[372px] flex-col motion-safe:transition-transform motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
+        className={`glass glass-sheet fixed top-[14px] right-[14px] bottom-[14px] z-50 flex w-[372px] flex-col motion-safe:transition-transform motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-x-0' : 'translate-x-[calc(100%+14px)]'
         }`}
       >
@@ -292,7 +337,10 @@ export default function FriendDrawer({
         </button>
 
         {shown && (
-          <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto p-[var(--space-4)]">
+          <div
+            ref={scrollRef}
+            className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto p-[var(--space-4)]"
+          >
             {!combined && selection?.profile && onNavigate && (
               <button
                 type="button"
@@ -332,8 +380,15 @@ export default function FriendDrawer({
                 >
                   {profileName || t('linking.unknownName')}
                 </h2>
+                {/* Like the name: two lines, then clamped, with the whole
+                    status in the title. */}
                 {customStatus && (
-                  <p className="truncate text-[12.5px] text-[var(--text-dim)]">{customStatus}</p>
+                  <p
+                    className="line-clamp-2 break-words text-[12.5px] text-[var(--text-dim)]"
+                    title={customStatus}
+                  >
+                    {customStatus}
+                  </p>
                 )}
                 {combined && onNavigate ? (
                   <div className="mt-[var(--space-1)] flex gap-[var(--space-2)]">
@@ -343,23 +398,35 @@ export default function FriendDrawer({
                           account.platform === member.platform &&
                           account.platformUserId === member.friendId
                       )
+                      const platformName = t(
+                        member.platform === 'vrchat'
+                          ? 'friends.platform.vrchat'
+                          : 'friends.platform.chilloutvr'
+                      )
+                      // It looks like the platform badge, so its name says where it goes.
+                      const view = t('linking.manage.view', { platform: platformName })
                       return (
                         <button
                           key={member.platform}
                           type="button"
                           data-drawer-account={member.platform}
                           disabled={!available}
-                          title={!available ? t('linking.unavailable') : undefined}
-                          className="rounded-pill border px-[var(--space-2)] text-[11px] disabled:opacity-50"
+                          aria-label={view}
+                          title={available ? view : t('linking.unavailable')}
+                          className="rounded-pill border px-[var(--space-2)] text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:opacity-50"
                           style={{
                             color:
                               member.platform === 'vrchat'
-                                ? 'var(--plat-vrc-ghost-text)'
-                                : 'var(--plat-cvr-ghost-text)',
+                                ? 'var(--plat-vrc-badge-text)'
+                                : 'var(--plat-cvr-badge-text)',
                             borderColor:
                               member.platform === 'vrchat'
-                                ? 'var(--plat-vrc-ghost-border)'
-                                : 'var(--plat-cvr-ghost-border)'
+                                ? 'var(--plat-vrc-badge-border)'
+                                : 'var(--plat-cvr-badge-border)',
+                            background:
+                              member.platform === 'vrchat'
+                                ? 'var(--plat-vrc-badge-bg)'
+                                : 'var(--plat-cvr-badge-bg)'
                           }}
                           onClick={() => {
                             navigationFocusRef.current = 'back'
@@ -370,23 +437,20 @@ export default function FriendDrawer({
                             })
                           }}
                         >
-                          {t(
-                            member.platform === 'vrchat'
-                              ? 'friends.platform.vrchat'
-                              : 'friends.platform.chilloutvr'
-                          )}
+                          {platformName}
                         </button>
                       )
                     })}
                   </div>
                 ) : (
                   <span
-                    className="mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border bg-transparent px-[var(--space-2-5)] text-[11px] font-semibold"
+                    className="glass-chip mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border px-[var(--space-2-5)] text-[11px] font-semibold"
                     style={{
-                      color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
+                      color: isVrc ? 'var(--plat-vrc-badge-text)' : 'var(--plat-cvr-badge-text)',
                       borderColor: isVrc
-                        ? 'var(--plat-vrc-ghost-border)'
-                        : 'var(--plat-cvr-ghost-border)'
+                        ? 'var(--plat-vrc-badge-border)'
+                        : 'var(--plat-cvr-badge-border)',
+                      background: isVrc ? 'var(--plat-vrc-badge-bg)' : 'var(--plat-cvr-badge-bg)'
                     }}
                   >
                     {isVrc ? t('friends.platform.vrchat') : t('friends.platform.chilloutvr')}
@@ -397,7 +461,7 @@ export default function FriendDrawer({
 
             {/* 2 · Status band — the privacy tier in WORDS (the headline). */}
             <div
-              className="flex items-center gap-[var(--space-2)] rounded-[10px] border px-[var(--space-3)] py-[var(--space-2)]"
+              className="glass-chip flex items-center gap-[var(--space-2)] rounded-[10px] border px-[var(--space-3)] py-[var(--space-2)]"
               style={{
                 borderColor: `color-mix(in srgb, var(${sc}) 30%, transparent)`,
                 background: `color-mix(in srgb, var(${sc}) 10%, transparent)`
@@ -443,14 +507,20 @@ export default function FriendDrawer({
                   <button
                     type="button"
                     onClick={() => {
+                      if (isJoining) return
                       if (combined) setChooserOwner(identityOwner)
                       else if (shown) void join(shown)
                     }}
-                    disabled={isJoining}
-                    className="w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
+                    // Not `disabled` while a Join runs: a disabled button
+                    // drops keyboard focus to the page, as the Join pills
+                    // already avoid.
+                    aria-disabled={isJoining}
+                    className="w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:brightness-100 aria-disabled:active:brightness-100 motion-safe:transition-[filter]"
                     style={{
-                      borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-                      background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+                      borderColor:
+                        'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+                      background:
+                        'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
                       color: 'var(--op-public-text)'
                     }}
                   >
@@ -482,11 +552,13 @@ export default function FriendDrawer({
                   id="friend-notes"
                   value={noteValue}
                   readOnly={!noteWritable}
-                  aria-describedby={
-                    noteLoadFailed || noteSaveFailed
-                      ? 'friend-notes-error friend-notes-counter'
-                      : 'friend-notes-counter'
-                  }
+                  aria-describedby={[
+                    noteLoadFailed || noteSaveFailed ? 'friend-notes-error' : null,
+                    noteOverLimit ? 'friend-notes-over-limit' : null,
+                    'friend-notes-counter'
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   onChange={(event) => setNoteValue(event.target.value)}
                   onBlur={onNoteBlur}
                   maxLength={500}
@@ -502,7 +574,8 @@ export default function FriendDrawer({
                     role="alert"
                     className="flex items-start gap-[var(--space-2)] rounded-control border px-[var(--space-2)] py-[var(--space-2)] text-[12px] text-[var(--text-dim)]"
                     style={{
-                      borderColor: 'color-mix(in srgb, var(--error) 45%, transparent)',
+                      borderColor:
+                        'color-mix(in srgb, var(--error) var(--pill-edge-strong), transparent)',
                       background: 'color-mix(in srgb, var(--error) 10%, transparent)'
                     }}
                   >
@@ -521,14 +594,43 @@ export default function FriendDrawer({
                     </button>
                   </div>
                 )}
-                {/* Described by the field, not live: a live counter would speak on
-                    every keystroke. */}
-                <span
-                  id="friend-notes-counter"
-                  className="text-right text-[11px] text-[var(--text-dim)]"
+                {noteOverLimit && (
+                  <p id="friend-notes-over-limit" className="text-[12px] text-[var(--text-dim)]">
+                    {t('drawer.notes.overLimit')}
+                  </p>
+                )}
+                {!combined && shown && accountSync.view.kind === 'conflict' && (
+                  <AccountNoteStatus
+                    platform={shown.platform}
+                    account={accountSync}
+                    hasNote={(accountNote.persisted?.note ?? '') !== ''}
+                    isEditing={accountNote.isEditing}
+                    focusOnPress={accountLineRef}
+                  />
+                )}
+                <div
+                  ref={accountLineRef}
+                  tabIndex={-1}
+                  className="flex items-baseline gap-[var(--space-2)] rounded-control focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)]"
                 >
-                  {t('drawer.notes.counter', { current: noteValue.length })}
-                </span>
+                  {!combined && shown && accountSync.view.kind !== 'conflict' && (
+                    <AccountNoteStatus
+                      platform={shown.platform}
+                      account={accountSync}
+                      hasNote={(accountNote.persisted?.note ?? '') !== ''}
+                      isEditing={accountNote.isEditing}
+                      focusOnPress={accountLineRef}
+                    />
+                  )}
+                  {/* Described by the field, not live: a live counter would speak on
+                      every keystroke. */}
+                  <span
+                    id="friend-notes-counter"
+                    className="ml-auto shrink-0 text-right text-[11px] text-[var(--text-dim)]"
+                  >
+                    {t('drawer.notes.counter', { current: noteValue.length })}
+                  </span>
+                </div>
               </div>
             )}
             {trustKey && (
@@ -536,29 +638,58 @@ export default function FriendDrawer({
                 {t('drawer.trust', { rank: t(trustKey) })}
               </p>
             )}
+            {shown && (
+              <DrawerFullProfile
+                // Keyed by the person, like the star: a linked person's stays
+                // open while one of their accounts leaves (an Unfriend, say),
+                // and a different person starts collapsed again.
+                key={scrollOwner ?? ''}
+                accounts={shownAccounts}
+                drawerOpen={open}
+              />
+            )}
+          </div>
+        )}
+        {/* 6 · Footer, pinned below the scroll: Identities on the left, the
+            alerts bell on the right (owner, 2026-10-27). */}
+        {shown && (
+          <div className="flex shrink-0 items-center gap-[var(--space-2)] px-[var(--space-4)] pt-[var(--space-2)] pb-[var(--space-4)]">
             {selection && onNavigate && (
-              <div className="mt-auto pt-[var(--space-2)]">
-                <button
-                  type="button"
-                  className="linked-identities rounded-control border border-transparent px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold"
-                  onClick={() => {
-                    onNoteBlur()
-                    setIdentityDialogOwner(identityOwner)
+              <button
+                type="button"
+                className="linked-identities rounded-control border border-transparent px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold"
+                onClick={() => {
+                  onNoteBlur()
+                  setIdentityDialogOwner(identityOwner)
+                }}
+              >
+                <span
+                  style={{
+                    background:
+                      'linear-gradient(90deg, var(--plat-vrc-ghost-text), var(--plat-cvr-ghost-text))',
+                    backgroundClip: 'text',
+                    color: 'transparent'
                   }}
                 >
-                  <span
-                    style={{
-                      background:
-                        'linear-gradient(90deg, var(--plat-vrc-ghost-text), var(--plat-cvr-ghost-text))',
-                      backgroundClip: 'text',
-                      color: 'transparent'
-                    }}
-                  >
-                    {t('linking.identities')}
-                  </span>
-                </button>
-              </div>
+                  {t('linking.identities')}
+                </span>
+              </button>
             )}
+            <div className="ml-auto flex items-center gap-[var(--space-2)]">
+              <FriendFavoriteStar
+                accounts={shownAccounts}
+                owner={scrollOwner ?? undefined}
+                name={profileName || t('linking.unknownName')}
+                drawerOpen={open}
+                onLeave={onNoteBlur}
+              />
+              <FriendAlertBell
+                accounts={shownAccounts}
+                name={profileName || t('linking.unknownName')}
+                drawerOpen={open}
+                onLeave={onNoteBlur}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -575,6 +706,92 @@ export default function FriendDrawer({
           onClose={() => setIdentityDialogOwner(null)}
         />
       )}
+    </div>
+  )
+}
+
+/** Collapsed by default: nothing is read until the user opens it. Everyone
+ *  here is on the friends list, so the profile offers no friend action. When
+ *  one of a linked person's accounts leaves while keyboard focus is in its
+ *  section (or in that section's Unfriend question), focus moves to the
+ *  toggle instead of falling to the page. */
+function DrawerFullProfile({
+  accounts,
+  drawerOpen
+}: {
+  accounts: readonly Friend[]
+  drawerOpen: boolean
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  // The section holding focus, followed through the React tree, so the
+  // question a section portals to the page body still counts as inside it.
+  const focusedSection = useRef<string | null>(null)
+  const focusLeft = useRef(false)
+  // The cleanup runs while the leaving section is still on the page.
+  const watchSection = useCallback((node: HTMLDivElement | null) => {
+    if (node === null) return
+    const section = node.dataset.profileSection
+    return () => {
+      if (focusedSection.current === section || node.contains(document.activeElement)) {
+        focusLeft.current = true
+      }
+    }
+  }, [])
+  useLayoutEffect(() => {
+    if (!focusLeft.current) return
+    focusLeft.current = false
+    const active = document.activeElement
+    if (active === null || active === document.body) {
+      toggleRef.current?.focus({ preventScroll: true })
+    }
+  })
+  const ordered = inPlatformOrder(accounts)
+  return (
+    <div className="flex flex-col gap-[var(--space-3)]">
+      <button
+        ref={toggleRef}
+        type="button"
+        aria-expanded={open}
+        data-drawer-full-profile=""
+        onClick={() => setOpen((value) => !value)}
+        className="self-start rounded-control px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
+      >
+        {t(open ? 'drawer.fullProfile.hide' : 'drawer.fullProfile.show')}
+      </button>
+      {open
+        ? ordered.map((account) => {
+            const section = `${account.platform}:${account.platformUserId}`
+            return (
+              <div
+                key={section}
+                ref={watchSection}
+                data-profile-section={section}
+                onFocus={() => {
+                  focusedSection.current = section
+                }}
+                onBlur={(event) => {
+                  // Another window taking focus leaves it here for the return.
+                  if (event.relatedTarget === null && !document.hasFocus()) return
+                  focusedSection.current = null
+                }}
+                className="flex flex-col gap-[var(--space-2)]"
+              >
+                {ordered.length > 1 ? (
+                  <PlatformPill platform={account.platform} className="self-start" />
+                ) : null}
+                <ProfileDetails
+                  platform={account.platform}
+                  userId={account.platformUserId}
+                  showTrust={account.trustRank == null}
+                  showFriendAction={false}
+                  panelOpen={drawerOpen}
+                />
+              </div>
+            )
+          })
+        : null}
     </div>
   )
 }
