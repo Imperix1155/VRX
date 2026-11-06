@@ -53,7 +53,7 @@ describe('VrcAdapter own profile', () => {
     vi.unstubAllGlobals()
   })
 
-  it('reads the four editable fields from GET /users/{me}', async () => {
+  it('reads the four editable fields from GET /profile/{me}?asSelf=true', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(vrcUser))
     vi.stubGlobal('fetch', fetchMock)
     const adapter = vrcSignedIn()
@@ -65,54 +65,100 @@ describe('VrcAdapter own profile', () => {
       status: 'ask-me',
       statusText: 'Busy building'
     })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, options] = fetchMock.mock.calls[0]!
-    expect(url).toBe(`https://api.vrchat.cloud/api/1/users/${encodeURIComponent(VRC_ME)}`)
+    expect(url).toBe(
+      `https://api.vrchat.cloud/api/1/profile/${encodeURIComponent(VRC_ME)}?asSelf=true`
+    )
     expect(options).toMatchObject({ method: 'GET' })
   })
 
-  it('refuses a reply about someone else or with a changed field type', async () => {
+  it('reads an empty or null bio as none', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ ...vrcUser, bio: '' }))
+        .mockResolvedValueOnce(jsonResponse({ ...vrcUser, bio: null }))
+    )
+    const adapter = vrcSignedIn()
+    for (let i = 0; i < 2; i++) {
+      await expect(adapter.getOwnProfile(adapter.captureOwnProfileLease())).resolves.toMatchObject({
+        bio: ''
+      })
+    }
+  })
+
+  it('refuses a reply about someone else, without a bio field, or with a changed field type', async () => {
+    const withoutBio: Record<string, unknown> = { ...vrcUser }
+    delete withoutBio.bio
     vi.stubGlobal(
       'fetch',
       vi
         .fn()
         .mockResolvedValueOnce(jsonResponse({ ...vrcUser, id: 'usr_other' }))
+        .mockResolvedValueOnce(jsonResponse(withoutBio))
         .mockResolvedValueOnce(jsonResponse({ ...vrcUser, bio: { text: 'x' } }))
     )
     const adapter = vrcSignedIn()
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       await expect(adapter.getOwnProfile(adapter.captureOwnProfileLease())).rejects.toBeInstanceOf(
         OwnProfileDataError
       )
     }
   })
 
-  it('saves only the changed fields in one PUT, in VRChat words, and never retries it', async () => {
+  it('saves the bio to the profile and the rest to the user, only what changed, never retried', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ ...vrcUser, status: 'busy', bio: 'New bio' }))
+      .mockResolvedValueOnce(jsonResponse({ ...vrcUser, status: 'busy' }))
+      .mockResolvedValueOnce(jsonResponse({ ...vrcUser, bio: 'New bio' }))
       .mockResolvedValue(new Response(null, { status: 429, headers: { 'Retry-After': '0' } }))
     vi.stubGlobal('fetch', fetchMock)
     const adapter = vrcSignedIn()
 
-    const saved = await adapter.saveOwnProfile(
-      { bio: 'New bio', status: 'dnd' },
-      adapter.captureOwnProfileLease()
-    )
-    expect(saved).toMatchObject({ bio: 'New bio', status: 'dnd' })
-    const [url, options] = fetchMock.mock.calls[0]!
-    expect(url).toBe(`https://api.vrchat.cloud/api/1/users/${encodeURIComponent(VRC_ME)}`)
-    expect(options).toMatchObject({ method: 'PUT', redirect: 'error' })
-    expect(options.headers).toMatchObject({
+    await expect(
+      adapter.saveOwnProfile({ bio: 'New bio', status: 'dnd' }, adapter.captureOwnProfileLease())
+    ).resolves.toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const me = encodeURIComponent(VRC_ME)
+    const [userUrl, userOptions] = fetchMock.mock.calls[0]!
+    expect(userUrl).toBe(`https://api.vrchat.cloud/api/1/users/${me}`)
+    expect(userOptions).toMatchObject({ method: 'PUT', redirect: 'error' })
+    expect(userOptions.headers).toMatchObject({
       Cookie: 'auth=synthetic',
       'Content-Type': 'application/json'
     })
-    expect(JSON.parse(String(options.body))).toEqual({ bio: 'New bio', status: 'busy' })
+    expect(JSON.parse(String(userOptions.body))).toEqual({ status: 'busy' })
+    const [profileUrl, profileOptions] = fetchMock.mock.calls[1]!
+    expect(profileUrl).toBe(`https://api.vrchat.cloud/api/1/profile/${me}`)
+    expect(profileOptions).toMatchObject({ method: 'PUT', redirect: 'error' })
+    expect(JSON.parse(String(profileOptions.body))).toEqual({ bio: 'New bio' })
 
     await expect(
       adapter.saveOwnProfile({ statusText: 'x' }, adapter.captureOwnProfileLease())
     ).rejects.toBeInstanceOf(RateLimitError)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('sends one PUT when only the bio, or only user fields, changed', async () => {
+    const urls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        urls.push(url)
+        return jsonResponse(vrcUser)
+      })
+    )
+    const adapter = vrcSignedIn()
+    const me = encodeURIComponent(VRC_ME)
+    await adapter.saveOwnProfile({ bio: 'Only bio' }, adapter.captureOwnProfileLease())
+    await adapter.saveOwnProfile({ pronouns: 'she/her' }, adapter.captureOwnProfileLease())
+    expect(urls).toEqual([
+      `https://api.vrchat.cloud/api/1/profile/${me}`,
+      `https://api.vrchat.cloud/api/1/users/${me}`
+    ])
   })
 
   it('maps every status both ways', async () => {
