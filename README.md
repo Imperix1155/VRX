@@ -138,7 +138,7 @@ a problem.
 
 ## For developers
 
-Electron 44 · React 19 · Vite 8 · TypeScript 7 strict · Tailwind CSS 4 ·
+Electron 45 · React 19 · Vite 8 · TypeScript 7 strict · Tailwind CSS 4 ·
 Zustand · TanStack Query · i18next
 
 Use Node.js **22.22.2 or a later 22.x patch** (`.nvmrc` selects it), then:

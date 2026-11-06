@@ -38,7 +38,8 @@ through `@shared`.
   `favorites.ts` (local stars),
   `gameFavorites.ts` (account favorite groups and categories), `homeWorld.ts`,
   `ownProfile.ts` and `avatarLibrary.ts` (avatar lists and Wear).
-- `constants.ts`: the single source for limits, TTLs, and API endpoints.
+- `constants.ts`: the single source for API endpoints and app-wide limits
+  and TTLs. A feature's own limits live in its module above.
 - Look up symbols in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md).
 
 ## Local Contracts
