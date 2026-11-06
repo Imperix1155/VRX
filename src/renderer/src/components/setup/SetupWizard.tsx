@@ -67,8 +67,9 @@ function Progress({
   const index = COUNTED.indexOf(step)
   if (index < 0) return null
   return (
-    <nav aria-label={t('setup.progress.aria')} className="mb-[var(--space-4)]">
-      <p className="mb-[8px] text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-dim)]">
+    <nav aria-label={t('setup.progress.aria')} className="mb-[var(--space-3)]">
+      {/* A VT323 section kicker, like the Dashboard's (DESIGN.md §7). */}
+      <p className="mb-[6px] font-mono text-[18px] font-normal leading-none uppercase tracking-[2px] text-[var(--text-dim)]">
         {t('setup.progress.count', { current: index + 1, total: COUNTED.length })}
       </p>
       <ol className="grid grid-cols-5 gap-[6px]">

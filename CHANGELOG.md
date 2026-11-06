@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The welcome setup and sign-in screens now follow the rest of the app's
+  look more closely: step titles match page titles, the step count uses the
+  app's retro heading font, and the sign-in logo matches the sidebar's.
+
 ## [1.4.0-dev.15] - 2026-11-05
 
 ### Changed
