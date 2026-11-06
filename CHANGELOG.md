@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Settings → Accounts → Edit profile: your VRChat bio loads into the editor
+  again, and saving a new bio reaches VRChat. VRChat moved bios to a separate
+  profile, so VRX now reads and saves the bio there; pronouns and status save
+  as before.
+
 ## [1.4.0-dev.15] - 2026-11-05
 
 ### Changed

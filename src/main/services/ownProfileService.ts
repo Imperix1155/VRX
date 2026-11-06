@@ -104,7 +104,8 @@ export class OwnProfileService {
         state.readAt = this.clock()
         return { ok: true, profile }
       } catch (error) {
-        // Part of a ChilloutVR Save may have gone through, so the last read no
+        // Part of a Save may have gone through (ChilloutVR sends a field per
+        // request, VRChat its bio apart from the rest), so the last read no
         // longer says what the platform holds: the next open, and the next
         // Save, read it again before comparing.
         state.profile = null
