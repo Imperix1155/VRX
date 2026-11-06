@@ -223,7 +223,8 @@ export function groupDesignTokens(tokens: DesignTokens): TokenGroup[] {
 
 function cell(value: string | null): string {
   if (value === null) return '(same as dark)'
-  return `\`${value.replace(/\|/g, '\\|')}\``
+  // Markdown table cells: a pipe ends the cell, so it is written as `\|`.
+  return `\`${value.split('|').join('\\|')}\``
 }
 
 function table(header: readonly string[], rows: readonly (readonly string[])[]): string {
