@@ -12,7 +12,7 @@ or launch authority.
   hydration gate, the welcome-setup gate (`components/setup`, before the shell
   and login), the auth gate, and the app-wide subscriptions it mounts once
   (`useLiveFriendEvents`, `useLinkedProfileEvents`, `useActivityEvents`,
-  dashboard navigation).
+  `useInboxEvents`, the hot-instance alert navigation).
 - `src/components`, `hooks`, `queries` (TanStack Query), `stores` (Zustand),
   `utils` (pure helpers), `i18n` with `locales/en` and `locales/ja`, and
   `assets` (`main.css` tokens, local fonts).

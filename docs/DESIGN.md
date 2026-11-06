@@ -326,7 +326,7 @@ Frost modifiers follow `.glass`; `.glass-information` follows the frost
 modifiers so its backing wins without clearing the gradient; `.glass-panel`
 and `.glass-sheet` follow `.glass-information` so their transparent backing
 wins. In compiled CSS `-webkit-backdrop-filter` comes before the standard
-`backdrop-filter` (Electron 44 needs the standard property). Check the
+`backdrop-filter` (Electron needs the standard property). Check the
 computed result, not just source order.
 
 **Overlays and focus.** Use the existing overlay components instead of
