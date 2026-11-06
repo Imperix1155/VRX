@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - While a group, person or world picture is on its way, its box shows a soft
   loading look instead of the first letter, and the picture fades in when it
   arrives. A first letter now always means there is no picture.
+- The welcome setup and sign-in screens now follow the rest of the app's
+  look more closely: step titles match page titles, the step count uses the
+  app's retro heading font, and the sign-in logo matches the sidebar's.
 
 ### Fixed
 

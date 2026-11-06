@@ -212,11 +212,11 @@ export default function LoginScreen({
         */}
         <div className="relative">
           {/* Brand mark (DESIGN.md §1: per-letter spans, VT323, platform colors),
-              the screen's heading. */}
+              the screen's heading, sized like the sidebar wordmark. */}
           <div className="mb-[var(--space-6)] text-center">
             <h1>
               <span
-                className="inline-block font-mono text-4xl leading-none tracking-wider"
+                className="inline-block font-mono text-[40px] leading-none tracking-[2px]"
                 role="img"
                 aria-label="VRX"
               >
@@ -225,7 +225,7 @@ export default function LoginScreen({
                 <span style={{ color: 'var(--cvr)' }}>X</span>
               </span>
             </h1>
-            <p className="mt-[var(--space-1)] text-xs text-[var(--text-faint)]">
+            <p className="mt-[var(--space-1)] text-[11px] tracking-[0.5px] text-[var(--text-faint)]">
               {t('login.subtitle')}
             </p>
           </div>

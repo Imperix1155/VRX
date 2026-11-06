@@ -1514,7 +1514,7 @@ body::after {
     gap: var(--space-2);
     padding: 8px;
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: var(--radius-control);
     /* Layered glass (see .glass-layer) on the frosted setup panel. */
     background-color: var(--glass-layer);
     background-image: var(--glass-sheen);
