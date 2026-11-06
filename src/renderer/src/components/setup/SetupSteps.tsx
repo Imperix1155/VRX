@@ -65,12 +65,13 @@ export const StepHeading = forwardRef<
   return (
     <div className={centered ? 'text-center' : undefined}>
       {/* Focus lands here on every step change so screen readers announce it.
-          The setup has no top bar, so each step's title is the page's heading. */}
+          The setup has no top bar, so each step's title is the page's heading,
+          in the page title's type (DESIGN.md §7: 25 px extra bold). */}
       <h1
         ref={ref}
         id="setup-step-title"
         tabIndex={-1}
-        className="text-[22px] font-semibold leading-tight text-[var(--text)] text-balance focus:outline-none"
+        className="text-[25px] font-extrabold leading-[1.2] text-[var(--text)] text-balance focus:outline-none"
       >
         {title}
       </h1>

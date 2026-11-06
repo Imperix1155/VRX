@@ -925,7 +925,10 @@ never sign in or save it.
 app. It is layered glass like Settings: the card is a frosted back panel
 (`.glass .glass-panel`), and its cards, theme choices and sign-in fields
 are `.glass-layer` panes on it. It holds a welcome screen, five labeled steps
-(Sign in, Pages, Dashboard, Alerts, Look), then a summary. Step state reads from position,
+(Sign in, Pages, Dashboard, Alerts, Look), then a summary. Type and shape
+follow the rest of the app: each step title is set like a page title (25 px
+extra bold), the step count is a VT323 section kicker, and the theme choices
+round at the control radius. Step state reads from position,
 weight and a check, not color. Sign-in shows the two account cards side by
 side at equal height, and the line under its title doubles as the live
 sign-in status; one ready account is enough to continue. Every other step
