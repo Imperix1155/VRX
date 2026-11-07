@@ -16,8 +16,8 @@ or launch authority.
 - `src/components`, `hooks`, `queries` (TanStack Query), `stores` (Zustand),
   `utils` (pure helpers), `i18n` with `locales/en` and `locales/ja`, and
   `assets` (`main.css` tokens, local fonts).
-- Look up symbols in the catalog's
-  [renderer section](../../docs/internal-api/5-renderer.md).
+- Look up symbols in the [internal API catalog](../../docs/INTERNAL-API.md),
+  mostly its [renderer section](../../docs/internal-api/5-renderer.md).
 
 ## Local Contracts
 
