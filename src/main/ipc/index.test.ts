@@ -58,6 +58,7 @@ vi.mock('./notes', () => ({
   registerNotesHandlers: () => {
     electron.ipcMain.handle('get-friend-note', () => ({ note: null }))
     electron.ipcMain.handle('set-friend-note', () => ({ ok: true }))
+    electron.ipcMain.handle('sync-friend-note', () => ({ ok: true }))
   }
 }))
 vi.mock('./links', () => ({
@@ -137,6 +138,7 @@ vi.mock('../updater', () => ({
 }))
 
 import { registerIpcHandlers } from './index'
+import { IPC_RATE_LIMIT_BUDGETS } from './rate-limit'
 
 const invokeEvent = { senderFrame: security.trustedFrame } as unknown as IpcMainInvokeEvent
 const untrustedInvokeEvent = { senderFrame: {} } as unknown as IpcMainInvokeEvent
@@ -233,7 +235,12 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(66)
+    // Every typed invoke channel has a budget entry (the `satisfies` check in
+    // rate-limit.ts), so the budget table is the full channel list.
+    expect(electron.invokeHandlers.size).toBe(
+      Object.keys(IPC_RATE_LIMIT_BUDGETS).filter((channel) => channel !== 'renderer-hydrated')
+        .length
+    )
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -246,74 +253,9 @@ describe('registerIpcHandlers rate limiting', () => {
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
     expect([...electron.invokeHandlers.keys()].sort()).toEqual(
-      [
-        'change-linked-profile',
-        'set-explore-active',
-        'get-explore',
-        'get-explore-world',
-        'cancel-explore-world',
-        'get-explore-image',
-        'join-explore-room',
-        'get-accounts',
-        'get-alert-picks',
-        'get-app-background',
-        'choose-app-background',
-        'clear-app-background',
-        'get-inbox',
-        'dismiss-inbox-item',
-        'clear-inbox',
-        'answer-friend-request',
-        'send-friend-request',
-        'get-app-status',
-        'get-activity',
-        'clear-activity',
-        'get-auth-status',
-        'get-avatar',
-        'get-avatar-library',
-        'get-current-avatar',
-        'get-avatar-details',
-        'switch-avatar',
-        'get-profile',
-        'get-profile-worlds',
-        'get-profile-groups',
-        'search-community',
-        'get-world-list',
-        'get-players-online',
-        'get-my-groups',
-        'get-own-profile',
-        'get-relationship',
-        'social-action',
-        'get-friend-note',
-        'get-friends',
-        'get-join-handoff',
-        'get-linked-profiles',
-        'get-settings',
-        'import-session',
-        'join-instance',
-        'login',
-        'logout',
-        'open-url',
-        'open-logs-folder',
-        'open-bug-report',
-        'save-own-profile',
-        'save-settings',
-        'self-invite',
-        'set-alert-pick',
-        'get-favorite-friends',
-        'set-favorite-friend',
-        'get-favorite-worlds',
-        'set-favorite-world',
-        'get-game-favorites',
-        'set-game-favorite',
-        'set-friend-note',
-        'set-home-world',
-        'test-vr-alert',
-        'updater:check',
-        'updater:download',
-        'updater:get-state',
-        'updater:install',
-        'verify-2fa'
-      ].sort()
+      Object.keys(IPC_RATE_LIMIT_BUDGETS)
+        .filter((channel) => channel !== 'renderer-hydrated')
+        .sort()
     )
     expect([...electron.notificationHandlers.keys()]).toEqual(['renderer-hydrated'])
     expect(electron.ipcMain.handleOnce).not.toHaveBeenCalled()

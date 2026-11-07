@@ -40,7 +40,9 @@ through `@shared`.
   `ownProfile.ts` and `avatarLibrary.ts` (avatar lists and Wear).
 - `constants.ts`: the single source for API endpoints and app-wide limits
   and TTLs. A feature's own limits live in its module above.
-- Look up symbols in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md).
+- Look up symbols in the [internal API catalog](../../docs/INTERNAL-API.md):
+  mostly its shared section, with feature limits beside their feature in the
+  adapter contract and main process sections.
 
 ## Local Contracts
 

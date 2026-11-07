@@ -10,7 +10,8 @@ services.
 ## Ownership
 
 - [`@shared/ipc`](../../shared/ipc.ts) defines invoke, notification and push
-  types. [`docs/INTERNAL-API.md`](../../../docs/INTERNAL-API.md) catalogs each
+  types. The catalog's
+  [IPC section](../../../docs/internal-api/2-ipc-channels.md) lists each
   channel, its input, result and budget.
 - `index.ts` is the only registration point. It wraps each handler as sender
   check, then per-channel limiter, then domain handler, guards the
