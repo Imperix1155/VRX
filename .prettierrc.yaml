@@ -2,3 +2,12 @@ singleQuote: true
 semi: false
 printWidth: 100
 trailingComma: none
+overrides:
+  # The internal API catalog is mostly wide tables. With the default
+  # proseWrap, Prettier pads every cell to the widest one, which more than
+  # doubled the file size with spaces and made each grep hit a 1,500-character
+  # line. `never` prints wide tables compactly (and keeps each paragraph on one
+  # line), so agents and search tools see the content, not the padding.
+  - files: 'docs/internal-api/*.md'
+    options:
+      proseWrap: never

@@ -18,6 +18,7 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "verify": "npm run lint && npm run format:check && npm test && npm run build",
     "lint": "eslint --cache --max-warnings 0 .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
@@ -43,6 +44,7 @@
     "guide:preview": "vite preview --config docs/guide/vite.config.ts",
     "design:tokens": "node --no-warnings docs/guide/design-tokens.mjs",
     "design:tokens:check": "node --no-warnings docs/guide/design-tokens.mjs --check",
+    "docs:links": "node scripts/check-doc-links.mjs",
     "test:credential-persistence-local": "sh -c 'if [ \"$#\" -ne 1 ]; then printf \"%s\\n\" ASSERT_ARGUMENTS >&2; exit 1; fi; if ! npm --silent run build:credential-persistence-probe >/dev/null 2>&1; then printf \"%s\\n\" ASSERT_PROBE_BUILD >&2; exit 1; fi; if ! env VRX_CREDENTIAL_PROBE_STORAGE=local ./node_modules/.bin/electron --password-store=basic out/credential-probe/index.js write \"$1\" >/dev/null; then if [ ! -f \"$1/.vrx-credential-persistence-probe\" ]; then printf \"%s\\n\" ASSERT_PROBE_EXECUTION >&2; else printf \"%s\\n\" ASSERT_PROBE_WRITE >&2; fi; exit 1; fi; if ! env VRX_CREDENTIAL_PROBE_STORAGE=local ./node_modules/.bin/electron --password-store=basic out/credential-probe/index.js read \"$1\" >/dev/null; then printf \"%s\\n\" ASSERT_PROBE_READ >&2; exit 1; fi' --",
     "prebuild": "node scripts/patch-http-cache.mjs --check",
     "icons:generate": "node scripts/generate-app-icons.mjs",
