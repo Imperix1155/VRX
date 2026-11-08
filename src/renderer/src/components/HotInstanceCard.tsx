@@ -88,11 +88,6 @@ export default function HotInstanceCard({
     : t('friends.instance.unknownWorld')
   const platformName = t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
   const tintClass = isVrc ? 'tint-vrc' : 'tint-cvr'
-  const topEdgeStyle = {
-    background: isVrc
-      ? 'linear-gradient(90deg, var(--vrc), transparent)'
-      : 'linear-gradient(90deg, var(--cvr), transparent)'
-  }
 
   // Who's-here: first WHO_HERE_MAX_NAMES names, then "+N". The full list feeds the
   // screen-reader label so nobody is hidden from assistive tech (audit W5 pattern).
@@ -257,7 +252,6 @@ export default function HotInstanceCard({
         className={`glass glass-layer ${tintClass} relative flex h-full w-full min-w-0 cursor-pointer flex-col overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
       >
         {description}
-        <div aria-hidden="true" className="h-[4px] w-full" style={topEdgeStyle} />
         {/* Picture area — same frame, placeholder and badge as ExploreWorldCard. */}
         <div className="relative aspect-[16/7] overflow-hidden bg-[var(--surface-hover)]">
           {image !== null ? (
@@ -307,8 +301,6 @@ export default function HotInstanceCard({
     >
       {description}
       <CardPictureBackdrop image={image} platform={instance.platform} onError={markImageFailed} />
-      {/* 4px top-edge platform stripe */}
-      <div aria-hidden="true" className="relative h-[4px]" style={topEdgeStyle} />
 
       <div
         className="relative p-[14px_16px]"

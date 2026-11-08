@@ -324,15 +324,6 @@ export default function ExploreWorldSheet({
           ✕
         </button>
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[var(--radius-panel)]">
-          <div
-            aria-hidden="true"
-            className="h-[4px] w-full shrink-0"
-            style={{
-              background: isVrc
-                ? 'linear-gradient(90deg, var(--vrc), transparent)'
-                : 'linear-gradient(90deg, var(--cvr), transparent)'
-            }}
-          />
           {/* Same grab bar as the Hot Instance sheet: it gives the close button
               its own row, so the world picture never sits under it. */}
           <SheetGrabBar expansion={expansion} />

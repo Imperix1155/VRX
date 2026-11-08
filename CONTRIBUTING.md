@@ -25,7 +25,7 @@ covers every command, focused checks, CI failures and UI verification. The
 gate for every change to the app, build or CI is:
 
 ```bash
-npm run lint && npm run format:check && npm test && npm run build
+npm run verify   # lint, format:check, test, build
 ```
 
 `npm ci` also installs a pre-commit hook that scans staged changes with

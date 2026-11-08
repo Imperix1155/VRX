@@ -1400,7 +1400,7 @@ describe('drawer coexistence (the drawer must SURVIVE the modal)', () => {
 })
 
 describe('modal behavior', () => {
-  it('wears the HEAVY frost + clips the stripe into the radius (VRX-245)', () => {
+  it('wears the HEAVY frost with no solid platform stripe (VRX-245)', () => {
     render(
       <>
         <OpenJoin friend={joinableFriend} />
@@ -1413,13 +1413,11 @@ describe('modal behavior', () => {
     expect(classes).toContain('glass-frosted-heavy')
     // the drawer keeps the LIGHTER frost — the modal must not fall back to it
     expect(classes).not.toContain('glass-frosted')
-    // the stripe drops its hardcoded radius and relies on the panel clipping it
     expect(classes).toContain('overflow-hidden')
 
-    // the aria-hidden platform stripe must rely on the panel's overflow-hidden
-    // clip instead of carrying its own hardcoded corner radius.
-    const stripe = confirmDialog().querySelector('span[aria-hidden]')
-    expect(stripe?.className).not.toContain('rounded-t-[20px]')
+    // No solid platform edge along the top (owner, 2026-11-06): the
+    // PlatformPill word carries the platform.
+    expect(confirmDialog().querySelector('[class*="h-[4px]"]')).toBeNull()
   })
 
   it('says Joining… on Join while the launch runs, like the Explore dialog', async () => {

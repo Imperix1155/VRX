@@ -140,10 +140,16 @@ feedback is not merge authority.
 Pin third-party GitHub Actions to full SHAs with exact version comments. Keep
 checkout credential persistence off unless the job pushes.
 
+Comments cite tracker issues (`VRX-51`), audit rounds (`audit W5`) and past
+reviewers. They are history labels; you don't need to look them up, and the
+code and contracts are the record. When a test file you are adding to grows
+past about 2,000 lines, split it into topic files
+(`VrcAdapter.login.test.ts`) with shared fixtures in `__testutils__`.
+
 ## Verification and done
 
 ```bash
-npm run lint && npm run format:check && npm test && npm run build
+npm run verify   # lint, format:check, test, build; stops at the first failure
 ```
 
 `build` includes both TypeScript checks and the entry-chunk assertion. Add
@@ -179,7 +185,8 @@ Guidance, Verification, Child DOX Index). Detailed API entries belong in the
 catalog; history belongs in version control. Update in the same PR:
 
 - IPC, bridge, events, hooks, stores, parsers, services, shared constants:
-  `docs/INTERNAL-API.md`.
+  the matching section file in `docs/internal-api/` (index:
+  `docs/INTERNAL-API.md`).
 - Visual or interaction design: `docs/DESIGN.md` and the guide in
   `docs/guide`. A token change in `main.css` also runs
   `npm run design:tokens`.

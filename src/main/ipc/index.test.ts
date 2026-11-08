@@ -58,6 +58,7 @@ vi.mock('./notes', () => ({
   registerNotesHandlers: () => {
     electron.ipcMain.handle('get-friend-note', () => ({ note: null }))
     electron.ipcMain.handle('set-friend-note', () => ({ ok: true }))
+    electron.ipcMain.handle('sync-friend-note', () => ({ ok: true }))
   }
 }))
 vi.mock('./links', () => ({
@@ -137,6 +138,80 @@ vi.mock('../updater', () => ({
 }))
 
 import { registerIpcHandlers } from './index'
+import { IPC_RATE_LIMIT_BUDGETS } from './rate-limit'
+
+// The deliberate list of renderer-callable channels. Adding a channel means
+// adding it here too; the last test below fails, naming the channel, when this
+// list and the typed budget table (one entry per IpcInvoke channel) disagree.
+const EXPECTED_INVOKE_CHANNELS = [
+  'answer-friend-request',
+  'cancel-explore-world',
+  'change-linked-profile',
+  'choose-app-background',
+  'clear-activity',
+  'clear-app-background',
+  'clear-inbox',
+  'dismiss-inbox-item',
+  'get-accounts',
+  'get-activity',
+  'get-alert-picks',
+  'get-app-background',
+  'get-app-status',
+  'get-auth-status',
+  'get-avatar',
+  'get-avatar-details',
+  'get-avatar-library',
+  'get-current-avatar',
+  'get-explore',
+  'get-explore-image',
+  'get-explore-world',
+  'get-favorite-friends',
+  'get-favorite-worlds',
+  'get-friend-note',
+  'get-friends',
+  'get-game-favorites',
+  'get-inbox',
+  'get-join-handoff',
+  'get-linked-profiles',
+  'get-my-groups',
+  'get-own-profile',
+  'get-players-online',
+  'get-profile',
+  'get-profile-groups',
+  'get-profile-worlds',
+  'get-relationship',
+  'get-settings',
+  'get-world-list',
+  'import-session',
+  'join-explore-room',
+  'join-instance',
+  'login',
+  'logout',
+  'open-bug-report',
+  'open-logs-folder',
+  'open-url',
+  'save-own-profile',
+  'save-settings',
+  'search-community',
+  'self-invite',
+  'send-friend-request',
+  'set-alert-pick',
+  'set-explore-active',
+  'set-favorite-friend',
+  'set-favorite-world',
+  'set-friend-note',
+  'set-game-favorite',
+  'set-home-world',
+  'social-action',
+  'switch-avatar',
+  'sync-friend-note',
+  'test-vr-alert',
+  'updater:check',
+  'updater:download',
+  'updater:get-state',
+  'updater:install',
+  'verify-2fa'
+]
 
 const invokeEvent = { senderFrame: security.trustedFrame } as unknown as IpcMainInvokeEvent
 const untrustedInvokeEvent = { senderFrame: {} } as unknown as IpcMainInvokeEvent
@@ -233,7 +308,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(66)
+    expect(electron.invokeHandlers.size).toBe(EXPECTED_INVOKE_CHANNELS.length)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -245,78 +320,19 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect([...electron.invokeHandlers.keys()].sort()).toEqual(
-      [
-        'change-linked-profile',
-        'set-explore-active',
-        'get-explore',
-        'get-explore-world',
-        'cancel-explore-world',
-        'get-explore-image',
-        'join-explore-room',
-        'get-accounts',
-        'get-alert-picks',
-        'get-app-background',
-        'choose-app-background',
-        'clear-app-background',
-        'get-inbox',
-        'dismiss-inbox-item',
-        'clear-inbox',
-        'answer-friend-request',
-        'send-friend-request',
-        'get-app-status',
-        'get-activity',
-        'clear-activity',
-        'get-auth-status',
-        'get-avatar',
-        'get-avatar-library',
-        'get-current-avatar',
-        'get-avatar-details',
-        'switch-avatar',
-        'get-profile',
-        'get-profile-worlds',
-        'get-profile-groups',
-        'search-community',
-        'get-world-list',
-        'get-players-online',
-        'get-my-groups',
-        'get-own-profile',
-        'get-relationship',
-        'social-action',
-        'get-friend-note',
-        'get-friends',
-        'get-join-handoff',
-        'get-linked-profiles',
-        'get-settings',
-        'import-session',
-        'join-instance',
-        'login',
-        'logout',
-        'open-url',
-        'open-logs-folder',
-        'open-bug-report',
-        'save-own-profile',
-        'save-settings',
-        'self-invite',
-        'set-alert-pick',
-        'get-favorite-friends',
-        'set-favorite-friend',
-        'get-favorite-worlds',
-        'set-favorite-world',
-        'get-game-favorites',
-        'set-game-favorite',
-        'set-friend-note',
-        'set-home-world',
-        'test-vr-alert',
-        'updater:check',
-        'updater:download',
-        'updater:get-state',
-        'updater:install',
-        'verify-2fa'
-      ].sort()
-    )
+    expect([...electron.invokeHandlers.keys()].sort()).toEqual(EXPECTED_INVOKE_CHANNELS)
     expect([...electron.notificationHandlers.keys()]).toEqual(['renderer-hydrated'])
     expect(electron.ipcMain.handleOnce).not.toHaveBeenCalled()
+  })
+
+  it('keeps the enumerated channel list in step with the typed channel budgets', () => {
+    // rate-limit.ts `satisfies` a budget for every IpcInvoke and notification
+    // channel, so its keys are the typed channel list.
+    expect(
+      Object.keys(IPC_RATE_LIMIT_BUDGETS)
+        .filter((channel) => channel !== 'renderer-hydrated')
+        .sort()
+    ).toEqual(EXPECTED_INVOKE_CHANNELS)
   })
 
   it('returns a structured denial for an action channel', () => {

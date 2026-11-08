@@ -148,9 +148,10 @@ describe('FriendsList', () => {
     // vertical writing mode rotates onto the horizontal axis (review-caught High).
     const markup = render()
     expect(markup).toContain('grid-cols-[14px_42px_1fr_auto]')
-    // pl-[13px] with -ml-[7px] leaves a 3px gap between the tab and the row's
-    // 3px platform bar, so the two never touch.
-    expect(markup).toContain('pl-[13px]')
+    // pl-[10px] with -ml-[7px] sets the tab 3px off the row's inner left edge,
+    // the same inset as its top and bottom. The row has no edge bar.
+    expect(markup).toContain('pl-[10px]')
+    expect(markup).not.toContain('pl-[13px]')
     for (const cls of [
       '[writing-mode:vertical-rl]',
       'rotate-180',

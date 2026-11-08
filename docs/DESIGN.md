@@ -234,7 +234,7 @@ outlines, where the word and edge already glow. The ChilloutVR badge fill is
 one step deeper than the raw orange (`--plat-cvr-solid`) so its white word
 clears 4.5:1. The dark friends-list rail is the one firmer outline: it sits on
 a row already washed in its own hue, so it takes a stronger tint, edge and word
-(`--plat-*-rail-*`), and it keeps a 3 px gap from the row's platform bar.
+(`--plat-*-rail-*`), and it sits 3 px in from the row's edges.
 
 Contrast targets: body text and every word that carries meaning clear 4.5:1 on
 the surface it actually sits on, in both themes, including over the glow and a
@@ -254,7 +254,7 @@ words stay readable.
 | 1     | Shell chrome: sidebar, tracks                    | `.glass`                                                | `--glass-bg` (translucent)       |
 | 2     | Back panels and side sheets                      | `.glass .glass-panel`, `.glass .glass-sheet`            | `--glass-panel`, `--glass-sheet` |
 | 3     | Cards, rows, headers, fields                     | `.glass .glass-layer`, `.platform-row`, `.setting-card` | `--glass-layer`                  |
-| 4     | Chips: pills, badges, stripes                    | `.glass-chip`                                           | the chip's own tint              |
+| 4     | Chips: pills, badges, rails                      | `.glass-chip`                                           | the chip's own tint              |
 | —     | Opaque information: menus, dialogs, error screen | `.glass .glass-information` (+ frost)                   | `--glass-information`            |
 
 **`.glass`** is the base skin: a soft diagonal gradient (`--glass-bg`), the
@@ -286,15 +286,16 @@ child may live inside one. Small icon tiles in setup are `.glass-chip`s.
 
 **`.platform-row`** is a layer-3 row that belongs to one platform: the same
 glass, washed in its platform's hue from the left (`--platform-row-tint-strong`
-fading to `--platform-row-tint-soft`), a platform-colored edge, and a 3 px
-platform bar on the left. Modifiers: `.platform-row--vrchat`, `.platform-row--chilloutvr`, `.platform-row--vrx` (a
+fading to `--platform-row-tint-soft`) and a soft platform-colored border.
+No solid accent bar on any edge (owner, 2026-11-06), here or on any card,
+sheet or dialog: the frosted tint and the VRC/CVR word carry the platform. Modifiers: `.platform-row--vrchat`, `.platform-row--chilloutvr`, `.platform-row--vrx` (a
 linked person, blue running into orange) and `.platform-row--none` (loading and empty rows,
 plain). Friend rows, Activity, Inbox and the Dashboard glance rows all use it,
 so a platform looks the same on every list.
 
 **`.glass-chip`** is the top pane (owner, 2026-11-04): instance, platform and
 rule pills, platform badges on pictures and in friend details, the
-friends-list platform stripe, the linked VRC and CVR tags, the friend details
+friends-list platform rail, the linked VRC and CVR tags, the friend details
 status band, alert kinds, and the sidebar's Inbox count. A chip keeps its own
 tinted fill under the sidebar's blur, with a glossy top light under its word
 (`--glass-chip-sheen`, on `::after` at z-index -1) and a tight lift
@@ -860,7 +861,7 @@ closes only the confirmation and returns focus to its opener.
 
 **Sheets.** Explore world, Hot Instance, Avatar, person and group sheets are
 contained, non-modal `.glass .glass-sheet` bottom sheets that share one
-layout: platform stripe, grab bar, then the picture starting below Close.
+layout: grab bar, then the picture starting below Close.
 Close stays reachable outside the scrolling area. In the light theme a sheet
 banner keeps the photo at full brightness and lays a soft card-colored scrim
 (`--hot-sheet-banner-scrim`) under the title instead of darkening it. Escape,
@@ -998,7 +999,7 @@ with nothing loaded, its red line stands alone.
 - **Search** sends only on Enter or the Search button, never while typing.
   People and Worlds are two sections; each alternates the platforms' results
   (first of each, then second of each) so neither platform leads. People are
-  square picture tiles with the platform stripe, tint and VRC/CVR chip, and a
+  square picture tiles with the platform tint and VRC/CVR chip, and a
   quiet "Friend" line; with no picture the tile shows the name's first letter.
   While a tile's picture is on its way (owner, 2026-11-04) its box breathes
   softly (`.picture-waiting`) with no letter, so a first letter always means
@@ -1021,7 +1022,7 @@ with nothing loaded, its red line stands alone.
   applies, in one order on both platforms: Unfriend (friends only), then Block
   or Unblock. Unfriend and Block wear the error tint with their word as the
   cue; Unblock is plain. Each opens a heavy-frosted `alertdialog` with the
-  platform stripe and pill that names the person, says what changes, and
+  platform pill that names the person, says what changes, and
   focuses Cancel. A success leaves a "✓ Unblocked on VRChat."-style line.
 - **Groups** is one name-sorted grid of `.glass-layer` cards wider than tall
   (owner, 2026-11-04): the group's wide banner across the top with its square
