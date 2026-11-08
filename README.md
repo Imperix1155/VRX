@@ -151,7 +151,7 @@ npm run dev
 Before a pull request, run the gate:
 
 ```bash
-npm run lint && npm run format:check && npm test && npm run build
+npm run verify   # lint, format:check, test, build
 ```
 
 Branch from `dev` and open pull requests into `dev`; `main` holds released

@@ -17,8 +17,8 @@ const appVersion = (
  * ErrorBoundary/LoginScreen/TopBar/DashboardView tests).
  *
  * Coverage targets (design goal): 80%+ business logic, 60%+ UI components.
- * `coverage.thresholds` are still not enforced — turning them on (with targeted
- * per-dir numbers) is tracked in the audit ledger's later items.
+ * `coverage.thresholds` are not enforced yet; turning them on would need
+ * per-directory numbers.
  */
 export default defineConfig({
   define: {

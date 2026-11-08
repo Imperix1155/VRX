@@ -74,7 +74,7 @@ Builds the design guide (`docs/design.html`) and isolated scenes
 ## Work Guidance
 
 Read the [renderer contract](../../src/renderer/AGENTS.md), `docs/DESIGN.md`,
-and the guide entries in [`docs/INTERNAL-API.md`](../INTERNAL-API.md) before
+and the catalog's [guide section](../internal-api/8-design-guide.md) before
 changing imported behavior or fixtures. Prefer a whole production parent when
 a private child cannot stand alone. Update the fixture bridge whenever
 `src/preload/index.d.ts` changes.

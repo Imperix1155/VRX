@@ -17,7 +17,10 @@ request transport, and published adapter events.
   and `parseCommunity.ts` (people, profiles, search, worlds, groups, player
   count; IDs lower-cased GUIDs), and `parseOwnProfile.ts` (own bio and
   pronouns; the write is one multipart `POST /users/self` per field).
-- Symbols and the adapter contract: [`docs/INTERNAL-API.md`](../../../../../docs/INTERNAL-API.md).
+- Symbols and the adapter contract: the catalog's
+  [adapter contract](../../../../../docs/internal-api/4-adapter-contract.md)
+  and [main process](../../../../../docs/internal-api/6-main-process.md)
+  sections.
 
 ## Local Contracts
 
