@@ -16,12 +16,13 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** GitHub's heading anchor: lowercase, punctuation dropped, spaces to hyphens. */
 export function headingSlug(text) {
-  return text
-    .trim()
-    .toLowerCase()
-    .replace(/<[^>]+>/g, '')
-    .replace(/[^\p{L}\p{N}\- _]/gu, '')
-    .replace(/ /g, '-')
+  let plain = text.trim().toLowerCase()
+  // Repeat until stable so nested or overlapping tags leave nothing behind.
+  for (let previous = ''; previous !== plain;) {
+    previous = plain
+    plain = plain.replace(/<[^>]*>/g, '')
+  }
+  return plain.replace(/[^\p{L}\p{N}\- _]/gu, '').replace(/ /g, '-')
 }
 
 /** Every anchor a Markdown file defines, with GitHub's -1, -2 duplicate suffixes. */
