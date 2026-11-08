@@ -3,7 +3,10 @@ dist
 out
 .eslintcache
 *.tsbuildinfo
-*.log*
+# Log files (app.log, npm-debug.log, rotated app.log.1). Not `*.log*`: that
+# also hides source files such as `VrcAdapter.login.test.ts`.
+*.log
+*.log.[0-9]*
 release
 .env
 .env.*
@@ -45,8 +48,9 @@ GITHUB-SETUP.md
 SCAFFOLD-STATUS.md
 local-notes/
 
-# test coverage
+# test coverage and Vitest report output (`--reporter=json` writes .vitest/)
 coverage
+.vitest/
 
 # local design-system export for claude.ai/design — not needed to build the app
 # (its source of truth is src/renderer/src/assets/main.css + docs/). If you'd rather

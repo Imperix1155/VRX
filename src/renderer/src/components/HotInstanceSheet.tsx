@@ -129,7 +129,6 @@ export default function HotInstanceSheet({
     return <div inert aria-hidden />
   }
 
-  const isVrc = shown.platform === 'vrchat'
   const worldName = shown.worldName ?? t('friends.instance.unknownWorld')
   const resolvedPill = instancePillFor(
     { type: shown.instanceType, opennessUnknown: shown.opennessUnknown },
@@ -221,23 +220,11 @@ export default function HotInstanceSheet({
         </button>
 
         {/*
-          Inner wrapper: matches the panel's top radius and clips the platform
-          stripe so it follows the rounded corners instead of spanning the full
-          width above them. The close button is a sibling so it cannot be clipped.
+          Inner wrapper: matches the panel's top radius and clips its content
+          to the rounded corners. The close button is a sibling so it cannot
+          be clipped.
         */}
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[var(--radius-panel)]">
-          {/* 4px platform-gradient top stripe */}
-          <div
-            aria-hidden="true"
-            data-testid="hot-sheet-stripe"
-            className="h-[4px] w-full shrink-0"
-            style={{
-              background: isVrc
-                ? 'linear-gradient(90deg, var(--vrc), transparent)'
-                : 'linear-gradient(90deg, var(--cvr), transparent)'
-            }}
-          />
-
           {/* Grab bar: drag or click for more about this instance. */}
           <SheetGrabBar expansion={expansion} />
 

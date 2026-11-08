@@ -118,11 +118,10 @@ function withFriendRowKey(row: LinkedRow): LinkedRow {
  * (13px card − 1px border − 3px gap = 9px), sideways VRC/CVR acronym so the
  * platform survives the §5 black-and-white test.
  *
- * Geometry couples to the row's frame: grid col 14px + row pl-[13px] → -ml-[7px]
- * lands the tab 6px off the card's inner left edge, a 3px gap clear of the
- * row's 3px platform bar (.platform-row::before) so the two never touch;
- * -mt-[5px]/-mb-[5px] bleed through py-[8px] to the same 3px inset top and
- * bottom. PHYSICAL margins only:
+ * Geometry couples to the row's frame: grid col 14px + row pl-[10px] → -ml-[7px]
+ * lands the tab 3px off the card's inner left edge (the row has no solid edge
+ * bar, owner 2026-11-06); -mt-[5px]/-mb-[5px] bleed through py-[8px] to the
+ * same 3px inset top and bottom. PHYSICAL margins only:
  * -my-* emits logical margin-block, which [writing-mode:vertical-rl] rotates onto
  * the HORIZONTAL axis (review-caught High) — same trap for any future -m*.
  */
@@ -446,7 +445,7 @@ const FriendRow = memo(function FriendRow({
         'grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
         // Platform-tinted capsule, like the Activity rows.
         `platform-row platform-row--${projection.platformMark}`,
-        'rounded-[13px] py-[8px] pr-[12px] pl-[13px]',
+        'rounded-[13px] py-[8px] pr-[12px] pl-[10px]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors',
         'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--text-dim)]',
         'has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-transparent',

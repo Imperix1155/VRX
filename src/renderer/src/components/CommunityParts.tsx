@@ -2,7 +2,7 @@
  * Shared pieces of the Search, Groups and Explore list pages and the profile
  * views: the one-line per-platform notice, the picture tile, and the section
  * heading. VRChat and ChilloutVR use the exact same pieces; only the platform
- * stripe, tint and label differ.
+ * tint and label differ.
  */
 import { memo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -227,17 +227,6 @@ export const CommunityTile = memo(function CommunityTile({
   const [failedBanner, setFailedBanner] = useState<string | null>(null)
   const bannerShown = banner !== null && failedBanner !== banner ? banner : null
   const isVrc = platform === 'vrchat'
-  const stripe = (
-    <div
-      aria-hidden="true"
-      className="h-[4px] w-full shrink-0"
-      style={{
-        background: isVrc
-          ? 'linear-gradient(90deg, var(--vrc), transparent)'
-          : 'linear-gradient(90deg, var(--cvr), transparent)'
-      }}
-    />
-  )
   const picture =
     image && failedImage !== image ? (
       <img
@@ -272,7 +261,6 @@ export const CommunityTile = memo(function CommunityTile({
   const body =
     shape === 'icon' ? (
       <>
-        {stripe}
         <div
           ref={pictureRef}
           data-community-tile-picture={pictureState}
@@ -352,7 +340,6 @@ export const CommunityTile = memo(function CommunityTile({
       </>
     ) : shape === 'square' ? (
       <>
-        {stripe}
         <div className="flex min-w-0 flex-1 items-center gap-[var(--space-3)] p-[var(--space-2)]">
           <div
             ref={pictureRef}
@@ -381,7 +368,6 @@ export const CommunityTile = memo(function CommunityTile({
       </>
     ) : (
       <>
-        {stripe}
         <div
           ref={pictureRef}
           className={`relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)]${waitingClass}`}

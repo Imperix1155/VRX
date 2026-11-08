@@ -37,20 +37,22 @@ UI, use the [design guide](#design-guide) and its sample data instead.
 
 ## Commands
 
-| Command                                                            | What it does                                                            |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `npm run dev`                                                      | Runs the app with hot reload.                                           |
-| `npm start`                                                        | Runs the last `npm run build` without a dev server.                     |
-| `npm run lint`                                                     | ESLint, zero warnings allowed.                                          |
-| `npm run format` / `format:check`                                  | Prettier: fix, or check only.                                           |
-| `npm test` / `test:watch` / `test:coverage`                        | Vitest: once, watching, or with coverage.                               |
-| `npm run typecheck`                                                | Both TypeScript 7 projects (main and renderer).                         |
-| `npm run build`                                                    | Typecheck, bundle, then assert the renderer entry chunk.                |
-| `npm run build:win` / `build:linux` / `build:mac` / `build:unpack` | Package for one OS, or an unpacked folder.                              |
-| `npm run guide:dev` / `guide:build` / `guide:preview`              | The [design guide](#design-guide).                                      |
-| `npm run design:tokens` / `design:tokens:check`                    | Regenerate, or check, the token tables in `DESIGN.md` from `main.css`.  |
-| `npm run icons:generate` / `icons:check`                           | Regenerate, or check, the app and tray icons ([App icon](APP-ICON.md)). |
-| `npm run test:credential-persistence-*`                            | CI's saved-session probes. Never run them against real user data.       |
+| Command                                                            | What it does                                                                 |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `npm run dev`                                                      | Runs the app with hot reload.                                                |
+| `npm run verify`                                                   | The full gate: lint, format check, tests, build. Stops at the first failure. |
+| `npm start`                                                        | Runs the last `npm run build` without a dev server.                          |
+| `npm run lint`                                                     | ESLint, zero warnings allowed.                                               |
+| `npm run format` / `format:check`                                  | Prettier: fix, or check only.                                                |
+| `npm test` / `test:watch` / `test:coverage`                        | Vitest: once, watching, or with coverage.                                    |
+| `npm run typecheck`                                                | Both TypeScript 7 projects (main and renderer).                              |
+| `npm run build`                                                    | Typecheck, bundle, then assert the renderer entry chunk.                     |
+| `npm run build:win` / `build:linux` / `build:mac` / `build:unpack` | Package for one OS, or an unpacked folder.                                   |
+| `npm run guide:dev` / `guide:build` / `guide:preview`              | The [design guide](#design-guide).                                           |
+| `npm run docs:links`                                               | Checks every relative link and `#heading` in the committed Markdown.         |
+| `npm run design:tokens` / `design:tokens:check`                    | Regenerate, or check, the token tables in `DESIGN.md` from `main.css`.       |
+| `npm run icons:generate` / `icons:check`                           | Regenerate, or check, the app and tray icons ([App icon](APP-ICON.md)).      |
+| `npm run test:credential-persistence-*`                            | CI's saved-session probes. Never run them against real user data.            |
 
 TypeScript: `npm run typecheck` uses the TypeScript 7 compiler (`tsc` from
 `@typescript/native`). ESLint and the design-token scanner use the TypeScript
@@ -71,8 +73,9 @@ ship that API.
 
 Before adding a channel, event, hook, store, parser, service or constant, look
 it up in the [internal API catalog](INTERNAL-API.md) and read the code it
-points to. Before adding a platform request, read the
-[API policy](api-policy.md).
+points to. The catalog is one file per area in [`internal-api/`](internal-api/);
+search it with `rg -n 'name' docs/internal-api`. Before adding a platform
+request, read the [API policy](api-policy.md).
 
 ## Design guide
 
@@ -109,11 +112,17 @@ component that doesn't exist.
 For any change to the app, dependencies, build, release or CI:
 
 ```bash
-npm run lint && npm run format:check && npm test && npm run build
+npm run verify
 ```
 
-On a shell without `&&`, run each command separately and stop at the first
-failure. `build` already runs both TypeScript checks.
+`verify` runs `npm run lint && npm run format:check && npm test && npm run build`
+and stops at the first failure. `build` already runs both TypeScript checks.
+The first lint of a fresh clone takes a couple of minutes (it type-checks
+every file); later runs reuse `.eslintcache`. The full test suite takes about
+a minute and a half. Two warnings at the top of a test run are expected and
+harmless: Vite's note that `vitest.config.ts` isn't ready for its future
+`configLoader: 'native'`, and Node's SQLite `ExperimentalWarning` (the VRCX
+import tests read a SQLite file).
 
 - While working, run only the tests you need, for example
   `npx vitest run src/renderer/src/components/BootSplash.test.tsx`. Run the
@@ -126,8 +135,9 @@ failure. `build` already runs both TypeScript checks.
 - Test or coverage tooling changes need `npm run test:coverage` followed by
   `npm run lint`, to prove the generated `coverage/` folder doesn't break
   linting.
-- Documentation-only changes need `npm run format:check`, a check that every
-  relative link and file reference resolves, a comparison of each factual
+- Documentation-only changes need `npm run format:check`, `npm run docs:links`
+  (every relative link and heading anchor resolves; `npm test` runs it too), a
+  check that each named file exists, a comparison of each factual
   claim against the code, and `git diff --check`. Rule or policy changes also
   need realistic scenarios showing the new wording works. Required PR CI still
   runs.

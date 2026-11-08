@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-08
+
+A small look refresh on top of 1.4.0.
+
+### Changed
+
+- Cards, rows, sheets and confirmations no longer have a solid colored line
+  along their top or left edge. Friends, activity, inbox, hot instances,
+  Popular now, Explore, avatars and groups now show their platform through
+  the frosted tint and the VRC or CVR label alone, for a cleaner look.
+
 ## [1.4.0] - 2026-11-06
 
 VRX 1.4 brings VRChat and ChilloutVR closer to what VRCX and CVRX users

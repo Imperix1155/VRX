@@ -4,7 +4,7 @@
  * role="dialog" without aria-modal, no focus trap, initial focus on ✕, and
  * Esc, ✕ or a pointerdown outside (not on another tile) closes it. The page
  * restores focus to the opener. VRChat and ChilloutVR share this exact frame;
- * only the platform stripe and label differ.
+ * only the platform tint and label differ.
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -131,16 +131,6 @@ export default function CommunitySheet<T>({
       >
         <SheetCloseButton buttonRef={closeButtonRef} onClose={onClose} />
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[var(--radius-panel)]">
-          <div
-            aria-hidden="true"
-            className="h-[4px] w-full shrink-0"
-            style={{
-              background:
-                head.platform === 'vrchat'
-                  ? 'linear-gradient(90deg, var(--vrc), transparent)'
-                  : 'linear-gradient(90deg, var(--cvr), transparent)'
-            }}
-          />
           <SheetGrabBar expansion={expansion} />
           <div
             ref={scrollRef}

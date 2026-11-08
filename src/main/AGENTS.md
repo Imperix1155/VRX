@@ -7,8 +7,9 @@ services, credentials, platform adapters and game launches. Node and Electron
 access and all privileged state stay on this side of the process boundary. The
 [root contract](../../AGENTS.md) security and API etiquette rules apply in
 full; this file adds local rules. Exact limits, cooldowns and caps for each
-service are in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md); keep them
-there, not here.
+service are in the [internal API catalog](../../docs/INTERNAL-API.md) (mostly
+its adapter contract, main process and IPC sections); keep them there, not
+here.
 
 ## Ownership
 

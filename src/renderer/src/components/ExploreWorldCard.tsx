@@ -75,15 +75,6 @@ export default function ExploreWorldCard({
           onError={() => setFailedImage(image ?? null)}
         />
         <div
-          aria-hidden="true"
-          className="relative h-[4px] w-full"
-          style={{
-            background: isVrc
-              ? 'linear-gradient(90deg, var(--vrc), transparent)'
-              : 'linear-gradient(90deg, var(--cvr), transparent)'
-          }}
-        />
-        <div
           className="relative p-[14px_16px]"
           style={{
             display: 'grid',
@@ -135,15 +126,6 @@ export default function ExploreWorldCard({
       aria-describedby={peopleId}
       className={`glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} group relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
     >
-      <div
-        aria-hidden="true"
-        className="h-[4px] w-full"
-        style={{
-          background: isVrc
-            ? 'linear-gradient(90deg, var(--vrc), transparent)'
-            : 'linear-gradient(90deg, var(--cvr), transparent)'
-        }}
-      />
       <div className="relative aspect-[16/7] overflow-hidden bg-[var(--surface-hover)]">
         {image && failedImage !== image ? (
           <img

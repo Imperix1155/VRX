@@ -16,7 +16,10 @@ transport, and published adapter events.
   converters, `buildJoinUrl.ts`, `parseExplore.ts`, `parseAvatars.ts`, and
   `parseCommunity.ts`, and `parseOwnProfile.ts` (the own-profile editor's
   fields, and the `PUT /users/{me}` and `PUT /profile/{me}` bodies).
-- Symbols and the adapter contract: [`docs/INTERNAL-API.md`](../../../../../docs/INTERNAL-API.md).
+- Symbols and the adapter contract: the catalog's
+  [adapter contract](../../../../../docs/internal-api/4-adapter-contract.md)
+  and [main process](../../../../../docs/internal-api/6-main-process.md)
+  sections.
 
 ## Local Contracts
 
