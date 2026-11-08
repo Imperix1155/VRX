@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-08
+
+A small look refresh on top of 1.4.0.
+
 ### Changed
 
 - Cards, rows, sheets and confirmations no longer have a solid colored line
