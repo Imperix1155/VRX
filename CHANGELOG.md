@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-11-09
+
+A new app icon.
+
+### Changed
+
+- New app icon: the VRX letters as frosted glass on a frosted glass chat
+  bubble, over the same blue and orange glow as the app. The blue V and
+  orange X sit over the R at equal size, and the R shows through them. The
+  taskbar and tray sizes have their own simpler drawings so they stay
+  readable.
+
+### Known limits
+
+- On Windows, a taskbar pin or desktop shortcut made before this update can
+  keep showing the old icon for a while, because Windows caches shortcut
+  icons. Unpinning VRX and pinning it again shows the new icon.
+
 ## [1.4.1] - 2026-11-08
 
 A small look refresh on top of 1.4.0.
