@@ -1230,7 +1230,6 @@ body::after {
   --glass-edge: var(--tint-cvr-border);
 }
 
-
 /**
  * §9 Dashboard hot-instance grid (VRX-199). Max TWO columns that FILL the row;
  * container-query responsive so a narrow pane drops to one column and a lone card

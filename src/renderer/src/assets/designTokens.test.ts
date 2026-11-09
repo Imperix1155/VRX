@@ -601,7 +601,9 @@ describe('compiled glass material', () => {
       expect(emitted).toMatch(
         /inset:-1px calc\(-1px - var\(--glass-reach\)\) calc\(-1px - var\(--glass-reach\)\) -1px/
       )
-      expect(emitted).toMatch(/clip-path:inset\(0 var\(--glass-reach\) var\(--glass-reach\) 0 round/)
+      expect(emitted).toMatch(
+        /clip-path:inset\(0 var\(--glass-reach\) var\(--glass-reach\) 0 round/
+      )
     }
     // The card itself paints nothing under its blur layer; the ::before pane
     // carries the fill, face, sheen, border and lift above it.
