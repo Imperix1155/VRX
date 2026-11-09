@@ -1139,10 +1139,12 @@ body::after {
        children         the content.
      The element paints nothing of its own (a backdrop sees everything already
      painted, so an own fill or border would be blurred into the pane). Same
-     look as a card that blurs itself. Cards that clip their content
-     (overflow-hidden: picture cards, account cards) keep blurring themselves:
-     the clip would cut the reach off, and their hover brightness filter
-     would hide a blur layer inside them. */
+     look as a card that blurs itself. Cards that still clip their content
+     (overflow-hidden: the sign-in and account cards) keep blurring
+     themselves, since the clip would also hide the pane's border and lift.
+     Picture cards round their pictures instead (.glass-clip-*) and brighten
+     on hover with .glass-hover, not a filter on the card: a filter would
+     make the card a backdrop root and empty its blur layer. */
   .glass.glass-layer:not(.overflow-hidden) {
     --glass-reach: 32px;
     background: none;
@@ -1177,6 +1179,44 @@ body::after {
     pointer-events: none;
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
+  }
+  /* Hover brightening for a reach card (picture cards): the pane, its blur
+     and the card's pictures brighten by 5%, which looks like the old
+     hover:brightness-105 on the whole card. Words and chips stay as they
+     are; a filter on any ancestor of a blur layer would empty it. */
+  .glass.glass-layer.glass-hover:hover::before,
+  .glass.glass-layer.glass-hover:hover img {
+    filter: brightness(1.05);
+  }
+  .glass.glass-layer.glass-hover:hover::after {
+    -webkit-backdrop-filter: var(--glass-blur) brightness(1.05);
+    backdrop-filter: var(--glass-blur) brightness(1.05);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .glass.glass-layer.glass-hover::before,
+    .glass.glass-layer.glass-hover::after,
+    .glass.glass-layer.glass-hover img {
+      transition-property:
+        filter,
+        -webkit-backdrop-filter,
+        backdrop-filter;
+      transition-duration: 150ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  }
+  /* A picture inside a reach card is clipped to the card's inner corners
+     (the pane's 1px border sits outside it), since the card itself no longer
+     clips its content. */
+  .glass-clip-top {
+    border-top-left-radius: calc(var(--radius-panel) - 1px);
+    border-top-right-radius: calc(var(--radius-panel) - 1px);
+  }
+  .glass-clip-left {
+    border-top-left-radius: calc(var(--radius-panel) - 1px);
+    border-bottom-left-radius: calc(var(--radius-panel) - 1px);
+  }
+  .glass-clip-all {
+    border-radius: calc(var(--radius-panel) - 1px);
   }
 
   /* Glass chip: the top pane of the stack (pills, platform badges, the

@@ -26,7 +26,10 @@ export function CardPictureBackdrop({
   const backing = (pct: number): string =>
     `color-mix(in srgb, var(--glass-information) ${pct}%, transparent)`
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div
+      aria-hidden="true"
+      className="glass-clip-all pointer-events-none absolute inset-0 overflow-hidden"
+    >
       <img
         src={image}
         alt=""

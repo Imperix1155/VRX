@@ -617,6 +617,30 @@ describe('compiled glass material', () => {
     expect(pane![1]).toMatch(/box-shadow:\s*var\(--glass-layer-depth\)\s*;/)
   })
 
+  it('brightens reach cards on hover without a filter on the card itself', () => {
+    // A filter on a reach card makes it a backdrop root and empties its blur
+    // layer, and a card that clips its content blurs itself again with the
+    // edge strip (the Hot instance card's bottom shifted on hover elsewhere,
+    // 2026-11-09). Hover goes through .glass-hover instead.
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const spans = componentsLayerSpans(code)
+    const hover = /\.glass\.glass-layer\.glass-hover:hover::after\s*\{[^{}]*\}/.exec(code)
+    expect(hover).not.toBeNull()
+    expect(spans.some(([start, end]) => hover!.index > start && hover!.index < end)).toBe(true)
+    expect(optimize(hover![0], { minify: true }).code).toMatch(
+      /(?<!-webkit-)backdrop-filter:var\(--glass-blur\) brightness\(1\.05\)/
+    )
+    const offenders = sourceFiles(join(rendererSource, 'components'))
+      .filter((file) => /\.tsx$/.test(file) && !/\.test\.tsx$/.test(file))
+      .flatMap((file) =>
+        [...readFileSync(file, 'utf8').matchAll(/className=\{?[`'"][^`'"]*[`'"]/g)]
+          .map((match) => match[0])
+          .filter((value) => /\bglass-layer\b/.test(value) && /\bhover:brightness-/.test(value))
+          .map((value) => `${relative(rendererSource, file)}: ${value.slice(0, 80)}`)
+      )
+    expect(offenders).toEqual([])
+  })
+
   it('skips the hidden backdrop blur under the opaque information backing', () => {
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const rules = [...code.matchAll(/\.glass-information\s*\{[^{}]*\}/g)]

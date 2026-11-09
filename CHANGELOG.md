@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- On a scaled display, the bottom edge of a Hot instance card no longer
+  shifts slightly when you hover another card. Explore, avatar and group
+  cards get the same fix.
+
 ## [1.4.3-dev.1] - 2026-11-09
 
 ### Fixed
