@@ -15,7 +15,8 @@ const svg = new Map(
 )
 const cache = new Map()
 
-function png(size, source = size === 16 ? 'icon-16.svg' : size <= 24 ? 'icon-24.svg' : 'icon.svg') {
+// 16 px uses the pixel drawing, 17-32 px the small optical drawing, larger sizes the master.
+function png(size, source = size === 16 ? 'icon-16.svg' : size <= 32 ? 'icon-24.svg' : 'icon.svg') {
   const key = `${source}:${size}`
   if (!cache.has(key)) {
     cache.set(
@@ -56,7 +57,7 @@ function ico(sizes) {
 function icns() {
   const chunks = [
     ['icp4', 16, 'icon-16.svg'],
-    ['icp5', 32, 'icon.svg'],
+    ['icp5', 32, 'icon-24.svg'],
     ['icp6', 64, 'icon.svg'],
     ['ic07', 128, 'icon.svg'],
     ['ic08', 256, 'icon.svg'],

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- New app icon: the VRX letters as frosted glass on a frosted glass chat
+  bubble, over the same blue and orange glow as the app. The blue V and
+  orange X sit over the R at equal size, and the R shows through them. The
+  taskbar and tray sizes have their own simpler drawings so they stay
+  readable.
+
 ## [1.4.1] - 2026-11-08
 
 A small look refresh on top of 1.4.0.

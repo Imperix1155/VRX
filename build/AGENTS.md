@@ -8,8 +8,9 @@ controls security and release authority.
 
 ## Ownership
 
-- `icon.svg`, `icon-16.svg`, and `icon-24.svg` are the editable masters; the
-  two small masters supply every 16 px and 24 px frame, including tray `@2x`.
+- `icon.svg`, `icon-16.svg`, and `icon-24.svg` are the editable masters;
+  `icon-16.svg` supplies 16 px (and the macOS tray `@2x`), `icon-24.svg` every
+  frame from 17 to 32 px plus the Linux tray `@2x`.
 - `icon.png`, `icon.ico`, and `icon.icns` are generated build inputs. Matching
   runtime and tray images are generated into `resources/`.
 - `entitlements.mac.plist` is the macOS packaging resource. Icon work does not
@@ -17,11 +18,12 @@ controls security and release authority.
 
 ## Local Contracts
 
-Keep the one-row VRX mark: blue V, silver R, and orange X at equal size, so
-neither platform outweighs the other. Keep the dark chamfered case with its
-blue and orange rails, softened corner joins, transparent outer corners, and
-the dedicated small-size letter drawings. The maintenance procedure and output
-map live in [App icon](../docs/APP-ICON.md).
+Keep the frosted glass chat bubble mark: glass V, R and X on a frosted bubble
+over the blue/orange aurora, with the V and X at equal size and depth over the
+R, so neither platform outweighs the other. Keep transparent tile corners and the
+dedicated small-size drawings. Keep the master flat (one blur of the canvas per
+pane, saturation as an explicit matrix) so the renderer stays fast. The
+maintenance procedure and output map live in [App icon](../docs/APP-ICON.md).
 
 ## Work Guidance
 

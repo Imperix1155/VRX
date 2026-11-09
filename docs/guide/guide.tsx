@@ -861,13 +861,13 @@ export default function Guide(): React.JSX.Element {
         <Section id="identity" kicker="12 · identity" title="The VRX mark" rule="§1">
           <p className="design-guide__lead">
             Inside the app the brand is the horizontal VT323 wordmark: blue V, silver R, orange X.
-            The launcher icon sets the same letters at equal size in a smoked-glass case with
-            colored rails, so neither platform outweighs the other.
+            The launcher icon sets the same letters as glass on a frosted chat bubble, with V and X
+            at equal size over the R, so neither platform outweighs the other.
           </p>
           <Scene
             name="icons"
             title="App icon and small sizes"
-            note="Static sample. The packaged PNGs, with dedicated optical lettering at 16 and 24 pixels. Grayscale is in the standalone scene controls."
+            note="Static sample. The packaged PNGs, with a small optical drawing at 24 pixels and a pixel drawing at 16. Grayscale is in the standalone scene controls."
             source="build/icon.svg · build/icon-16.svg · build/icon-24.svg · docs/APP-ICON.md"
             height="short"
             paired
