@@ -167,9 +167,25 @@ export default function AppShell(): React.JSX.Element {
               : 'var(--space-2) var(--space-2) var(--space-10)'
         }}
       >
-        <TopBar />
-        <RecoveryNotices />
-        <MainContent />
+        {/* Glass blur layers reach a little past their cards' right and bottom
+            edges and are trimmed back by clip-path (main.css, "Edge reach").
+            Clipping only hides paint, so without this wrapper the hidden part
+            would still count as content and give the page a sideways
+            scrollbar. Clipping here, at main's own padding edge, changes
+            nothing that is visible. Down the page it only clips Settings,
+            whose bottom padding is thinner than the reach; other views keep
+            room for menus that open downward. */}
+        <div
+          style={{
+            overflowX: 'clip',
+            overflowY: activeTab === 'settings' ? 'clip' : 'visible',
+            overflowClipMargin: 'var(--space-2)'
+          }}
+        >
+          <TopBar />
+          <RecoveryNotices />
+          <MainContent />
+        </div>
       </main>
       {/* VRX-210: the ONE join confirmation dialog — mounted at shell level so
           every join surface (row pill, drawer, future hot-card join) is covered. */}

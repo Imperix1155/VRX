@@ -276,6 +276,19 @@ filter makes its element the containing block for fixed children, which would
 pin the friend drawer inside the list. Never put a backdrop filter on an
 ancestor of a fixed overlay.
 
+**Edge reach.** On a scaled display (125%, 150%) the graphics card's blur can
+stop short of a blurred box's right and bottom edges and fill the last strip
+with one flat color, which shows as a seam over a busy picture. So a blur
+layer reaches `--glass-reach` (32px) past those two edges and a clip-path
+trims it back to the box's rounded shape; the short strip falls outside and is
+never seen. Panels, sheets and the unclipped `.glass-layer` cards (statistics,
+notices, empty states) draw their blur this way. Bottom sheets round only their
+top corners, so they set `--glass-clip-radius` to match. A clip-path hides
+paint but the hidden reach still counts as content, so the app shell wraps
+its views in a box that clips sideways at the scroller's padding edge (and
+downward on Settings, whose bottom padding is thinner than the reach). Any
+other scroller that holds reaching glass near its edge needs the same.
+
 **`.glass-layer`** makes a card, row, header or field its own frosted pane: the
 sidebar's blur, a thinner fill (`--glass-layer`), lifted by a lit top edge and
 a soft shadow (`--glass-layer-depth`). On a back panel it blurs the already
@@ -285,6 +298,14 @@ section headers and search field, statistics, Hot Instances, Popular now,
 Explore, avatar, group and account cards, the login card, the sign-in fields,
 the welcome setup's theme choices, notices and empty states. No fixed-position
 child may live inside one. Small icon tiles in setup are `.glass-chip`s.
+A `.glass .glass-layer` card that does not clip its content builds its pane
+from layers for the edge reach: `::after` is the blur, `::before` the fill,
+face (`--glass-bg` or the platform tint, through `--glass-face`), sheen,
+border (`--glass-edge`) and lift, and the card itself paints nothing. It looks
+the same as a card that blurs itself. Picture and account cards clip their
+content (`overflow-hidden`) and keep blurring themselves, since the clip would
+cut the reach off and their hover brightness filter would hide a blur layer
+inside them.
 
 **`.platform-row`** is a layer-3 row that belongs to one platform: the same
 glass, washed in its platform's hue from the left (`--platform-row-tint-strong`
@@ -1413,11 +1434,14 @@ each one rendered next to its code.
 }
 .glass-panel::after,
 .glass-sheet::after {
+  --glass-reach: 32px;
   content: '';
   position: absolute;
   z-index: -2;
-  inset: -1px;
-  border-radius: inherit;
+  inset: -1px calc(-1px - var(--glass-reach)) calc(-1px - var(--glass-reach)) -1px;
+  clip-path: inset(
+    0 var(--glass-reach) var(--glass-reach) 0 round var(--glass-clip-radius, var(--radius-panel))
+  );
   pointer-events: none;
   background-color: var(--glass-panel); /* --glass-sheet for .glass-sheet */
   -webkit-backdrop-filter: var(--glass-blur-frosted);
@@ -1426,6 +1450,34 @@ each one rendered next to its code.
 .glass-layer {
   background-color: var(--glass-layer);
   box-shadow: var(--glass-layer-depth);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+.glass.glass-layer:not(.overflow-hidden) {
+  --glass-reach: 32px;
+  background: none;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.glass.glass-layer:not(.overflow-hidden)::before {
+  inset: -1px;
+  border: 1px solid var(--glass-edge, var(--glass-border));
+  background-color: var(--glass-layer);
+  background-image: var(--glass-sheen), var(--glass-face, var(--glass-bg));
+  box-shadow: var(--glass-layer-depth);
+}
+.glass.glass-layer:not(.overflow-hidden)::after {
+  content: '';
+  position: absolute;
+  z-index: -2;
+  inset: -1px calc(-1px - var(--glass-reach)) calc(-1px - var(--glass-reach)) -1px;
+  clip-path: inset(
+    0 var(--glass-reach) var(--glass-reach) 0 round var(--glass-clip-radius, var(--radius-panel))
+  );
+  pointer-events: none;
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }

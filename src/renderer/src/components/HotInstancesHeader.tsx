@@ -27,9 +27,12 @@ const HotInstancesHeader = forwardRef<HTMLElement, HotInstancesHeaderProps>(
     const updateSettings = useSettingsStore((s) => s.updateSettings)
     return (
       <>
-        <div className="flex items-center justify-between gap-[var(--space-4)]">
+        {/* Wraps when a long translation would push the "?" past the
+            window's edge (Japanese at the minimum window width); the
+            controls then sit on their own line, still right-aligned. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-[var(--space-4)] gap-y-[var(--space-2)]">
           {heading ?? <span />}
-          <div className="flex shrink-0 items-center gap-[var(--space-2)]">
+          <div className="ml-auto flex shrink-0 items-center gap-[var(--space-2)]">
             {extra}
             {/* Named like Explore's "Worlds shown" stepper, so the number is
                 not a bare digit. */}

@@ -60,7 +60,11 @@ describe('DESIGN.md stays in step with the stylesheet', () => {
       '--aurora-floor',
       '--alert-step',
       '--linked-platform',
-      '--linked-badge-bg'
+      '--linked-badge-bg',
+      '--glass-reach',
+      '--glass-clip-radius',
+      '--glass-face',
+      '--glass-edge'
     ])
       known.add(local)
     // Skip BEM modifiers such as `.platform-row--vrchat`.
