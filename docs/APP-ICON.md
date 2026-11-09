@@ -1,31 +1,40 @@
 # App icon
 
-The approved launcher mark is the VRX monogram in one row: a blue V, a silver R
-and an orange X at the same size, so neither platform color outweighs the other
-(the owner's platform-parity rule). Its smoked-glass case has diagonal cuts,
-gently rounded chamfer transitions, and blue/orange rails. The letters and case
-keep their colors against the desktop background. The app's horizontal VT323
-wordmark remains the in-app brand treatment.
+The approved launcher mark (owner, 2026-11-09) is the VRX lettering on a
+frosted glass chat bubble, built as the app's own layered glass: the app's
+blue top-left and orange bottom-right aurora is the canvas, the chat bubble is
+a frosted back panel over it, and the letters are glass layers over the
+bubble. The R sits behind; the V and X overlap it from both sides at the same
+size and depth, so neither platform outweighs the other (the owner's
+platform-parity rule). The V and X are a lighter frost tinted in each
+platform's color, so the R shows through them. The bubble's tail sweeps to the
+bottom left. The tile is a rounded square (superellipse) with transparent
+corners. The colors don't change with the app theme or the desktop
+background. The app's horizontal VT323 wordmark remains the in-app brand
+treatment.
 
 ## Source artwork
 
-- [`build/icon.svg`](../build/icon.svg) is the scalable master, on a 64-unit grid.
-- [`build/icon-16.svg`](../build/icon-16.svg) and
-  [`build/icon-24.svg`](../build/icon-24.svg) retain the same arrangement with
-  pixel-aligned letter drawings for small sizes. Keep the V and X the same
-  size, the R counter open, and a clear pixel between letters. Do not derive
-  these by shrinking the large PNG.
-- Blue `#2b7ce8`, silver `#e8e8f0`, and orange `#f3711e` match the app's identity
-  tokens in `src/renderer/src/assets/main.css`. These fixed-color icon assets
-  do not switch with the app theme. Their outer corners remain transparent.
-- The large letter contours derive from the local VT323 font. Its
-  [license](../src/renderer/src/assets/fonts/LICENSE-VT323.txt) and
-  [provenance](../src/renderer/src/assets/fonts/SOURCES.json) remain with the
-  font assets. The SVGs contain paths, not external fonts or links.
+- [`build/icon.svg`](../build/icon.svg) is the master, on a 64-unit grid. It
+  renders every frame above 32 px.
+- [`build/icon-24.svg`](../build/icon-24.svg) is the small optical drawing for
+  17 to 32 px frames: bigger letters with a solid platform tint, a softer edge
+  and no texture, so the letters stay readable.
+- [`build/icon-16.svg`](../build/icon-16.svg) is a pixel drawing for 16 px:
+  the bubble on the tile with pixel V, R and X. Do not derive the small files
+  by shrinking the large PNG.
+- Blue `#2b7ce8` and orange `#f3711e` match the app's identity tokens in
+  `src/renderer/src/assets/main.css`.
+- The letter outlines are Inter Black, the family the app already bundles
+  under the SIL Open Font License (see its
+  [license](../src/renderer/src/assets/fonts/LICENSE-Inter.txt)). The SVGs
+  contain paths, not fonts or external links.
 
-The case retains straight diagonal facets. Round their transitions, rather than
-replacing the outline with a rounded square. The approved 64-unit master uses
-5-unit fillets. Preserve the rail placement and its softer bends.
+The master is drawn flat: each glass pane blurs the canvas once and repeats
+the panes under it as plain fills, instead of re-rendering the whole stack
+for every pane. Keep it that way; a nested stack takes the renderer over ten
+seconds per large frame. Write saturation as `feColorMatrix type="matrix"`,
+because the renderer clamps `type="saturate"` to 1.
 
 ## Regenerate and verify
 
@@ -50,18 +59,19 @@ writing. Commit the sources and regenerated outputs together.
 | Linux AppImage/deb launcher                       | `build/icon.png`                          | 512px RGBA PNG; existing desktop identity and package checks still apply         |
 | Linux window icon and native friend notifications | `resources/icon.png`                      | Identical 512px master                                                           |
 | Windows tray                                      | `resources/icon.ico`                      | Same multi-size ICO as the executable                                            |
-| macOS menu bar                                    | `resources/icon-16.png`, `icon-16@2x.png` | Native 16px optical drawing and its 32px Retina representation                   |
-| Linux tray                                        | `resources/icon-24.png`, `icon-24@2x.png` | Native 24px optical drawing and its 48px representation                          |
+| macOS menu bar                                    | `resources/icon-16.png`, `icon-16@2x.png` | Native 16px pixel drawing and its 32px Retina representation                     |
+| Linux tray                                        | `resources/icon-24.png`, `icon-24@2x.png` | Small optical drawing at 24px and its 48px representation                        |
 
-The Windows 20px frame uses the 24px optical source. Other frames above 24px use
-the scalable master. The macOS 16-point Retina representation renders the 16px
-optical source at 32px. Keep the PNGs and their matching `@2x` files beside each
-other. Tray assets resolve to real `app.asar.unpacked` paths for native OS APIs.
-The tray remains colored and retains its existing Show/Hide/Quit behavior.
+Windows frames from 20 to 32 px and the macOS 32 px representation use the
+small optical source. Other frames above 32 px use the master. The macOS
+16-point Retina representation renders the 16px pixel drawing at 32px. Keep
+the PNGs and their matching `@2x` files beside each other. Tray assets resolve
+to real `app.asar.unpacked` paths for native OS APIs. The tray remains colored and retains its existing Show/Hide/Quit behavior.
 
 The generator is excluded from packaged app files, and its renderer is a dev
 dependency. End users do not need either. This ICNS is a conventional flattened
-Electron icon; it does not claim Icon Composer layers or native adaptive glass.
+Electron icon; the glass is drawn into the artwork, not Icon Composer layers or
+native adaptive glass.
 
 ## Visual and package checks
 

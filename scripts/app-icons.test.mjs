@@ -19,10 +19,12 @@ describe('native app icon assets', () => {
       execFileSync(process.execPath, ['scripts/generate-app-icons.mjs', '--check'], {
         cwd: root,
         encoding: 'utf8',
-        timeout: 15000
+        timeout: 60000
       })
     ).toBe('APP_ICONS_CURRENT\n')
-  })
+    // The layered glass master takes a few seconds to render; CI runners under
+    // a full parallel test run need far more than the 5 s default.
+  }, 60000)
 
   it('provides exact Windows frames with non-overlapping PNG payloads', () => {
     const data = read('build/icon.ico')

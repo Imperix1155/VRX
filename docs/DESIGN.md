@@ -160,13 +160,15 @@ tracking; the welcome screen at 64 px. Page titles name the active view. When
 a platform logo is needed, use the platform's official asset; never draw a
 substitute.
 
-**App icon.** The launcher icon is the VRX monogram in one row: a blue V, a
-silver R, and an orange X at the same size, in a smoked-glass case with
-colored rails, straight diagonal cuts, and softly rounded chamfers. The case
-and letter colors don't change with the theme or desktop background.
-`build/icon.svg` is the master; the 16 px and 24 px SVGs keep dedicated
-small-size lettering with equal V and X, an open R, and a clear gap between
-letters. [App icon](APP-ICON.md) owns the files, sizes, and the
+**App icon.** The launcher icon is the VRX lettering on a frosted glass chat
+bubble, drawn as the app's layered glass: the blue and orange aurora is the
+canvas, the bubble is a frosted back panel, and the letters are glass layers on
+it. The R sits behind; the V and X overlap it from both sides at the same size
+and depth, in a lighter frost tinted blue and orange so the R shows through.
+The colors don't change with the theme or desktop background.
+`build/icon.svg` is the master; `build/icon-24.svg` is a simpler drawing for 17
+to 32 px and `build/icon-16.svg` a pixel drawing for 16 px.
+[App icon](APP-ICON.md) owns the files, sizes, and the
 `npm run icons:generate` / `npm run icons:check` workflow.
 
 Sources: [`Sidebar.tsx`](../src/renderer/src/components/Sidebar.tsx),
