@@ -91,8 +91,8 @@ function IconScene(): React.JSX.Element {
         </div>
       </div>
       <p className="fixture-label">
-        Blue V at left, silver R above orange X. The clipped smoked-glass case keeps its colored
-        rails and gently rounded chamfer transitions.
+        Glass V, R and X on a frosted chat bubble over the blue and orange glow. The V and X sit
+        over the R at equal size, tinted in their platform colors.
       </p>
     </SceneFrame>
   )
