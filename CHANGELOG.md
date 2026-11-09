@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3-dev.1] - 2026-11-09
+
 ### Fixed
 
 - On a scaled display (125%, 150%) a thin seam no longer shows near the right
