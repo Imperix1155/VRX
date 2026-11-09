@@ -123,3 +123,25 @@ describe('AppShell view switching', () => {
     expect(main.scrollTop).toBe(0)
   })
 })
+
+describe('AppShell glass edge reach', () => {
+  // Glass blur layers reach past their cards' right and bottom edges and are
+  // trimmed back by clip-path (main.css "Edge reach"). The hidden part still
+  // counts as content, so the views sit in a wrapper that clips at main's
+  // padding edge: no sideways scrollbar, and no blank scroll under Settings.
+  it('clips the views sideways so the hidden blur reach never adds a scrollbar', () => {
+    render(<AppShell />)
+    const wrapper = screen.getByRole('main').firstElementChild as HTMLElement
+    expect(wrapper.style.overflowX).toBe('clip')
+    // Other views keep vertical overflow visible for menus that open downward.
+    expect(wrapper.style.overflowY).toBe('visible')
+  })
+
+  it('also clips downward on Settings, whose bottom padding is thinner than the reach', () => {
+    useUiStore.setState({ activeTab: 'settings' })
+    render(<AppShell />)
+    const wrapper = screen.getByRole('main').firstElementChild as HTMLElement
+    expect(wrapper.style.overflowX).toBe('clip')
+    expect(wrapper.style.overflowY).toBe('clip')
+  })
+})

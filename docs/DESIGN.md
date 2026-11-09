@@ -283,7 +283,11 @@ layer reaches `--glass-reach` (32px) past those two edges and a clip-path
 trims it back to the box's rounded shape; the short strip falls outside and is
 never seen. Panels, sheets and the unclipped `.glass-layer` cards (statistics,
 notices, empty states) draw their blur this way. Bottom sheets round only their
-top corners, so they set `--glass-clip-radius` to match.
+top corners, so they set `--glass-clip-radius` to match. A clip-path hides
+paint but the hidden reach still counts as content, so the app shell wraps
+its views in a box that clips sideways at the scroller's padding edge (and
+downward on Settings, whose bottom padding is thinner than the reach). Any
+other scroller that holds reaching glass near its edge needs the same.
 
 **`.glass-layer`** makes a card, row, header or field its own frosted pane: the
 sidebar's blur, a thinner fill (`--glass-layer`), lifted by a lit top edge and

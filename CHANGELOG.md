@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   edge of a glass card over a background picture, such as the Dashboard's
   counts. The same goes for the friends and Settings panels and the bottom
   sheets.
+- In Japanese at the smallest window size, the Dashboard's Hot instances
+  controls now move to their own line instead of pushing the "?" button off
+  the edge.
 
 ## [1.4.2] - 2026-11-09
 
