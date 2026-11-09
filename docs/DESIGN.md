@@ -302,10 +302,15 @@ A `.glass .glass-layer` card that does not clip its content builds its pane
 from layers for the edge reach: `::after` is the blur, `::before` the fill,
 face (`--glass-bg` or the platform tint, through `--glass-face`), sheen,
 border (`--glass-edge`) and lift, and the card itself paints nothing. It looks
-the same as a card that blurs itself. Picture and account cards clip their
-content (`overflow-hidden`) and keep blurring themselves, since the clip would
-cut the reach off and their hover brightness filter would hide a blur layer
-inside them.
+the same as a card that blurs itself. Picture cards (Hot instances, Explore,
+avatars, groups) take the reach too: instead of clipping the whole card they
+round their pictures to the card's inner corners (`.glass-clip-top`,
+`.glass-clip-left`, `.glass-clip-all`). They brighten on hover with
+`.glass-hover`, which brightens the pane, its blur and the pictures by 5%. A
+`hover:brightness` filter on the card would make it a backdrop root and empty
+its blur layer, so a test refuses one on any `.glass-layer`. Only the sign-in
+and account cards still clip their content (`overflow-hidden`) and blur
+themselves.
 
 **`.platform-row`** is a layer-3 row that belongs to one platform: the same
 glass, washed in its platform's hue from the left (`--platform-row-tint-strong`

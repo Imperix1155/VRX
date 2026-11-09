@@ -43,12 +43,12 @@ function AvatarCard({ avatar, worn, onOpen, layout = 'card' }: AvatarCardProps):
       onClick={(event) => onOpen(avatar, event.currentTarget)}
       aria-label={t('avatars.openAria', { name: avatar.name, platform: platformLabel })}
       aria-describedby={wornLine ? wornId : undefined}
-      className={`glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex w-full min-w-0 flex-col overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] ${bar ? '' : 'h-full'}`}
+      className={`glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} glass-hover relative flex w-full min-w-0 flex-col p-0 text-left focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] ${bar ? '' : 'h-full'}`}
     >
       <div className={bar ? 'flex min-w-0 items-stretch' : 'flex flex-1 flex-col'}>
         <div
           ref={pictureRef}
-          className={`relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)] ${bar ? 'w-[128px]' : ''}`}
+          className={`relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)] ${bar ? 'glass-clip-left w-[128px]' : 'glass-clip-top'}`}
         >
           {image && failedImage !== image ? (
             <img

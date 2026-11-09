@@ -264,7 +264,7 @@ export const CommunityTile = memo(function CommunityTile({
         <div
           ref={pictureRef}
           data-community-tile-picture={pictureState}
-          className="relative h-[112px] shrink-0 overflow-hidden bg-[var(--surface-hover)]"
+          className="glass-clip-top relative h-[112px] shrink-0 overflow-hidden bg-[var(--surface-hover)]"
         >
           <div
             ref={bannerRef}
@@ -370,7 +370,7 @@ export const CommunityTile = memo(function CommunityTile({
       <>
         <div
           ref={pictureRef}
-          className={`relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)]${waitingClass}`}
+          className={`glass-clip-top relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)]${waitingClass}`}
         >
           {picture}
           <PictureBadge platform={platform} />
@@ -385,7 +385,7 @@ export const CommunityTile = memo(function CommunityTile({
         </div>
       </>
     )
-  const className = `glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left`
+  const className = `glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex h-full w-full min-w-0 flex-col p-0 text-left`
   if (!onOpen) {
     return (
       <div className={className} data-community-tile="">
@@ -400,7 +400,7 @@ export const CommunityTile = memo(function CommunityTile({
       data-community-tile=""
       onClick={(event) => onOpen(event.currentTarget)}
       aria-label={ariaLabel}
-      className={`${className} hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
+      className={`${className} glass-hover focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)]`}
     >
       {body}
     </button>
