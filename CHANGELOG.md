@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- On a scaled display (125%, 150%) a thin seam no longer shows near the right
+  edge of a glass card over a background picture, such as the Dashboard's
+  counts. The same goes for the friends and Settings panels and the bottom
+  sheets.
+
 ## [1.4.2] - 2026-11-09
 
 A new app icon.
