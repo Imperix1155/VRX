@@ -581,6 +581,40 @@ describe('compiled glass material', () => {
     }
   })
 
+  it('lets every blur layer reach past the right and bottom edges, trimmed back to the box', () => {
+    // On a scaled display the GPU blur can leave a flat strip along a blurred
+    // box's right and bottom edges (a seam over a busy picture, 2026-11-09).
+    // The blur layers reach past those edges and a clip-path trims them back,
+    // so the strip is never on screen.
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const spans = componentsLayerSpans(code)
+    const layers = [
+      /\.glass-panel::after,\s*\.glass-sheet::after\s*\{[^{}]*\}/.exec(code),
+      /\.glass\.glass-layer:not\(\.overflow-hidden\)::after\s*\{[^{}]*\}/.exec(code)
+    ]
+    for (const layer of layers) {
+      expect(layer).not.toBeNull()
+      expect(spans.some(([start, end]) => layer!.index > start && layer!.index < end)).toBe(true)
+      const emitted = optimize(layer![0], { minify: true }).code
+      expect(emitted).toMatch(/(?<!-webkit-)backdrop-filter:var\(--glass-blur(?:-frosted)?\)/)
+      expect(emitted).toMatch(/z-index:-2/)
+      expect(emitted).toMatch(
+        /inset:-1px calc\(-1px - var\(--glass-reach\)\) calc\(-1px - var\(--glass-reach\)\) -1px/
+      )
+      expect(emitted).toMatch(/clip-path:inset\(0 var\(--glass-reach\) var\(--glass-reach\) 0 round/)
+    }
+    // The card itself paints nothing under its blur layer; the ::before pane
+    // carries the fill, face, sheen, border and lift above it.
+    const card = /\.glass\.glass-layer:not\(\.overflow-hidden\)\s*\{([^{}]*)\}/.exec(code)
+    expect(card).not.toBeNull()
+    expect(card![1]).toMatch(/(?<!-webkit-)backdrop-filter:\s*none\s*;/)
+    expect(card![1]).toMatch(/border-color:\s*transparent !important\s*;/)
+    const pane = /\.glass\.glass-layer:not\(\.overflow-hidden\)::before\s*\{([^{}]*)\}/.exec(code)
+    expect(pane).not.toBeNull()
+    expect(pane![1]).toMatch(/background-color:\s*var\(--glass-layer\)\s*;/)
+    expect(pane![1]).toMatch(/box-shadow:\s*var\(--glass-layer-depth\)\s*;/)
+  })
+
   it('skips the hidden backdrop blur under the opaque information backing', () => {
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const rules = [...code.matchAll(/\.glass-information\s*\{[^{}]*\}/g)]
