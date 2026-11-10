@@ -148,17 +148,15 @@ export function useSwitchAvatar(): UseMutationResult<AvatarSwitchResult, Error, 
       if (!result.ok) return
       const key = avatarLibraryQueryKey(avatar.platform, accountId)
       lastWear.set(key.join('\u0000'), { avatar, at: Date.now() })
-      queryClient.setQueryData<Kept<AvatarLibraryResult>>(
-        key,
-        (previous) =>
-          previous?.ok
-            ? {
-                ...previous,
-                current: avatar,
-                refreshFailed: undefined,
-                refreshRateLimited: undefined
-              }
-            : previous
+      queryClient.setQueryData<Kept<AvatarLibraryResult>>(key, (previous) =>
+        previous?.ok
+          ? {
+              ...previous,
+              current: avatar,
+              refreshFailed: undefined,
+              refreshRateLimited: undefined
+            }
+          : previous
       )
     }
   })

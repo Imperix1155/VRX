@@ -195,7 +195,8 @@ export class CommunityService {
         // ChilloutVR's search doesn't say who is a friend; the roster VRX
         // already holds does, so both platforms mark friends the same way.
         people: page.people.map((person) =>
-          person.isFriend !== null || !this.options.isFriend(platform, this.idOf(platform, person.userId))
+          person.isFriend !== null ||
+          !this.options.isFriend(platform, this.idOf(platform, person.userId))
             ? person
             : { ...person, isFriend: true }
         ),
