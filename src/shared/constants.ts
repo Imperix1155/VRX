@@ -93,3 +93,8 @@ export const NEW_BUG_REPORT_URL = 'https://github.com/Imperix1155/VRX/issues/new
 export function releasesUrlFor(version: string): string {
   return version.includes('-') ? ALL_RELEASES_URL : RELEASES_URL
 }
+
+/** Longest sign-in details main accepts; the sign-in fields stop at these too. */
+export const MAX_USERNAME_LENGTH = 256
+export const MAX_PASSWORD_LENGTH = 1_024
+export const MAX_TWO_FACTOR_CODE_LENGTH = 64

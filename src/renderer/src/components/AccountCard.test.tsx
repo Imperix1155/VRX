@@ -454,6 +454,21 @@ describe.each(['vrchat', 'chilloutvr'] as const)(
         screen.getByRole('button', { name: msg('settings.accounts.profile.edit') })
       ).toBeTruthy()
       expect(bridge.logout).not.toHaveBeenCalled()
+
+      // Escape answers "no" too, and focus goes back to Sign out.
+      fireEvent.click(again)
+      const asked = screen.getByRole('group', { name: signOutQuestion(platform) })
+      fireEvent.keyDown(
+        within(asked).getByRole('button', { name: msg('settings.accounts.cancel') }),
+        {
+          key: 'Escape'
+        }
+      )
+      expect(screen.queryByRole('group', { name: signOutQuestion(platform) })).toBeNull()
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: msg('settings.accounts.signOut') })
+      )
+      expect(bridge.logout).not.toHaveBeenCalled()
     })
 
     it('signs out once the question is answered', async () => {

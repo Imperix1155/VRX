@@ -40,14 +40,18 @@ const NumberStepper = forwardRef<
         : 'text-[var(--text)] cursor-pointer hover:bg-[color-mix(in_srgb,var(--text)_14%,transparent)]'
     ].join(' ')
 
+  // The ends use aria-disabled, not disabled: a pressed button that turned
+  // disabled would drop keyboard focus to the page.
   return (
     <div className="glass flex items-center gap-[2px] p-[4px] shrink-0">
       <button
         type="button"
         tabIndex={-1}
         aria-label={t('stepper.decrease')}
-        disabled={value <= min}
-        onClick={() => set(value - 1)}
+        aria-disabled={value <= min || undefined}
+        onClick={() => {
+          if (!(value <= min)) set(value - 1)
+        }}
         className={btnClass(value <= min)}
       >
         −
@@ -86,8 +90,10 @@ const NumberStepper = forwardRef<
         type="button"
         tabIndex={-1}
         aria-label={t('stepper.increase')}
-        disabled={value >= max}
-        onClick={() => set(value + 1)}
+        aria-disabled={value >= max || undefined}
+        onClick={() => {
+          if (!(value >= max)) set(value + 1)
+        }}
         className={btnClass(value >= max)}
       >
         +
