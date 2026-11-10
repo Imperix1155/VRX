@@ -2189,7 +2189,7 @@ export class VrcAdapter
         await response.body?.cancel().catch(() => {})
         if (!lease.isCurrent() || lease.signal.aborted) return null
         this.pipelineExchangeRejected = true
-        this.invalidateDataPathSession(false)
+        this.invalidateDataPathSession()
         return null
       }
       if (response.ok) {
@@ -2353,11 +2353,15 @@ export class VrcAdapter
    * cookie stay for the 2FA-aware getAuthStatus to decide. In-flight work is
    * fenced by the new generation and the renderer quarantines on auth-invalidated.
    * Not an account switch, so no renderer identity boundary follows.
+   *
+   * The pipeline stops rather than restarts: a restart would send the rejected
+   * cookie straight back to /auth. The renderer's status check on
+   * auth-invalidated restarts it once the session is confirmed.
    */
-  private invalidateDataPathSession(restartPipeline = true): void {
-    this.bumpSessionGeneration(restartPipeline, true)
+  private invalidateDataPathSession(): void {
+    this.bumpSessionGeneration(false, true)
     // A stopped pipeline emits nothing more; report it down until restarted.
-    if (!restartPipeline) this.emit({ type: 'connection', platform: 'vrchat', health: 'down' })
+    this.emit({ type: 'connection', platform: 'vrchat', health: 'down' })
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
 

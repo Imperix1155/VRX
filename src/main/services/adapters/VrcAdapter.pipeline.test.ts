@@ -308,7 +308,11 @@ describe('VrcAdapter', () => {
       events.length = 0
 
       await expect(adapter.getFriends()).rejects.toThrow()
-      expect(events).toEqual([{ type: 'auth-invalidated', platform: 'vrchat' }])
+      const invalidated = [
+        { type: 'connection', platform: 'vrchat', health: 'down' },
+        { type: 'auth-invalidated', platform: 'vrchat' }
+      ]
+      expect(events).toEqual(invalidated)
 
       oldSocket.fire(
         'message',
@@ -323,7 +327,8 @@ describe('VrcAdapter', () => {
         })
       )
 
-      expect(events).toEqual([{ type: 'auth-invalidated', platform: 'vrchat' }])
+      expect(events).toEqual(invalidated)
+      expect(oldSocket.closed).toBe(true)
       expect(alerts).toEqual([])
       const state = engine as unknown as { presence: Map<string, Map<string, unknown>> }
       expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
@@ -753,8 +758,9 @@ describe('live pipeline world enrichment (VRX-254)', () => {
     // Re-login: bumpSessionGeneration creates a new pipeline because the handler
     // is still subscribed, so the same world can be re-fetched on the next event.
     await adapter.login({ username: 'new', password: 'pw' })
-    await vi.waitFor(() => expect(sockets).toHaveLength(3))
-    const newSocket = sockets[2]!
+    // The 401 stopped the old pipeline without a restart, so this is the second.
+    await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    const newSocket = sockets[1]!
     expect(newSocket.closed).toBe(false)
     newSocket.fire('open')
 
