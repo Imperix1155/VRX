@@ -553,6 +553,9 @@ describe('GroupsView', () => {
     ])
     // An owned group says so in front of its code, like every other tile's code.
     expect(within(tiles[0]!).getByText(new RegExp(`^${msg('groups.role.owner')} · `))).toBeTruthy()
+    // That line is also spoken, after the tile's name.
+    const described = document.getElementById(tiles[0]!.getAttribute('aria-describedby') ?? '')
+    expect(described?.textContent).toBe(`${msg('groups.role.owner')} · ABCDE.1234`)
     // No picture: a tidy first-letter tile instead of an empty box.
     const picture = tiles[0]!.querySelector('[data-community-tile-picture]')
     expect(picture?.getAttribute('data-community-tile-picture')).toBe('initial')
