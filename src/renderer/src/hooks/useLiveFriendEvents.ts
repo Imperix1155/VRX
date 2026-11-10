@@ -32,6 +32,7 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend } from '@shared/types'
 import { EMPTY_ROSTER_PLACEHOLDER, friendsQueryKey } from '../queries/friends'
+import { setConnectionHealth } from '../queries/appStatus'
 import {
   applyOrderedFriendEvent,
   clearFriendEventReplay,
@@ -148,6 +149,10 @@ export function useLiveFriendEvents(): void {
 
     const unsubscribe = window.vrx.onFriendEvent((event) => {
       if (event.type === 'connection') {
+        // The top bar's dot follows each socket change at once, not one poll
+        // later: without this, every launch showed a red "Down" for seconds
+        // after the sockets had connected.
+        setConnectionHealth(queryClient, event.platform, event.health)
         // ANY connection-state change invalidates the buffered snapshot:
         // - on a drop (down/reconnecting/…) it's now STALE and must NOT be
         //   re-applied over the periodic REST reconcile — that would resurrect

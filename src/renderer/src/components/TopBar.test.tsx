@@ -8,11 +8,12 @@
 import { describe, it, expect, vi, afterEach, beforeEach, onTestFinished } from 'vitest'
 import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
-import type { FriendEvent } from '@shared/ipc'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
 import { useFriendsStore } from '../stores/friends'
 import TopBar from './TopBar'
+import { setConnectionHealth } from '../queries/appStatus'
 
 // The top bar's player counts read through their own queries (TopBarCounts.test.tsx).
 vi.mock('../queries/community', () => ({
@@ -237,28 +238,25 @@ describe('TopBar connection health (VRX-223)', () => {
     expect(indicator.className).toContain('motion-safe:animate-pulse')
   })
 
-  it('follows a socket change main pushes without waiting for the next poll', async () => {
+  it('follows a socket change written to the app status without waiting for the next poll', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     stubFriends([], [])
     stubAppStatus('down', 'reconnecting')
-    let push: ((event: FriendEvent) => void) | null = null
-    Object.assign(window.vrx!, {
-      onFriendEvent: vi.fn((listener: (event: FriendEvent) => void) => {
-        push = listener
-        return () => {
-          push = null
-        }
-      })
-    })
-    const { unmount } = render(<TopBar />)
+    const client = new QueryClient()
+    render(
+      <QueryClientProvider client={client}>
+        <TopBar />
+      </QueryClientProvider>
+    )
     await findIndicator('VRChat: Down; ChilloutVR: Reconnecting')
 
-    act(() => push?.({ type: 'connection', platform: 'vrchat', health: 'live' }))
-    act(() => push?.({ type: 'connection', platform: 'chilloutvr', health: 'live' }))
+    // useLiveFriendEvents writes each pushed socket change here.
+    act(() => setConnectionHealth(client, 'vrchat', 'live'))
+    act(() => setConnectionHealth(client, 'chilloutvr', 'live'))
     const indicator = await findIndicator('VRChat: Live; ChilloutVR: Live')
     expect(indicator.getAttribute('style')).toContain('var(--ingame)')
-    unmount()
-    expect(push).toBeNull()
+    expect(window.vrx!.getAppStatus).toHaveBeenCalledTimes(1)
+    client.clear()
   })
 
   it('shows amber for reconnecting and red when a signed-in platform is down', async () => {

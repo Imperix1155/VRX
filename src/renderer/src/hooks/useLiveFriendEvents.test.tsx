@@ -16,6 +16,7 @@ import type { Friend } from '@shared/types'
 import { friendsQueryKey, useFriends } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
 import { QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
+import { appStatusQueryKey } from '../queries/appStatus'
 import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import FriendsList from '../components/FriendsList'
@@ -413,6 +414,30 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     // — auth-invalidated only ever invalidates auth-status, never friends.
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('chilloutvr') })
     expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toEqual([])
+  })
+})
+
+describe('useLiveFriendEvents — connection health', () => {
+  it('writes each pushed socket change into the app status the top bar reads', () => {
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+
+    act(() => fireFriendEvent!({ type: 'connection', platform: 'vrchat', health: 'live' }))
+    expect(client.getQueryData(appStatusQueryKey)).toEqual({ vrchat: 'live', chilloutvr: 'down' })
+    act(() =>
+      fireFriendEvent!({ type: 'connection', platform: 'chilloutvr', health: 'reconnecting' })
+    )
+    expect(client.getQueryData(appStatusQueryKey)).toEqual({
+      vrchat: 'live',
+      chilloutvr: 'reconnecting'
+    })
+    // An unknown health reads as down rather than as live.
+    act(() => fireFriendEvent!({ type: 'connection', platform: 'vrchat', health: 'weird' }))
+    expect(client.getQueryData(appStatusQueryKey)).toEqual({
+      vrchat: 'down',
+      chilloutvr: 'reconnecting'
+    })
   })
 })
 
