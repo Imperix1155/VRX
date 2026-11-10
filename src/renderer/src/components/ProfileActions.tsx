@@ -13,9 +13,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import type { SocialAction, SocialActionResult } from '@shared/socialActions'
+import type { RelationshipResult, SocialAction, SocialActionResult } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
 import { useScrimDismiss } from '../hooks/useScrimDismiss'
+import { useAvatarAccount } from '../queries/avatarLibrary'
 import { useRelationship, useSocialAction } from '../queries/community'
 import { keepTabInModal } from '../utils/modalTab'
 import GoToAccountsButton from './GoToAccountsButton'
@@ -94,8 +95,11 @@ export default function ProfileActions({
   const panelId = useId()
   const toggleRef = useRef<HTMLButtonElement>(null)
   const relationship = useRelationship(platform, userId, open)
+  const signedIn = useAvatarAccount(platform) !== null
   const platformName = t(PLATFORM_KEYS[platform])
-  const result = relationship.data
+  const result: RelationshipResult | undefined = signedIn
+    ? relationship.data
+    : { ok: false, reason: 'not-authenticated' }
 
   let body: React.JSX.Element | null = null
   if (open) {

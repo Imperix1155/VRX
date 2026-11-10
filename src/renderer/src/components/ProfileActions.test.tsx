@@ -421,6 +421,25 @@ describe('ProfileActions', () => {
     expect(bridge.getRelationship).toHaveBeenCalledTimes(1)
   })
 
+  it('asks again the next time the options open after a failed check', async () => {
+    bridge.getRelationship.mockResolvedValueOnce({ ok: false, reason: 'not-authenticated' })
+    renderActions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.show') }))
+    await screen.findByRole('button', { name: msg('community.openAccounts') })
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.hide') }))
+    await openOptions()
+    expect(bridge.getRelationship).toHaveBeenCalledTimes(2)
+    expect(actionButtons()).toEqual(['unfriend', 'block'])
+  })
+
+  it('reuses a clear answer when the options open again', async () => {
+    renderActions()
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.hide') }))
+    await openOptions()
+    expect(bridge.getRelationship).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the new state when an older check answers after the change', async () => {
     const client = renderActions('chilloutvr')
     await openOptions()

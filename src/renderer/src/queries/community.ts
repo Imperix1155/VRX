@@ -291,7 +291,15 @@ export function useRelationship(
     queryKey: communityQueryKey('relationship', platform, accountId, userId),
     queryFn: () => bridge().getRelationship({ platform, userId }),
     enabled: enabled && accountId !== null,
-    ...READ_OPTIONS
+    ...READ_OPTIONS,
+    // A failed or unanswered check is asked again the next time the options
+    // open, so one bad moment doesn't stick for minutes.
+    staleTime: (query) => {
+      const data = query.state.data
+      return data === undefined || !data.ok || data.relationship.blocked === null
+        ? 0
+        : COMMUNITY_CACHE_MS
+    }
   })
 }
 

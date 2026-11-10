@@ -1,17 +1,34 @@
 /** Most player moderation records read from one reply. */
-const MAX_MODERATIONS = 5_000
+export const MAX_MODERATIONS = 20_000
+
+/** The people the signed-in user blocks, from one moderation list. */
+export interface VrcBlockList {
+  ids: ReadonlySet<string>
+  /** False when the reply held more records than VRX reads, so a missing id is unknown. */
+  complete: boolean
+}
 
 /**
- * `GET /auth/user/playermoderations?type=block&targetUserId=…`: whether any
- * record is a block of exactly that person. The filter is asked for, but the
- * records are checked anyway so a reply that ignores it cannot mislead.
- * Returns null when the reply is not a list.
+ * `GET /auth/user/playermoderations`, asked for the way VRCX asks: no filter,
+ * every moderation the user made (mutes, blocks, interaction toggles). Only
+ * records whose `type` is `block` count. Returns null when the reply is not a
+ * list.
  */
-export function parseVrcBlocked(value: unknown, userId: string): boolean | null {
+export function parseVrcBlockList(value: unknown): VrcBlockList | null {
   if (!Array.isArray(value)) return null
-  return value.slice(0, MAX_MODERATIONS).some((entry) => {
-    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return false
+  const ids = new Set<string>()
+  for (const entry of value.slice(0, MAX_MODERATIONS)) {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue
     const record = entry as Record<string, unknown>
-    return record.type === 'block' && record.targetUserId === userId
-  })
+    if (record.type === 'block' && typeof record.targetUserId === 'string') {
+      ids.add(record.targetUserId)
+    }
+  }
+  return { ids, complete: value.length <= MAX_MODERATIONS }
+}
+
+/** Whether the list blocks exactly that person; null when a cut-off list does not say. */
+export function isVrcBlocked(list: VrcBlockList, userId: string): boolean | null {
+  if (list.ids.has(userId)) return true
+  return list.complete ? false : null
 }
