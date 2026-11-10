@@ -47,6 +47,11 @@ import { communityQueryKeysForPlatform } from '../queries/community'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 
+/** A roster re-read waits for "roster changed" triggers to pause this long... */
+export const ROSTER_CHANGED_SETTLE_MS = 400
+/** ...but no longer than this while they keep coming. */
+export const ROSTER_CHANGED_MAX_WAIT_MS = 3_000
+
 export function useLiveFriendEvents(): void {
   const queryClient = useQueryClient()
 
@@ -77,6 +82,37 @@ export function useLiveFriendEvents(): void {
     // stale at a data-path 401. Main forgot them and their world references, so
     // the next authenticated status resets them and the shown page reads again.
     const staleCommunity = new Set<Friend['platform']>()
+    // A burst of "roster changed" triggers (one per wire frame) becomes one
+    // re-read: main reads the list once anyway, and the renderer's own asks
+    // share a small per-window budget with every other friends read.
+    const rosterReads = new Map<
+      Friend['platform'],
+      { timer: ReturnType<typeof setTimeout>; firstAt: number }
+    >()
+    const refetchRoster = (platform: Friend['platform']): void => {
+      rosterReads.delete(platform)
+      void queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) })
+    }
+    const scheduleRosterRead = (platform: Friend['platform']): void => {
+      const now = Date.now()
+      const pending = rosterReads.get(platform)
+      if (pending !== undefined) clearTimeout(pending.timer)
+      const firstAt = pending?.firstAt ?? now
+      if (now - firstAt >= ROSTER_CHANGED_MAX_WAIT_MS) {
+        refetchRoster(platform)
+        return
+      }
+      rosterReads.set(platform, {
+        timer: setTimeout(() => refetchRoster(platform), ROSTER_CHANGED_SETTLE_MS),
+        firstAt
+      })
+    }
+    const dropRosterRead = (platform: Friend['platform']): void => {
+      const pending = rosterReads.get(platform)
+      if (pending === undefined) return
+      clearTimeout(pending.timer)
+      rosterReads.delete(platform)
+    }
 
     const applyToCache = (
       platform: Friend['platform'],
@@ -136,6 +172,7 @@ export function useLiveFriendEvents(): void {
         // repopulates it.
         if (event.platform === 'vrchat') clearFriendEventReplay(queryClient)
         quarantined.add(event.platform)
+        dropRosterRead(event.platform)
         latestSnapshot.delete(event.platform)
         // Cancel any in-flight friends fetch so it can't resolve and write a
         // stale roster back after we clear (the cache subscriber above is the
@@ -171,7 +208,7 @@ export function useLiveFriendEvents(): void {
       if (event.type === 'roster-changed') {
         // The friend ROSTER changed (adds/removes — CVR, VRX-147): the wire is
         // trigger-only, so refetch the list rather than patching the cache.
-        void queryClient.invalidateQueries({ queryKey: friendsQueryKey(event.platform) })
+        scheduleRosterRead(event.platform)
         return
       }
       if (event.type === 'presence-snapshot') latestSnapshot.set(event.platform, event)
@@ -180,6 +217,7 @@ export function useLiveFriendEvents(): void {
     })
 
     const unsubscribeIdentityBoundary = window.vrx.onIdentityBoundary(({ platform }) => {
+      dropRosterRead(platform)
       if (platform === 'vrchat') clearFriendEventReplay(queryClient)
       // Account identity and buffered live state share one boundary. Clearing the
       // snapshot here prevents account A presence from being re-applied when the
@@ -318,6 +356,7 @@ export function useLiveFriendEvents(): void {
       unsubscribe()
       unsubscribeIdentityBoundary()
       unsubscribeCache()
+      for (const platform of [...rosterReads.keys()]) dropRosterRead(platform)
     }
   }, [queryClient])
 }

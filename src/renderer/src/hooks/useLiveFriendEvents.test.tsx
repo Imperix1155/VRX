@@ -20,7 +20,11 @@ import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import FriendsList from '../components/FriendsList'
 import i18n from '../i18n'
-import { useLiveFriendEvents } from './useLiveFriendEvents'
+import {
+  ROSTER_CHANGED_MAX_WAIT_MS,
+  ROSTER_CHANGED_SETTLE_MS,
+  useLiveFriendEvents
+} from './useLiveFriendEvents'
 
 const G1 = '11111111-1111-1111-1111-111111111111'
 
@@ -408,6 +412,56 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     // — auth-invalidated only ever invalidates auth-status, never friends.
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('chilloutvr') })
     expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toEqual([])
+  })
+})
+
+describe('useLiveFriendEvents — roster-changed bursts', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('turns a burst of roster changes into one re-read, and keeps re-reading while it lasts', () => {
+    vi.useFakeTimers()
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const rosterReads = (): number =>
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(friendsQueryKey('chilloutvr'))
+      ).length
+
+    act(() => {
+      for (let i = 0; i < 60; i++)
+        fireFriendEvent!({ type: 'roster-changed', platform: 'chilloutvr' })
+    })
+    expect(rosterReads()).toBe(0)
+    act(() => vi.advanceTimersByTime(ROSTER_CHANGED_SETTLE_MS))
+    expect(rosterReads()).toBe(1)
+
+    // A steady trickle still re-reads now and then instead of never.
+    act(() => {
+      for (let t = 0; t < ROSTER_CHANGED_MAX_WAIT_MS + 1_000; t += 200) {
+        fireFriendEvent!({ type: 'roster-changed', platform: 'chilloutvr' })
+        vi.advanceTimersByTime(200)
+      }
+    })
+    expect(rosterReads()).toBe(2)
+    act(() => vi.advanceTimersByTime(ROSTER_CHANGED_SETTLE_MS))
+    expect(rosterReads()).toBe(3)
+  })
+
+  it('drops a waiting re-read when the platform signs out', () => {
+    vi.useFakeTimers()
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    act(() => fireFriendEvent!({ type: 'roster-changed', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+    act(() => vi.advanceTimersByTime(ROSTER_CHANGED_MAX_WAIT_MS))
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('chilloutvr') })
   })
 })
 
