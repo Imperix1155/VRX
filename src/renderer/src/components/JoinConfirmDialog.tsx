@@ -4,11 +4,9 @@
  * every join path (row pill, drawer Join, hot-instance card) funnels here when
  * `settings.confirmJoin` is on.
  *
- * A TRUE modal (aria-modal) — the app's first. Per the owner's ruling it still
- * wears the VRX-225 drawer's SOFT scrim, and a press or tap on it closes the
- * dialog (useScrimDismiss); DESIGN.md reserves the heavier `--scrim` for true
- * modals, so the scrim choice is flagged for the owner's eyeball rather than
- * silently "upgraded".
+ * A TRUE modal (aria-modal). Per the owner's ruling it wears the VRX-225
+ * drawer's SOFT scrim, not the heavier `--scrim` DESIGN.md names for modals,
+ * and a press or tap on it closes the dialog (useScrimDismiss).
  *
  * Visual-weight order (owner-ruled): type-named headline → policy space (the
  * moderation context) → who's-there → mode → actions. The "More info" expander
