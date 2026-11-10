@@ -29,6 +29,7 @@ import {
   CVRAuthError,
   CVRNetworkError,
   CVRRateLimitError,
+  isNotFoundStatus,
   NetworkError,
   signInFailure
 } from './errors'
@@ -258,6 +259,9 @@ export class CvrAdapter
   private forbiddenCheckInFlight: Promise<void> | null = null
   /** Session generation whose key a 403 reauth already proved alive. */
   private forbiddenConfirmedGeneration: number | null = null
+  /** The session whose refused live socket already asked /users/auth. A
+   *  reconnecting socket asks at most once per session, whatever the answer. */
+  private socketRefusalCheckedGeneration: number | null = null
   /** Fences async account-scoped cache writes across session replacement. */
   private sessionGeneration = 0
   /** Last-started-wins fence for direct-login responses and body parsing. */
@@ -270,6 +274,8 @@ export class CvrAdapter
   // this, the session is trusted in-memory; a dead key surfaces on the data
   // path (getFriends 401 → automatic session invalidation).
   private validated = false
+  /** ChilloutVR refused the session VRX held; cleared by a new session or a sign-out. */
+  private sessionEndedByPlatform = false
 
   // ── Live pipeline state (VRX-58) — one shared socket per account ──
   private pipeline: CvrPipeline | null = null
@@ -759,7 +765,10 @@ export class CvrAdapter
     const raw = await this.runCommunityRequest(lease, () =>
       this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
     )
-    return parseCvrCurrentAvatar(raw)
+    const parsed = parseCvrCurrentAvatar(raw)
+    // An unreadable reply is a failed load, never "wearing nothing".
+    if (!parsed) throw new AvatarDataError('Malformed ChilloutVR current avatar')
+    return parsed.avatar
   }
 
   async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
@@ -885,9 +894,18 @@ export class CvrAdapter
 
   async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
     const id = this.communityUserId(userId)
-    const raw = await this.readSharedUser(id, lease)
+    let raw: unknown
+    try {
+      raw = await this.readSharedUser(id, lease)
+    } catch (error) {
+      // Only ChilloutVR saying "no such user" means the person is gone.
+      if (isNotFoundStatus(error)) return null
+      throw error
+    }
     const profile = parseCvrProfile(raw)
-    return profile?.userId === id ? profile : null
+    // A reply VRX can't read is a failed load, never a missing person.
+    if (profile?.userId !== id) throw new CommunityDataError('Malformed ChilloutVR profile')
+    return profile
   }
 
   async getProfileWorlds(
@@ -987,25 +1005,39 @@ export class CvrAdapter
   }
 
   unfriend(userId: string, lease: RequestLease): Promise<void> {
-    return this.sendSocial(lease, (pipeline) => pipeline.unfriend(this.socialUserId(userId)))
+    return this.sendSocial(lease, userId, (pipeline, id) => pipeline.unfriend(id))
   }
 
   block(userId: string, lease: RequestLease): Promise<void> {
-    return this.sendSocial(lease, (pipeline) => pipeline.block(this.socialUserId(userId)))
+    return this.sendSocial(lease, userId, (pipeline, id) => pipeline.block(id))
   }
 
   unblock(userId: string, lease: RequestLease): Promise<void> {
-    return this.sendSocial(lease, (pipeline) => pipeline.unblock(this.socialUserId(userId)))
+    return this.sendSocial(lease, userId, (pipeline, id) => pipeline.unblock(id))
   }
 
-  /** Send on the current account's socket only; a closed socket sends nothing. */
-  private sendSocial(lease: RequestLease, send: (pipeline: CvrPipeline) => boolean): Promise<void> {
+  /**
+   * Send on the current account's socket only; a closed socket sends nothing.
+   * Like a friend action's frame, it names someone other than the signed-in
+   * user and waits out a 429 cooldown rather than going out during one.
+   */
+  private sendSocial(
+    lease: RequestLease,
+    userId: string,
+    send: (pipeline: CvrPipeline, id: string) => boolean
+  ): Promise<void> {
     try {
+      const id = this.socialUserId(userId)
+      if (id === this.accountId?.toLowerCase()) {
+        throw new SocialDataError('Not available for the signed-in user')
+      }
       assertRequestLease(lease)
+      const cooldown = this.admission.cooldownRemainingMs
+      if (cooldown > 0) throw new CVRRateLimitError(cooldown)
       // Every session boundary stops or replaces the pipeline, so the one here
       // belongs to the lease's account.
       const pipeline = lease.generation === this.sessionGeneration ? this.pipeline : null
-      if (pipeline === null || !send(pipeline)) throw new SocialNotSentError()
+      if (pipeline === null || !send(pipeline, id)) throw new SocialNotSentError()
       return Promise.resolve()
     } catch (error) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)))
@@ -1423,6 +1455,14 @@ export class CvrAdapter
     const generation = this.sessionGeneration
     return new CvrPipeline({
       onUpgradeRateLimited: (retryAfter) => this.admission.rateLimited(retryAfter),
+      // A refused socket alone doesn't prove the key is dead; one sign-in check
+      // decides, so VRX doesn't sit on "Reconnecting" with a revoked key.
+      onUpgradeRefused: () => {
+        if (generation !== this.sessionGeneration) return
+        if (this.socketRefusalCheckedGeneration === generation) return
+        this.socketRefusalCheckedGeneration = generation
+        this.confirmSessionOnce()
+      },
       cooldownUntil: () => this.admission.cooldownUntil,
       headersProvider: () => Promise.resolve(this.pipelineHeaders()),
       onEvent: (event) => this.handlePipelineEvent(event, generation),
@@ -1635,6 +1675,7 @@ export class CvrAdapter
     restartPipeline = true,
     identityRetained = false
   ): void {
+    this.sessionEndedByPlatform = false
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
@@ -1699,6 +1740,7 @@ export class CvrAdapter
   clearSession(): void {
     if (this.store.signOut) this.store.signOut()
     else this.store.delete()
+    this.sessionEndedByPlatform = false
     this.clearSessionState()
     this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
   }
@@ -1730,6 +1772,16 @@ export class CvrAdapter
       this.invalidateSession(true)
       return
     }
+    this.confirmSessionOnce()
+  }
+
+  /**
+   * Ask /users/auth, at most once per session, whether the key still works:
+   * after a 403, or after the live socket's upgrade is refused (401 or 403),
+   * which may concern only the socket. A rejected key signs out; anything
+   * else keeps the session.
+   */
+  private confirmSessionOnce(): void {
     if (this.forbiddenConfirmedGeneration === this.sessionGeneration) return
     this.forbiddenCheckInFlight ??= this.confirmSessionAfterForbidden().finally(() => {
       this.forbiddenCheckInFlight = null
@@ -1806,6 +1858,8 @@ export class CvrAdapter
     // login may still be awaiting its response and must remain eligible to
     // install the replacement. Explicit clearSession cancels it.
     this.clearSessionState(true, false)
+    // ChilloutVR ended it, not the user: the app says so until a sign-in or sign-out.
+    this.sessionEndedByPlatform = true
     try {
       this.store.delete()
     } catch {
@@ -1871,7 +1925,10 @@ export class CvrAdapter
       platform: 'chilloutvr',
       state,
       accountId: state === 'authenticated' ? this.accountId : null,
-      displayName: state === 'authenticated' ? this.displayName : null
+      displayName: state === 'authenticated' ? this.displayName : null,
+      ...(state === 'unauthenticated' && this.sessionEndedByPlatform
+        ? { endedByPlatform: true as const }
+        : {})
     }
   }
 }

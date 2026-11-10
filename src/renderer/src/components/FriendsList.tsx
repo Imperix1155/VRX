@@ -790,7 +790,7 @@ export default function FriendsList(): React.JSX.Element {
       remove?.()
       selectProfile(null)
     }
-  }, [closeDrawer, selectProfile])
+  }, [selectProfile])
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
   const notConnectedKey =

@@ -72,6 +72,14 @@ describe('CvrAdapter avatar library', () => {
     expect(fetchMock.mock.calls[0]![0]).toBe(`https://api.abinteractive.net/1/users/${ME}`)
   })
 
+  it('treats an unreadable worn-avatar reply as a failed read, not as nothing worn', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope('not-an-object'))))
+    const adapter = signedIn()
+    await expect(adapter.getCurrentAvatar(adapter.captureAvatarLease())).rejects.toBeInstanceOf(
+      AvatarDataError
+    )
+  })
+
   it('ends each avatar read at the first 429 without sending it again', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const fetchMock = vi.fn(

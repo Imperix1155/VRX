@@ -249,11 +249,11 @@ export default function HotInstanceCard({
     return (
       <div
         {...cardProps}
-        className={`glass glass-layer ${tintClass} relative flex h-full w-full min-w-0 cursor-pointer flex-col overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
+        className={`glass glass-layer ${tintClass} glass-hover relative flex h-full w-full min-w-0 cursor-pointer flex-col ${focusRing}`}
       >
         {description}
         {/* Picture area — same frame, placeholder and badge as ExploreWorldCard. */}
-        <div className="relative aspect-[16/7] overflow-hidden bg-[var(--surface-hover)]">
+        <div className="glass-clip-top relative aspect-[16/7] overflow-hidden bg-[var(--surface-hover)]">
           {image !== null ? (
             <img
               src={image}
@@ -297,7 +297,7 @@ export default function HotInstanceCard({
   return (
     <div
       {...cardProps}
-      className={`glass glass-layer ${tintClass} relative cursor-pointer overflow-hidden hover:brightness-105 ${focusRing} motion-safe:transition-[filter]`}
+      className={`glass glass-layer ${tintClass} glass-hover relative cursor-pointer ${focusRing}`}
     >
       {description}
       <CardPictureBackdrop image={image} platform={instance.platform} onError={markImageFailed} />

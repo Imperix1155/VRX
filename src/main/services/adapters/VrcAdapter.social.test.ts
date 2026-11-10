@@ -3,6 +3,7 @@ import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import { SocialDataError } from './SocialActionAdapter'
 import { AuthError, RateLimitError } from './errors'
+import { RELATIONSHIP_CACHE_MS } from '@shared/socialActions'
 import {
   instantAdmission,
   jsonResponse,
@@ -35,20 +36,78 @@ describe('VrcAdapter unfriend and block', () => {
     vi.unstubAllGlobals()
   })
 
-  it('reads block state for exactly one person', async () => {
+  it('reads the block list the way VRCX does, once for every profile', async () => {
+    const OTHER = 'usr_5a3c1e2d-0000-4000-8000-000000000002'
     const fetchMock = vi.fn(() =>
-      Promise.resolve(jsonResponse([{ id: 'pmod_1', type: 'block', targetUserId: FRIEND }]))
+      Promise.resolve(
+        jsonResponse([
+          { id: 'pmod_1', type: 'block', targetUserId: FRIEND },
+          { id: 'pmod_2', type: 'mute', targetUserId: OTHER }
+        ])
+      )
     )
     vi.stubGlobal('fetch', fetchMock)
     const adapter = signedIn()
 
     await expect(adapter.getBlocked(FRIEND, adapter.captureSocialLease())).resolves.toBe(true)
+    await expect(adapter.getBlocked(OTHER, adapter.captureSocialLease())).resolves.toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, options] = sent(fetchMock)
-    const parsed = new URL(url)
-    expect(parsed.pathname).toBe('/api/1/auth/user/playermoderations')
-    expect(parsed.searchParams.get('type')).toBe('block')
-    expect(parsed.searchParams.get('targetUserId')).toBe(FRIEND)
+    // No filter: VRCX asks for the whole list, and the filtered form read as
+    // "signed out" on a real account.
+    expect(url).toBe(`${BASE}/auth/user/playermoderations`)
     expect(options.method).toBe('GET')
+  })
+
+  it('shares one read between two profiles asking at once', async () => {
+    let answer: (value: Response) => void = () => {}
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => (answer = resolve)))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+    const first = adapter.getBlocked(FRIEND, adapter.captureSocialLease())
+    const second = adapter.getBlocked(ME, adapter.captureSocialLease())
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    answer(jsonResponse([{ type: 'block', targetUserId: FRIEND }]))
+    await expect(first).resolves.toBe(true)
+    await expect(second).resolves.toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the remembered list in step with its own block and unblock', async () => {
+    const fetchMock = vi.fn((url: string) =>
+      Promise.resolve(
+        url.endsWith('/auth/user/playermoderations') && fetchMock.mock.calls.length === 1
+          ? jsonResponse([])
+          : jsonResponse({ success: {} })
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+    await expect(adapter.getBlocked(FRIEND, adapter.captureSocialLease())).resolves.toBe(false)
+    await adapter.block(FRIEND, adapter.captureSocialLease())
+    await expect(adapter.getBlocked(FRIEND, adapter.captureSocialLease())).resolves.toBe(true)
+    await adapter.unblock(FRIEND, adapter.captureSocialLease())
+    await expect(adapter.getBlocked(FRIEND, adapter.captureSocialLease())).resolves.toBe(false)
+    // One list read, then only the two writes.
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('reads the list again after five minutes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const fetchMock = vi.fn(() => Promise.resolve(jsonResponse([])))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = signedIn()
+      await adapter.getBlocked(FRIEND, adapter.captureSocialLease())
+      vi.setSystemTime(Date.now() + RELATIONSHIP_CACHE_MS - 1)
+      await adapter.getBlocked(FRIEND, adapter.captureSocialLease())
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      vi.setSystemTime(Date.now() + 2)
+      await adapter.getBlocked(FRIEND, adapter.captureSocialLease())
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('treats an unreadable block reply as malformed, not as unblocked', async () => {
@@ -99,6 +158,17 @@ describe('VrcAdapter unfriend and block', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('never resends a self-invite after a 429', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 429, headers: { 'Retry-After': '0' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+    await expect(adapter.selfInvite('wrld_example:12345~private(usr_self)')).rejects.toThrow()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('refuses a malformed person ID before any request', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
@@ -108,6 +178,18 @@ describe('VrcAdapter unfriend and block', () => {
         SocialDataError
       )
       await expect(adapter.block(bad, adapter.captureSocialLease())).rejects.toBeInstanceOf(
+        SocialDataError
+      )
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('never names the signed-in user in a write', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+    for (const action of ['unfriend', 'block', 'unblock'] as const) {
+      await expect(adapter[action](ME, adapter.captureSocialLease())).rejects.toBeInstanceOf(
         SocialDataError
       )
     }

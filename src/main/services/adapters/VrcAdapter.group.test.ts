@@ -800,8 +800,9 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     expect(pending.has(groupId)).toBe(false)
 
     await adapter.login({ username: 'new', password: 'pw' })
-    await vi.waitFor(() => expect(sockets).toHaveLength(3))
-    const newSocket = sockets[2]!
+    // The 401 stopped the old pipeline without a restart, so this is the second.
+    await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    const newSocket = sockets[1]!
     expect(newSocket.closed).toBe(false)
     newSocket.fire('open')
 

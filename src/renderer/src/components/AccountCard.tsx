@@ -45,6 +45,12 @@ function SignOutQuestion({
     <div
       role="group"
       aria-label={question}
+      // Escape answers "no", like the app's other in-place questions.
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || busy) return
+        event.stopPropagation()
+        onCancel()
+      }}
       className="flex basis-full flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-2)]"
     >
       <p className="min-w-0 flex-1 basis-[10rem] text-sm text-[var(--text)]">{question}</p>

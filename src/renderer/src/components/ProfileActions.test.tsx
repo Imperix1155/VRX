@@ -126,6 +126,21 @@ describe('ProfileActions', () => {
     expect(screen.getByText(msg('profile.actions.unknownBlock'))).toBeTruthy()
   })
 
+  it('brings the options into view when they open and when the buttons arrive', async () => {
+    const scroll = vi.fn()
+    const original = HTMLElement.prototype.scrollIntoView
+    HTMLElement.prototype.scrollIntoView = scroll
+    try {
+      renderActions()
+      expect(scroll).not.toHaveBeenCalled()
+      await openOptions()
+      expect(scroll).toHaveBeenCalledTimes(2)
+      expect(scroll).toHaveBeenLastCalledWith(expect.objectContaining({ block: 'nearest' }))
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original
+    }
+  })
+
   it('names only blocking on a profile that is not a friend', async () => {
     state = { isFriend: false, blocked: false }
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -319,6 +334,28 @@ describe('ProfileActions', () => {
     expect(bridge.socialAction).toHaveBeenCalledTimes(1)
   })
 
+  it('drops "✓ Unfriended" once friend details close, so a later visit starts clean', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const actions = (panelOpen: boolean): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <ProfileActions platform="vrchat" userId={IDS.vrchat} name="Lumen" panelOpen={panelOpen} />
+      </QueryClientProvider>
+    )
+    const view = render(actions(true))
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.unfriend') }))
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: msg('profile.actions.unfriend')
+      })
+    )
+    const done = msg('profile.actions.done.unfriend', { platform: 'VRChat' })
+    await screen.findByText(done)
+    view.rerender(actions(false))
+    view.rerender(actions(true))
+    expect(screen.queryByText(done)).toBeNull()
+  })
+
   it('leaves a newer question open when an answer lands after the friend details closed the old one', async () => {
     let answer: (result: SocialActionResult) => void = () => undefined
     bridge.socialAction.mockImplementationOnce(
@@ -418,6 +455,25 @@ describe('ProfileActions', () => {
     ).toBeTruthy()
     expect(screen.queryByRole('button', { name: msg('community.retry') })).toBeNull()
     expect(screen.getByRole('button', { name: msg('community.openAccounts') })).toBeTruthy()
+    expect(bridge.getRelationship).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks again the next time the options open after a failed check', async () => {
+    bridge.getRelationship.mockResolvedValueOnce({ ok: false, reason: 'not-authenticated' })
+    renderActions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.show') }))
+    await screen.findByRole('button', { name: msg('community.openAccounts') })
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.hide') }))
+    await openOptions()
+    expect(bridge.getRelationship).toHaveBeenCalledTimes(2)
+    expect(actionButtons()).toEqual(['unfriend', 'block'])
+  })
+
+  it('reuses a clear answer when the options open again', async () => {
+    renderActions()
+    await openOptions()
+    fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.hide') }))
+    await openOptions()
     expect(bridge.getRelationship).toHaveBeenCalledTimes(1)
   })
 

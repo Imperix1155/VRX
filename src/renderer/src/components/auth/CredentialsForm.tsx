@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH } from '@shared/constants'
 import AuthInput from './AuthInput'
 import ErrorBanner from './ErrorBanner'
 import type { AuthCopy } from './copy'
@@ -104,6 +105,7 @@ export default function CredentialsForm({
               autocompleteSection ? `section-${autocompleteSection} username` : 'username'
             }
             required
+            maxLength={MAX_USERNAME_LENGTH}
             value={username}
             onChange={(e) => onUsernameChange(e.target.value)}
             disabled={isSubmitting}
@@ -128,6 +130,7 @@ export default function CredentialsForm({
                 : 'current-password'
             }
             required
+            maxLength={MAX_PASSWORD_LENGTH}
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}
             disabled={isSubmitting}

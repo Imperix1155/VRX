@@ -456,6 +456,36 @@ it.each(['complete', 'partial'] as const)(
   }
 )
 
+it('gives a window that loads later the ChilloutVR presence main kept from the socket', async () => {
+  const offline: Friend = {
+    ...rosterFriend,
+    platform: 'chilloutvr',
+    presence: { state: 'offline' },
+    instance: null,
+    status: null,
+    statusDescription: null,
+    trustRank: null
+  }
+  authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+  authority.consume({
+    type: 'presence-snapshot',
+    platform: 'chilloutvr',
+    entries: [
+      {
+        platformUserId: offline.platformUserId,
+        presence: { state: 'in-game' },
+        instance: parseLocation('wrld_live:1')
+      }
+    ]
+  })
+  vi.mocked(adapter.getFriends).mockResolvedValue({ friends: [offline], completeness: 'complete' })
+  registerFriendsHandlers(new Map([['chilloutvr', adapter]]), authority, appStatus)
+
+  const result = (await handlers.get('get-friends')!(event, { platform: 'chilloutvr' })) as Friend[]
+  expect(result[0]).toMatchObject({ presence: { state: 'in-game' } })
+  expect(result[0]?.instance).toEqual(parseLocation('wrld_live:1'))
+})
+
 it('rejects a missing adapter before capturing or publishing authority', async () => {
   const capture = vi.spyOn(authority, 'captureSeedRevision')
   const seed = vi.spyOn(authority, 'seed')

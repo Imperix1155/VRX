@@ -21,7 +21,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `getFriends`, `onFriendEvent`, `onIdentityBoundary` | [`queries/friends.ts`](../../src/renderer/src/queries/friends.ts) and [`hooks/useLiveFriendEvents.ts`](../../src/renderer/src/hooks/useLiveFriendEvents.ts) (mounted once in `App`). Dialogs and hooks also subscribe to fence their own state. |
 | `getAvatar`, `getKeptAvatar` | [`hooks/useAvatar.ts`](../../src/renderer/src/hooks/useAvatar.ts) |
 | `getAuthStatus`, `login`, `verify2fa`, `importSession`, `logout` | [`queries/auth.ts`](../../src/renderer/src/queries/auth.ts), [`hooks/useAuthFlow.ts`](../../src/renderer/src/hooks/useAuthFlow.ts), and `logout` in [`AccountCard.tsx`](../../src/renderer/src/components/AccountCard.tsx) |
-| `getAccounts` | [`stores/accounts.ts`](../../src/renderer/src/stores/accounts.ts) |
+| `getAccounts` | No renderer caller. |
 | `getFriendNote`, `setFriendNote` | [`hooks/useFriendNote.ts`](../../src/renderer/src/hooks/useFriendNote.ts) |
 | `getAlertPicks`, `setAlertPick` | [`queries/alertPicks.ts`](../../src/renderer/src/queries/alertPicks.ts) |
 | `getLinkedProfiles`, `changeLinkedProfile`, `onLinkedProfilesChanged` | [`queries/linkedProfiles.ts`](../../src/renderer/src/queries/linkedProfiles.ts) |
@@ -30,7 +30,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `selfInvite` | No renderer caller. |
 | `getJoinHandoff` | [`hooks/useJoinHandoff.ts`](../../src/renderer/src/hooks/useJoinHandoff.ts), once per join dialog open |
 | `setExploreActive`, `getExplore`, `getExploreImage`, `getExploreWorld`, `cancelExploreWorld`, `onExploreChanged` | [`hooks/useExploreCoordinator.ts`](../../src/renderer/src/hooks/useExploreCoordinator.ts), [`queries/explore.ts`](../../src/renderer/src/queries/explore.ts), [`hooks/useExploreWorldSelection.ts`](../../src/renderer/src/hooks/useExploreWorldSelection.ts) |
-| `getAppStatus` | [`TopBar.tsx`](../../src/renderer/src/components/TopBar.tsx), every 7.5 s. It reads main's local snapshot and makes no platform request. |
+| `getAppStatus` | [`queries/appStatus.ts`](../../src/renderer/src/queries/appStatus.ts) (`useConnectionHealth`, read by `TopBar`), every 7.5 s while the window shows; `useLiveFriendEvents` writes pushed `connection` events into it in between. It reads main's local snapshot and makes no platform request. |
 | `getSettings`, `saveSettings` | [`hooks/useSettingsPersistence.ts`](../../src/renderer/src/hooks/useSettingsPersistence.ts) |
 | `getUpdaterState`, `checkForUpdates`, `downloadUpdate`, `installUpdate`, `onUpdaterStateChanged` | [`hooks/useUpdater.ts`](../../src/renderer/src/hooks/useUpdater.ts) |
 | `openUrl`, `openLogsFolder` | [`SettingsView.tsx`](../../src/renderer/src/components/SettingsView.tsx) |

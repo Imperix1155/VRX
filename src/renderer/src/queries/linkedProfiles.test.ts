@@ -6,6 +6,7 @@ import { fullFriend } from '../test-utils/friendFixture'
 import {
   fetchLinkedProfiles,
   changeLinkedProfile,
+  LINKED_ROSTER_SETTLE_MS,
   linkedProfilesKey,
   subscribeLinkedProfiles,
   retainNewestLinkSnapshot
@@ -53,6 +54,7 @@ describe('linked profile snapshots', () => {
     client.clear()
   })
   it('refreshes fallback names after friend-name changes but not presence-only updates', () => {
+    vi.useFakeTimers()
     vi.stubGlobal('window', {})
     const client = new QueryClient()
     const friend = fullFriend('First name', 'vrchat')
@@ -60,19 +62,24 @@ describe('linked profile snapshots', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     const dispose = subscribeLinkedProfiles(client)
     client.setQueryData(['friends', 'vrchat'], [{ ...friend, presence: { state: 'offline' } }])
+    vi.advanceTimersByTime(LINKED_ROSTER_SETTLE_MS)
     expect(invalidate).not.toHaveBeenCalled()
     client.setQueryData(['friends', 'vrchat'], [{ ...friend, displayName: 'Renamed' }])
+    vi.advanceTimersByTime(LINKED_ROSTER_SETTLE_MS)
     expect(invalidate).toHaveBeenCalledTimes(1)
     expect(invalidate).toHaveBeenCalledWith({ queryKey: linkedProfilesKey })
     client.setQueryData(
       ['friends', 'vrchat'],
       [{ ...friend, displayName: 'Renamed', status: 'busy' }]
     )
+    vi.advanceTimersByTime(LINKED_ROSTER_SETTLE_MS)
     expect(invalidate).toHaveBeenCalledTimes(1)
     dispose()
     client.clear()
+    vi.useRealTimers()
   })
   it('refreshes fallback names when a friend is added or removed', () => {
+    vi.useFakeTimers()
     vi.stubGlobal('window', {})
     const client = new QueryClient()
     const first = fullFriend('First', 'vrchat')
@@ -81,13 +88,35 @@ describe('linked profile snapshots', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     const dispose = subscribeLinkedProfiles(client)
     client.setQueryData(['friends', 'vrchat'], [first, second])
+    vi.advanceTimersByTime(LINKED_ROSTER_SETTLE_MS)
     expect(invalidate).toHaveBeenCalledTimes(1)
     client.setQueryData(['friends', 'vrchat'], [second])
+    vi.advanceTimersByTime(LINKED_ROSTER_SETTLE_MS)
     expect(invalidate).toHaveBeenCalledTimes(2)
     client.setQueryData(['friends', 'vrchat'], [{ ...second, presence: { state: 'offline' } }])
+    vi.advanceTimersByTime(LINKED_ROSTER_SETTLE_MS)
     expect(invalidate).toHaveBeenCalledTimes(2)
     dispose()
     client.clear()
+    vi.useRealTimers()
+  })
+  it('reads linked profiles once for a burst of renames', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', {})
+    const client = new QueryClient()
+    const friend = fullFriend('First name', 'vrchat')
+    client.setQueryData(['friends', 'vrchat'], [friend])
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const dispose = subscribeLinkedProfiles(client)
+    for (let index = 0; index < 100; index += 1) {
+      client.setQueryData(['friends', 'vrchat'], [{ ...friend, displayName: `Name ${index}` }])
+    }
+    expect(invalidate).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(LINKED_ROSTER_SETTLE_MS)
+    expect(invalidate).toHaveBeenCalledTimes(1)
+    dispose()
+    client.clear()
+    vi.useRealTimers()
   })
   it('does not let an earlier read roll back a committed mutation', async () => {
     let finish!: (value: unknown) => void

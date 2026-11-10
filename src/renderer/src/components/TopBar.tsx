@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import type { ConnectionHealth, Platform } from '@shared/types'
 import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
@@ -6,8 +6,10 @@ import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useAuthStatus } from '../queries/auth'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
+import { useConnectionHealth } from '../queries/appStatus'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import { useWindowFocused } from '../hooks/useWindowFocused'
+import { useSignedOutByPlatform } from '../hooks/useSignedOutByPlatform'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
@@ -41,8 +43,6 @@ const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   about: 'settings.about.heading'
 }
 
-const STATUS_POLL_MS = 7_500
-
 // Linux keeps the live dot steady (2026-10-28). Each pulse frame redraws the
 // dot, and Chromium widens that redraw to the nearby glass controls' blur area,
 // a large patch of the background picture. Linux desktops at fractional scaling
@@ -55,14 +55,6 @@ const HEALTH_LABEL_KEYS: Record<ConnectionHealth, string> = {
   live: 'shell.connection.live',
   reconnecting: 'shell.connection.reconnecting',
   down: 'shell.connection.down'
-}
-
-function defaultConnectionHealth(): Record<Platform, ConnectionHealth> {
-  return { vrchat: 'down', chilloutvr: 'down' }
-}
-
-function parseConnectionHealth(value: unknown): ConnectionHealth {
-  return value === 'live' || value === 'reconnecting' || value === 'down' ? value : 'down'
 }
 
 // The platform filter is its OWN component so useSegmentedBubble mounts and
@@ -163,69 +155,22 @@ export default function TopBar(): React.JSX.Element {
   const vrcFriends = useFriends('vrchat')
   const cvrFriends = useFriends('chilloutvr')
   const linkedSnapshot = useLinkedProfiles().data
-  const [connectionHealth, setConnectionHealthState] = useState(defaultConnectionHealth)
+  const connectionHealth = useConnectionHealth()
   const windowFocused = useWindowFocused()
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.vrx?.getAppStatus) return
-    const getAppStatus = window.vrx.getAppStatus
-    let active = true
-
-    // Keep the previous object when nothing changed, so the steady poll below
-    // does not re-render the bar (and recount the roster) every few seconds.
-    function setConnectionHealth(next: Record<Platform, ConnectionHealth>): void {
-      setConnectionHealthState((current) =>
-        current.vrchat === next.vrchat && current.chilloutvr === next.chilloutvr ? current : next
-      )
-    }
-
-    async function refreshStatus(): Promise<void> {
-      try {
-        const status: unknown = await getAppStatus()
-        if (!active) return
-        if (typeof status !== 'object' || status === null || !('ws' in status)) {
-          setConnectionHealth(defaultConnectionHealth())
-          return
-        }
-        const ws: unknown = status.ws
-        if (typeof ws !== 'object' || ws === null) {
-          setConnectionHealth(defaultConnectionHealth())
-          return
-        }
-        setConnectionHealth({
-          vrchat: parseConnectionHealth('vrchat' in ws ? ws.vrchat : undefined),
-          chilloutvr: parseConnectionHealth('chilloutvr' in ws ? ws.chilloutvr : undefined)
-        })
-      } catch {
-        if (active) setConnectionHealth(defaultConnectionHealth())
-      }
-    }
-
-    void refreshStatus()
-    // Local IPC only: this never touches either platform's wire API, so a short
-    // fixed interval is safe and keeps reconnect state responsive. A hidden
-    // window (closed to the tray) skips it and refreshes as soon as it shows.
-    const interval = window.setInterval(() => {
-      if (!document.hidden) void refreshStatus()
-    }, STATUS_POLL_MS)
-    const onVisibilityChange = (): void => {
-      if (!document.hidden) void refreshStatus()
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => {
-      active = false
-      window.clearInterval(interval)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [])
 
   const isSignedIn = (state: string | undefined): boolean =>
     state === 'authenticated' || state === 'error'
   const vrcSignedIn = isSignedIn(vrcAuth?.state)
   const cvrSignedIn = isSignedIn(cvrAuth?.state)
-  const countedHealth = [
-    ...(vrcSignedIn ? [connectionHealth.vrchat] : []),
-    ...(cvrSignedIn ? [connectionHealth.chilloutvr] : [])
+  // A platform the user signed out of on purpose doesn't count, so one signed-in
+  // platform still reads live. One that signed the user out by itself counts as
+  // down until they sign in again or hide its notice: friends vanishing under a
+  // green dot looked like everyone had just logged off.
+  const vrcEnded = useSignedOutByPlatform('vrchat')
+  const cvrEnded = useSignedOutByPlatform('chilloutvr')
+  const countedHealth: ConnectionHealth[] = [
+    ...(vrcSignedIn ? [connectionHealth.vrchat] : vrcEnded ? ['down' as const] : []),
+    ...(cvrSignedIn ? [connectionHealth.chilloutvr] : cvrEnded ? ['down' as const] : [])
   ]
   // With nothing signed in nothing is live: the label says Signed out, so the
   // dot must not stay green.

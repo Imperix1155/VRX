@@ -4,11 +4,9 @@
  * every join path (row pill, drawer Join, hot-instance card) funnels here when
  * `settings.confirmJoin` is on.
  *
- * A TRUE modal (aria-modal) — the app's first. Per the owner's ruling it still
- * wears the VRX-225 drawer's SOFT scrim, and a press or tap on it closes the
- * dialog (useScrimDismiss); DESIGN.md reserves the heavier `--scrim` for true
- * modals, so the scrim choice is flagged for the owner's eyeball rather than
- * silently "upgraded".
+ * A TRUE modal (aria-modal). Per the owner's ruling it wears the VRX-225
+ * drawer's SOFT scrim, not the heavier `--scrim` DESIGN.md names for modals,
+ * and a press or tap on it closes the dialog (useScrimDismiss).
  *
  * Visual-weight order (owner-ruled): type-named headline → policy space (the
  * moderation context) → who's-there → mode → actions. The "More info" expander
@@ -166,7 +164,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
       boundary?.()
       friend?.()
       if (launchInitiatedRef.current) {
-        document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
+        focusAfterLaunch(openerRef.current)
       } else {
         const opener = openerRef.current
         const target =
@@ -222,11 +220,11 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
         <div className="flex items-start justify-between gap-[var(--space-3)]">
           <h2
             id="explore-join-confirm-title"
-            className="text-base font-semibold text-[var(--text)]"
+            className="min-w-0 text-base font-semibold text-[var(--text)] break-words"
           >
             {world.name}
           </h2>
-          <div className="flex flex-col items-end gap-[var(--space-1)]">
+          <div className="flex shrink-0 flex-col items-end gap-[var(--space-1)]">
             <PlatformPill platform={world.platform} />
             <InstancePill label={t(accessPill.labelKey)} tier={accessPill.tier} />
           </div>
@@ -338,6 +336,29 @@ function getFocusables(panel: HTMLElement): HTMLElement[] {
       el.getAttribute('aria-disabled') !== 'true' &&
       !el.hasAttribute('hidden')
   )
+}
+
+/**
+ * Where focus goes after a launch. The control that opened the dialog may be
+ * busy or gone, so focus normally returns to the page. When that control sits
+ * in a sheet that is still open (a world sheet's or a drawer's Join), focus
+ * stays in that sheet instead, next to any failure message, and not on the
+ * page behind it.
+ */
+function focusAfterLaunch(opener: Element | null): void {
+  const sheet =
+    opener instanceof HTMLElement && opener.isConnected
+      ? opener.closest<HTMLElement>('[role="dialog"]')
+      : null
+  if (sheet !== null && sheet.closest('[inert]') === null) {
+    const usable = !(opener instanceof HTMLButtonElement && opener.disabled)
+    const target = usable && opener instanceof HTMLElement ? opener : getFocusables(sheet)[0]
+    if (target !== undefined) {
+      target.focus({ preventScroll: true })
+      return
+    }
+  }
+  document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
 }
 
 function FriendJoinConfirmDialog(): React.JSX.Element | null {
@@ -474,10 +495,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
       wasOpenRef.current = true
     } else if (!isOpen && wasOpenRef.current) {
       wasOpenRef.current = false
-      // A committed launch should hand focus back to the page, not to the
-      // opener that the user already acted on.
+      // A committed launch should hand focus back to the page (or the sheet
+      // the opener sits in), not to the row pill the user already acted on.
       if (launchInitiatedRef.current) {
-        document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
+        focusAfterLaunch(restoreFocusRef.current)
         return
       }
       // Restore focus to the opener — but NOT if it is gone from the DOM or
@@ -639,17 +660,20 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
         className="glass glass-frosted-heavy glass-information relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
       >
         <div className="flex items-start justify-between gap-[var(--space-3)]">
-          <h2 id="join-confirm-title" className="text-base font-semibold text-[var(--text)]">
+          <h2
+            id="join-confirm-title"
+            className="min-w-0 text-base font-semibold text-[var(--text)] break-words"
+          >
             {title}
           </h2>
-          <div className="flex flex-col items-end gap-[var(--space-1)]">
+          <div className="flex shrink-0 flex-col items-end gap-[var(--space-1)]">
             <PlatformPill platform={friendForCopy.platform} />
             {pill !== null && <InstancePill label={t(pill.labelKey)} tier={pill.tier} />}
           </div>
         </div>
 
         {/* World/friend context followed by the independent moderation context. */}
-        <p className="text-sm text-[var(--text-dim)]">
+        <p className="text-sm text-[var(--text-dim)] break-words">
           {t('joinConfirm.context', { name: friendForCopy.displayName, world: worldName })}
         </p>
         {instanceForCopy !== null && (

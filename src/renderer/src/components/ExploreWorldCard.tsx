@@ -67,7 +67,7 @@ export default function ExploreWorldCard({
         onClick={(event) => onOpen(world, event.currentTarget)}
         aria-label={t('explore.openWorldAria', { world: world.name, platform: platformLabel })}
         aria-describedby={peopleId}
-        className={`glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative block w-full min-w-0 overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
+        className={`glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} glass-hover relative block w-full min-w-0 p-0 text-left focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)]`}
       >
         <CardPictureBackdrop
           image={barImage}
@@ -124,9 +124,9 @@ export default function ExploreWorldCard({
       onClick={(event) => onOpen(world, event.currentTarget)}
       aria-label={t('explore.openWorldAria', { world: world.name, platform: platformLabel })}
       aria-describedby={peopleId}
-      className={`glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} group relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
+      className={`glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} glass-hover group relative flex h-full w-full min-w-0 flex-col p-0 text-left focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)]`}
     >
-      <div className="relative aspect-[16/7] overflow-hidden bg-[var(--surface-hover)]">
+      <div className="glass-clip-top relative aspect-[16/7] overflow-hidden bg-[var(--surface-hover)]">
         {image && failedImage !== image ? (
           <img
             src={image}

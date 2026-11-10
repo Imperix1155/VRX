@@ -581,6 +581,66 @@ describe('compiled glass material', () => {
     }
   })
 
+  it('lets every blur layer reach past the right and bottom edges, trimmed back to the box', () => {
+    // On a scaled display the GPU blur can leave a flat strip along a blurred
+    // box's right and bottom edges (a seam over a busy picture, 2026-11-09).
+    // The blur layers reach past those edges and a clip-path trims them back,
+    // so the strip is never on screen.
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const spans = componentsLayerSpans(code)
+    const layers = [
+      /\.glass-panel::after,\s*\.glass-sheet::after\s*\{[^{}]*\}/.exec(code),
+      /\.glass\.glass-layer:not\(\.overflow-hidden\)::after\s*\{[^{}]*\}/.exec(code)
+    ]
+    for (const layer of layers) {
+      expect(layer).not.toBeNull()
+      expect(spans.some(([start, end]) => layer!.index > start && layer!.index < end)).toBe(true)
+      const emitted = optimize(layer![0], { minify: true }).code
+      expect(emitted).toMatch(/(?<!-webkit-)backdrop-filter:var\(--glass-blur(?:-frosted)?\)/)
+      expect(emitted).toMatch(/z-index:-2/)
+      expect(emitted).toMatch(
+        /inset:-1px calc\(-1px - var\(--glass-reach\)\) calc\(-1px - var\(--glass-reach\)\) -1px/
+      )
+      expect(emitted).toMatch(
+        /clip-path:inset\(0 var\(--glass-reach\) var\(--glass-reach\) 0 round/
+      )
+    }
+    // The card itself paints nothing under its blur layer; the ::before pane
+    // carries the fill, face, sheen, border and lift above it.
+    const card = /\.glass\.glass-layer:not\(\.overflow-hidden\)\s*\{([^{}]*)\}/.exec(code)
+    expect(card).not.toBeNull()
+    expect(card![1]).toMatch(/(?<!-webkit-)backdrop-filter:\s*none\s*;/)
+    expect(card![1]).toMatch(/border-color:\s*transparent !important\s*;/)
+    const pane = /\.glass\.glass-layer:not\(\.overflow-hidden\)::before\s*\{([^{}]*)\}/.exec(code)
+    expect(pane).not.toBeNull()
+    expect(pane![1]).toMatch(/background-color:\s*var\(--glass-layer\)\s*;/)
+    expect(pane![1]).toMatch(/box-shadow:\s*var\(--glass-layer-depth\)\s*;/)
+  })
+
+  it('brightens reach cards on hover without a filter on the card itself', () => {
+    // A filter on a reach card makes it a backdrop root and empties its blur
+    // layer, and a card that clips its content blurs itself again with the
+    // edge strip (the Hot instance card's bottom shifted on hover elsewhere,
+    // 2026-11-09). Hover goes through .glass-hover instead.
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const spans = componentsLayerSpans(code)
+    const hover = /\.glass\.glass-layer\.glass-hover:hover::after\s*\{[^{}]*\}/.exec(code)
+    expect(hover).not.toBeNull()
+    expect(spans.some(([start, end]) => hover!.index > start && hover!.index < end)).toBe(true)
+    expect(optimize(hover![0], { minify: true }).code).toMatch(
+      /(?<!-webkit-)backdrop-filter:var\(--glass-blur\) brightness\(1\.05\)/
+    )
+    const offenders = sourceFiles(join(rendererSource, 'components'))
+      .filter((file) => /\.tsx$/.test(file) && !/\.test\.tsx$/.test(file))
+      .flatMap((file) =>
+        [...readFileSync(file, 'utf8').matchAll(/className=\{?[`'"][^`'"]*[`'"]/g)]
+          .map((match) => match[0])
+          .filter((value) => /\bglass-layer\b/.test(value) && /\bhover:brightness-/.test(value))
+          .map((value) => `${relative(rendererSource, file)}: ${value.slice(0, 80)}`)
+      )
+    expect(offenders).toEqual([])
+  })
+
   it('skips the hidden backdrop blur under the opaque information backing', () => {
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const rules = [...code.matchAll(/\.glass-information\s*\{[^{}]*\}/g)]

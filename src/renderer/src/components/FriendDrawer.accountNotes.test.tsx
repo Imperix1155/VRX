@@ -277,6 +277,17 @@ describe('FriendDrawer account notes', () => {
     await waitFor(() => expect(syncFriendNote).toHaveBeenCalledTimes(2))
   })
 
+  it('says the platform asked to slow down when it did, like every other write', async () => {
+    syncFriendNote.mockResolvedValueOnce({ ok: false, reason: 'rate-limited' })
+    render(<FriendsList />)
+    const scoped = within(open())
+    await scoped.findByRole('button', { name: 'Retry' }, slow)
+    expect(
+      scoped.getByText('VRChat asked VRX to slow down. Saved on this PC; try again in a minute.')
+    ).toBeTruthy()
+    expect(scoped.queryByText("Couldn't reach VRChat. Saved on this PC.")).toBeNull()
+  })
+
   // Each button gives way to the line's next state when pressed; keyboard
   // focus moves to where that state shows, not into the note, where a held
   // Enter would type.

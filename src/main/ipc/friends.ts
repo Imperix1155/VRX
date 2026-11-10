@@ -59,6 +59,12 @@ export function registerFriendsHandlers(
       }
       throw error
     }
-    return serializeFriendRoster(req.platform, read.roster, read.revision)
+    // ChilloutVR's REST rows have no presence; a window that loads after the
+    // socket's last full set (a reload) gets the presence main kept from it.
+    const roster = {
+      ...read.roster,
+      friends: authority.withLivePresence(req.platform, read.roster.friends)
+    }
+    return serializeFriendRoster(req.platform, roster, read.revision)
   })
 }

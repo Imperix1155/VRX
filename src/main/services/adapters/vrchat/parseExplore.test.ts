@@ -31,6 +31,15 @@ describe('VRChat Explore parsers', () => {
     ])
   })
 
+  it('drops a world whose name is only spaces', () => {
+    expect(
+      parseVrcExploreCandidates([
+        { id: worldId, name: '   ', occupants: 3 },
+        { id: 'wrld_22222222-2222-2222-2222-222222222222', name: ' Spaced ', occupants: 3 }
+      ])
+    ).toEqual([expect.objectContaining({ name: ' Spaced ' })])
+  })
+
   it('handles a large bounded candidate response without retaining malformed entries', () => {
     const entries = Array.from({ length: 256 }, (_, index) => ({
       id: `wrld_00000000-0000-0000-0000-${index.toString(16).padStart(12, '0')}`,

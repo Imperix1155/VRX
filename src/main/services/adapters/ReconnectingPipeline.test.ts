@@ -21,6 +21,7 @@ function rig(platform: 'vrchat' | 'chilloutvr'): {
   rateLimited: ReturnType<typeof vi.fn>
   log: ReturnType<typeof vi.fn>
   onEvent: ReturnType<typeof vi.fn>
+  refused: ReturnType<typeof vi.fn>
 } {
   const admission = new ApiAdmissionController()
   const sockets: Socket[] = []
@@ -30,10 +31,12 @@ function rig(platform: 'vrchat' | 'chilloutvr'): {
     .fn()
     .mockImplementation(() => Promise.resolve(platform === 'vrchat' ? 'fixture' : {}))
   const rateLimited = vi.fn((retryAfter: string | null) => admission.rateLimited(retryAfter))
+  const refused = vi.fn()
   const shared = {
     onEvent,
     log,
     onUpgradeRateLimited: rateLimited,
+    onUpgradeRefused: refused,
     cooldownUntil: () => admission.cooldownUntil,
     socketFactory: () => {
       const socket = new Socket()
@@ -45,7 +48,7 @@ function rig(platform: 'vrchat' | 'chilloutvr'): {
     platform === 'vrchat'
       ? new VrcPipeline({ ...shared, tokenProvider: provider })
       : new CvrPipeline({ ...shared, headersProvider: provider })
-  return { pipeline, sockets, admission, provider, rateLimited, log, onEvent }
+  return { pipeline, sockets, admission, provider, rateLimited, log, onEvent, refused }
 }
 
 beforeEach(() => {
@@ -150,6 +153,31 @@ describe.each(['vrchat', 'chilloutvr'] as const)('%s reconnect admission', (plat
       r.pipeline.stop()
     }
   )
+
+  it('tells the owner about an unauthorized upgrade and keeps retrying', async () => {
+    const r = rig(platform)
+    r.pipeline.start()
+    await vi.advanceTimersByTimeAsync(0)
+    r.sockets[0]!.emit('upgrade-rejected', { statusCode: 401, retryAfter: null })
+    expect(r.refused).toHaveBeenCalledExactlyOnceWith(401)
+    expect(r.rateLimited).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(r.sockets).toHaveLength(2)
+
+    // A throwing owner never stops the loop.
+    r.refused.mockImplementationOnce(() => {
+      throw new Error('owner check failed')
+    })
+    r.sockets[1]!.emit('upgrade-rejected', { statusCode: 403, retryAfter: null })
+    expect(r.refused).toHaveBeenLastCalledWith(403)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(r.sockets).toHaveLength(3)
+
+    // Other refusals are not about the session.
+    r.sockets[2]!.emit('upgrade-rejected', { statusCode: 500, retryAfter: null })
+    expect(r.refused).toHaveBeenCalledTimes(2)
+    r.pipeline.stop()
+  })
 
   it('rechecks extended and very long cooldowns, and cancels their wait on stop', async () => {
     const r = rig(platform)

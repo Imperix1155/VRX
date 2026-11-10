@@ -197,6 +197,8 @@ export function useFavoriteWorlds(
   ids: ReadonlySet<string>
   writable: boolean
   isLoading: boolean
+  /** The read failed: the list is not known to be empty. */
+  isError: boolean
   refetch: () => Promise<readonly ExploreWorld[]>
 } {
   const accountId = useSignedInAccount(platform)
@@ -227,6 +229,7 @@ export function useFavoriteWorlds(
     ids,
     writable: data?.revision !== undefined,
     isLoading: accountId !== null && enabled && query.isPending,
+    isError: accountId !== null && enabled && query.isError,
     refetch: reread
   }
 }

@@ -25,6 +25,7 @@ import { assertRequestLease, type RequestLease, type AvatarRequestLease } from '
 import {
   AuthError,
   AuthSessionPendingError,
+  isNotFoundStatus,
   NetworkError,
   RateLimitError,
   signInFailure
@@ -68,7 +69,8 @@ import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
 import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
 import { parseVrcOwnProfile, vrcOwnProfileBody, vrcOwnUserBody } from './vrchat/parseOwnProfile'
 import { SocialDataError, type SocialActionAdapter } from './SocialActionAdapter'
-import { parseVrcBlocked } from './vrchat/parseBlocked'
+import { isVrcBlocked, parseVrcBlockList, type VrcBlockList } from './vrchat/parseBlocked'
+import { RELATIONSHIP_CACHE_MS } from '@shared/socialActions'
 import {
   COMMUNITY_LIST_MAX_WORLDS,
   COMMUNITY_MY_GROUPS_MAX,
@@ -390,6 +392,17 @@ export class VrcAdapter
   private authPersistencePending = false
   /** True only after the current cookie has been saved with its validated owner. */
   private sessionPersistenceEstablished = false
+  /** VRChat refused the session VRX held; cleared by a new session or a sign-out. */
+  private sessionEndedByPlatform = false
+  /** The user's block list as last read this session (Unfriend or block). */
+  private blockList: { generation: number; at: number; list: VrcBlockList } | null = null
+  private blockListRead: {
+    generation: number
+    writes: number
+    promise: Promise<VrcBlockList>
+  } | null = null
+  /** VRX's own block and unblock writes, so a list read across one is not kept. */
+  private blockWrites = 0
   /**
    * Set when a Pipeline token exchange 401 invalidated this cookie's session.
    * If the status check still accepts the cookie, a repeat 401 falls back to
@@ -1107,7 +1120,10 @@ export class VrcAdapter
         this.communityOptions(lease)
       )
     )
-    return parseVrcAvatar(raw)
+    const avatar = parseVrcAvatar(raw)
+    // An unreadable reply is a failed load, never "wearing nothing".
+    if (!avatar) throw new AvatarDataError('Malformed VRChat current avatar')
+    return avatar
   }
 
   async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
@@ -1231,11 +1247,20 @@ export class VrcAdapter
 
   async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
     if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
-    const raw = await this.runCommunityRequest(lease, () =>
-      this.userReads.shared(lease.generation, userId, () => this.readUser(userId, lease))
-    )
+    let raw: unknown
+    try {
+      raw = await this.runCommunityRequest(lease, () =>
+        this.userReads.shared(lease.generation, userId, () => this.readUser(userId, lease))
+      )
+    } catch (error) {
+      // Only VRChat saying "no such user" means the person is gone.
+      if (isNotFoundStatus(error)) return null
+      throw error
+    }
     const profile = parseVrcProfile(raw)
-    return profile?.userId === userId ? profile : null
+    // A reply VRX can't read is a failed load, never a missing person.
+    if (profile?.userId !== userId) throw new CommunityDataError('Malformed VRChat profile')
+    return profile
   }
 
   async getProfileWorlds(
@@ -1391,21 +1416,66 @@ export class VrcAdapter
 
   async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
     const id = this.socialUserId(userId)
-    const query = new URLSearchParams({ type: 'block', targetUserId: id })
-    const raw = await this.runCommunityRequest(lease, () =>
-      this.get(
-        `/auth/user/playermoderations?${query.toString()}`,
-        z.unknown(),
-        this.communityOptions(lease)
+    return isVrcBlocked(await this.readBlockList(lease), id)
+  }
+
+  /**
+   * The user's own moderations, asked for the way VRCX asks: the whole list,
+   * no filter. The filtered form VRX sent before (`?type=block&targetUserId=`)
+   * is not what VRCX sends, and on a real signed-in account its answer showed
+   * "signed out". One read serves every profile for RELATIONSHIP_CACHE_MS, so
+   * opening several profiles does not repeat it.
+   */
+  private readBlockList(lease: RequestLease): Promise<VrcBlockList> {
+    const kept = this.blockList
+    if (
+      kept !== null &&
+      kept.generation === lease.generation &&
+      Date.now() - kept.at < RELATIONSHIP_CACHE_MS
+    ) {
+      return Promise.resolve(kept.list)
+    }
+    const writesBefore = this.blockWrites
+    const running = this.blockListRead
+    // A read that started before VRX's own write can't answer for after it.
+    if (
+      running !== null &&
+      running.generation === lease.generation &&
+      running.writes === writesBefore
+    ) {
+      return running.promise
+    }
+    const promise: Promise<VrcBlockList> = (async () => {
+      const raw = await this.runCommunityRequest(lease, () =>
+        this.get('/auth/user/playermoderations', z.unknown(), this.communityOptions(lease))
       )
-    )
-    const blocked = parseVrcBlocked(raw, id)
-    if (blocked === null) throw new SocialDataError('VRChat block list response was malformed')
-    return blocked
+      const list = parseVrcBlockList(raw)
+      if (list === null) throw new SocialDataError('VRChat moderation list response was malformed')
+      // A block or unblock VRX sent while this read was out is newer than it.
+      if (lease.generation === this.sessionGeneration && this.blockWrites === writesBefore) {
+        this.blockList = { generation: lease.generation, at: Date.now(), list }
+      }
+      return list
+    })().finally(() => {
+      if (this.blockListRead?.promise === promise) this.blockListRead = null
+    })
+    this.blockListRead = { generation: lease.generation, writes: writesBefore, promise }
+    return promise
+  }
+
+  /** Keep the remembered list in step with a block or unblock VRX just sent. */
+  private noteBlockWrite(lease: RequestLease, id: string, blocked: boolean): void {
+    this.blockWrites += 1
+    const kept = this.blockList
+    if (kept === null || kept.generation !== lease.generation) return
+    const ids = new Set(kept.list.ids)
+    if (blocked) ids.add(id)
+    else ids.delete(id)
+    this.blockList = { ...kept, list: { ids, complete: kept.list.complete } }
   }
 
   async unfriend(userId: string, lease: RequestLease): Promise<void> {
-    const id = this.socialUserId(userId)
+    const id = this.socialTargetId(userId)
     await this.runCommunityRequest(lease, () =>
       this.delete(
         `/auth/user/friends/${encodeURIComponent(id)}`,
@@ -1416,7 +1486,7 @@ export class VrcAdapter
   }
 
   async block(userId: string, lease: RequestLease): Promise<void> {
-    const id = this.socialUserId(userId)
+    const id = this.socialTargetId(userId)
     await this.runCommunityRequest(lease, () =>
       this.post(
         '/auth/user/playermoderations',
@@ -1425,10 +1495,11 @@ export class VrcAdapter
         this.communityOptions(lease)
       )
     )
+    this.noteBlockWrite(lease, id, true)
   }
 
   async unblock(userId: string, lease: RequestLease): Promise<void> {
-    const id = this.socialUserId(userId)
+    const id = this.socialTargetId(userId)
     await this.runCommunityRequest(lease, () =>
       this.putJson(
         '/auth/user/unplayermoderate',
@@ -1437,11 +1508,19 @@ export class VrcAdapter
         this.communityOptions(lease)
       )
     )
+    this.noteBlockWrite(lease, id, false)
   }
 
   private socialUserId(userId: string): string {
     if (!isCommunityUserId('vrchat', userId)) throw new SocialDataError('Invalid VRChat user id')
     return userId
+  }
+
+  /** The person an Unfriend, Block or Unblock names: never the signed-in user. */
+  private socialTargetId(userId: string): string {
+    const id = this.socialUserId(userId)
+    if (id === this.accountId) throw new SocialDataError('Not available for the signed-in user')
+    return id
   }
 
   // ── Game favorites (the account's own VRChat favorite groups) ───────────────
@@ -1919,8 +1998,10 @@ export class VrcAdapter
     // cookie must never be swallowed as a generic operation failure (VRX-42).
     const generation = this.sessionGeneration
     try {
+      // A write: sent once per press and never resent, even after a 429.
       await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown(), {
-        priority: 'interactive'
+        priority: 'interactive',
+        retry: 'none'
       })
       // A replacement session landed while the request was in flight; its outcome
       // belongs to the new identity, not to the caller that issued this one.
@@ -2130,7 +2211,7 @@ export class VrcAdapter
         await response.body?.cancel().catch(() => {})
         if (!lease.isCurrent() || lease.signal.aborted) return null
         this.pipelineExchangeRejected = true
-        this.invalidateDataPathSession(false)
+        this.invalidateDataPathSession()
         return null
       }
       if (response.ok) {
@@ -2274,6 +2355,7 @@ export class VrcAdapter
   }
 
   private setCookie(cookie: string): void {
+    this.sessionEndedByPlatform = false
     this.sessionPersistenceEstablished = false
     this.pipelineExchangeRejected = false
     this.cookie = cookie
@@ -2293,11 +2375,15 @@ export class VrcAdapter
    * cookie stay for the 2FA-aware getAuthStatus to decide. In-flight work is
    * fenced by the new generation and the renderer quarantines on auth-invalidated.
    * Not an account switch, so no renderer identity boundary follows.
+   *
+   * The pipeline stops rather than restarts: a restart would send the rejected
+   * cookie straight back to /auth. The renderer's status check on
+   * auth-invalidated restarts it once the session is confirmed.
    */
-  private invalidateDataPathSession(restartPipeline = true): void {
-    this.bumpSessionGeneration(restartPipeline, true)
+  private invalidateDataPathSession(): void {
+    this.bumpSessionGeneration(false, true)
     // A stopped pipeline emits nothing more; report it down until restarted.
-    if (!restartPipeline) this.emit({ type: 'connection', platform: 'vrchat', health: 'down' })
+    this.emit({ type: 'connection', platform: 'vrchat', health: 'down' })
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
 
@@ -2354,6 +2440,8 @@ export class VrcAdapter
     this.freshAuthBuckets = null
     this.rosterRefresh.clear()
     this.userReads.clear()
+    this.blockList = null
+    this.blockListRead = null
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.worldResolver.clear()
@@ -2408,6 +2496,7 @@ export class VrcAdapter
    * persisted credential could resurrect the account on restart. */
   clearSession(): void {
     this.credentials.delete()
+    this.sessionEndedByPlatform = false
     this.clearSessionState()
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
@@ -2434,6 +2523,8 @@ export class VrcAdapter
     // replacement cookie yet; explicit clearSession remains the cancellation
     // boundary for active and queued auth operations.
     this.clearSessionState(true, false)
+    // VRChat ended it, not the user: the app says so until a sign-in or sign-out.
+    this.sessionEndedByPlatform = true
     try {
       this.credentials.delete()
     } catch {
@@ -2550,7 +2641,10 @@ export class VrcAdapter
       state,
       accountId: state === 'authenticated' ? this.accountId : null,
       displayName: state === 'authenticated' ? this.displayName : null,
-      ...(twoFactorMethod !== undefined ? { twoFactorMethod } : {})
+      ...(twoFactorMethod !== undefined ? { twoFactorMethod } : {}),
+      ...(state === 'unauthenticated' && this.sessionEndedByPlatform
+        ? { endedByPlatform: true as const }
+        : {})
     }
   }
 }

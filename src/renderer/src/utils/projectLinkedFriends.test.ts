@@ -170,6 +170,22 @@ describe('projectLinkedFriends', () => {
     expect(new Set(result.rows.map((row) => row.section))).toEqual(new Set(['in-game']))
   })
 
+  it('sorts a name by what shows, without its outer spaces', () => {
+    const friends = [
+      friend('vrchat', 'friend-a', 'Aria', 'in-game'),
+      friend('vrchat', 'friend-s', '   spaced   ', 'in-game'),
+      friend('chilloutvr', 'friend-b', 'Bob', 'in-game')
+    ]
+    const result = projectLinkedFriends({
+      friends,
+      profiles: [],
+      accountIds: ACCOUNT_IDS,
+      filter: 'all',
+      search: ''
+    })
+    expect(result.rows.map((row) => row.name.trim())).toEqual(['Aria', 'Bob', 'spaced'])
+  })
+
   it('counts people globally rather than adding split section entries', () => {
     const result = projectLinkedFriends(input('in-game', 'active'))
     expect(result.rows).toHaveLength(2)

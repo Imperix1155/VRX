@@ -453,7 +453,11 @@ export class ExploreService {
         `${world.evidence.worldId}:${roomId}`,
         () => this.current(platform, state) && this.findSelection(state, selectionRef) === selection
       )
-      if (!result.ok) return result
+      if (!result.ok) {
+        // An invite that went out and failed still waits out the cooldown.
+        if (result.reason === 'invite-failed') permit.complete()
+        return result
+      }
       permit.complete()
       return { ok: true, handoff: result.handoff }
     } catch (error) {

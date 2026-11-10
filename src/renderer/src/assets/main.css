@@ -1096,13 +1096,24 @@ body::after {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+  /* Edge reach (2026-11-09): on a scaled display (125%, 150%) the graphics
+     card's blur can stop short of a blurred box's right and bottom edges and
+     fill the last strip with one flat color, which reads as a seam over a
+     busy picture. So the blur layer reaches --glass-reach past those two
+     edges and a clip-path cuts it back to the box's own rounded shape: the
+     short strip falls outside and is never seen. Top and left need no reach.
+     --glass-clip-radius follows the box's corners (bottom sheets round only
+     their top two). */
   .glass-panel::after,
   .glass-sheet::after {
+    --glass-reach: 32px;
     content: '';
     position: absolute;
     z-index: -2;
-    inset: -1px;
-    border-radius: inherit;
+    inset: -1px calc(-1px - var(--glass-reach)) calc(-1px - var(--glass-reach)) -1px;
+    clip-path: inset(
+      0 var(--glass-reach) var(--glass-reach) 0 round var(--glass-clip-radius, var(--radius-panel))
+    );
     pointer-events: none;
     background-color: var(--glass-panel);
     -webkit-backdrop-filter: var(--glass-blur-frosted);
@@ -1118,6 +1129,94 @@ body::after {
     box-shadow: var(--glass-layer-depth);
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
+  }
+  /* Layered glass cards with edge reach (see .glass-panel::after). The blur
+     moves to a layer under the card that reaches past its right and bottom
+     edges, so the pane is built bottom-up from pseudo layers:
+       ::after  (z -2)  the blur, clipped back to the card's rounded shape;
+       ::before (z -1)  the pane itself: fill, face (glass gradient or platform
+                        tint), sheen, lit edge, border and lift;
+       children         the content.
+     The element paints nothing of its own (a backdrop sees everything already
+     painted, so an own fill or border would be blurred into the pane). Same
+     look as a card that blurs itself. Cards that still clip their content
+     (overflow-hidden: the sign-in and account cards) keep blurring
+     themselves, since the clip would also hide the pane's border and lift.
+     Picture cards round their pictures instead (.glass-clip-*) and brighten
+     on hover with .glass-hover, not a filter on the card: a filter would
+     make the card a backdrop root and empty its blur layer. */
+  .glass.glass-layer:not(.overflow-hidden) {
+    --glass-reach: 32px;
+    background: none;
+    /* !important only so the unlayered platform tint (.tint-vrc/.tint-cvr)
+       cannot paint the card itself; the pane layer paints the tint. */
+    background-image: none !important;
+    border-color: transparent !important;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  /* An untinted card never takes a tint from a tinted card around it. */
+  .glass.glass-layer:not(.overflow-hidden):not(.tint-vrc, .tint-cvr) {
+    --glass-face: initial;
+    --glass-edge: initial;
+  }
+  .glass.glass-layer:not(.overflow-hidden)::before {
+    inset: -1px;
+    border: 1px solid var(--glass-edge, var(--glass-border));
+    background-color: var(--glass-layer);
+    background-image: var(--glass-sheen), var(--glass-face, var(--glass-bg));
+    box-shadow: var(--glass-layer-depth);
+  }
+  .glass.glass-layer:not(.overflow-hidden)::after {
+    content: '';
+    position: absolute;
+    z-index: -2;
+    inset: -1px calc(-1px - var(--glass-reach)) calc(-1px - var(--glass-reach)) -1px;
+    clip-path: inset(
+      0 var(--glass-reach) var(--glass-reach) 0 round var(--glass-clip-radius, var(--radius-panel))
+    );
+    pointer-events: none;
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  /* Hover brightening for a reach card (picture cards): the pane, its blur
+     and the card's pictures brighten by 5%, which looks like the old
+     hover:brightness-105 on the whole card. Words and chips stay as they
+     are; a filter on any ancestor of a blur layer would empty it. */
+  .glass.glass-layer.glass-hover:hover::before,
+  .glass.glass-layer.glass-hover:hover img {
+    filter: brightness(1.05);
+  }
+  .glass.glass-layer.glass-hover:hover::after {
+    -webkit-backdrop-filter: var(--glass-blur) brightness(1.05);
+    backdrop-filter: var(--glass-blur) brightness(1.05);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .glass.glass-layer.glass-hover::before,
+    .glass.glass-layer.glass-hover::after,
+    .glass.glass-layer.glass-hover img {
+      transition-property:
+        filter,
+        -webkit-backdrop-filter,
+        backdrop-filter;
+      transition-duration: 150ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  }
+  /* A picture inside a reach card is clipped to the card's inner corners
+     (the pane's 1px border sits outside it), since the card itself no longer
+     clips its content. */
+  .glass-clip-top {
+    border-top-left-radius: calc(var(--radius-panel) - 1px);
+    border-top-right-radius: calc(var(--radius-panel) - 1px);
+  }
+  .glass-clip-left {
+    border-top-left-radius: calc(var(--radius-panel) - 1px);
+    border-bottom-left-radius: calc(var(--radius-panel) - 1px);
+  }
+  .glass-clip-all {
+    border-radius: calc(var(--radius-panel) - 1px);
   }
 
   /* Glass chip: the top pane of the stack (pills, platform badges, the
@@ -1159,11 +1258,16 @@ body::after {
   /* Image only: a shorthand would clear .glass-information's opaque backing. */
   background-image: var(--tint-vrc-bg);
   border-color: var(--tint-vrc-border);
+  /* For a card whose pane is its ::before layer (edge reach, see .glass-layer). */
+  --glass-face: var(--tint-vrc-bg);
+  --glass-edge: var(--tint-vrc-border);
 }
 
 .tint-cvr {
   background-image: var(--tint-cvr-bg);
   border-color: var(--tint-cvr-border);
+  --glass-face: var(--tint-cvr-bg);
+  --glass-edge: var(--tint-cvr-border);
 }
 
 /**

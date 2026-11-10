@@ -208,7 +208,7 @@ function AvatarSheetPanel({
       role="dialog"
       aria-label={t('avatars.sheet.aria', { name: shown.name, platform: platformName })}
       data-sheet-expanded={expansion.expanded ? '' : undefined}
-      className={`glass-sheet fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
+      className={`glass-sheet [--glass-clip-radius:var(--radius-panel)_var(--radius-panel)_0_0] fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex flex-col motion-safe:transition-[translate,min-height,max-height] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
         open ? 'translate-y-0' : 'translate-y-full'
       }`}
       style={{

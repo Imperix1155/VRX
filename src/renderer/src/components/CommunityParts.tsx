@@ -4,7 +4,7 @@
  * heading. VRChat and ChilloutVR use the exact same pieces; only the platform
  * tint and label differ.
  */
-import { memo, useRef, useState } from 'react'
+import { memo, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
 import { useAvatar, useAvatarImage } from '../hooks/useAvatar'
@@ -96,7 +96,12 @@ export function CommunityNotice({
         className="inline-block h-[8px] w-[8px] shrink-0 rounded-full"
         style={{ background: platform === 'vrchat' ? 'var(--vrc)' : 'var(--cvr)' }}
       />
-      <p role={state.kind === 'failed' ? 'alert' : 'status'} className={`text-sm ${tone}`}>
+      {/* The line takes the room that is left and wraps inside it, so a long
+          (often Japanese) line never leaves the dot alone above it. */}
+      <p
+        role={state.kind === 'failed' ? 'alert' : 'status'}
+        className={`min-w-0 flex-1 text-sm ${tone}`}
+      >
         {text}
       </p>
       {action}
@@ -205,6 +210,9 @@ export const CommunityTile = memo(function CommunityTile({
   ariaLabel
 }: CommunityTileProps): React.JSX.Element {
   const pictureRef = useRef<HTMLDivElement>(null)
+  // The spoken name is `ariaLabel`; the visible detail line (an owner mark, a
+  // group code, a player count) follows it as the description.
+  const detailId = useId()
   // Wide tiles are world pictures: ask for the sharp copy. Square ones stay small.
   const {
     dataUrl: image,
@@ -264,7 +272,7 @@ export const CommunityTile = memo(function CommunityTile({
         <div
           ref={pictureRef}
           data-community-tile-picture={pictureState}
-          className="relative h-[112px] shrink-0 overflow-hidden bg-[var(--surface-hover)]"
+          className="glass-clip-top relative h-[112px] shrink-0 overflow-hidden bg-[var(--surface-hover)]"
         >
           <div
             ref={bannerRef}
@@ -331,7 +339,7 @@ export const CommunityTile = memo(function CommunityTile({
           <span className="flex min-w-0 items-center gap-[var(--space-2)] text-xs text-[var(--text-dim)]">
             <PictureBadge platform={platform} inline />
             {detail ? (
-              <span className="truncate" title={detail}>
+              <span id={detailId} className="truncate" title={detail}>
                 {detail}
               </span>
             ) : null}
@@ -358,7 +366,7 @@ export const CommunityTile = memo(function CommunityTile({
             <span className="flex min-w-0 items-center gap-[var(--space-2)] text-xs text-[var(--text-dim)]">
               <PictureBadge platform={platform} inline />
               {detail ? (
-                <span className="truncate" title={detail}>
+                <span id={detailId} className="truncate" title={detail}>
                   {detail}
                 </span>
               ) : null}
@@ -370,7 +378,7 @@ export const CommunityTile = memo(function CommunityTile({
       <>
         <div
           ref={pictureRef}
-          className={`relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)]${waitingClass}`}
+          className={`glass-clip-top relative aspect-[4/3] shrink-0 overflow-hidden bg-[var(--surface-hover)]${waitingClass}`}
         >
           {picture}
           <PictureBadge platform={platform} />
@@ -378,14 +386,18 @@ export const CommunityTile = memo(function CommunityTile({
         <div className="flex min-w-0 flex-1 flex-col gap-[var(--space-0-5)] p-[var(--space-3)]">
           {name}
           {detail ? (
-            <span className="block truncate text-xs text-[var(--text-dim)]" title={detail}>
+            <span
+              id={detailId}
+              className="block truncate text-xs text-[var(--text-dim)]"
+              title={detail}
+            >
               {detail}
             </span>
           ) : null}
         </div>
       </>
     )
-  const className = `glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left`
+  const className = `glass glass-layer ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative flex h-full w-full min-w-0 flex-col p-0 text-left`
   if (!onOpen) {
     return (
       <div className={className} data-community-tile="">
@@ -400,7 +412,8 @@ export const CommunityTile = memo(function CommunityTile({
       data-community-tile=""
       onClick={(event) => onOpen(event.currentTarget)}
       aria-label={ariaLabel}
-      className={`${className} hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
+      aria-describedby={detail ? detailId : undefined}
+      className={`${className} glass-hover focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)]`}
     >
       {body}
     </button>

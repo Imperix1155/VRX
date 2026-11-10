@@ -31,8 +31,12 @@ describe('NumberStepper', () => {
     const { onChange } = setup(1)
     fireEvent.click(screen.getByRole('button', { name: 'Increase' }))
     expect(onChange).toHaveBeenCalledWith(2)
-    // At min, decrease is disabled and must not fire.
-    fireEvent.click(screen.getByRole('button', { name: 'Decrease' }))
+    // At min, decrease is unavailable and must not fire. It stays focusable,
+    // so a press that reaches the end keeps keyboard focus where it was.
+    const decrease = screen.getByRole('button', { name: 'Decrease' })
+    expect(decrease.getAttribute('aria-disabled')).toBe('true')
+    expect(decrease.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(decrease)
     expect(onChange).toHaveBeenCalledTimes(1)
   })
 
