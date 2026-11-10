@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-11-10
+
+A polish and bug fix release on top of 1.4.2.
+
+### Fixed
+
+- When VRChat or ChilloutVR signs you out by itself, VRX now says so: a
+  notice names the platform with Go to Accounts, the status dot turns red,
+  and the sign-in screen opens on that platform. A ChilloutVR sign-in that
+  stopped working no longer leaves the live connection retrying forever.
+- Unfriend, Block and Unblock on a VRChat profile work again, and the
+  profile's options stay current when a friendship starts or ends.
+- Friends list: a removed friend stays removed, ChilloutVR friends keep
+  showing where they are after a window reload, the list loads again on its
+  own after a platform slow-down, and frequent refreshes no longer show a
+  false "could not refresh".
+- Profiles: a profile VRX couldn't read offers Try again instead of saying
+  it's gone, a profile opened right after launch no longer gets stuck, and
+  Add friend goes away once you block someone.
+- Join: after a failed Join, focus stays in the world sheet and the message
+  shows; a failed invite is never sent again by itself; long world names
+  wrap in the join dialogs.
+- Dashboard and Explore: Popular now and Wearing now offer a retry when
+  they fail, and Favorites says when your starred worlds couldn't load.
+- Sign-in and settings: mistyped sign-ins on one platform never block the
+  other, a damaged local sign-in key or notes file no longer stops saving,
+  and settings from a newer VRX say so.
+- Looks: no thin seam near the right edge of glass cards on scaled displays,
+  no shift under Hot instance cards on hover, the top bar no longer shows a
+  red "Down" at launch, and several Japanese layout fixes.
+- Many smaller fixes to wording, keyboard focus and accessibility.
+- Security hardening.
+
 ## [1.4.3-dev.5] - 2026-11-10
 
 ### Fixed
