@@ -84,11 +84,18 @@ export function useAvatarLibrary(
   const accountId = useAvatarAccount(platform)
   return useQuery({
     queryKey: avatarLibraryQueryKey(platform, accountId),
-    queryFn: async ({ client, queryKey }) =>
-      keepShown(
-        client.getQueryData<Kept<AvatarLibraryResult>>(queryKey),
-        await bridge().getAvatarLibrary({ platform })
-      ),
+    queryFn: async ({ client, queryKey }) => {
+      const askedAt = Date.now()
+      const answer = await bridge().getAvatarLibrary({ platform })
+      // A Wear that finished while this read was out is newer than the
+      // platform's answer, which was read before the change.
+      const wear = lastWear.get(queryKey.join('\u0000'))
+      const settled =
+        answer.ok && wear !== undefined && wear.at >= askedAt
+          ? { ...answer, current: wear.avatar }
+          : answer
+      return keepShown(client.getQueryData<Kept<AvatarLibraryResult>>(queryKey), settled)
+    },
     enabled: enabled && accountId !== null,
     staleTime: AVATAR_LIBRARY_STALE_MS,
     gcTime: AVATAR_LIBRARY_GC_MS,
@@ -116,6 +123,9 @@ export function useAvatarDetails(
   })
 }
 
+/** The last successful Wear per library key, for a read already out (above). */
+const lastWear = new Map<string, { avatar: AvatarItem; at: number }>()
+
 export interface SwitchAvatarInput {
   avatar: AvatarItem
   /** The account the page showed; only that account's cached library changes. */
@@ -123,8 +133,9 @@ export interface SwitchAvatarInput {
 }
 
 /**
- * Wear an avatar. On success the cached library shows it as worn right away;
- * the next read confirms what the platform reports. The platform just answered,
+ * Wear an avatar. On success the cached library shows it as worn right away,
+ * even when a Refresh asked before the change answers after it; the next read
+ * confirms what the platform reports. The platform just answered,
  * so a library kept after a failed read no longer counts as stale.
  */
 export function useSwitchAvatar(): UseMutationResult<AvatarSwitchResult, Error, SwitchAvatarInput> {
@@ -135,8 +146,10 @@ export function useSwitchAvatar(): UseMutationResult<AvatarSwitchResult, Error, 
     networkMode: 'always',
     onSuccess: (result, { avatar, accountId }) => {
       if (!result.ok) return
+      const key = avatarLibraryQueryKey(avatar.platform, accountId)
+      lastWear.set(key.join('\u0000'), { avatar, at: Date.now() })
       queryClient.setQueryData<Kept<AvatarLibraryResult>>(
-        avatarLibraryQueryKey(avatar.platform, accountId),
+        key,
         (previous) =>
           previous?.ok
             ? {
