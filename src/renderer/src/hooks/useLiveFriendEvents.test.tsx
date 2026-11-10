@@ -438,7 +438,9 @@ describe('useLiveFriendEvents — roster-changed bursts', () => {
         fireFriendEvent!({ type: 'roster-changed', platform: 'chilloutvr' })
     })
     expect(rosterReads()).toBe(0)
-    act(() => vi.advanceTimersByTime(ROSTER_CHANGED_SETTLE_MS))
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_CHANGED_SETTLE_MS)
+    })
     expect(rosterReads()).toBe(1)
 
     // A steady trickle still re-reads now and then instead of never.
@@ -449,7 +451,9 @@ describe('useLiveFriendEvents — roster-changed bursts', () => {
       }
     })
     expect(rosterReads()).toBe(2)
-    act(() => vi.advanceTimersByTime(ROSTER_CHANGED_SETTLE_MS))
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_CHANGED_SETTLE_MS)
+    })
     expect(rosterReads()).toBe(3)
   })
 
@@ -461,7 +465,9 @@ describe('useLiveFriendEvents — roster-changed bursts', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     act(() => fireFriendEvent!({ type: 'roster-changed', platform: 'chilloutvr' }))
     act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
-    act(() => vi.advanceTimersByTime(ROSTER_CHANGED_MAX_WAIT_MS))
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_CHANGED_MAX_WAIT_MS)
+    })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('chilloutvr') })
   })
 })
@@ -491,9 +497,13 @@ describe('useLiveFriendEvents — a friends read refused for a slow-down', () =>
         })
         .catch(() => undefined)
     })
-    act(() => vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS - 1))
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS - 1)
+    })
     expect(reads()).toBe(0)
-    act(() => vi.advanceTimersByTime(1))
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
     expect(reads()).toBe(1)
 
     // A refusal followed by a read that lands some other way waits for nothing.
@@ -509,7 +519,9 @@ describe('useLiveFriendEvents — a friends read refused for a slow-down', () =>
         queryFn: () => Promise.resolve([])
       })
     })
-    act(() => vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS))
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS)
+    })
     expect(reads()).toBe(1)
   })
 })

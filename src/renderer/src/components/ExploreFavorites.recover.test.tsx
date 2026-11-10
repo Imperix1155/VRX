@@ -104,7 +104,7 @@ describe('Explore → Favorites recovery', () => {
   it('says the starred worlds could not load instead of calling the list empty', async () => {
     window.vrx!.getFavoriteWorlds = vi.fn(async () => {
       throw new Error('rate_limited')
-    }) as unknown as NonNullable<Window['vrx']>['getFavoriteWorlds']
+    })
     render(<ExploreFavorites />)
     expect(
       await screen.findByText("Couldn't load the VRChat worlds you starred in VRX.")

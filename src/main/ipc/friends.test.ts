@@ -465,7 +465,7 @@ it('gives a window that loads later the ChilloutVR presence main kept from the s
     status: null,
     statusDescription: null,
     trustRank: null
-  } as Friend
+  }
   authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
   authority.consume({
     type: 'presence-snapshot',
