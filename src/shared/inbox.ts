@@ -59,7 +59,7 @@ export const MAX_INBOX_ITEMS_PER_PLATFORM = 50
 /** Dismissed record IDs remembered per platform, so a socket replay stays hidden. */
 export const MAX_INBOX_DISMISSED_PER_PLATFORM = 200
 /** Upper bounds for wire strings. Longer values are cut (names) or rejected (IDs). */
-export const INBOX_ID_MAX_LENGTH = 128
+const INBOX_ID_MAX_LENGTH = 128
 export const INBOX_NAME_MAX_LENGTH = 64
 export const INBOX_WORLD_NAME_MAX_LENGTH = 128
 /** Records read from one wire frame; the rest of an oversized frame is ignored. */

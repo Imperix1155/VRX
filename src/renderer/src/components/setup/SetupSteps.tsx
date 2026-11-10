@@ -58,7 +58,7 @@ const ORDER_LABEL_KEYS = {
   'hot-first': 'settings.dashboard.order.hotFirst'
 } as const
 
-export const StepHeading = forwardRef<
+const StepHeading = forwardRef<
   HTMLHeadingElement,
   { title: string; lead?: string; centered?: boolean; leadLive?: boolean }
 >(function StepHeading({ title, lead, centered = false, leadLive = false }, ref) {

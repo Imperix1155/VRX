@@ -87,7 +87,7 @@ export async function changeLinkedProfile(
 /** A linked-profile re-read after roster name changes waits for them to pause this long... */
 export const LINKED_ROSTER_SETTLE_MS = 400
 /** ...but no longer than this while they keep coming. */
-export const LINKED_ROSTER_MAX_WAIT_MS = 3_000
+const LINKED_ROSTER_MAX_WAIT_MS = 3_000
 
 /** One app-lifetime subscription; shared notes never enter persisted friends caches. */
 export function subscribeLinkedProfiles(client: QueryClient): () => void {

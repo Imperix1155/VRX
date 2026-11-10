@@ -30,7 +30,7 @@ const ERROR_KEYS: Record<CommunityNoticeReason, string> = {
  * show nothing. Failed is red (nothing loaded); stale is dim, because the
  * answer that loaded last still shows (DESIGN.md §9.4).
  */
-export function CommunityNotice({
+function CommunityNotice({
   platform,
   state,
   onRetry
@@ -144,7 +144,7 @@ export function CommunityHeading({ children }: { children: React.ReactNode }): R
 }
 
 /** The short platform badge drawn over a picture (VRC / CVR). */
-export function PictureBadge({
+function PictureBadge({
   platform,
   inline = false
 }: {
@@ -171,7 +171,7 @@ export function PictureBadge({
   )
 }
 
-export interface CommunityTileProps {
+interface CommunityTileProps {
   platform: Platform
   title: string
   /** Quiet second line (a group code, "Friend", a member count). */

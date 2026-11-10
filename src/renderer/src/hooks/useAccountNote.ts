@@ -6,7 +6,7 @@ import { subscribeFriendNoteSaved, type UseAccountFriendNoteResult } from './use
 
 /** A drawer that stays open this long checks the account copy. Flicking
  *  through friends never sends a read. */
-export const ACCOUNT_NOTE_CHECK_DWELL_MS = 700
+const ACCOUNT_NOTE_CHECK_DWELL_MS = 700
 /** A check older than this runs again when the drawer reopens. */
 const CHECK_FRESH_MS = 5 * 60_000
 

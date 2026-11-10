@@ -17,7 +17,7 @@ export type JoinNotice = 'in-game' | 'invite-sent'
 export type JoinFeedback = JoinFailureReason | JoinNotice
 
 /** Hand-off notes clear on their own; failures stay until the next attempt. */
-export const JOIN_NOTICE_MS = 8_000
+const JOIN_NOTICE_MS = 8_000
 
 function noticeFor(result: InstanceActionResult): JoinNotice | null {
   if (!result.ok) return null

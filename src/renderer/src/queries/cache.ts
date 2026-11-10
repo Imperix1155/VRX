@@ -42,7 +42,7 @@ export const QUERY_CACHE_STORAGE_KEY = 'vrx-query-cache'
 export const MAX_QUERY_AGE_MS = 24 * 60 * 60 * 1000
 
 /** Query-key namespaces that are allowed to be persisted. */
-export const PERSISTED_NAMESPACES = ['friends'] as const
+const PERSISTED_NAMESPACES = ['friends'] as const
 
 /**
  * Build the cache buster that ties the persisted cache to the current app
