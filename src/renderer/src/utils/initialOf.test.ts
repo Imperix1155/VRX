@@ -9,4 +9,10 @@ describe('initialOf', () => {
     expect(initialOf('こまどアバター')).toBe('こ')
     expect(initialOf('   ')).toBe('?')
   })
+
+  it('skips invisible marks at the start of a name', () => {
+    expect(initialOf('\u202Ekcab')).toBe('K')
+    expect(initialOf('\u200B\u200Dzed')).toBe('Z')
+    expect(initialOf('\u2066 \u202E')).toBe('?')
+  })
 })
