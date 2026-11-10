@@ -90,7 +90,7 @@
     "people_one": "{{count, number}} person",
     "people_other": "{{count, number}} people",
     "unknownName": "Unknown friend",
-    "sharedNotes": "Shared notes",
+    "sharedNotes": "Shared notes (yours, private)",
     "back": "Back to combined profile",
     "identities": "Identities",
     "unavailable": "Unavailable",

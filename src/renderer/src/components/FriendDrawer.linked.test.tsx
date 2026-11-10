@@ -101,7 +101,7 @@ describe('linked drawer ownership', () => {
 
   it('shows only the shared note in a combined profile, preserving its editor across presence changes', async () => {
     const view = render(drawer(person))
-    const editor = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Shared notes' })
+    const editor = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Shared notes (yours, private)' })
     await waitFor(() => expect(editor.value).toBe('Shared saved text'))
     expect(getAccountNote).not.toHaveBeenCalled()
     fireEvent.change(editor, { target: { value: 'Unsaved shared draft' } })
@@ -124,7 +124,7 @@ describe('linked drawer ownership', () => {
     )
     const editor = screen.getByRole<HTMLTextAreaElement>('textbox')
     await waitFor(() => expect(editor.value).toBe('vrchat private note'))
-    expect(screen.queryByText('Shared notes')).toBeNull()
+    expect(screen.queryByText('Shared notes (yours, private)')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Back to combined profile' }))
     expect(navigate).toHaveBeenCalledWith(person)
   })

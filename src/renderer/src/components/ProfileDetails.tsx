@@ -10,7 +10,8 @@
  *
  * Someone who is not a friend yet gets one friend action on top (owner,
  * 2026-11-01): Accept and Decline when their request is waiting in the Inbox,
- * otherwise Add friend. Main sends it only to someone a search listed. Friend
+ * otherwise Add friend. Someone you blocked gets none: the options below
+ * already say Unblock, and a request to a blocked person makes no sense. Main sends it only to someone a search listed. Friend
  * details leave it out: everyone there is on the friends list, and a friend
  * unfriended there stays shown only until the platform's own message.
  */
@@ -25,7 +26,8 @@ import {
   useFollowFriendship,
   useProfile,
   useProfileGroups,
-  useProfileWorlds
+  useProfileWorlds,
+  useRelationship
 } from '../queries/community'
 import { sendFriendRequest, useAnswerFriendRequest } from '../queries/friendActions'
 import { useInbox } from '../queries/inbox'
@@ -246,6 +248,9 @@ function ProfileBody({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const facts = profileFacts(profile, showTrust, t)
+  // Only the saved answer from the options below; this never asks on its own.
+  const relationship = useRelationship(profile.platform, profile.userId, false).data
+  const blocked = relationship?.ok === true && relationship.relationship.blocked === true
   return (
     <div
       ref={bodyRef}
@@ -253,7 +258,7 @@ function ProfileBody({
       className="flex flex-col gap-[var(--space-4)] outline-none"
       data-profile-details={profile.platform}
     >
-      {showFriendAction && profile.isFriend === false ? (
+      {showFriendAction && profile.isFriend === false && !blocked ? (
         <FriendAction
           platform={profile.platform}
           userId={profile.userId}

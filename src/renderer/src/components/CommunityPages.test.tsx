@@ -1440,4 +1440,50 @@ describe('ProfileDetails', () => {
       Reflect.deleteProperty(withActions, 'socialAction')
     }
   })
+
+  it.each(['vrchat', 'chilloutvr'] as const)(
+    'drops Add friend from a %s profile once the person is blocked',
+    async (platform) => {
+      const userId = platform === 'vrchat' ? VRC_ID : CVR_ID
+      bridge.getProfile.mockResolvedValueOnce({
+        ok: true,
+        profile: { ...profile(platform), isFriend: false }
+      })
+      const withActions = Object.assign(bridge, {
+        getRelationship: vi.fn(() =>
+          Promise.resolve({
+            ok: true,
+            relationship: { platform, userId, isFriend: false, blocked: false }
+          })
+        ),
+        socialAction: vi.fn(() =>
+          Promise.resolve({
+            ok: true,
+            relationship: { platform, userId, isFriend: false, blocked: true }
+          })
+        )
+      })
+      try {
+        renderWith(<ProfileDetails platform={platform} userId={userId} />)
+        expect(await screen.findByText(msg('friendActions.add'))).toBeTruthy()
+        fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.showBlock') }))
+        fireEvent.click(await screen.findByRole('button', { name: msg('profile.actions.block') }))
+        fireEvent.click(
+          within(screen.getByRole('alertdialog')).getByRole('button', {
+            name: msg('profile.actions.block')
+          })
+        )
+        await screen.findByText(
+          msg('profile.actions.done.block', {
+            platform: platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
+          })
+        )
+        expect(screen.queryByText(msg('friendActions.add'))).toBeNull()
+        expect(bridge.sendFriendRequest).not.toHaveBeenCalled()
+      } finally {
+        Reflect.deleteProperty(withActions, 'getRelationship')
+        Reflect.deleteProperty(withActions, 'socialAction')
+      }
+    }
+  )
 })
