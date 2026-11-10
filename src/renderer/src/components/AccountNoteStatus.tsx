@@ -125,7 +125,9 @@ export default function AccountNoteStatus({
       break
     case 'failed':
       glyph = '!'
-      text = t('drawer.notes.account.failed', { platform: name })
+      text = t(view.slowDown ? 'drawer.notes.account.slowDown' : 'drawer.notes.account.failed', {
+        platform: name
+      })
       action = { label: t('drawer.notes.retry'), onClick: account.retry }
       break
     default:
