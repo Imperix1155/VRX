@@ -456,8 +456,9 @@ behind a confirmation. VRX keeps them to the same shape:
   The Pipeline's own `friend-delete` message then removes the friend.
 - **ChilloutVR** writes are one message on the already open `/users/ws`
   socket of the same account, as CVRX sends them: `{ RequestType, Data: { id } }`
-  with 8 (unfriend), 30 (block) or 31 (unblock). A closed socket sends
-  nothing and the user is told so; nothing is queued. The socket gives no
+  with 8 (unfriend), 30 (block) or 31 (unblock). A closed socket, or a
+  ChilloutVR 429 cooldown still running, sends nothing and the user is told
+  so; nothing is queued. The socket gives no
   reply, so VRX reports the message as sent. The `FRIEND_LIST_UPDATED` message
   then refreshes the roster with the usual single `/friends` read.
 

@@ -992,25 +992,39 @@ export class CvrAdapter
   }
 
   unfriend(userId: string, lease: RequestLease): Promise<void> {
-    return this.sendSocial(lease, (pipeline) => pipeline.unfriend(this.socialUserId(userId)))
+    return this.sendSocial(lease, userId, (pipeline, id) => pipeline.unfriend(id))
   }
 
   block(userId: string, lease: RequestLease): Promise<void> {
-    return this.sendSocial(lease, (pipeline) => pipeline.block(this.socialUserId(userId)))
+    return this.sendSocial(lease, userId, (pipeline, id) => pipeline.block(id))
   }
 
   unblock(userId: string, lease: RequestLease): Promise<void> {
-    return this.sendSocial(lease, (pipeline) => pipeline.unblock(this.socialUserId(userId)))
+    return this.sendSocial(lease, userId, (pipeline, id) => pipeline.unblock(id))
   }
 
-  /** Send on the current account's socket only; a closed socket sends nothing. */
-  private sendSocial(lease: RequestLease, send: (pipeline: CvrPipeline) => boolean): Promise<void> {
+  /**
+   * Send on the current account's socket only; a closed socket sends nothing.
+   * Like a friend action's frame, it names someone other than the signed-in
+   * user and waits out a 429 cooldown rather than going out during one.
+   */
+  private sendSocial(
+    lease: RequestLease,
+    userId: string,
+    send: (pipeline: CvrPipeline, id: string) => boolean
+  ): Promise<void> {
     try {
+      const id = this.socialUserId(userId)
+      if (id === this.accountId?.toLowerCase()) {
+        throw new SocialDataError('Not available for the signed-in user')
+      }
       assertRequestLease(lease)
+      const cooldown = this.admission.cooldownRemainingMs
+      if (cooldown > 0) throw new CVRRateLimitError(cooldown)
       // Every session boundary stops or replaces the pipeline, so the one here
       // belongs to the lease's account.
       const pipeline = lease.generation === this.sessionGeneration ? this.pipeline : null
-      if (pipeline === null || !send(pipeline)) throw new SocialNotSentError()
+      if (pipeline === null || !send(pipeline, id)) throw new SocialNotSentError()
       return Promise.resolve()
     } catch (error) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)))

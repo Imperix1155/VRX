@@ -173,6 +173,18 @@ describe('VrcAdapter unfriend and block', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('never names the signed-in user in a write', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+    for (const action of ['unfriend', 'block', 'unblock'] as const) {
+      await expect(adapter[action](ME, adapter.captureSocialLease())).rejects.toBeInstanceOf(
+        SocialDataError
+      )
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('a data-path 401 invalidates the session', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })))
     const adapter = signedIn()

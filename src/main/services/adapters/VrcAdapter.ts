@@ -1462,7 +1462,7 @@ export class VrcAdapter
   }
 
   async unfriend(userId: string, lease: RequestLease): Promise<void> {
-    const id = this.socialUserId(userId)
+    const id = this.socialTargetId(userId)
     await this.runCommunityRequest(lease, () =>
       this.delete(
         `/auth/user/friends/${encodeURIComponent(id)}`,
@@ -1473,7 +1473,7 @@ export class VrcAdapter
   }
 
   async block(userId: string, lease: RequestLease): Promise<void> {
-    const id = this.socialUserId(userId)
+    const id = this.socialTargetId(userId)
     await this.runCommunityRequest(lease, () =>
       this.post(
         '/auth/user/playermoderations',
@@ -1486,7 +1486,7 @@ export class VrcAdapter
   }
 
   async unblock(userId: string, lease: RequestLease): Promise<void> {
-    const id = this.socialUserId(userId)
+    const id = this.socialTargetId(userId)
     await this.runCommunityRequest(lease, () =>
       this.putJson(
         '/auth/user/unplayermoderate',
@@ -1501,6 +1501,13 @@ export class VrcAdapter
   private socialUserId(userId: string): string {
     if (!isCommunityUserId('vrchat', userId)) throw new SocialDataError('Invalid VRChat user id')
     return userId
+  }
+
+  /** The person an Unfriend, Block or Unblock names: never the signed-in user. */
+  private socialTargetId(userId: string): string {
+    const id = this.socialUserId(userId)
+    if (id === this.accountId) throw new SocialDataError('Not available for the signed-in user')
+    return id
   }
 
   // ── Game favorites (the account's own VRChat favorite groups) ───────────────
