@@ -364,6 +364,8 @@ export function ExploreDashboardPreviewRoute({
       platformSnapshots={snapshots}
       hasCards={worlds.length > 0}
       cardLayout={cardLayout}
+      // A failure lands back in the snapshot, which shows it again.
+      onRetry={(platform) => void requestExplore(platform, 'manual').catch(() => undefined)}
       cards={worlds.map((world) => (
         <ResolvedCard
           key={`${world.platform}:${world.worldId}`}

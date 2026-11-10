@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { ExplorePlatformSnapshot, ExploreWorld } from '@shared/explore'
+import type { Platform } from '@shared/types'
 import ExploreWorldCard from './ExploreWorldCard'
 import ExploreSourceState from './ExploreSourceState'
 import { isPopularNowHidden } from '../utils/popularNow'
@@ -16,12 +17,15 @@ export function PopularNowSection({
   hasCards,
   cardLayout,
   cards,
+  onRetry,
   children
 }: {
   platformSnapshots: readonly ExplorePlatformSnapshot[]
   hasCards: boolean
   cardLayout: CardLayout
   cards: React.ReactNode
+  /** Asks a failed platform for its worlds again. */
+  onRetry?: (platform: Platform) => void
   /** Rendered after the grid (the app's world sheet). */
   children?: React.ReactNode
 }): React.JSX.Element {
@@ -35,7 +39,11 @@ export function PopularNowSection({
         {t('explore.popularNow')}
       </h2>
       <div className="mt-[var(--space-2)]">
-        <ExploreSourceState sources={platformSnapshots} hasUsableCards={hasCards} />
+        <ExploreSourceState
+          sources={platformSnapshots}
+          hasUsableCards={hasCards}
+          onRetry={onRetry}
+        />
       </div>
       {!hasCards ? null : cardLayout === 'bar' ? (
         // Bar cards share the Hot Instances bar grid (main.css), so the second
