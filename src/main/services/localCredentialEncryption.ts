@@ -199,9 +199,35 @@ function getKey(create: boolean): Buffer {
   try {
     return readExistingKey(keyPath)
   } catch {
-    // A present key is never replaced: corruption and aliases fail closed.
-    return fail()
+    // A damaged key would block every later sign-in for good. A sign-in being
+    // saved replaces it with a fresh private key: whatever the old one
+    // protected can't be read anyway. Anything else fails closed.
+    if (!isReplaceableKey(keyPath)) return fail()
+    try {
+      unlinkSync(keyPath)
+    } catch {
+      return fail()
+    }
+    syncDirectory(privateDirectory)
+    return createKey(privateDirectory, keyPath)
   }
+}
+
+/**
+ * A key file VRX may replace: a plain file of this user's with one name, whose
+ * size or mode is wrong (cut short, emptied, or restored from a backup).
+ * Links and files owned by someone else are never touched.
+ */
+function isReplaceableKey(keyPath: string): boolean {
+  let details: Stats
+  try {
+    details = lstatSync(keyPath)
+  } catch {
+    return false
+  }
+  if (details.isSymbolicLink() || !details.isFile() || details.nlink !== 1) return false
+  if (!isWindows() && details.uid !== process.getuid?.()) return false
+  return true
 }
 
 function aad(slot: Buffer): Buffer {

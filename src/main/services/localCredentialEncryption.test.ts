@@ -96,25 +96,30 @@ describe('local credential encryption', () => {
     expect(() => lstatSync(keyPath())).toThrow()
   })
 
-  it('rejects a truncated key without replacing it', () => {
-    mkdirSync(join(userData, 'credential-storage'), { mode: 0o700 })
-    writeFileSync(keyPath(), Buffer.alloc(31), { mode: 0o600 })
+  it('reads nothing with a damaged key, and a new sign-in replaces it', () => {
+    const old = encryptLocalCredential('chilloutvr:primary', 'old-session')
+    for (const damage of [Buffer.alloc(0), Buffer.alloc(31)]) {
+      writeFileSync(keyPath(), damage, { mode: 0o600 })
 
-    expect(() => encryptLocalCredential('vrchat:primary', 'session-token')).toThrow(
-      'Local credential encryption failed'
-    )
-    expect(lstatSync(keyPath()).size).toBe(31)
+      expect(() => decryptLocalCredential('chilloutvr:primary', old)).toThrow(
+        'Local credential encryption failed'
+      )
+      expect(lstatSync(keyPath()).size).toBe(damage.length)
+      const record = encryptLocalCredential('vrchat:primary', 'session-token')
+      expect(decryptLocalCredential('vrchat:primary', record)).toBe('session-token')
+      expect(lstatSync(keyPath()).size).toBe(32)
+    }
   })
 
   it.runIf(process.platform !== 'win32')(
-    'rejects public, symlinked, and hard-linked key paths',
+    'replaces a key whose mode changed, and never a symlinked or hard-linked one',
     () => {
       mkdirSync(join(userData, 'credential-storage'), { mode: 0o700 })
       writeFileSync(keyPath(), Buffer.alloc(32), { mode: 0o600 })
       chmodSync(keyPath(), 0o644)
-      expect(() => encryptLocalCredential('vrchat:primary', 'session-token')).toThrow(
-        'Local credential encryption failed'
-      )
+      const record = encryptLocalCredential('vrchat:primary', 'session-token')
+      expect(lstatSync(keyPath()).mode & 0o777).toBe(0o600)
+      expect(decryptLocalCredential('vrchat:primary', record)).toBe('session-token')
 
       rmSync(keyPath())
       const outside = join(userData, 'outside-key')
