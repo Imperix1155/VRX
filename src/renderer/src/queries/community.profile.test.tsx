@@ -101,6 +101,19 @@ describe('useProfile', () => {
     expect(bridge.getProfile).toHaveBeenCalledTimes(PROFILE_WAIT_TRIES)
   })
 
+  it('asks nothing more once the profile closes during the wait', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    bridge.getProfile.mockResolvedValue({ ok: false, reason: 'unknown-person' })
+    const client = newClient()
+    renderHook(() => useProfile('vrchat', VRC_ID), { wrapper: wrapper(client) })
+    await waitFor(() => expect(bridge.getProfile).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      await client.cancelQueries()
+      await vi.advanceTimersByTimeAsync(PROFILE_WAIT_MS * 3)
+    })
+    expect(bridge.getProfile).toHaveBeenCalledTimes(1)
+  })
+
   it('asks again on the next open after "unknown person", but keeps a platform failure', async () => {
     const client = newClient()
     bridge.getProfile.mockResolvedValue({ ok: false, reason: 'unavailable' })

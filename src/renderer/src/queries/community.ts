@@ -123,6 +123,8 @@ export function useProfile(
         const waiting = !result.ok && result.reason === 'unknown-person'
         if (!waiting || tries >= PROFILE_WAIT_TRIES || signal.aborted) return result
         await pause(PROFILE_WAIT_MS, signal)
+        // A close or account switch ends the pause early: ask nothing more.
+        if (signal.aborted) return result
       }
     },
     enabled: accountId !== null && userId !== null,
