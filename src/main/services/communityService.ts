@@ -192,7 +192,13 @@ export class CommunityService {
         ok: true,
         platform,
         query,
-        people: page.people,
+        // ChilloutVR's search doesn't say who is a friend; the roster VRX
+        // already holds does, so both platforms mark friends the same way.
+        people: page.people.map((person) =>
+          person.isFriend !== null || !this.options.isFriend(platform, this.idOf(platform, person.userId))
+            ? person
+            : { ...person, isFriend: true }
+        ),
         worlds: this.options.adoptWorlds(platform, page.worlds)
       }
     } catch (error) {
@@ -283,14 +289,18 @@ export class CommunityService {
     | { ok: true; adapter: CommunityAdapter; state: PlatformState; id: string }
     | { ok: false; reason: 'not-authenticated' | 'unknown-person' } {
     if (!isCommunityUserId(platform, userId)) return { ok: false, reason: 'unknown-person' }
-    // ChilloutVR GUIDs compare case-insensitively; VRChat IDs are kept as sent.
-    const id = platform === 'chilloutvr' ? userId.toLowerCase() : userId
+    const id = this.idOf(platform, userId)
     const session = this.session(platform)
     if (!session) return { ok: false, reason: 'not-authenticated' }
     if (!session.state.known.has(id) && !this.options.isFriend(platform, id)) {
       return { ok: false, reason: 'unknown-person' }
     }
     return { ok: true, ...session, id }
+  }
+
+  /** ChilloutVR GUIDs compare case-insensitively; VRChat IDs are kept as sent. */
+  private idOf(platform: Platform, userId: string): string {
+    return platform === 'chilloutvr' ? userId.toLowerCase() : userId
   }
 
   private remember(state: PlatformState, userId: string): void {
