@@ -222,11 +222,11 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
         <div className="flex items-start justify-between gap-[var(--space-3)]">
           <h2
             id="explore-join-confirm-title"
-            className="text-base font-semibold text-[var(--text)]"
+            className="min-w-0 text-base font-semibold text-[var(--text)] break-words"
           >
             {world.name}
           </h2>
-          <div className="flex flex-col items-end gap-[var(--space-1)]">
+          <div className="flex shrink-0 flex-col items-end gap-[var(--space-1)]">
             <PlatformPill platform={world.platform} />
             <InstancePill label={t(accessPill.labelKey)} tier={accessPill.tier} />
           </div>
@@ -639,17 +639,20 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
         className="glass glass-frosted-heavy glass-information relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
       >
         <div className="flex items-start justify-between gap-[var(--space-3)]">
-          <h2 id="join-confirm-title" className="text-base font-semibold text-[var(--text)]">
+          <h2
+            id="join-confirm-title"
+            className="min-w-0 text-base font-semibold text-[var(--text)] break-words"
+          >
             {title}
           </h2>
-          <div className="flex flex-col items-end gap-[var(--space-1)]">
+          <div className="flex shrink-0 flex-col items-end gap-[var(--space-1)]">
             <PlatformPill platform={friendForCopy.platform} />
             {pill !== null && <InstancePill label={t(pill.labelKey)} tier={pill.tier} />}
           </div>
         </div>
 
         {/* World/friend context followed by the independent moderation context. */}
-        <p className="text-sm text-[var(--text-dim)]">
+        <p className="text-sm text-[var(--text-dim)] break-words">
           {t('joinConfirm.context', { name: friendForCopy.displayName, world: worldName })}
         </p>
         {instanceForCopy !== null && (
