@@ -166,7 +166,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
       boundary?.()
       friend?.()
       if (launchInitiatedRef.current) {
-        document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
+        focusAfterLaunch(openerRef.current)
       } else {
         const opener = openerRef.current
         const target =
@@ -340,6 +340,29 @@ function getFocusables(panel: HTMLElement): HTMLElement[] {
   )
 }
 
+/**
+ * Where focus goes after a launch. The control that opened the dialog may be
+ * busy or gone, so focus normally returns to the page. When that control sits
+ * in a sheet that is still open (a world sheet's or a drawer's Join), focus
+ * stays in that sheet instead, next to any failure message, and not on the
+ * page behind it.
+ */
+function focusAfterLaunch(opener: Element | null): void {
+  const sheet =
+    opener instanceof HTMLElement && opener.isConnected
+      ? opener.closest<HTMLElement>('[role="dialog"]')
+      : null
+  if (sheet !== null && sheet.closest('[inert]') === null) {
+    const usable = !(opener instanceof HTMLButtonElement && opener.disabled)
+    const target = usable && opener instanceof HTMLElement ? opener : getFocusables(sheet)[0]
+    if (target !== undefined) {
+      target.focus({ preventScroll: true })
+      return
+    }
+  }
+  document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
+}
+
 function FriendJoinConfirmDialog(): React.JSX.Element | null {
   const { t } = useTranslation()
   const joinState = useJoinInstance()
@@ -474,10 +497,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
       wasOpenRef.current = true
     } else if (!isOpen && wasOpenRef.current) {
       wasOpenRef.current = false
-      // A committed launch should hand focus back to the page, not to the
-      // opener that the user already acted on.
+      // A committed launch should hand focus back to the page (or the sheet
+      // the opener sits in), not to the row pill the user already acted on.
       if (launchInitiatedRef.current) {
-        document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
+        focusAfterLaunch(restoreFocusRef.current)
         return
       }
       // Restore focus to the opener — but NOT if it is gone from the DOM or

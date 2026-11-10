@@ -189,6 +189,7 @@ export default function ExploreWorldSheet({
   const panelRef = useRef<HTMLDivElement>(null)
   const openerRef = useRef<HTMLElement | null>(null)
   const wasOpenRef = useRef(false)
+  const failureRef = useRef<HTMLParagraphElement>(null)
   const expansion = useSheetExpansion({
     open,
     onClose,
@@ -217,6 +218,14 @@ export default function ExploreWorldSheet({
   useEffect(() => {
     if (open) openerRef.current = opener
   }, [open, opener])
+
+  // A failed Join's message sits under the room list; bring it into view so
+  // it isn't left below the fold of a long list.
+  useEffect(() => {
+    if (joinFailure === null) return
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    failureRef.current?.scrollIntoView?.({ block: 'nearest', behavior: still ? 'auto' : 'smooth' })
+  }, [joinFailure])
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
@@ -443,11 +452,19 @@ export default function ExploreWorldSheet({
               </ul>
             ) : null}
             {joinFailure != null && JOIN_NOTICES.has(joinFailure) ? (
-              <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--text-dim)]">
+              <p
+                ref={failureRef}
+                role="status"
+                className="mt-[var(--space-2)] text-xs text-[var(--text-dim)]"
+              >
                 {t(joinFailureMessageKey(joinFailure))}
               </p>
             ) : joinFailure != null ? (
-              <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--error)]">
+              <p
+                ref={failureRef}
+                role="status"
+                className="mt-[var(--space-2)] text-xs text-[var(--error)]"
+              >
                 {t(
                   RETRYABLE_EXPLORE_FAILURES.has(joinFailure)
                     ? joinFailureMessageKey(joinFailure)
