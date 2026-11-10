@@ -956,7 +956,8 @@
       "empty": "No worlds to show right now.",
       "favorites": "Favorites",
       "favoritesHint": "Worlds you starred in VRX, then the favorites in your game accounts.",
-      "favoritesEmpty": "No favorite worlds yet. Open a world and press the star to keep it here."
+      "favoritesEmpty": "No favorite worlds yet. Open a world and press the star to keep it here.",
+      "favoritesStarsFailed": "Couldn't load the {{platform}} worlds you starred in VRX."
     },
     "more": {
       "heading": "About this world",
