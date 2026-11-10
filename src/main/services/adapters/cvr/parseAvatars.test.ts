@@ -71,8 +71,15 @@ describe('parseCvrAvatarDetails', () => {
 describe('parseCvrCurrentAvatar', () => {
   it('reads the worn avatar from the user record without assuming an author', () => {
     expect(
-      parseCvrCurrentAvatar({ id: ME, avatar: { id: A, name: 'Worn', imageUrl: null } })
+      parseCvrCurrentAvatar({ id: ME, avatar: { id: A, name: 'Worn', imageUrl: null } })?.avatar
     ).toMatchObject({ avatarId: A, name: 'Worn', authorName: null })
-    expect(parseCvrCurrentAvatar({ id: ME })).toBeNull()
+    expect(parseCvrCurrentAvatar({ id: ME })).toEqual({ avatar: null })
+    expect(parseCvrCurrentAvatar({ id: ME, avatar: null })).toEqual({ avatar: null })
+  })
+
+  it('tells an unreadable reply apart from no worn avatar', () => {
+    expect(parseCvrCurrentAvatar('not-an-object')).toBeNull()
+    expect(parseCvrCurrentAvatar({ id: ME, avatar: 'x' })).toBeNull()
+    expect(parseCvrCurrentAvatar({ id: ME, avatar: { id: 'bad', name: 'Worn' } })).toBeNull()
   })
 })

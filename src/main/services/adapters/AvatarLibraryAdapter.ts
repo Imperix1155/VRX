@@ -19,6 +19,7 @@ export interface AvatarLibraryAdapter {
   /** Throws when no durable signed-in session exists. */
   captureAvatarLease(): RequestLease
   getOwnAvatars(lease: RequestLease): Promise<OwnAvatarsPage>
+  /** The worn avatar, or null when none is named. An unreadable reply throws. */
   getCurrentAvatar(lease: RequestLease): Promise<AvatarItem | null>
   /** One avatar's details, or null when the platform no longer has it. */
   getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null>

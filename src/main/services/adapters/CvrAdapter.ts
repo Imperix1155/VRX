@@ -29,6 +29,7 @@ import {
   CVRAuthError,
   CVRNetworkError,
   CVRRateLimitError,
+  isNotFoundStatus,
   NetworkError,
   signInFailure
 } from './errors'
@@ -764,7 +765,10 @@ export class CvrAdapter
     const raw = await this.runCommunityRequest(lease, () =>
       this.get(`/users/${encodeURIComponent(accountId)}`, z.unknown(), this.communityOptions(lease))
     )
-    return parseCvrCurrentAvatar(raw)
+    const parsed = parseCvrCurrentAvatar(raw)
+    // An unreadable reply is a failed load, never "wearing nothing".
+    if (!parsed) throw new AvatarDataError('Malformed ChilloutVR current avatar')
+    return parsed.avatar
   }
 
   async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
@@ -890,9 +894,18 @@ export class CvrAdapter
 
   async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
     const id = this.communityUserId(userId)
-    const raw = await this.readSharedUser(id, lease)
+    let raw: unknown
+    try {
+      raw = await this.readSharedUser(id, lease)
+    } catch (error) {
+      // Only ChilloutVR saying "no such user" means the person is gone.
+      if (isNotFoundStatus(error)) return null
+      throw error
+    }
     const profile = parseCvrProfile(raw)
-    return profile?.userId === id ? profile : null
+    // A reply VRX can't read is a failed load, never a missing person.
+    if (profile?.userId !== id) throw new CommunityDataError('Malformed ChilloutVR profile')
+    return profile
   }
 
   async getProfileWorlds(

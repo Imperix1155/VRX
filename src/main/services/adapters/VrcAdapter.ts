@@ -25,6 +25,7 @@ import { assertRequestLease, type RequestLease, type AvatarRequestLease } from '
 import {
   AuthError,
   AuthSessionPendingError,
+  isNotFoundStatus,
   NetworkError,
   RateLimitError,
   signInFailure
@@ -1119,7 +1120,10 @@ export class VrcAdapter
         this.communityOptions(lease)
       )
     )
-    return parseVrcAvatar(raw)
+    const avatar = parseVrcAvatar(raw)
+    // An unreadable reply is a failed load, never "wearing nothing".
+    if (!avatar) throw new AvatarDataError('Malformed VRChat current avatar')
+    return avatar
   }
 
   async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
@@ -1243,11 +1247,20 @@ export class VrcAdapter
 
   async getProfile(userId: string, lease: RequestLease): Promise<PersonProfile | null> {
     if (!isCommunityUserId('vrchat', userId)) throw new CommunityDataError('Invalid VRChat user id')
-    const raw = await this.runCommunityRequest(lease, () =>
-      this.userReads.shared(lease.generation, userId, () => this.readUser(userId, lease))
-    )
+    let raw: unknown
+    try {
+      raw = await this.runCommunityRequest(lease, () =>
+        this.userReads.shared(lease.generation, userId, () => this.readUser(userId, lease))
+      )
+    } catch (error) {
+      // Only VRChat saying "no such user" means the person is gone.
+      if (isNotFoundStatus(error)) return null
+      throw error
+    }
     const profile = parseVrcProfile(raw)
-    return profile?.userId === userId ? profile : null
+    // A reply VRX can't read is a failed load, never a missing person.
+    if (profile?.userId !== userId) throw new CommunityDataError('Malformed VRChat profile')
+    return profile
   }
 
   async getProfileWorlds(
