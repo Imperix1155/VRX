@@ -54,6 +54,7 @@ vi.mock('electron', () => ({ app: { getPath: () => userData.dir } }))
 
 import {
   flushPendingSettingsSave,
+  isSettingsFileNewer,
   getSettingsSnapshot,
   hasPendingSettingsSave,
   loadSettings,
@@ -252,6 +253,9 @@ describe('loadSettings (W7 M1)', () => {
     // And the in-memory view keeps the file's original version (not down-leveled)
     // — the other half of parseSettings's newer-build contract.
     expect(settings.version).toBe(9999)
+    expect(isSettingsFileNewer()).toBe(true)
+    storeState.data = { ...DEFAULT_SETTINGS }
+    expect(isSettingsFileNewer()).toBe(false)
   })
 
   it('serves alert decisions from the in-memory snapshot without a store read per event', () => {

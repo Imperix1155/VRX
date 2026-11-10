@@ -5,6 +5,7 @@ import {
   getSettingsSnapshot,
   hasPendingSettingsSave,
   isSettingsFallback,
+  isSettingsFileNewer,
   loadSettings,
   saveSettings
 } from '../services/settings'
@@ -28,7 +29,10 @@ export function registerSettingsHandlers(onApplied?: (settings: Settings) => voi
     // Defaults standing in for an unreadable file: the renderer must save only
     // its own edits, or a later save would write these defaults over the file.
     if (isSettingsFallback()) return { ...settings, fallback: true }
-    return hasPendingSettingsSave() ? { ...settings, unsaved: true } : settings
+    const answer: IpcInvoke['get-settings']['res'] = hasPendingSettingsSave()
+      ? { ...settings, unsaved: true }
+      : settings
+    return isSettingsFileNewer() ? { ...answer, newerFile: true } : answer
   })
 
   ipcMain.handle(

@@ -278,7 +278,10 @@ export interface IpcInvoke {
   'answer-friend-request': { req: AnswerFriendRequest; res: FriendActionResult }
   /** Send a friend request to someone a search listed this session. */
   'send-friend-request': { req: SendFriendRequest; res: FriendActionResult }
-  'get-settings': { req: void; res: Settings & { unsaved?: true; fallback?: true } }
+  'get-settings': {
+    req: void
+    res: Settings & { unsaved?: true; fallback?: true; newerFile?: true }
+  }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }
   'updater:check': { req: void; res: void }
