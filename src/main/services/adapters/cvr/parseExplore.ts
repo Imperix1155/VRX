@@ -26,8 +26,9 @@ function record(value: unknown): RecordValue | null {
     : null
 }
 
+/** A string with something to show; blank or spaces-only counts as missing. */
 function text(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null
+  return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
 
 function worldId(value: unknown): value is string {
