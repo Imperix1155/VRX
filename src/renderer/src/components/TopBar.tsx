@@ -213,10 +213,21 @@ export default function TopBar(): React.JSX.Element {
       if (!document.hidden) void refreshStatus()
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
+    // Main pushes every socket change, so the dot follows it at once rather
+    // than up to one poll later: without this, every launch showed a red
+    // "Down" for several seconds after the sockets had connected.
+    const unsubscribe = window.vrx.onFriendEvent?.((event) => {
+      if (event.type !== 'connection') return
+      const health = parseConnectionHealth(event.health)
+      setConnectionHealthState((current) =>
+        current[event.platform] === health ? current : { ...current, [event.platform]: health }
+      )
+    })
     return () => {
       active = false
       window.clearInterval(interval)
       document.removeEventListener('visibilitychange', onVisibilityChange)
+      unsubscribe?.()
     }
   }, [])
 

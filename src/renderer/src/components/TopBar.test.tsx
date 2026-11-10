@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach, onTestFinished } from 'vitest'
 import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
+import type { FriendEvent } from '@shared/ipc'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
 import { useFriendsStore } from '../stores/friends'
@@ -234,6 +235,30 @@ describe('TopBar connection health (VRX-223)', () => {
       window.dispatchEvent(new Event('focus'))
     })
     expect(indicator.className).toContain('motion-safe:animate-pulse')
+  })
+
+  it('follows a socket change main pushes without waiting for the next poll', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    stubFriends([], [])
+    stubAppStatus('down', 'reconnecting')
+    let push: ((event: FriendEvent) => void) | null = null
+    Object.assign(window.vrx!, {
+      onFriendEvent: vi.fn((listener: (event: FriendEvent) => void) => {
+        push = listener
+        return () => {
+          push = null
+        }
+      })
+    })
+    const { unmount } = render(<TopBar />)
+    await findIndicator('VRChat: Down; ChilloutVR: Reconnecting')
+
+    act(() => push?.({ type: 'connection', platform: 'vrchat', health: 'live' }))
+    act(() => push?.({ type: 'connection', platform: 'chilloutvr', health: 'live' }))
+    const indicator = await findIndicator('VRChat: Live; ChilloutVR: Live')
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
+    unmount()
+    expect(push).toBeNull()
   })
 
   it('shows amber for reconnecting and red when a signed-in platform is down', async () => {
