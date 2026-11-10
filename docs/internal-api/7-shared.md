@@ -160,7 +160,7 @@ Turning off a Dashboard section keeps its child preferences, such as the thresho
 
 | Symbol | File | Purpose |
 | --- | --- | --- |
-| `AuthState` / `AuthStatus` | [`types.ts`](../../src/shared/types.ts) | `authenticated`, `unauthenticated`, `needs-2fa` (with `twoFactorMethod`) or `error` (with `unreachable` when no answer came). `accountId` is the signed-in platform identity, null unless authenticated, never a storage key. |
+| `AuthState` / `AuthStatus` | [`types.ts`](../../src/shared/types.ts) | `authenticated`, `unauthenticated`, `needs-2fa` (with `twoFactorMethod`) or `error` (with `unreachable` when no answer came). An `unauthenticated` status carries `endedByPlatform` when the platform refused the session VRX held, never after a sign-out the user chose; a new sign-in or a sign-out clears it, and it lives only in memory. `accountId` is the signed-in platform identity, null unless authenticated, never a storage key. |
 | `Credentials` | [`types.ts`](../../src/shared/types.ts) | Username and password (or ChilloutVR access key) sent to main for login. Rule: never log it. |
 | `TwoFactorMethod` | [`types.ts`](../../src/shared/types.ts) | `email` \| `totp`. |
 | `LoginResult` | [`types.ts`](../../src/shared/types.ts) | Success, a `needs2fa` step, or an error. `sessionCleared: true` means main dropped local auth state and the renderer must treat that platform as signed out. |

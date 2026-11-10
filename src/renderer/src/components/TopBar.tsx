@@ -8,6 +8,7 @@ import { useAuthStatus } from '../queries/auth'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import { useWindowFocused } from '../hooks/useWindowFocused'
+import { useSignedOutByPlatform } from '../hooks/useSignedOutByPlatform'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
@@ -223,9 +224,15 @@ export default function TopBar(): React.JSX.Element {
     state === 'authenticated' || state === 'error'
   const vrcSignedIn = isSignedIn(vrcAuth?.state)
   const cvrSignedIn = isSignedIn(cvrAuth?.state)
-  const countedHealth = [
-    ...(vrcSignedIn ? [connectionHealth.vrchat] : []),
-    ...(cvrSignedIn ? [connectionHealth.chilloutvr] : [])
+  // A platform the user signed out of on purpose doesn't count, so one signed-in
+  // platform still reads live. One that signed the user out by itself counts as
+  // down until they sign in again or hide its notice: friends vanishing under a
+  // green dot looked like everyone had just logged off.
+  const vrcEnded = useSignedOutByPlatform('vrchat')
+  const cvrEnded = useSignedOutByPlatform('chilloutvr')
+  const countedHealth: ConnectionHealth[] = [
+    ...(vrcSignedIn ? [connectionHealth.vrchat] : vrcEnded ? ['down' as const] : []),
+    ...(cvrSignedIn ? [connectionHealth.chilloutvr] : cvrEnded ? ['down' as const] : [])
   ]
   // With nothing signed in nothing is live: the label says Signed out, so the
   // dot must not stay green.

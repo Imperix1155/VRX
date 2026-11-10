@@ -54,7 +54,11 @@ interface UiState {
   /** Per platform, the newest inbox arrival the user has had on screen (main's
    *  wall-clock ms). Later arrivals count as new on the sidebar. Session-only. */
   inboxSeenAt: Record<Platform, number>
+  /** Per platform, the user hid the "signed you out" notice. It comes back
+   *  after the next sign-in, should the platform end that session too. */
+  signOutNoticeHidden: Record<Platform, boolean>
   markInboxSeen: (platform: Platform, receivedAt: number) => void
+  setSignOutNoticeHidden: (platform: Platform, hidden: boolean) => void
   setActiveTab: (tab: ActiveTab) => void
   openHotFromAlert: () => void
   setDrawerOpen: (open: boolean) => void
@@ -69,11 +73,18 @@ export const useUiStore = create<UiState>((set) => ({
   settingsCategory: 'appearance',
   hotOpenedFromAlert: false,
   inboxSeenAt: { vrchat: 0, chilloutvr: 0 },
+  signOutNoticeHidden: { vrchat: false, chilloutvr: false },
   markInboxSeen: (platform, receivedAt) =>
     set((state) =>
       receivedAt > state.inboxSeenAt[platform]
         ? { inboxSeenAt: { ...state.inboxSeenAt, [platform]: receivedAt } }
         : state
+    ),
+  setSignOutNoticeHidden: (platform, hidden) =>
+    set((state) =>
+      state.signOutNoticeHidden[platform] === hidden
+        ? state
+        : { signOutNoticeHidden: { ...state.signOutNoticeHidden, [platform]: hidden } }
     ),
   setActiveTab: (activeTab) => set({ activeTab, hotOpenedFromAlert: false }),
   openHotFromAlert: () => set({ activeTab: 'hot', hotOpenedFromAlert: true }),

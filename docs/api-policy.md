@@ -243,7 +243,10 @@ check that got no answer at all (`unreachable`: offline, a name that didn't
 resolve, or no reply within 15 seconds) repeats, once a minute; a platform
 that answered and refused (429, 403, 5xx, an unreadable reply) is not asked
 again until the window shows. Only a successful check starts a restored
-session's live connection. Each check goes through the admission queue and
+session's live connection. When ChilloutVR refuses the live socket's upgrade
+with 401 or 403, VRX checks the key once with a re-authentication (at most once
+per session, whatever the answer): a rejected key signs out, anything else
+keeps the session and the socket keeps its normal backoff. Each check goes through the admission queue and
 waits out a cooldown; a 429 gets the bounded session-check retries above.
 
 ## Explore limits
@@ -584,7 +587,8 @@ account. VRX limits that risk by:
   rest and invisible to the renderer;
 - validating a restored ChilloutVR session once per launch, and confirming a
   data-path 403 with at most one re-authentication per session, so VRX does not
-  churn access keys;
+  churn access keys; a live socket upgrade refused with 401 or 403 asks for
+  that same check, at most once per session;
 - identifying itself honestly with a User-Agent and contact URL.
 
 VRX aims for feature parity with first-party clients only within these limits.

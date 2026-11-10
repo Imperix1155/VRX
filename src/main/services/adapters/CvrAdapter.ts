@@ -258,6 +258,9 @@ export class CvrAdapter
   private forbiddenCheckInFlight: Promise<void> | null = null
   /** Session generation whose key a 403 reauth already proved alive. */
   private forbiddenConfirmedGeneration: number | null = null
+  /** The session whose refused live socket already asked /users/auth. A
+   *  reconnecting socket asks at most once per session, whatever the answer. */
+  private socketRefusalCheckedGeneration: number | null = null
   /** Fences async account-scoped cache writes across session replacement. */
   private sessionGeneration = 0
   /** Last-started-wins fence for direct-login responses and body parsing. */
@@ -270,6 +273,8 @@ export class CvrAdapter
   // this, the session is trusted in-memory; a dead key surfaces on the data
   // path (getFriends 401 → automatic session invalidation).
   private validated = false
+  /** ChilloutVR refused the session VRX held; cleared by a new session or a sign-out. */
+  private sessionEndedByPlatform = false
 
   // ── Live pipeline state (VRX-58) — one shared socket per account ──
   private pipeline: CvrPipeline | null = null
@@ -1423,6 +1428,14 @@ export class CvrAdapter
     const generation = this.sessionGeneration
     return new CvrPipeline({
       onUpgradeRateLimited: (retryAfter) => this.admission.rateLimited(retryAfter),
+      // A refused socket alone doesn't prove the key is dead; one sign-in check
+      // decides, so VRX doesn't sit on "Reconnecting" with a revoked key.
+      onUpgradeRefused: () => {
+        if (generation !== this.sessionGeneration) return
+        if (this.socketRefusalCheckedGeneration === generation) return
+        this.socketRefusalCheckedGeneration = generation
+        this.confirmSessionOnce()
+      },
       cooldownUntil: () => this.admission.cooldownUntil,
       headersProvider: () => Promise.resolve(this.pipelineHeaders()),
       onEvent: (event) => this.handlePipelineEvent(event, generation),
@@ -1635,6 +1648,7 @@ export class CvrAdapter
     restartPipeline = true,
     identityRetained = false
   ): void {
+    this.sessionEndedByPlatform = false
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
@@ -1699,6 +1713,7 @@ export class CvrAdapter
   clearSession(): void {
     if (this.store.signOut) this.store.signOut()
     else this.store.delete()
+    this.sessionEndedByPlatform = false
     this.clearSessionState()
     this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
   }
@@ -1730,6 +1745,16 @@ export class CvrAdapter
       this.invalidateSession(true)
       return
     }
+    this.confirmSessionOnce()
+  }
+
+  /**
+   * Ask /users/auth, at most once per session, whether the key still works:
+   * after a 403, or after the live socket's upgrade is refused (401 or 403),
+   * which may concern only the socket. A rejected key signs out; anything
+   * else keeps the session.
+   */
+  private confirmSessionOnce(): void {
     if (this.forbiddenConfirmedGeneration === this.sessionGeneration) return
     this.forbiddenCheckInFlight ??= this.confirmSessionAfterForbidden().finally(() => {
       this.forbiddenCheckInFlight = null
@@ -1806,6 +1831,8 @@ export class CvrAdapter
     // login may still be awaiting its response and must remain eligible to
     // install the replacement. Explicit clearSession cancels it.
     this.clearSessionState(true, false)
+    // ChilloutVR ended it, not the user: the app says so until a sign-in or sign-out.
+    this.sessionEndedByPlatform = true
     try {
       this.store.delete()
     } catch {
@@ -1871,7 +1898,10 @@ export class CvrAdapter
       platform: 'chilloutvr',
       state,
       accountId: state === 'authenticated' ? this.accountId : null,
-      displayName: state === 'authenticated' ? this.displayName : null
+      displayName: state === 'authenticated' ? this.displayName : null,
+      ...(state === 'unauthenticated' && this.sessionEndedByPlatform
+        ? { endedByPlatform: true as const }
+        : {})
     }
   }
 }

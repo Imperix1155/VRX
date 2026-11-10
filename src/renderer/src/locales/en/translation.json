@@ -400,6 +400,9 @@
         "looking": "Looking on this PC…"
       },
       "needsCode": "{{platform}} needs a sign-in code.",
+      "signedOutByPlatform": "{{platform}} signed you out. Sign in again to see your {{platform}} friends.",
+      "hideNotice": "Hide",
+      "hideSignedOut": "Hide the {{platform}} sign-out notice",
       "openAccounts": "Go to Accounts",
       "profile": {
         "edit": "Edit profile",
@@ -851,6 +854,8 @@
   },
   "login": {
     "subtitle": "Social VR Companion",
+    "signedOutByPlatform": "{{platform}} signed you out. Sign in again to continue.",
+    "signedOutByBoth": "{{vrchat}} and {{chilloutvr}} signed you out. Sign in again to continue.",
     "username": "Username or email",
     "email": "Email address",
     "usernamePlaceholder": "you@example.com",
