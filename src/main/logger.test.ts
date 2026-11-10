@@ -51,11 +51,24 @@ vi.mock('electron-log/main', () => {
   }
 })
 
-import './logger'
+import log from 'electron-log/node'
+import { initLogger } from './logger'
 
 describe('main-only logger', () => {
   it('registers no renderer-reachable IPC channels when imported', () => {
     expect(electron.onChannels).toEqual([])
     expect(electron.handleChannels).toEqual([])
+  })
+})
+
+describe('log redaction hook', () => {
+  it('leaves out details a call site did not pass, and keeps real ones', () => {
+    initLogger()
+    const hook = (
+      log.hooks as unknown as Array<(m: { data: unknown[] }) => { data: unknown[] }>
+    ).at(-1)!
+    expect(hook({ data: ['pipeline: connected', undefined] }).data).toEqual(['pipeline: connected'])
+    expect(hook({ data: ['count', { n: 1 }] }).data).toEqual(['count', { n: 1 }])
+    expect(hook({ data: [undefined] }).data).toEqual([undefined])
   })
 })

@@ -41,7 +41,11 @@ export function initLogger(): void {
   // under the home folder (stack traces, fs errors) embed the OS account name.
   setRedactedHomeDirectory(app.getPath('home'))
   log.hooks.push((message) => {
-    message.data = message.data.map((d) => redact(d))
+    // A call site passing no details hands over `undefined`; leave it out
+    // instead of writing the word into the line.
+    const data = message.data.slice()
+    while (data.length > 1 && data.at(-1) === undefined) data.pop()
+    message.data = data.map((d) => redact(d))
     return message
   })
 
