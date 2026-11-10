@@ -30,6 +30,25 @@ export class NetworkError extends Error {
   }
 }
 
+/** The platform answered with an HTTP error status that has no meaning of its own here. */
+export class HttpStatusError extends NetworkError {
+  constructor(public readonly status: number) {
+    super(`HTTP ${status}`)
+    this.name = 'HttpStatusError'
+  }
+}
+
+/**
+ * Whether the platform answered 404 Not Found, directly or wrapped in a
+ * platform's own network error.
+ */
+export function isNotFoundStatus(error: unknown): boolean {
+  if (error instanceof HttpStatusError) return error.status === 404
+  return error instanceof NetworkError && error.cause instanceof HttpStatusError
+    ? error.cause.status === 404
+    : false
+}
+
 /** Obsolete work is stopped locally; it is neither a network nor an auth failure. */
 export class RequestCancelledError extends Error {
   constructor() {

@@ -645,6 +645,7 @@ export default function FriendDrawer({
                 // and a different person starts collapsed again.
                 key={scrollOwner ?? ''}
                 accounts={shownAccounts}
+                roster={friends}
                 drawerOpen={open}
               />
             )}
@@ -717,13 +718,40 @@ export default function FriendDrawer({
  *  toggle instead of falling to the page. */
 function DrawerFullProfile({
   accounts,
+  roster,
   drawerOpen
 }: {
   accounts: readonly Friend[]
+  /** The whole friends list, when known: tells an account that left it from one only unlinked. */
+  roster?: readonly Friend[]
   drawerOpen: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  // An account that leaves the friends list while the profile is open (an
+  // Unfriend from its own section, say) keeps its section until the profile
+  // closes, so "✓ Unfriended" and Block stay on screen beside the accounts
+  // still listed. When the last account leaves, the person has left the list
+  // and their details close, as for anyone who leaves it. An account that was
+  // only unlinked goes at once.
+  const [departed, setDeparted] = useState<readonly Friend[]>([])
+  const accountsKey = accounts.map(accountKey).join('|')
+  const [previous, setPrevious] = useState({ key: accountsKey, accounts })
+  if (previous.key !== accountsKey) {
+    setPrevious({ key: accountsKey, accounts })
+    const shownNow = new Set(accounts.map(accountKey))
+    const onList = new Set((roster ?? []).map(accountKey))
+    const next = new Map<string, Friend>()
+    for (const account of [...departed, ...previous.accounts]) {
+      const key = accountKey(account)
+      if (open && drawerOpen && roster !== undefined && !shownNow.has(key) && !onList.has(key)) {
+        next.set(key, account)
+      }
+    }
+    setDeparted([...next.values()])
+  } else if ((!open || !drawerOpen) && departed.length > 0) {
+    setDeparted([])
+  }
   const toggleRef = useRef<HTMLButtonElement>(null)
   // The section holding focus, followed through the React tree, so the
   // question a section portals to the page body still counts as inside it.
@@ -747,7 +775,7 @@ function DrawerFullProfile({
       toggleRef.current?.focus({ preventScroll: true })
     }
   })
-  const ordered = inPlatformOrder(accounts)
+  const ordered = inPlatformOrder([...accounts, ...departed])
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
       <button
@@ -794,4 +822,8 @@ function DrawerFullProfile({
         : null}
     </div>
   )
+}
+
+function accountKey(account: Friend): string {
+  return `${account.platform}:${account.platformUserId}`
 }

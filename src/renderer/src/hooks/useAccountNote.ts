@@ -19,7 +19,7 @@ export type AccountNoteView =
   | { kind: 'account-too-long' }
   | { kind: 'account-changed'; accountNote: string; localNote: string }
   | { kind: 'conflict'; accountNote: string }
-  | { kind: 'failed'; mode: AccountNoteSyncMode }
+  | { kind: 'failed'; mode: AccountNoteSyncMode; slowDown: boolean }
 
 interface Entry {
   view: AccountNoteView
@@ -81,7 +81,12 @@ async function runSync(
     // Nothing to say about someone who is no longer a friend, or after an
     // account change; the drawer moves on.
     const quiet = result.reason === 'not-friend' || result.reason === 'stale'
-    update(key, { view: quiet ? { kind: 'idle' } : { kind: 'failed', mode }, at })
+    const failed: AccountNoteView = {
+      kind: 'failed',
+      mode,
+      slowDown: result.reason === 'rate-limited'
+    }
+    update(key, { view: quiet ? { kind: 'idle' } : failed, at })
     return
   }
   if (mode === 'use-account') adopt?.(result.note)

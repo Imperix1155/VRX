@@ -132,7 +132,11 @@ export function registerInstanceHandlers(
         () => adapter.selfInvite(`${instance.worldId}:${instance.instanceId}`),
         stillCurrent
       )
-      if (!result.ok) return denied(req.platform, result.reason)
+      if (!result.ok) {
+        // An invite that went out and failed still waits out the cooldown.
+        if (result.reason === 'invite-failed') permit.complete()
+        return denied(req.platform, result.reason)
+      }
       permit.complete()
       return { ok: true, handoff: result.handoff }
     } finally {
@@ -178,14 +182,13 @@ export function registerInstanceHandlers(
 
     inFlight.add(actionKey)
     try {
-      try {
-        await adapter.selfInvite(location)
-      } catch {
-        return denied(req.platform, 'invite-failed')
-      }
-      lastActionAt.set(actionKey, clock())
+      await adapter.selfInvite(location)
       return { ok: true }
+    } catch {
+      return denied(req.platform, 'invite-failed')
     } finally {
+      // A failed invite waits out the same spacing as one that went through.
+      lastActionAt.set(actionKey, clock())
       inFlight.delete(actionKey)
     }
   })

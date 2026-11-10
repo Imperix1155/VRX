@@ -66,7 +66,7 @@ takes it out, as VRCX and CVRX do (see [Favorite limits](#favorite-limits)).
 | Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours, also across launches (failures 60 seconds)                                                                                                                                                                                                                                                                                                                                                 | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                                                                                                                                                                                           |
 | Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                                                                                                                                                                                                                                                                                                                                                                                    | Username and access key                                                                                                                                                                                                                                 |
 | Avatar reads          | `GET /avatars?user=me&releaseStatus=all`, pages of 100, at most 500 avatars; `GET /users/{me}/avatar`                                                                                                                                                                                                                                                                                                                                                  | One `GET /avatars` (own uploads kept); `GET /users/{me}`; `GET /avatars/{id}` when details open                                                                                                                                                         |
-| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`; whether the user blocks someone, `GET /auth/user/playermoderations?type=block&targetUserId=`                                                                                                                                                                                                                                     | `GET /users/{id}` (also whether the user blocks them), `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`                                                                                                                        |
+| Community reads       | `GET /users/{id}`, `GET /users?search=`, `GET /worlds?search=`, world lists, `GET /users/{id}/groups`, `GET /visits`; whether the user blocks someone, `GET /auth/user/playermoderations` (no filter, as VRCX)                                                                                                                                                                                                                                         | `GET /users/{id}` (also whether the user blocks them), `GET /search/{text}`, world lists, `GET /groups`, `GET /public/userstats`                                                                                                                        |
 | Platform write action | Self-invite, `POST /invite/myself/to/{location}`: from the Join of a game that is already open, or for a non-public friend instance; avatar switch, `PUT /avatars/{id}/select`; home world, `PUT /users/{me}`; own profile, `PUT /users/{me}` and `PUT /profile/{me}`; friend note, `POST /userNotes`; from a profile, unfriend `DELETE /auth/user/friends/{id}`, block `POST /auth/user/playermoderations`, unblock `PUT /auth/user/unplayermoderate` | Avatar switch, `GET /avatars/{id}/switchAvatar`; home world, `GET /worlds/{id}/sethome`; friend note, `POST /users/{id}/note`; from a profile, unfriend, block and unblock over `/users/ws`; own profile, multipart `POST /users/self` (one field each) |
 | Game favorites        | Once per sign-in: `GET /auth/user/favoritelimits`, `GET /favorite/groups?n=50`, `GET /favorites?type=friend` and `GET /worlds/favorites`, pages of 100. Per press: `POST /favorites` to add, `DELETE /favorites/{id}` to remove                                                                                                                                                                                                                        | Once per sign-in: `GET /categories`, then `GET /2/worlds/list/{category}` pages for each of the user's world categories. Per press: `GET /users/{id}` or `GET /1/worlds/{id}`, then `POST /categories/assign`                                           |
 | Friend actions        | Accept `PUT /auth/user/notifications/{id}/accept`, decline `PUT /auth/user/notifications/{id}/hide`, add `POST /user/{id}/friendRequest`; no body                                                                                                                                                                                                                                                                                                      | Socket frames `{ RequestType, Data: { id } }`: 6 accept, 7 decline, 5 add, as CVRX sends them                                                                                                                                                           |
@@ -176,8 +176,8 @@ what each counts.
   same. The user decides when to try again. After VRChat accepts a code, the
   one read of the account that says who signed in is a session check.
 - **Other requests retry a 429 at most 3 times.** This covers session checks,
-  the VRChat pipeline token exchange, the VRChat self-invite, and interactive
-  CVR instance lookups.
+  the VRChat pipeline token exchange, and interactive CVR instance lookups.
+  Writes, the VRChat self-invite included, are never resent.
 - **Sockets share the cooldown.** A rejected socket upgrade with status 429
   extends the platform's REST cooldown, and every socket connect waits for that
   cooldown first. Sockets do not take an admission slot.
@@ -243,7 +243,10 @@ check that got no answer at all (`unreachable`: offline, a name that didn't
 resolve, or no reply within 15 seconds) repeats, once a minute; a platform
 that answered and refused (429, 403, 5xx, an unreadable reply) is not asked
 again until the window shows. Only a successful check starts a restored
-session's live connection. Each check goes through the admission queue and
+session's live connection. When ChilloutVR refuses the live socket's upgrade
+with 401 or 403, VRX checks the key once with a re-authentication (at most once
+per session, whatever the answer): a rejected key signs out, anything else
+keeps the session and the socket keeps its normal backoff. Each check goes through the admission queue and
 waits out a cooldown; a 429 gets the bounded session-check retries above.
 
 ## Explore limits
@@ -291,7 +294,8 @@ default; Off always launches).
   and Proton, where the pipe sits inside the game's container, or the user
   picked **Send invite**): one self-invite to the friend's main-owned location,
   public instances included. It is the same single write VRX already makes,
-  under the Join's lock and cooldown. VRX never launches a second copy in this
+  under the Join's lock and cooldown; an invite that fails starts the
+  cooldown too. VRX never launches a second copy in this
   case.
 - **Same account only.** A Join remembers the signed-in account when it
   starts. If that sign-in changes while VRX checks for the game or waits on the
@@ -429,11 +433,15 @@ behind a confirmation. VRX keeps them to the same shape:
 
 - **Read on a press.** The options read nothing until the user opens them.
   Then one request asks whether the user blocks that person: VRChat
-  `GET /auth/user/playermoderations?type=block&targetUserId=<id>` (filtered to
-  that one person), ChilloutVR `GET /users/<id>` (its `isBlocked` field; a
-  profile or note read of that person under 30 seconds old serves it). The
-  answer is kept for 5 minutes per account. Whether they are a friend comes
-  from the roster VRX already has.
+  `GET /auth/user/playermoderations` with no filter, the user's own
+  moderation list exactly as VRCX reads it (one read serves every profile for
+  5 minutes), ChilloutVR `GET /users/<id>` (its `isBlocked` field; a profile
+  or note read of that person under 30 seconds old serves it). The answer is
+  kept for 5 minutes per account. Whether they are a friend comes from the
+  roster VRX already has. When the platform refuses or fails the check, the
+  actions still show, both Block and Unblock with a note that VRX couldn't
+  tell; only a real sign-out stops them. A failed check is asked again the
+  next time the options open, never on its own.
 - **One confirmed change for one person.** Each action needs its own
   confirmation that names the person and the platform. Main accepts one
   person per call, only a friend or someone a search listed this session, and
@@ -449,8 +457,9 @@ behind a confirmation. VRX keeps them to the same shape:
   The Pipeline's own `friend-delete` message then removes the friend.
 - **ChilloutVR** writes are one message on the already open `/users/ws`
   socket of the same account, as CVRX sends them: `{ RequestType, Data: { id } }`
-  with 8 (unfriend), 30 (block) or 31 (unblock). A closed socket sends
-  nothing and the user is told so; nothing is queued. The socket gives no
+  with 8 (unfriend), 30 (block) or 31 (unblock). A closed socket, or a
+  ChilloutVR 429 cooldown still running, sends nothing and the user is told
+  so; nothing is queued. The socket gives no
   reply, so VRX reports the message as sent. The `FRIEND_LIST_UPDATED` message
   then refreshes the roster with the usual single `/friends` read.
 
@@ -580,7 +589,8 @@ account. VRX limits that risk by:
   rest and invisible to the renderer;
 - validating a restored ChilloutVR session once per launch, and confirming a
   data-path 403 with at most one re-authentication per session, so VRX does not
-  churn access keys;
+  churn access keys; a live socket upgrade refused with 401 or 403 asks for
+  that same check, at most once per session;
 - identifying itself honestly with a User-Agent and contact URL.
 
 VRX aims for feature parity with first-party clients only within these limits.

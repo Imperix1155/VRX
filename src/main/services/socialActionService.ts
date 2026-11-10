@@ -12,6 +12,7 @@ import type { Platform } from '@shared/types'
 import { SocialNotSentError, type SocialActionAdapter } from './adapters/SocialActionAdapter'
 import {
   AuthError,
+  HttpStatusError,
   RateLimitError,
   RequestCancelledError,
   RequestQueueFullError
@@ -86,7 +87,15 @@ export class SocialActionService {
       const blocked = await this.readBlocked(adapter, state, id)
       return { ok: true, relationship: this.relationship(platform, id, blocked) }
     } catch (error) {
-      return { ok: false, reason: this.failure(platform, 'relationship', error) }
+      const reason = this.failure(platform, 'relationship', error)
+      // The check is a convenience, not a gate: when the platform won't say,
+      // the actions stay reachable and the profile says it couldn't tell.
+      // Only a real sign-out or a slow-down stops here. Nothing is remembered,
+      // so the next open asks again.
+      if (reason === 'unavailable') {
+        return { ok: true, relationship: this.relationship(platform, id, null) }
+      }
+      return { ok: false, reason }
     }
   }
 
@@ -128,6 +137,16 @@ export class SocialActionService {
       if (error instanceof SocialNotSentError) {
         this.log('social action failed', { platform, kind: action, reason: 'not-connected' })
         return { ok: false, reason: 'not-connected' }
+      }
+      // VRChat answers an Unfriend for someone who already left the list with
+      // 400 ("These users aren't friends"); pressing again can't change that.
+      if (
+        action === 'unfriend' &&
+        error instanceof HttpStatusError &&
+        (error.status === 400 || error.status === 404)
+      ) {
+        this.log('social action failed', { platform, kind: action, reason: 'not-friend' })
+        return { ok: false, reason: 'not-friend' }
       }
       return { ok: false, reason: this.failure(platform, action, error) }
     } finally {
@@ -250,13 +269,25 @@ export class SocialActionService {
     kind: SocialAction | 'relationship',
     error: unknown
   ): SocialFailure {
-    const reason: SocialFailure =
-      error instanceof AuthError || error instanceof RequestCancelledError
-        ? 'not-authenticated'
-        : error instanceof RateLimitError || error instanceof RequestQueueFullError
-          ? 'rate-limited'
-          : 'unavailable'
+    const reason: SocialFailure = isSignedOut(error)
+      ? 'not-authenticated'
+      : error instanceof RateLimitError || error instanceof RequestQueueFullError
+        ? 'rate-limited'
+        : 'unavailable'
     this.log('social action failed', { platform, kind, reason })
     return reason
   }
+}
+
+/**
+ * Whether a failure means the session is gone. A 403 is a refusal of this one
+ * request from a session that still works (the platform said no, or a
+ * permission is missing), so it is never shown as "signed out". When a 403
+ * does come from a dead session, the adapter's own checks sign the account
+ * out and the profile follows.
+ */
+function isSignedOut(error: unknown): boolean {
+  if (error instanceof RequestCancelledError) return true
+  if (!(error instanceof AuthError)) return false
+  return error.status !== 403
 }

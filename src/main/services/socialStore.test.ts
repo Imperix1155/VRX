@@ -217,6 +217,51 @@ describe('SocialStore', () => {
     expect(storage.writes).toHaveLength(0)
   })
 
+  it('moves a damaged file aside and starts fresh, so later writes work', () => {
+    const log = vi.fn()
+    const setAside = vi.fn(() => {
+      storage.value = {}
+    })
+    for (const damaged of [
+      '{"storeFormatVersion":1,"accounts":{"vrchat:usr_x":',
+      { storeFormatVersion: 1, accounts: [] }
+    ]) {
+      storage.value = damaged
+      store = new SocialStore(session, Object.assign(storage, { setAside }), log)
+      expect(() =>
+        store.write(
+          { platform: 'vrchat', platformAccountId: 'usr_a', epoch: currentEpoch() },
+          'favorites',
+          { friend_a: true }
+        )
+      ).not.toThrow()
+    }
+    expect(setAside).toHaveBeenCalledTimes(2)
+    expect(storage.writes).toHaveLength(2)
+    expect(log).toHaveBeenCalledWith(
+      'social store: damaged file kept as social.corrupt-*.json; starting fresh'
+    )
+  })
+
+  it('stays read-only when a damaged file cannot be moved aside', () => {
+    const log = vi.fn()
+    storage.value = '{"storeFormatVersion":1,"accounts":'
+    const setAside = vi.fn(() => {
+      throw Object.assign(new Error("EBUSY: resource busy, rename '/srv/vrx-data/social.json'"), {
+        code: 'EBUSY'
+      })
+    })
+    store = new SocialStore(session, Object.assign(storage, { setAside }), log)
+    expect(() =>
+      store.write(
+        { platform: 'vrchat', platformAccountId: 'usr_a', epoch: currentEpoch() },
+        'favorites',
+        {}
+      )
+    ).toThrow('storage could not be loaded')
+    expect(log).toHaveBeenCalledWith('social store: could not move the damaged file aside', 'EBUSY')
+  })
+
   it('preserves a newer marker in malformed serialized content and never overwrites it', () => {
     storage.value = '{"storeFormatVersion":999,"accounts":'
     store = new SocialStore(session, storage)

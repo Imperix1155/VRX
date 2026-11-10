@@ -13,9 +13,15 @@ let vrchatState = 'authenticated'
 let vrchatFetching = false
 let vrchatStatus = 'error'
 let vrchatErrorUpdatedAt = 0
+let vrchatEnded = false
+let cvrState = 'authenticated'
+let cvrEnded = false
 vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: string) => ({
-    data: { state: platform === 'vrchat' ? vrchatState : 'authenticated' },
+    data:
+      platform === 'vrchat'
+        ? { state: vrchatState, ...(vrchatEnded ? { endedByPlatform: true } : {}) }
+        : { state: cvrState, ...(cvrEnded ? { endedByPlatform: true } : {}) },
     isError: platform === 'vrchat' && vrchatAuthError,
     isFetching: platform === 'vrchat' && vrchatFetching,
     status: platform === 'vrchat' ? vrchatStatus : 'success',
@@ -31,14 +37,22 @@ afterEach(() => {
   vrchatFetching = false
   vrchatStatus = 'error'
   vrchatErrorUpdatedAt = 0
+  vrchatEnded = false
+  cvrState = 'authenticated'
+  cvrEnded = false
   refetch.mockClear()
-  useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
+  useUiStore.setState({
+    activeTab: 'dashboard',
+    settingsCategory: 'appearance',
+    signOutNoticeHidden: { vrchat: false, chilloutvr: false }
+  })
   useSettingsStore.setState({
     settings: DEFAULT_SETTINGS,
     dirty: false,
     saveError: false,
     saving: false,
-    loadFallback: false
+    loadFallback: false,
+    newerFile: false
   })
 })
 it('retains an unsaved warning and retries the latest settings without navigation', () => {
@@ -67,6 +81,14 @@ it('says the saved settings could not be read while defaults stand in for them',
   // Once a save reaches the real file, the notice goes.
   act(() => useSettingsStore.setState({ dirty: false, saveError: false, loadFallback: false }))
   expect(screen.queryByRole('alert')).toBeNull()
+})
+
+it('says why a newer version’s settings file is not saved over, with no Retry', () => {
+  vrchatAuthError = false
+  useSettingsStore.setState({ dirty: true, saveError: true, newerFile: true })
+  render(<RecoveryNotices />)
+  expect(screen.getByRole('alert').textContent).toContain(i18n.t('settings.persistence.newerFile'))
+  expect(screen.queryByRole('button')).toBeNull()
 })
 
 it('exposes a platform-specific auth failure and retry alongside usable shell content', () => {
@@ -211,4 +233,78 @@ it('keeps the account notice and focus on Retry while a check that failed with n
   view.rerender(<RecoveryNotices />)
   expect(document.activeElement).toBe(retry)
   expect(retry.hasAttribute('aria-disabled')).toBe(false)
+})
+
+describe('a platform that signed the user out by itself', () => {
+  const signedOut = (platform: string): string =>
+    i18n.t('settings.accounts.signedOutByPlatform', { platform })
+
+  it('says so as an alert and opens Accounts, where the line steps aside', () => {
+    vrchatAuthError = false
+    vrchatState = 'unauthenticated'
+    vrchatEnded = true
+    render(<RecoveryNotices />)
+    const notice = screen.getByRole('alert')
+    expect(notice.textContent).toContain(signedOut('VRChat'))
+    expect(notice.getAttribute('data-signed-out-notice')).toBe('vrchat')
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('settings.accounts.openAccounts') }))
+    expect(useUiStore.getState().activeTab).toBe('settings')
+    expect(useUiStore.getState().settingsCategory).toBe('accounts')
+    expect(screen.queryByText(signedOut('VRChat'))).toBeNull()
+  })
+
+  it('names ChilloutVR the same way', () => {
+    vrchatAuthError = false
+    cvrState = 'unauthenticated'
+    cvrEnded = true
+    render(<RecoveryNotices />)
+    expect(screen.getByRole('alert').textContent).toContain(signedOut('ChilloutVR'))
+  })
+
+  it('stays quiet after a sign-out the user chose', () => {
+    vrchatAuthError = false
+    vrchatState = 'unauthenticated'
+    cvrState = 'unauthenticated'
+    render(<RecoveryNotices />)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('hides on request and comes back if a later session ends the same way', () => {
+    vrchatAuthError = false
+    vrchatState = 'unauthenticated'
+    vrchatEnded = true
+    const { rerender } = render(
+      <main tabIndex={-1}>
+        <RecoveryNotices />
+      </main>
+    )
+    const hide = screen.getByRole('button', {
+      name: i18n.t('settings.accounts.hideSignedOut', { platform: 'VRChat' })
+    })
+    hide.focus()
+    fireEvent.click(hide)
+    expect(screen.queryByText(signedOut('VRChat'))).toBeNull()
+    // Focus lands on the page, not on the document body.
+    expect(document.activeElement?.tagName).toBe('MAIN')
+    expect(useUiStore.getState().signOutNoticeHidden.vrchat).toBe(true)
+
+    // Signing in again clears the mark in main, and the hidden mark resets.
+    vrchatState = 'authenticated'
+    vrchatEnded = false
+    rerender(
+      <main tabIndex={-1}>
+        <RecoveryNotices />
+      </main>
+    )
+    expect(useUiStore.getState().signOutNoticeHidden.vrchat).toBe(false)
+
+    vrchatState = 'unauthenticated'
+    vrchatEnded = true
+    rerender(
+      <main tabIndex={-1}>
+        <RecoveryNotices />
+      </main>
+    )
+    expect(screen.getByRole('alert').textContent).toContain(signedOut('VRChat'))
+  })
 })

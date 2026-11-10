@@ -10,7 +10,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LinkedProfile } from '@shared/linkedProfiles'
-import type { Platform } from '@shared/types'
+import type { Friend, Platform } from '@shared/types'
 import { fullFriend } from '../test-utils/friendFixture'
 import { linkedProfilesKey } from '../queries/linkedProfiles'
 import { authStatusQueryKey } from '../queries/authKey'
@@ -53,7 +53,7 @@ const person: ProfileTarget = {
 }
 let client: QueryClient
 
-function drawer(friends = [vrc, cvr]): React.JSX.Element {
+function drawer(friends = [vrc, cvr], roster?: Friend[]): React.JSX.Element {
   const selection = resolveLinkedProfile(person, {
     friends,
     profiles: [profile],
@@ -66,6 +66,7 @@ function drawer(friends = [vrc, cvr]): React.JSX.Element {
         selection={selection}
         onClose={vi.fn()}
         onNavigate={vi.fn()}
+        friends={roster}
       />
     </QueryClientProvider>
   )
@@ -156,6 +157,37 @@ async function openFullProfile(): Promise<ReturnType<typeof render>> {
 }
 
 describe('a linked person’s full profile while one account leaves', () => {
+  it('keeps the section of an account that left the friends list, with its actions', async () => {
+    const view = render(drawer([vrc, cvr], [vrc, cvr]))
+    fireEvent.click(screen.getByRole('button', { name: 'Show full profile' }))
+    await within(section('vrchat')).findByRole('button', { name: 'Unfriend or block' })
+    const kept = within(section('chilloutvr')).getByRole('button', { name: 'Unfriend or block' })
+    kept.focus()
+
+    // An Unfriend took the ChilloutVR account off the list: its section stays,
+    // so its confirmation and Block remain, as for someone with one account.
+    view.rerender(drawer([vrc], [vrc]))
+    expect(within(section('chilloutvr')).getByRole('button', { name: 'Unfriend or block' })).toBe(
+      kept
+    )
+    expect(document.activeElement).toBe(kept)
+
+    // Closing the full profile lets it go.
+    fireEvent.click(screen.getByRole('button', { name: 'Hide full profile' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show full profile' }))
+    await within(section('vrchat')).findByRole('button', { name: 'Unfriend or block' })
+    expect(() => section('chilloutvr')).toThrow()
+  })
+
+  it('drops the section of an account that was only unlinked', async () => {
+    const view = render(drawer([vrc, cvr], [vrc, cvr]))
+    fireEvent.click(screen.getByRole('button', { name: 'Show full profile' }))
+    await within(section('chilloutvr')).findByRole('button', { name: 'Unfriend or block' })
+    // Still a friend, just no longer part of this person.
+    view.rerender(drawer([vrc], [vrc, cvr]))
+    expect(() => section('chilloutvr')).toThrow()
+  })
+
   it('stays open and moves focus from the open Unfriend question to the toggle', async () => {
     const view = await openFullProfile()
     press(within(section('vrchat')).getByRole('button', { name: 'Unfriend or block' }))

@@ -358,6 +358,13 @@ export interface AuthStatus {
    * checks while the window is hidden.
    */
   unreachable?: true
+  /**
+   * Present ONLY when `state` is `'unauthenticated'` because the platform
+   * refused the session VRX held (at launch or while running), not because
+   * the user signed out. Signing in again or signing out clears it, and it is
+   * kept in memory only, so it never outlives the app run.
+   */
+  endedByPlatform?: true
 }
 
 /**

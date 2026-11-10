@@ -3056,4 +3056,26 @@ describe('Explore confirmation source', () => {
     })
     expect(document.activeElement).toBe(document.querySelector('main'))
   })
+
+  it('keeps focus in the world sheet that opened it after a failed Join', async () => {
+    const joinExploreRoom = vi.fn().mockResolvedValue({ ok: false, reason: 'launch-failed' })
+    window.vrx = { ...window.vrx, joinExploreRoom } as unknown as Window['vrx']
+    render(
+      <main tabIndex={-1}>
+        <div role="dialog" aria-label="World sheet">
+          <button type="button">Close sheet</button>
+          <OpenExplore />
+        </div>
+        <JoinConfirmDialog />
+      </main>
+    )
+    const opener = screen.getByRole('button', { name: 'open explore join' })
+    opener.focus()
+    fireEvent.click(opener)
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Explore World' })).toBeNull())
+
+    expect(document.activeElement).toBe(opener)
+  })
 })

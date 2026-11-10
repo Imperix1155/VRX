@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { RELATIONSHIP_CACHE_MS, SOCIAL_ACTION_COOLDOWN_MS } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
 import { SocialNotSentError, type SocialActionAdapter } from './adapters/SocialActionAdapter'
-import { AuthError, NetworkError, RateLimitError } from './adapters/errors'
+import { AuthError, HttpStatusError, NetworkError, RateLimitError } from './adapters/errors'
 import type { RequestLease } from './adapters/RequestLease'
 import { SocialActionService } from './socialActionService'
 
@@ -218,6 +218,28 @@ describe('SocialActionService', () => {
     await expect(service.act('vrchat', FRIEND, 'block')).resolves.toMatchObject({ ok: true })
   })
 
+  it('says they are not friends anymore when the platform refuses an Unfriend for that', async () => {
+    const { service, vrc, advance } = setup()
+    vrc.error = new HttpStatusError(400)
+    await expect(service.act('vrchat', FRIEND, 'unfriend')).resolves.toEqual({
+      ok: false,
+      reason: 'not-friend'
+    })
+    expect(vrc.unfriend).toHaveBeenCalledTimes(1)
+    // Any other refusal, or the same status on Block, stays a plain failure.
+    advance(SOCIAL_ACTION_COOLDOWN_MS)
+    await expect(service.act('vrchat', FRIEND, 'block')).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable'
+    })
+    advance(SOCIAL_ACTION_COOLDOWN_MS)
+    vrc.error = new HttpStatusError(500)
+    await expect(service.act('vrchat', FRIEND, 'unfriend')).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable'
+    })
+  })
+
   it('maps failures to typed reasons and logs no person', async () => {
     const { service, vrc, cvr, advance, log } = setup()
     vrc.error = new RateLimitError(0)
@@ -239,6 +261,60 @@ describe('SocialActionService', () => {
     for (const [, meta] of log.mock.calls) {
       expect(JSON.stringify(meta)).not.toMatch(/usr_|b81d5892/i)
     }
+  })
+
+  it('keeps the actions when the platform refuses the block check', async () => {
+    const { service, vrc, cvr, log } = setup()
+    // A 403 is a refusal from a session that still works, never "signed out".
+    vrc.error = new AuthError('Forbidden', 403)
+    await expect(service.getRelationship('vrchat', FRIEND)).resolves.toEqual({
+      ok: true,
+      relationship: { platform: 'vrchat', userId: FRIEND, isFriend: true, blocked: null }
+    })
+    cvr.error = new NetworkError('HTTP 500')
+    await expect(service.getRelationship('chilloutvr', CVR_FRIEND)).resolves.toEqual({
+      ok: true,
+      relationship: {
+        platform: 'chilloutvr',
+        userId: CVR_FRIEND.toLowerCase(),
+        isFriend: true,
+        blocked: null
+      }
+    })
+    expect(log).toHaveBeenCalledWith('social action failed', {
+      platform: 'vrchat',
+      kind: 'relationship',
+      reason: 'unavailable'
+    })
+    // A failed check is not remembered: the next open asks again and can succeed.
+    vrc.error = null
+    vrc.blocked = true
+    await expect(service.getRelationship('vrchat', FRIEND)).resolves.toMatchObject({
+      ok: true,
+      relationship: { blocked: true }
+    })
+    expect(vrc.getBlocked).toHaveBeenCalledTimes(2)
+  })
+
+  it('says signed out only when the session is gone', async () => {
+    const { service, vrc, advance } = setup()
+    vrc.error = new AuthError('Session expired', 401)
+    await expect(service.getRelationship('vrchat', FRIEND)).resolves.toEqual({
+      ok: false,
+      reason: 'not-authenticated'
+    })
+    vrc.error = new AuthError('Forbidden', 403)
+    await expect(service.act('vrchat', FRIEND, 'block')).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable'
+    })
+    advance(SOCIAL_ACTION_COOLDOWN_MS)
+    vrc.error = null
+    vrc.signedIn = false
+    await expect(service.getRelationship('vrchat', FRIEND)).resolves.toEqual({
+      ok: false,
+      reason: 'not-authenticated'
+    })
   })
 
   it('compares ChilloutVR IDs without case and sends them lower case', async () => {

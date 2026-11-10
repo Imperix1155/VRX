@@ -3,7 +3,7 @@ import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
 import { SocialDataError, SocialNotSentError } from './SocialActionAdapter'
-import { RequestCancelledError } from './errors'
+import { CVRRateLimitError, RequestCancelledError } from './errors'
 import { instantAdmission, jsonResponse } from './__testutils__/adapterTestKit'
 
 const ME = '3a1661f1-3eeb-426e-92ec-1b2f08e609b5'
@@ -128,6 +128,28 @@ describe('CvrAdapter unfriend and block', () => {
     await expect(live.unfriend(FRIEND, live.captureSocialLease())).rejects.toBeInstanceOf(
       SocialNotSentError
     )
+    expect(rig.sent).toEqual([])
+    stop()
+  })
+
+  it('waits out a 429 cooldown and never names the signed-in user', async () => {
+    const { adapter, rig, stop } = await connected()
+    await expect(
+      adapter.block(ME.toUpperCase(), adapter.captureSocialLease())
+    ).rejects.toBeInstanceOf(SocialDataError)
+    await expect(adapter.unfriend(ME, adapter.captureSocialLease())).rejects.toBeInstanceOf(
+      SocialDataError
+    )
+    Object.defineProperty(
+      (adapter as unknown as { admission: object }).admission,
+      'cooldownRemainingMs',
+      { get: () => 5_000 }
+    )
+    for (const action of ['unfriend', 'block', 'unblock'] as const) {
+      await expect(adapter[action](FRIEND, adapter.captureSocialLease())).rejects.toBeInstanceOf(
+        CVRRateLimitError
+      )
+    }
     expect(rig.sent).toEqual([])
     stop()
   })

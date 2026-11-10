@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform, TwoFactorMethod } from '@shared/types'
 import { useAuthFlow } from '../hooks/useAuthFlow'
+import { useAuthStatus } from '../queries/auth'
 import { ACCOUNT_CARD_CONFIG, importErrorKey } from '../utils/accountCard'
 import { mapLoginError } from '../utils/loginError'
 import { readLastLoginPlatform } from '../utils/lastLoginPlatform'
@@ -155,10 +156,21 @@ export default function LoginScreen({
   initialTwoFactor?: TwoFactorMethod | null
 }): React.JSX.Element {
   const { t } = useTranslation()
+  // A platform that ended the session by itself (refused or expired) is named
+  // above the form, so the sign-in screen doesn't appear without a reason.
+  const vrcAuth = useAuthStatus('vrchat').data
+  const cvrAuth = useAuthStatus('chilloutvr').data
+  const endedBoth = vrcAuth?.endedByPlatform === true && cvrAuth?.endedByPlatform === true
+  const endedPlatform: Platform | null = vrcAuth?.endedByPlatform
+    ? 'vrchat'
+    : cvrAuth?.endedByPlatform
+      ? 'chilloutvr'
+      : null
   // Opens on the last signed-in platform, except a VRChat 2FA reprompt, which
-  // needs the VRChat tab (initialTwoFactor is VRChat-only).
+  // needs the VRChat tab (initialTwoFactor is VRChat-only), or a platform that
+  // just signed the user out, which is the one to sign in to again.
   const [platform, setPlatform] = useState<Platform>(() =>
-    initialTwoFactor === null ? readLastLoginPlatform() : 'vrchat'
+    initialTwoFactor === null ? (endedPlatform ?? readLastLoginPlatform()) : 'vrchat'
   )
   // Lifted from the active form: true while its login/verify IPC is in flight.
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -228,6 +240,26 @@ export default function LoginScreen({
             <p className="mt-[var(--space-1)] text-[11px] tracking-[0.5px] text-[var(--text-faint)]">
               {t('login.subtitle')}
             </p>
+            {endedPlatform !== null ? (
+              <p
+                role="status"
+                data-signed-out-notice={endedPlatform}
+                className="mt-[var(--space-4)] text-[13px] leading-snug text-[var(--text)]"
+              >
+                {/* The non-color cue (R2): a warning glyph before the words. */}
+                <span aria-hidden="true" className="mr-[var(--space-1)] text-[var(--error)]">
+                  ⚠
+                </span>
+                {endedBoth
+                  ? t('login.signedOutByBoth', {
+                      vrchat: t(ACCOUNT_CARD_CONFIG.vrchat.labelKey),
+                      chilloutvr: t(ACCOUNT_CARD_CONFIG.chilloutvr.labelKey)
+                    })
+                  : t('login.signedOutByPlatform', {
+                      platform: t(ACCOUNT_CARD_CONFIG[endedPlatform].labelKey)
+                    })}
+              </p>
+            ) : null}
           </div>
 
           {/* Platform tabs — radiogroup + roving tabindex (the house pattern) */}

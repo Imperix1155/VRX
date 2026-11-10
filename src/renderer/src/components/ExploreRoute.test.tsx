@@ -717,6 +717,20 @@ describe('ExploreRoute world sheet', () => {
     expect(screen.queryByText('VRChat results may be out of date.')).toBeNull()
     expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
   })
+
+  it('gives a failed platform its own Retry on the Dashboard, and only there', () => {
+    query.requestExplore.mockResolvedValue(undefined)
+    query.cvr = { ...source, platform: 'chilloutvr', worlds: [], status: 'error' }
+    const { unmount } = render(<ExploreDashboardPreviewRoute />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry ChilloutVR' }))
+    expect(query.requestExplore).toHaveBeenCalledExactlyOnceWith('chilloutvr', 'manual')
+    expect(screen.queryByRole('button', { name: 'Retry VRChat' })).toBeNull()
+    unmount()
+    // Explore has its own Refresh beside the list.
+    render(<ExploreRoute />)
+    expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Retry ChilloutVR' })).toBeNull()
+  })
 })
 
 describe('ExploreRoute Refresh', () => {

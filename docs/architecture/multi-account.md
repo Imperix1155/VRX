@@ -220,8 +220,8 @@ another account does not change settings.
   `linkedPersonId` are placeholders that adapters always set to defaults;
   favorites come from the `favorites` IPC instead.
 - Account removal, data wipe, and a recovery path for an unreadable store.
-- A UI for the account registry. The renderer's `stores/accounts.ts` calls
-  `get-accounts`, but no component uses it.
+- A UI for the account registry. The bridge offers `get-accounts`, but no
+  renderer code calls it; account state would belong in a query.
 
 ## Rules for contributors
 

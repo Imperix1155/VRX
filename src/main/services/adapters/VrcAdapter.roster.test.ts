@@ -602,19 +602,22 @@ describe('VrcAdapter', () => {
       adapter.subscribe((e) => events.push(e))
       boundaries.length = 0
 
-      // Only the roster read is rejected; the pipeline's token exchange is not under test.
-      vi.stubGlobal(
-        'fetch',
-        vi.fn((url: string) =>
-          Promise.resolve(
-            url.endsWith('/auth')
-              ? jsonResponse({ token: 'tok' })
-              : jsonResponse({ error: 'x' }, { status: 401 })
-          )
+      // Only the roster read is rejected. The pipeline stops instead of sending
+      // the rejected cookie straight back to /auth, so one boundary follows.
+      const fetchMock = vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith('/auth')
+            ? jsonResponse({ token: 'tok' })
+            : jsonResponse({ error: 'x' }, { status: 401 })
         )
       )
+      vi.stubGlobal('fetch', fetchMock)
       await expect(adapter.getFriends()).rejects.toBeInstanceOf(AuthError)
+      await new Promise((resolve) => setTimeout(resolve, 0))
       expect(boundaries).toEqual([{ identityRetained: true }])
+      // Only the first pipeline's own exchange; no second one after the 401.
+      expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/auth'))).toHaveLength(1)
+      expect(events).toContainEqual({ type: 'connection', platform: 'vrchat', health: 'down' })
       expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
       expect(accountSession.getAccountId('vrchat')).toBe('ACCOUNT001')
 

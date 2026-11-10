@@ -17,6 +17,7 @@ import { COMMUNITY_REFRESH_MIN_MS, CommunityService } from './communityService'
 const FRIEND = 'usr_5a3c1e2d-0000-4000-8000-000000000001'
 const STRANGER = 'usr_5a3c1e2d-0000-4000-8000-000000000002'
 const CVR_PERSON = 'B81D5892-5119-4F44-B473-7BF4FFDA0458'
+const CVR_FRIEND = '4c1d2e3f-0000-4000-9000-000000000005'
 const MISSING = 'usr_00000000-0000-4000-8000-00000000dead'
 const WORLD = 'wrld_5a3c1e2d-0000-4000-8000-000000000003'
 
@@ -111,7 +112,9 @@ function setup(): {
     ]),
     adoptWorlds: adopt,
     isFriend: (platform, userId) =>
-      platform === 'vrchat' && (userId === FRIEND || userId === MISSING),
+      platform === 'vrchat'
+        ? userId === FRIEND || userId === MISSING
+        : userId === CVR_FRIEND.toLowerCase(),
     clock: () => now.value,
     wallClock: () => 1_700_000_000_000,
     log
@@ -278,6 +281,17 @@ describe('CommunityService search', () => {
     now.value += COMMUNITY_SEARCH_COOLDOWN_MS
     expect((await service.search('vrchat', 'other')).ok).toBe(true)
     expect(vrc.search).toHaveBeenCalledTimes(2)
+  })
+
+  it('marks a ChilloutVR friend in search results from the friends list', async () => {
+    const { cvr, vrc, service } = setup()
+    cvr.people = [person('chilloutvr', CVR_FRIEND.toUpperCase()), person('chilloutvr', CVR_PERSON)]
+    const result = await service.search('chilloutvr', 'cats')
+    expect(result.ok && result.people.map((item) => item.isFriend)).toEqual([true, null])
+    // A platform's own answer stands, even against the friends list.
+    vrc.people = [{ ...person('vrchat', FRIEND), isFriend: false }, person('vrchat', STRANGER)]
+    const vrcResult = await service.search('vrchat', 'cats')
+    expect(vrcResult.ok && vrcResult.people.map((item) => item.isFriend)).toEqual([false, null])
   })
 
   it('keeps each platform on its own cooldown', async () => {

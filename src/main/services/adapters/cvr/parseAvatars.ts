@@ -76,10 +76,15 @@ export function parseCvrAvatarDetails(value: unknown): AvatarItem | null {
 
 /**
  * `GET /users/{id}`: the `avatar` the user wears now (id, name, picture only).
- * It may be someone else's public avatar, so no author is assumed.
+ * It may be someone else's public avatar, so no author is assumed. `avatar` is
+ * null when the record names none; the whole result is null when the reply
+ * can't be read.
  */
-export function parseCvrCurrentAvatar(value: unknown): AvatarItem | null {
+export function parseCvrCurrentAvatar(value: unknown): { avatar: AvatarItem | null } | null {
   const user = record(value)
-  const avatar = user ? record(user.avatar) : null
-  return avatar ? listItem(avatar, null) : null
+  if (!user) return null
+  if (user.avatar === undefined || user.avatar === null) return { avatar: null }
+  const raw = record(user.avatar)
+  const avatar = raw ? listItem(raw, null) : null
+  return avatar ? { avatar } : null
 }

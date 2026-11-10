@@ -16,11 +16,17 @@ import type { Friend } from '@shared/types'
 import { friendsQueryKey, useFriends } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
 import { QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
+import { appStatusQueryKey } from '../queries/appStatus'
 import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import FriendsList from '../components/FriendsList'
 import i18n from '../i18n'
-import { useLiveFriendEvents } from './useLiveFriendEvents'
+import {
+  ROSTER_CHANGED_MAX_WAIT_MS,
+  ROSTER_CHANGED_SETTLE_MS,
+  ROSTER_SLOW_DOWN_RETRY_MS,
+  useLiveFriendEvents
+} from './useLiveFriendEvents'
 
 const G1 = '11111111-1111-1111-1111-111111111111'
 
@@ -408,6 +414,140 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     // — auth-invalidated only ever invalidates auth-status, never friends.
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('chilloutvr') })
     expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toEqual([])
+  })
+})
+
+describe('useLiveFriendEvents — connection health', () => {
+  it('writes each pushed socket change into the app status the top bar reads', () => {
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+
+    act(() => fireFriendEvent!({ type: 'connection', platform: 'vrchat', health: 'live' }))
+    expect(client.getQueryData(appStatusQueryKey)).toEqual({ vrchat: 'live', chilloutvr: 'down' })
+    act(() =>
+      fireFriendEvent!({ type: 'connection', platform: 'chilloutvr', health: 'reconnecting' })
+    )
+    expect(client.getQueryData(appStatusQueryKey)).toEqual({
+      vrchat: 'live',
+      chilloutvr: 'reconnecting'
+    })
+    // An unknown health reads as down rather than as live.
+    act(() => fireFriendEvent!({ type: 'connection', platform: 'vrchat', health: 'weird' }))
+    expect(client.getQueryData(appStatusQueryKey)).toEqual({
+      vrchat: 'down',
+      chilloutvr: 'reconnecting'
+    })
+  })
+})
+
+describe('useLiveFriendEvents — roster-changed bursts', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('turns a burst of roster changes into one re-read, and keeps re-reading while it lasts', () => {
+    vi.useFakeTimers()
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const rosterReads = (): number =>
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(friendsQueryKey('chilloutvr'))
+      ).length
+
+    act(() => {
+      for (let i = 0; i < 60; i++)
+        fireFriendEvent!({ type: 'roster-changed', platform: 'chilloutvr' })
+    })
+    expect(rosterReads()).toBe(0)
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_CHANGED_SETTLE_MS)
+    })
+    expect(rosterReads()).toBe(1)
+
+    // A steady trickle still re-reads now and then instead of never.
+    act(() => {
+      for (let t = 0; t < ROSTER_CHANGED_MAX_WAIT_MS + 1_000; t += 200) {
+        fireFriendEvent!({ type: 'roster-changed', platform: 'chilloutvr' })
+        vi.advanceTimersByTime(200)
+      }
+    })
+    expect(rosterReads()).toBe(2)
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_CHANGED_SETTLE_MS)
+    })
+    expect(rosterReads()).toBe(3)
+  })
+
+  it('drops a waiting re-read when the platform signs out', () => {
+    vi.useFakeTimers()
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    act(() => fireFriendEvent!({ type: 'roster-changed', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_CHANGED_MAX_WAIT_MS)
+    })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('chilloutvr') })
+  })
+})
+
+describe('useLiveFriendEvents — a friends read refused for a slow-down', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('reads once more after the slow-down, and not once a read lands', async () => {
+    vi.useFakeTimers()
+    stubBridge()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mount(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const reads = (): number =>
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(friendsQueryKey('chilloutvr'))
+      ).length
+
+    await act(async () => {
+      await client
+        .fetchQuery({
+          queryKey: friendsQueryKey('chilloutvr'),
+          queryFn: () => Promise.reject(new Error('rate_limited'))
+        })
+        .catch(() => undefined)
+    })
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS - 1)
+    })
+    expect(reads()).toBe(0)
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(reads()).toBe(1)
+
+    // A refusal followed by a read that lands some other way waits for nothing.
+    await act(async () => {
+      await client
+        .fetchQuery({
+          queryKey: friendsQueryKey('chilloutvr'),
+          queryFn: () => Promise.reject(new Error('rate_limited'))
+        })
+        .catch(() => undefined)
+      await client.fetchQuery({
+        queryKey: friendsQueryKey('chilloutvr'),
+        queryFn: () => Promise.resolve([])
+      })
+    })
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS)
+    })
+    expect(reads()).toBe(1)
   })
 })
 

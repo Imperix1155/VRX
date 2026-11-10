@@ -90,7 +90,7 @@
     "people_one": "{{count, number}} person",
     "people_other": "{{count, number}} people",
     "unknownName": "Unknown friend",
-    "sharedNotes": "Shared notes",
+    "sharedNotes": "Shared notes (yours, private)",
     "back": "Back to combined profile",
     "identities": "Identities",
     "unavailable": "Unavailable",
@@ -400,6 +400,9 @@
         "looking": "Looking on this PC…"
       },
       "needsCode": "{{platform}} needs a sign-in code.",
+      "signedOutByPlatform": "{{platform}} signed you out. Sign in again to see your {{platform}} friends.",
+      "hideNotice": "Hide",
+      "hideSignedOut": "Hide the {{platform}} sign-out notice",
       "openAccounts": "Go to Accounts",
       "profile": {
         "edit": "Edit profile",
@@ -475,7 +478,8 @@
       "unsaved": "Settings have unsaved changes.",
       "retry": "Retry saving settings",
       "saving": "Saving…",
-      "loadFallback": "VRX couldn't read your saved settings, so it's showing the defaults for now. Your saved settings are kept."
+      "loadFallback": "VRX couldn't read your saved settings, so it's showing the defaults for now. Your saved settings are kept.",
+      "newerFile": "Your settings were saved by a newer version of VRX, so changes made here last only until VRX closes. Update VRX to keep them."
     },
     "bugReport": {
       "label": "Found a bug?",
@@ -727,6 +731,7 @@
         "tooLong": "Only on this PC: {{platform}} keeps notes up to {{max}} characters.",
         "accountTooLong": "Your {{platform}} account has a longer note for this friend than VRX keeps ({{max}} characters), so it stays there.",
         "failed": "Couldn't reach {{platform}}. Saved on this PC.",
+        "slowDown": "{{platform}} asked VRX to slow down. Saved on this PC; try again in a minute.",
         "conflict": "Your {{platform}} account has a different note for this friend:",
         "empty": "(no note)",
         "theirsTooLong": "VRX can't take this one: it keeps notes up to {{max}} characters.",
@@ -851,6 +856,8 @@
   },
   "login": {
     "subtitle": "Social VR Companion",
+    "signedOutByPlatform": "{{platform}} signed you out. Sign in again to continue.",
+    "signedOutByBoth": "{{vrchat}} and {{chilloutvr}} signed you out. Sign in again to continue.",
     "username": "Username or email",
     "email": "Email address",
     "usernamePlaceholder": "you@example.com",
@@ -950,7 +957,8 @@
       "empty": "No worlds to show right now.",
       "favorites": "Favorites",
       "favoritesHint": "Worlds you starred in VRX, then the favorites in your game accounts.",
-      "favoritesEmpty": "No favorite worlds yet. Open a world and press the star to keep it here."
+      "favoritesEmpty": "No favorite worlds yet. Open a world and press the star to keep it here.",
+      "favoritesStarsFailed": "Couldn't load the {{platform}} worlds you starred in VRX."
     },
     "more": {
       "heading": "About this world",

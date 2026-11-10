@@ -553,6 +553,9 @@ describe('GroupsView', () => {
     ])
     // An owned group says so in front of its code, like every other tile's code.
     expect(within(tiles[0]!).getByText(new RegExp(`^${msg('groups.role.owner')} · `))).toBeTruthy()
+    // That line is also spoken, after the tile's name.
+    const described = document.getElementById(tiles[0]!.getAttribute('aria-describedby') ?? '')
+    expect(described?.textContent).toBe(`${msg('groups.role.owner')} · ABCDE.1234`)
     // No picture: a tidy first-letter tile instead of an empty box.
     const picture = tiles[0]!.querySelector('[data-community-tile-picture]')
     expect(picture?.getAttribute('data-community-tile-picture')).toBe('initial')
@@ -1440,4 +1443,50 @@ describe('ProfileDetails', () => {
       Reflect.deleteProperty(withActions, 'socialAction')
     }
   })
+
+  it.each(['vrchat', 'chilloutvr'] as const)(
+    'drops Add friend from a %s profile once the person is blocked',
+    async (platform) => {
+      const userId = platform === 'vrchat' ? VRC_ID : CVR_ID
+      bridge.getProfile.mockResolvedValueOnce({
+        ok: true,
+        profile: { ...profile(platform), isFriend: false }
+      })
+      const withActions = Object.assign(bridge, {
+        getRelationship: vi.fn(() =>
+          Promise.resolve({
+            ok: true,
+            relationship: { platform, userId, isFriend: false, blocked: false }
+          })
+        ),
+        socialAction: vi.fn(() =>
+          Promise.resolve({
+            ok: true,
+            relationship: { platform, userId, isFriend: false, blocked: true }
+          })
+        )
+      })
+      try {
+        renderWith(<ProfileDetails platform={platform} userId={userId} />)
+        expect(await screen.findByText(msg('friendActions.add'))).toBeTruthy()
+        fireEvent.click(screen.getByRole('button', { name: msg('profile.actions.showBlock') }))
+        fireEvent.click(await screen.findByRole('button', { name: msg('profile.actions.block') }))
+        fireEvent.click(
+          within(screen.getByRole('alertdialog')).getByRole('button', {
+            name: msg('profile.actions.block')
+          })
+        )
+        await screen.findByText(
+          msg('profile.actions.done.block', {
+            platform: platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
+          })
+        )
+        expect(screen.queryByText(msg('friendActions.add'))).toBeNull()
+        expect(bridge.sendFriendRequest).not.toHaveBeenCalled()
+      } finally {
+        Reflect.deleteProperty(withActions, 'getRelationship')
+        Reflect.deleteProperty(withActions, 'socialAction')
+      }
+    }
+  )
 })

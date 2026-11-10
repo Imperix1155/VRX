@@ -28,8 +28,9 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'join-explore-room': { max: 20, windowMs: 60_000 },
   // The 5 s per-platform cooldown in main allows at most 24 changes/minute.
   'set-home-world': { max: 24, windowMs: 60_000 },
-  // Fixed process-lifetime guard; repeated dual-platform retry/reconnect cycles
-  // can exhaust this headroom. Budget sizing/recovery is a deferred follow-up.
+  // Counted per platform (ipc/index.ts), so one platform's retries never use
+  // up the other's reads. A denial reads as a slow-down, and the renderer asks
+  // again after it.
   'get-friends': { max: 12, windowMs: 30_000 },
   // Three complete 200-friend paints fit in one burst at the exact boundary.
   'get-avatar': { max: 600, windowMs: 10_000 },

@@ -29,6 +29,17 @@ describe('ChilloutVR Explore parsers', () => {
     ])
   })
 
+  it('drops a world whose name is only spaces', () => {
+    expect(
+      parseCvrExploreCandidates({
+        entries: [
+          { id: worldId, name: ' \t ' },
+          { id: '22222222-2222-2222-2222-222222222222', name: 'Named' }
+        ]
+      })
+    ).toEqual([expect.objectContaining({ name: 'Named' })])
+  })
+
   it('recognizes only exact known public strings, case-insensitively', () => {
     expect(parseCvrExplorePublicAccess('PUBLIC')).toBe('public')
     expect(parseCvrExplorePublicAccess('GroupPublic')).toBe('group-public')

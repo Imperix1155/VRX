@@ -67,10 +67,7 @@ export class OwnProfileService {
     ) {
       return Promise.resolve({ ok: true, profile: state.profile })
     }
-    state.reading ??= this.read(adapter, state).finally(() => {
-      state.reading = null
-    })
-    return state.reading
+    return this.sharedRead(adapter, state)
   }
 
   async saveOwnProfile(platform: Platform, raw: unknown): Promise<SaveOwnProfileResult> {
@@ -92,7 +89,7 @@ export class OwnProfileService {
       // renewed since the editor opened has no answer yet: read it first.
       const current: OwnProfileResult = state.profile
         ? { ok: true, profile: state.profile }
-        : await this.read(adapter, state)
+        : await this.sharedRead(adapter, state)
       if (!current.ok) return current
       const changes = onlyChanged(checked, current.profile)
       if (Object.keys(changes).length === 0) return current
@@ -122,6 +119,14 @@ export class OwnProfileService {
   /** Forget a platform's profile at a sign-out, account change, or dead session. */
   clearPlatform(platform: Platform): void {
     this.states.delete(platform)
+  }
+
+  /** One read at a time per platform: an open and a Save share it. */
+  private sharedRead(adapter: OwnProfileAdapter, state: PlatformState): Promise<OwnProfileResult> {
+    state.reading ??= this.read(adapter, state).finally(() => {
+      state.reading = null
+    })
+    return state.reading
   }
 
   private async read(adapter: OwnProfileAdapter, state: PlatformState): Promise<OwnProfileResult> {

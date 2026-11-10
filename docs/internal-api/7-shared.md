@@ -20,6 +20,7 @@ Pure types, values and helpers imported as `@shared/...` by main, preload and re
 | `FRIENDS_RECONCILE_MS` | [`constants.ts`](../../src/shared/constants.ts) | 300,000. The `5m` value of `RECONCILE_INTERVAL_MS`. |
 | `SEARCH_DEBOUNCE_MS` | [`constants.ts`](../../src/shared/constants.ts) | 200. Friend search debounce. |
 | `MAX_FRIENDS` | [`constants.ts`](../../src/shared/constants.ts) | 5,000. Roster cap; reaching it makes a VRChat roster partial. |
+| `MAX_USERNAME_LENGTH` / `MAX_PASSWORD_LENGTH` / `MAX_TWO_FACTOR_CODE_LENGTH` | [`constants.ts`](../../src/shared/constants.ts) | 256 / 1,024 / 64. Longest sign-in details the auth IPC accepts; the sign-in fields use them as `maxLength`. |
 | `CONCURRENCY_LIMIT` | [`constants.ts`](../../src/shared/constants.ts) | 10. Worker count for metadata batches; requests still pass the admission queue. |
 | `WORLD_CACHE_TTL_MS` | [`constants.ts`](../../src/shared/constants.ts) | 86,400,000 (24 h). VRChat world metadata success TTL. |
 | `INSTANCE_CACHE_TTL_MS` | [`constants.ts`](../../src/shared/constants.ts) | 300,000 (5 min). ChilloutVR instance detail success TTL. |
@@ -160,7 +161,7 @@ Turning off a Dashboard section keeps its child preferences, such as the thresho
 
 | Symbol | File | Purpose |
 | --- | --- | --- |
-| `AuthState` / `AuthStatus` | [`types.ts`](../../src/shared/types.ts) | `authenticated`, `unauthenticated`, `needs-2fa` (with `twoFactorMethod`) or `error` (with `unreachable` when no answer came). `accountId` is the signed-in platform identity, null unless authenticated, never a storage key. |
+| `AuthState` / `AuthStatus` | [`types.ts`](../../src/shared/types.ts) | `authenticated`, `unauthenticated`, `needs-2fa` (with `twoFactorMethod`) or `error` (with `unreachable` when no answer came). An `unauthenticated` status carries `endedByPlatform` when the platform refused the session VRX held, never after a sign-out the user chose; a new sign-in or a sign-out clears it, and it lives only in memory. `accountId` is the signed-in platform identity, null unless authenticated, never a storage key. |
 | `Credentials` | [`types.ts`](../../src/shared/types.ts) | Username and password (or ChilloutVR access key) sent to main for login. Rule: never log it. |
 | `TwoFactorMethod` | [`types.ts`](../../src/shared/types.ts) | `email` \| `totp`. |
 | `LoginResult` | [`types.ts`](../../src/shared/types.ts) | Success, a `needs2fa` step, or an error. `sessionCleared: true` means main dropped local auth state and the renderer must treat that platform as signed out. |

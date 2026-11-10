@@ -55,6 +55,10 @@ export default function ExploreFavorites(): React.JSX.Element {
     showVrc && unreadable(vrcGame.state) ? 'vrchat' : null,
     showCvr && unreadable(cvrGame.state) ? 'chilloutvr' : null
   ].filter((platform): platform is Platform => platform !== null)
+  const starsFailed = [
+    showVrc && vrc.isError ? 'vrchat' : null,
+    showCvr && cvr.isError ? 'chilloutvr' : null
+  ].filter((platform): platform is Platform => platform !== null)
   // An expired card renews its reference by reading both lists again. Main
   // answers the account's favorites from memory, with fresh references.
   const recover = async (platform: Platform): Promise<readonly ExploreWorld[]> => {
@@ -72,12 +76,20 @@ export default function ExploreFavorites(): React.JSX.Element {
       </p>
       {/* Red: main keeps favorites that loaded, so a failure means none did
           (DESIGN.md Locked rule 5). The list isn't known to be empty then. */}
+      {starsFailed.map((platform) => (
+        <p
+          key={`stars-${platform}`}
+          className="canvas-text mb-[var(--space-2)] text-sm text-[var(--error)]"
+        >
+          {t('explore.lists.favoritesStarsFailed', { platform: t(PLATFORM_LABEL[platform]) })}
+        </p>
+      ))}
       {failed.map((platform) => (
         <p key={platform} className="canvas-text mb-[var(--space-2)] text-sm text-[var(--error)]">
           {t('favorites.menu.loadFailed', { platform: t(GAME_FAVORITES_HEADING[platform]) })}
         </p>
       ))}
-      {!loading && worlds.length === 0 && failed.length === 0 ? (
+      {!loading && worlds.length === 0 && failed.length === 0 && starsFailed.length === 0 ? (
         <p className="canvas-text text-sm text-[var(--text-dim)]">
           {t('explore.lists.favoritesEmpty')}
         </p>
@@ -85,6 +97,11 @@ export default function ExploreFavorites(): React.JSX.Element {
       {worlds.length > 0 ? <WorldResults worlds={worlds} recover={recover} /> : null}
     </section>
   )
+}
+
+const PLATFORM_LABEL: Record<Platform, string> = {
+  vrchat: 'dashboard.platformVrc',
+  chilloutvr: 'dashboard.platformCvr'
 }
 
 function unreadable(state: string): boolean {

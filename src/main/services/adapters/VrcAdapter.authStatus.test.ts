@@ -727,7 +727,8 @@ describe('VrcAdapter', () => {
         platform: 'vrchat',
         state: 'unauthenticated',
         displayName: null,
-        accountId: null
+        accountId: null,
+        endedByPlatform: true
       })
       expect(fetchMock).not.toHaveBeenCalled()
 
@@ -736,6 +737,41 @@ describe('VrcAdapter', () => {
       const relaunched = new VrcAdapter(store, instantAdmission())
       expect(await relaunched.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
       expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('says VRChat ended the session until the user signs out', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, { status: 401 })))
+      const adapter = new VrcAdapter(fakeStore('auth=expired'), instantAdmission())
+
+      expect(await adapter.getAuthStatus()).toMatchObject({
+        state: 'unauthenticated',
+        endedByPlatform: true
+      })
+      // A sign-out the user chose never reads as VRChat's doing.
+      adapter.clearSession()
+      expect(await adapter.getAuthStatus()).not.toHaveProperty('endedByPlatform')
+    })
+
+    it('forgets that VRChat ended the session once the user signs in again', async () => {
+      const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({}, { status: 401 })))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=expired'), instantAdmission())
+      expect(await adapter.getAuthStatus()).toMatchObject({ endedByPlatform: true })
+
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(
+          jsonResponse({ id: 'ACCOUNT002', displayName: 'Again' }, { setCookies: ['auth=fresh'] })
+        )
+      )
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      const status = await adapter.getAuthStatus()
+      expect(status.state).toBe('authenticated')
+      expect(status).not.toHaveProperty('endedByPlatform')
+    })
+
+    it('never says VRChat ended a session it did not hold', async () => {
+      const adapter = new VrcAdapter(fakeStore(), instantAdmission())
+      expect(await adapter.getAuthStatus()).not.toHaveProperty('endedByPlatform')
     })
 
     it('keeps automatic 401 deletion best-effort when the credential store is unavailable', async () => {

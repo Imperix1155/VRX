@@ -8,10 +8,12 @@
 import { describe, it, expect, vi, afterEach, beforeEach, onTestFinished } from 'vitest'
 import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
 import { useFriendsStore } from '../stores/friends'
 import TopBar from './TopBar'
+import { setConnectionHealth } from '../queries/appStatus'
 
 // The top bar's player counts read through their own queries (TopBarCounts.test.tsx).
 vi.mock('../queries/community', () => ({
@@ -80,7 +82,11 @@ afterEach(() => {
   useFriendsMock.mockReset()
   useAuthStatusMock.mockReset()
   Object.assign(window, { vrx: undefined })
-  useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
+  useUiStore.setState({
+    activeTab: 'dashboard',
+    settingsCategory: 'appearance',
+    signOutNoticeHidden: { vrchat: false, chilloutvr: false }
+  })
   if (vi.isMockFunction(document.hasFocus)) vi.mocked(document.hasFocus).mockRestore()
 })
 
@@ -232,6 +238,27 @@ describe('TopBar connection health (VRX-223)', () => {
     expect(indicator.className).toContain('motion-safe:animate-pulse')
   })
 
+  it('follows a socket change written to the app status without waiting for the next poll', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    stubFriends([], [])
+    stubAppStatus('down', 'reconnecting')
+    const client = new QueryClient()
+    render(
+      <QueryClientProvider client={client}>
+        <TopBar />
+      </QueryClientProvider>
+    )
+    await findIndicator('VRChat: Down; ChilloutVR: Reconnecting')
+
+    // useLiveFriendEvents writes each pushed socket change here.
+    act(() => setConnectionHealth(client, 'vrchat', 'live'))
+    act(() => setConnectionHealth(client, 'chilloutvr', 'live'))
+    const indicator = await findIndicator('VRChat: Live; ChilloutVR: Live')
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
+    expect(window.vrx!.getAppStatus).toHaveBeenCalledTimes(1)
+    client.clear()
+  })
+
   it('shows amber for reconnecting and red when a signed-in platform is down', async () => {
     stubFriends([], [])
     stubAppStatus('live', 'reconnecting')
@@ -271,6 +298,34 @@ describe('TopBar connection health (VRX-223)', () => {
 
     const indicator = await findIndicator('VRChat: Down; ChilloutVR: Signed out')
     expect(indicator.getAttribute('style')).toContain('var(--error)')
+  })
+
+  it('counts a platform that signed the user out by itself as down until its notice is hidden', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    stubFriends([], [])
+    useAuthStatusMock.mockImplementation((platform: Platform) => ({
+      data:
+        platform === 'vrchat'
+          ? authenticated(platform)
+          : {
+              platform,
+              state: 'unauthenticated',
+              accountId: null,
+              displayName: null,
+              endedByPlatform: true
+            }
+    }))
+    stubAppStatus('live', 'live')
+    render(<TopBar />)
+
+    const indicator = await findIndicator('VRChat: Live; ChilloutVR: Signed out')
+    expect(indicator.getAttribute('style')).toContain('var(--error)')
+    // The non-color cue: the down square, not the live dot.
+    expect(indicator.className).not.toContain('rounded-full')
+
+    // Hiding the notice is the user saying they know; the dot follows.
+    act(() => useUiStore.getState().setSignOutNoticeHidden('chilloutvr', true))
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
   })
 
   it('never shows the live dot when neither platform is signed in', async () => {

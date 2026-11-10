@@ -7,6 +7,145 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-11-10
+
+A polish and bug fix release on top of 1.4.2.
+
+### Fixed
+
+- When VRChat or ChilloutVR signs you out by itself, VRX now says so: a
+  notice names the platform with Go to Accounts, the status dot turns red,
+  and the sign-in screen opens on that platform. A ChilloutVR sign-in that
+  stopped working no longer leaves the live connection retrying forever.
+- Unfriend, Block and Unblock on a VRChat profile work again, and the
+  profile's options stay current when a friendship starts or ends.
+- Friends list: a removed friend stays removed, ChilloutVR friends keep
+  showing where they are after a window reload, the list loads again on its
+  own after a platform slow-down, and frequent refreshes no longer show a
+  false "could not refresh".
+- Profiles: a profile VRX couldn't read offers Try again instead of saying
+  it's gone, a profile opened right after launch no longer gets stuck, and
+  Add friend goes away once you block someone.
+- Join: after a failed Join, focus stays in the world sheet and the message
+  shows; a failed invite is never sent again by itself; long world names
+  wrap in the join dialogs.
+- Dashboard and Explore: Popular now and Wearing now offer a retry when
+  they fail, and Favorites says when your starred worlds couldn't load.
+- Sign-in and settings: mistyped sign-ins on one platform never block the
+  other, a damaged local sign-in key or notes file no longer stops saving,
+  and settings from a newer VRX say so.
+- Looks: no thin seam near the right edge of glass cards on scaled displays,
+  no shift under Hot instance cards on hover, the top bar no longer shows a
+  red "Down" at launch, and several Japanese layout fixes.
+- Many smaller fixes to wording, keyboard focus and accessibility.
+- Security hardening.
+
+## [1.4.3-dev.5] - 2026-11-10
+
+### Fixed
+
+- Friends list:
+  - A friend you removed no longer comes back for a while when a late
+    VRChat update about them arrives.
+  - After a reload of the window, ChilloutVR friends show where they are
+    again instead of everyone looking offline.
+  - When a platform asks VRX to slow down while loading friends, VRX loads
+    them again on its own once the wait is over.
+  - Refreshing often while one platform is failing no longer shows a false
+    "could not refresh" for the other one.
+  - A burst of ChilloutVR friend list changes turns into one reload, and
+    linked profiles load once per burst of renames.
+  - Names sort the way they show, and initials skip invisible marks.
+- Profiles:
+  - A profile VRX couldn't read says "Couldn't load this profile" with Try
+    again, instead of "no longer available".
+  - Unfriend for someone who already left your list says you're not friends
+    anymore. Add friend goes away once you block someone.
+  - Saving your own profile while another profile opens no longer reads it
+    twice, and a profile you close while it waits stops asking.
+- Join and invites:
+  - After a failed Join, focus stays in the world sheet and the failure
+    message scrolls into view.
+  - A failed invite is never sent again by itself, and the next one waits
+    the same short pause as after a success.
+  - Long world names wrap in the join dialogs instead of pushing labels out.
+- Dashboard: Popular now has a Retry for a platform whose worlds didn't
+  load, and Wearing now shows Try again when the reply couldn't be read.
+- Explore: Favorites says when your starred worlds couldn't load instead of
+  calling the list empty, and worlds whose name is only spaces are skipped.
+- Search marks ChilloutVR friends like VRChat ones, and a long notice wraps
+  beside its platform dot.
+- Notes: a note save the platform slowed down says so, and the shared note
+  hint says notes are private.
+- Inbox: a reused record from a new sender replaces the old row.
+- Avatars: a just-worn avatar stays when an older Refresh answers after it.
+- Top bar: the status dot follows the live connection at once, so launch no
+  longer shows a red "Down" for several seconds.
+- Sign-in:
+  - Mistyped sign-ins on one platform never block the other.
+  - A damaged local sign-in key is replaced at the next sign-in instead of
+    failing every time.
+  - When VRChat refuses the sign-in mid-session, VRX stops the live
+    connection instead of retrying it.
+- Settings:
+  - Settings saved by a newer VRX say so, instead of offering a Retry that
+    can't work.
+  - A damaged notes and stars file is set aside so saving works again.
+  - The alert threshold buttons keep focus at their ends, Escape cancels
+    Sign out, and sign-in fields stop at the length VRX accepts.
+- About: a double click on Report a bug or Open logs folder opens one window.
+- Accessibility: tiles read their detail line after the name.
+- Security hardening.
+
+## [1.4.3-dev.4] - 2026-11-10
+
+### Fixed
+
+- When VRChat or ChilloutVR signs you out by itself (an expired or refused
+  sign-in), VRX now says so: a notice names the platform with Go to Accounts
+  and Hide, the status dot in the top bar turns red, and the sign-in screen
+  names the platform and opens on its tab. Before, that platform's friends
+  just disappeared under a green dot. Signing out yourself shows nothing.
+- A ChilloutVR sign-in that stopped working no longer leaves the live
+  connection retrying forever: VRX checks the sign-in once and signs you out
+  if ChilloutVR refuses it.
+
+## [1.4.3-dev.3] - 2026-11-10
+
+### Fixed
+
+- Unfriend, Block and Unblock on a VRChat profile now work. VRX no longer
+  says "You're signed out of VRChat" while you are signed in: it now asks
+  VRChat whether you block someone the same way VRCX does, and if VRChat
+  still won't say, the buttons stay with a note that VRX couldn't tell.
+- After you unfriend one account of a linked person, that account's part of
+  the full profile stays open with "Unfriended" and Block until you close the
+  profile.
+- A friend's full profile opened right after VRX starts no longer gets stuck
+  on "Search for this person again"; it shows once your friends list is in.
+- Unfriend appears or goes away as soon as a friendship starts or ends while
+  VRX is open, and opening "Unfriend or block" scrolls its buttons into view.
+
+## [1.4.3-dev.2] - 2026-11-09
+
+### Fixed
+
+- On a scaled display, the bottom edge of a Hot instance card no longer
+  shifts slightly when you hover another card. Explore, avatar and group
+  cards get the same fix.
+
+## [1.4.3-dev.1] - 2026-11-09
+
+### Fixed
+
+- On a scaled display (125%, 150%) a thin seam no longer shows near the right
+  edge of a glass card over a background picture, such as the Dashboard's
+  counts. The same goes for the friends and Settings panels and the bottom
+  sheets.
+- In Japanese at the smallest window size, the Dashboard's Hot instances
+  controls now move to their own line instead of pushing the "?" button off
+  the edge.
+
 ## [1.4.2] - 2026-11-09
 
 A new app icon.

@@ -22,17 +22,20 @@ vi.mock('../logger', () => ({ getLogFilePath: () => logFile.path }))
 
 vi.mock('./security', () => ({ isTrustedIpcSender: vi.fn(() => true) }))
 
-import { registerLaunchHandlers } from './launch'
+import { OPEN_REPEAT_MS, registerLaunchHandlers } from './launch'
 import { isTrustedIpcSender } from './security'
 
 const event = { senderFrame: {} } as unknown as IpcMainInvokeEvent
+
+let now = 0
 
 beforeEach(() => {
   handlers.clear()
   openExternal.mockReset().mockResolvedValue(undefined)
   openPath.mockReset().mockResolvedValue('')
   logFile.path = '/data/VRX/logs/main.log'
-  registerLaunchHandlers()
+  now = 0
+  registerLaunchHandlers(() => now)
 })
 
 describe('open-url handler', () => {
@@ -93,6 +96,20 @@ describe('open-bug-report handler', () => {
       'Untrusted IPC sender'
     )
     expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('opens one tab and one folder for a double click', async () => {
+    await handlers.get('open-bug-report')!(event, undefined)
+    await handlers.get('open-bug-report')!(event, undefined)
+    await handlers.get('open-logs-folder')!(event, undefined)
+    await handlers.get('open-logs-folder')!(event, undefined)
+    expect(openExternal).toHaveBeenCalledOnce()
+    expect(openPath).toHaveBeenCalledOnce()
+    now += OPEN_REPEAT_MS
+    await handlers.get('open-bug-report')!(event, undefined)
+    await handlers.get('open-logs-folder')!(event, undefined)
+    expect(openExternal).toHaveBeenCalledTimes(2)
+    expect(openPath).toHaveBeenCalledTimes(2)
   })
 
   it('reports the failure when the OS cannot open a browser ', async () => {

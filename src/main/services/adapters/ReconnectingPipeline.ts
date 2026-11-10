@@ -48,6 +48,9 @@ const jitter = (): number => Math.floor(Math.random() * 250)
 export interface PipelineReconnectOptions {
   now?: () => number
   onUpgradeRateLimited?: (retryAfter: string | null) => number
+  /** The server refused the upgrade as unauthorized (401 or 403). The loop
+   *  still backs off and retries; the owner decides whether the session died. */
+  onUpgradeRefused?: (statusCode: 401 | 403) => void
   cooldownUntil?: () => number
 }
 
@@ -58,6 +61,7 @@ export abstract class ReconnectingPipeline<Prep> {
   private readonly sleepFn?: (ms: number, signal?: AbortSignal) => Promise<void>
   private readonly now: () => number
   private readonly onUpgradeRateLimited?: (retryAfter: string | null) => number
+  private readonly onUpgradeRefused?: (statusCode: 401 | 403) => void
   private readonly cooldownUntil?: () => number
   private upgradeDeadline = 0
   private loopAbort = new AbortController()
@@ -93,6 +97,7 @@ export abstract class ReconnectingPipeline<Prep> {
     this.logFn = deps.log
     this.now = deps.now ?? Date.now
     this.onUpgradeRateLimited = deps.onUpgradeRateLimited
+    this.onUpgradeRefused = deps.onUpgradeRefused
     this.cooldownUntil = deps.cooldownUntil
   }
 
@@ -323,6 +328,17 @@ export abstract class ReconnectingPipeline<Prep> {
           }
           if (Number.isFinite(deadline))
             this.upgradeDeadline = Math.max(this.upgradeDeadline, fallback, deadline)
+        }
+        const statusCode =
+          typeof value === 'object' && value !== null && 'statusCode' in value
+            ? value.statusCode
+            : null
+        if (statusCode === 401 || statusCode === 403) {
+          try {
+            this.onUpgradeRefused?.(statusCode)
+          } catch {
+            /* the owner's check is best effort; the loop still retries */
+          }
         }
         settle()
       })

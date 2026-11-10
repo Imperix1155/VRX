@@ -8,7 +8,7 @@ function isRateLimitedError(error: unknown): boolean {
 /**
  * Shared TanStack Query client (VRX-22).
  *
- * Defaults follow VRX's API etiquette (CLAUDE.md): the WebSocket is the live
+ * Defaults follow VRX's API etiquette (AGENTS.md): the WebSocket is the live
  * path, so REST is initial-load + slow reconcile, never a fast poll. We do NOT
  * refetch on window focus — that would hammer the unofficial API and risk a
  * rate-limit/flag. A failed background refetch keeps the last good data and

@@ -103,13 +103,20 @@ describe('ExploreView', () => {
   })
 
   it('keeps the Worlds shown stepper at its 2 and 6 limits', () => {
+    // aria-disabled, not disabled, so keyboard focus stays on the button at an end.
     const low = setup({ total: 2 })
-    expect(screen.getByRole('button', { name: 'Decrease' }).hasAttribute('disabled')).toBe(true)
+    const decrease = screen.getByRole('button', { name: 'Decrease' })
+    expect(decrease.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(decrease)
+    expect(low.onTotalChange).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Increase' }))
     expect(low.onTotalChange).toHaveBeenCalledWith(4)
     cleanup()
     const high = setup({ total: 6 })
-    expect(screen.getByRole('button', { name: 'Increase' }).hasAttribute('disabled')).toBe(true)
+    const increase = screen.getByRole('button', { name: 'Increase' })
+    expect(increase.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(increase)
+    expect(high.onTotalChange).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Decrease' }))
     expect(high.onTotalChange).toHaveBeenCalledWith(4)
   })
