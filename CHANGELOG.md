@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3-dev.3] - 2026-11-10
+
 ### Fixed
 
 - Unfriend, Block and Unblock on a VRChat profile now work. VRX no longer
