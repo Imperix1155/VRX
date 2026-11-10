@@ -16,6 +16,29 @@ describe('check-doc-links', () => {
     expect(linkTargets(markdown)).toEqual(['a.md', 'd.md#x'])
   })
 
+  it('reads reference, HTML, autolink and single-quoted-title links', () => {
+    const markdown = [
+      "Inline [one](one.md 'title') and [two](two.md (title)).",
+      'See [the guide][guide], [folded][] and [guide].',
+      '<a href="page.md#here">page</a> <a href=\'other.md\'>other</a>',
+      '<./local.md> <https://example.com/docs>',
+      '',
+      '[guide]: ./guide.md "Guide"',
+      '[folded]: <folded.md>'
+    ].join('\n')
+    expect(linkTargets(markdown)).toEqual([
+      'one.md',
+      'two.md',
+      './guide.md',
+      'folded.md',
+      './guide.md',
+      'page.md#here',
+      'other.md',
+      './local.md',
+      'https://example.com/docs'
+    ])
+  })
+
   it('finds no broken relative links in the committed docs', () => {
     expect(findBrokenLinks()).toEqual([])
   })

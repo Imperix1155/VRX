@@ -55,7 +55,7 @@ or launch authority.
 
 - TanStack Query owns server and cache state. Zustand holds view state and the
   hydrated settings snapshot; stores never import each other. Do not add server
-  data to a store (the accounts store is an existing exception).
+  data to a store.
 - App-wide pushes reach the cache only through the hooks `App` mounts. A
   component may subscribe only to clean up its own local state.
 - Only the `friends` namespace persists (`queries/cache.ts`): validated, 24 h

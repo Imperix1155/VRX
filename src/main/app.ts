@@ -969,7 +969,8 @@ app
 
     // Broadcast live adapter events to every window over the typed push
     // channel ('friend-event', @shared/ipc). The renderer applies them to the
-    // TanStack cache — presence is PUSHED, never polled (CLAUDE.md). Both
+    // TanStack cache — presence is PUSHED, never polled
+    // (docs/api-policy.md, Live presence and recovery). Both
     // platforms share one broadcaster; the renderer keys events by platform.
     const broadcast = (event: BroadcastAdapterEvent): void => {
       if (event.type === 'auth-invalidated') {

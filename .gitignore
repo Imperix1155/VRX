@@ -3,10 +3,11 @@ dist
 out
 .eslintcache
 *.tsbuildinfo
-# Log files (app.log, npm-debug.log, rotated app.log.1). Not `*.log*`: that
-# also hides source files such as `VrcAdapter.login.test.ts`.
+# Log files (app.log, npm-debug.log, rotated app.log.1, app.log.old).
+# Not `*.log*`: that also hides source files such as `VrcAdapter.login.test.ts`.
 *.log
 *.log.[0-9]*
+*.log.old
 release
 .env
 .env.*

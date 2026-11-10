@@ -2,13 +2,13 @@
 
 Part of the [internal API catalog](../INTERNAL-API.md). The code is the source of truth: read the file a row names before relying on it.
 
-The sandboxed renderer reaches the main process only through `window.vrx`. [`src/preload/index.ts`](../../src/preload/index.ts) builds the object and exposes it with `contextBridge`. [`src/preload/index.d.ts`](../../src/preload/index.d.ts) types it as `VrxBridge`. Every invoke method is a typed projection of one `IpcInvoke` channel, and section 2 names the method for each channel. Every `on…` method subscribes to one push channel and returns an unsubscribe function.
+The sandboxed renderer reaches the main process only through `window.vrx`. [`src/preload/index.ts`](../../src/preload/index.ts) builds the object and exposes it with `contextBridge`. [`src/preload/index.d.ts`](../../src/preload/index.d.ts) types it as `VrxBridge`. Every invoke method is a typed projection of one `IpcInvoke` channel, and [IPC channels](2-ipc-channels.md#2-ipc-channels) names the method for each channel. Every `on…` method subscribes to one push channel and returns an unsubscribe function.
 
 Rule: the global is declared optional (`vrx?: VrxBridge`) because unit tests, Preview and the design guide run without the preload. Every caller must handle a missing bridge or method. The bridge forwards requests and push payloads unchanged. It adds no authority or policy; its only transformation is the rate-limit error below.
 
 | Symbol | File | Purpose |
 | --- | --- | --- |
-| `VrxBridge` | [`index.d.ts`](../../src/preload/index.d.ts) | The bridge type: 68 invoke methods (both `getAvatar` and `getKeptAvatar` call `get-avatar`), one notify method and eight subscriptions, all derived from `@shared/ipc`. The design guide's fixture bridge implements the same type with synthetic data (section 8). |
+| `VrxBridge` | [`index.d.ts`](../../src/preload/index.d.ts) | The bridge type: 68 invoke methods (both `getAvatar` and `getKeptAvatar` call `get-avatar`), one notify method and eight subscriptions, all derived from `@shared/ipc`. The design guide's fixture bridge implements the same type with synthetic data ([design guide fixtures](8-design-guide.md#8-design-guide-fixtures-docsguide)). |
 | `window.vrx` | [`index.ts`](../../src/preload/index.ts) | Exposed with `contextBridge.exposeInMainWorld` when context isolation is on. If exposure throws, preload writes to the devtools console, a documented exception to the electron-log rule. A non-isolated window is dev-only. |
 | `rate_limited` errors | [`index.ts`](../../src/preload/index.ts) | The private `invoke` wrapper turns Electron's `Error invoking remote method '<channel>': Error: rate_limited` into `Error('rate_limited')`. Other rejections pass through. The renderer query client never retries this error. |
 | `notifyRendererHydrated()` | [`index.ts`](../../src/preload/index.ts) | Sends `renderer-hydrated` once settings-backed document attributes are applied. Main shows the window when this and `ready-to-show` have both arrived, or 3 s after `ready-to-show`. |
@@ -27,7 +27,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `getLinkedProfiles`, `changeLinkedProfile`, `onLinkedProfilesChanged` | [`queries/linkedProfiles.ts`](../../src/renderer/src/queries/linkedProfiles.ts) |
 | `getActivity`, `clearActivity`, `onActivityChanged` | [`queries/activity.ts`](../../src/renderer/src/queries/activity.ts) |
 | `joinInstance`, `joinExploreRoom` | [`hooks/useJoinInstance.ts`](../../src/renderer/src/hooks/useJoinInstance.ts) |
-| `selfInvite` | No renderer caller. |
+| `selfInvite` | No renderer caller. Main's [join handoff](2-ipc-channels.md#join-handoff) calls it when VRChat is already open. |
 | `getJoinHandoff` | [`hooks/useJoinHandoff.ts`](../../src/renderer/src/hooks/useJoinHandoff.ts), once per join dialog open |
 | `setExploreActive`, `getExplore`, `getExploreImage`, `getExploreWorld`, `cancelExploreWorld`, `onExploreChanged` | [`hooks/useExploreCoordinator.ts`](../../src/renderer/src/hooks/useExploreCoordinator.ts), [`queries/explore.ts`](../../src/renderer/src/queries/explore.ts), [`hooks/useExploreWorldSelection.ts`](../../src/renderer/src/hooks/useExploreWorldSelection.ts) |
 | `getAppStatus` | [`queries/appStatus.ts`](../../src/renderer/src/queries/appStatus.ts) (`useConnectionHealth`, read by `TopBar`), every 7.5 s while the window shows; `useLiveFriendEvents` writes pushed `connection` events into it in between. It reads main's local snapshot and makes no platform request. |

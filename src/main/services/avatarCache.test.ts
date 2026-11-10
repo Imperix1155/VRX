@@ -245,13 +245,46 @@ describe('AvatarCache', () => {
     ['IPv4 literal', 'https://10.0.0.7/x.png'],
     ['IPv6 literal', 'https://[::1]/x.png'],
     ['localhost', 'https://localhost/x.png'],
-    ['.localhost subdomain', 'https://evil.localhost/x.png']
+    ['.localhost subdomain', 'https://evil.localhost/x.png'],
+    ['localhost with a trailing DNS dot', 'https://localhost./x.png'],
+    ['.localhost with a trailing DNS dot', 'https://evil.localhost./x.png'],
+    ['IPv4 literal with a trailing DNS dot', 'https://10.0.0.7./x.png']
   ])('refuses a redirect target that is a %s (SSRF hardening)', async (_name, location) => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValueOnce(redirectResponse(location))
     const cache = new AvatarCache({ fetchFn })
 
     await expect(cache.get(VRC_IMAGE_URL)).resolves.toBeNull()
     expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats a trailing DNS dot on an allowed host as that host', async () => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(redirectResponse(CDN_URL))
+      .mockResolvedValueOnce(imageResponse())
+    const cache = new AvatarCache({
+      fetchFn,
+      vrcSessionProvider: () => imageLease('auth=authcookie_test')
+    })
+
+    await expect(
+      cache.get('https://api.vrchat.cloud./api/1/image/file_0000/1/256')
+    ).resolves.toMatch(/^data:image\/png;base64,/)
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+    expect((fetchFn.mock.calls[0]?.[1]?.headers as Record<string, string>)['Cookie']).toBe(
+      'auth=authcookie_test'
+    )
+    expect(
+      (fetchFn.mock.calls[1]?.[1]?.headers as Record<string, string>)['Cookie']
+    ).toBeUndefined()
+  })
+
+  it('still refuses a host outside the allowlist when it carries a trailing DNS dot', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(imageResponse())
+    const cache = new AvatarCache({ fetchFn })
+
+    await expect(cache.get('https://evil.example./x.png')).resolves.toBeNull()
+    expect(fetchFn).not.toHaveBeenCalled()
   })
 
   it('withholds the cookie from sibling VRChat hosts (exact-host attach, not suffix match)', async () => {

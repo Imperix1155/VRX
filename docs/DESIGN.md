@@ -337,9 +337,10 @@ never become chips.
 **`.glass-information`** puts an opaque neutral backing
 (`--glass-information`) under the existing gradients and turns the blur off
 (nothing behind an opaque pane can show, so it saves the GPU). Menus,
-dialogs, the welcome setup, the boot splash, the error screen, the top-bar
-counts panel and the favorite and alert panels use it, so their colors and
-meaning never change with the background. Add **`.glass-frosted`** for a
+dialogs, the boot splash, the error screen, the top-bar counts panel and the
+favorite and alert panels use it, so their colors and meaning never change
+with the background. The welcome setup card is a frosted back panel, like
+Settings (§9.4), not this opaque backing. Add **`.glass-frosted`** for a
 frosted dialog and **`.glass-frosted-heavy`** for a true confirmation modal
 (Join, Unfriend, Block); both use the stronger `--glass-blur-frosted`.
 
@@ -757,10 +758,11 @@ it.
 An Order control (owner, 2026-11-02), the same segmented control as the
 platform picker, sits on the left above Search friends, on the Refresh line.
 It orders the rows inside each section, the same way on both platforms: Name
-(A to Z, the default), Recent (the newest Activity first; hidden while the
-Activity page is off), World (friends in the same instance together, the
-biggest crowd first) or Joinable (the most open instance you can join first).
-Every choice keeps the sections and falls back to the name. Search shows
+(A to Z, the default; compared as the names are shown, ignoring spaces at
+either end), Recent (the newest Activity first; hidden while the Activity page
+is off), World (friends in the same instance together, the biggest crowd
+first) or Joinable (the most open instance you can join first). Every choice
+keeps the sections and falls back to the name. Search shows
 matches without changing saved collapse settings; when nothing matches, only
 the no-results line shows. Roving focus moves between avatars, and off-screen
 rows stay out of the Tab order. Compact rows are at least 60 px and are
@@ -876,7 +878,9 @@ left and, on the right, the favorite star and the alerts bell.
   successful save is quiet. A presence change never retargets a draft. With
   Save notes to my accounts on, a line under the note says whether the
   account's own copy matches, with Keep mine, Use the VRChat note, or Save to
-  VRChat; those buttons move focus to that line when pressed.
+  VRChat; those buttons move focus to that line when pressed. A linked
+  person's note is headed "Shared notes (yours, private)" and stays on this
+  computer.
 
 ### §9.3 Confirmation and sheets
 
@@ -1043,11 +1047,15 @@ with nothing loaded, its red line stands alone.
 - **Full profile** opens in the bottom sheet (Search) or behind "Show full
   profile" in friend details. Fields come in one order on both platforms:
   Pronouns, Rank, Bio, Badges, then Show worlds and Show groups, which read
-  only when pressed. A missing field says "Not shown".
+  only when pressed. A missing field says "Not shown". An unreadable reply
+  says "Couldn't load this profile" with Try again. "This profile is no longer
+  available" is only when the platform says the profile is gone.
 - **Friend action** (owner, 2026-11-01): a profile of someone who is not a
   friend yet starts with one row, the same on both platforms: Accept and
   Decline if their request waits in the Inbox, otherwise one filled Add friend
   button that becomes "Sending…", then a check mark and "Friend request sent."
+  Someone already blocked gets no Add friend; Unblock stays in the options
+  below.
 - **Unfriend or block** closes every full profile, below a thin rule: one
   quiet button that reads nothing until pressed. Open, it shows only what
   applies, in one order on both platforms: Unfriend (friends only), then Block

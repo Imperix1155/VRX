@@ -34,7 +34,8 @@ access to a device or external account.
 
 - electron-vite, React 19, strict TypeScript, Tailwind CSS 4. The main process
   is `src/main`, the restricted bridge is `src/preload`, the UI is
-  `src/renderer`.
+  `src/renderer`. Editing the preload also follows [Main](src/main/AGENTS.md)
+  and [IPC](src/main/ipc/AGENTS.md).
 - `src/shared` (`@shared`) holds pure cross-process types and values. No Node
   or Electron imports.
 - Platform integrations go through adapters. Zustand owns view state; TanStack
@@ -207,7 +208,8 @@ bounded instruction loading get every rule.
   resources.
 - [Shared](src/shared/AGENTS.md): pure cross-process contracts and constants.
 - [Main](src/main/AGENTS.md): main process and preload, security, services,
-  adapters, platform writes.
+  adapters, platform writes. The preload bridge rules are in
+  [IPC](src/main/ipc/AGENTS.md).
 - [Renderer](src/renderer/AGENTS.md): UI, state, design tokens, interactions.
 - [Design guide](docs/guide/AGENTS.md): sample-data scenes built from real
   components, the token generator and doc-sync tests.
