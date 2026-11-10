@@ -58,6 +58,21 @@ import {
   type RateLimitWarn
 } from './rate-limit'
 
+/** Sign-in channels whose IPC allowance is counted per platform. */
+const PER_PLATFORM_LIMITED: ReadonlySet<IpcInvokeChannel> = new Set<IpcInvokeChannel>([
+  'login',
+  'verify-2fa',
+  'import-session',
+  'logout'
+])
+
+/** The platform a request names, or one shared key for anything else. */
+function platformKey(req: unknown): string {
+  const platform =
+    typeof req === 'object' && req !== null && 'platform' in req ? req.platform : undefined
+  return platform === 'vrchat' || platform === 'chilloutvr' ? platform : ''
+}
+
 interface IpcRateLimitOptions {
   clock?: () => number
   warn?: RateLimitWarn
@@ -120,20 +135,30 @@ export function registerIpcHandlers(
     }
     const invokeChannel = channel as IpcInvokeChannel
     const domainHandler = handler as (...args: unknown[]) => unknown
-    const limitedHandler = withRateLimit(
-      invokeChannel,
-      IPC_RATE_LIMIT_BUDGETS[invokeChannel],
-      domainHandler,
-      {
+    const limit = (): ((...args: unknown[]) => unknown) =>
+      withRateLimit(invokeChannel, IPC_RATE_LIMIT_BUDGETS[invokeChannel], domainHandler, {
         clock,
         deny: () => ipcRateLimitDenial(invokeChannel),
         warn
+      })
+    // Sign-in channels keep one allowance per platform, so mistakes on one
+    // platform never lock the other out (each platform still sees at most the
+    // same number of sign-ins a minute).
+    const perPlatform = PER_PLATFORM_LIMITED.has(invokeChannel)
+    const limiters = new Map<string, (...args: unknown[]) => unknown>()
+    const limiterFor = (req: unknown): ((...args: unknown[]) => unknown) => {
+      const key = perPlatform ? platformKey(req) : ''
+      let limited = limiters.get(key)
+      if (limited === undefined) {
+        limited = limit()
+        limiters.set(key, limited)
       }
-    )
+      return limited
+    }
     registerHandle(channel, (event, ...args): unknown => {
       if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
       const domainArgs: unknown[] = args
-      return limitedHandler(event, ...domainArgs)
+      return limiterFor(domainArgs[0])(event, ...domainArgs)
     })
   }
 
