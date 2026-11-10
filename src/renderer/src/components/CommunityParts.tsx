@@ -96,7 +96,12 @@ export function CommunityNotice({
         className="inline-block h-[8px] w-[8px] shrink-0 rounded-full"
         style={{ background: platform === 'vrchat' ? 'var(--vrc)' : 'var(--cvr)' }}
       />
-      <p role={state.kind === 'failed' ? 'alert' : 'status'} className={`text-sm ${tone}`}>
+      {/* The line takes the room that is left and wraps inside it, so a long
+          (often Japanese) line never leaves the dot alone above it. */}
+      <p
+        role={state.kind === 'failed' ? 'alert' : 'status'}
+        className={`min-w-0 flex-1 text-sm ${tone}`}
+      >
         {text}
       </p>
       {action}
