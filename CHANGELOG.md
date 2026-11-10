@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- When VRChat or ChilloutVR signs you out by itself (an expired or refused
+  sign-in), VRX now says so: a notice names the platform with Go to Accounts
+  and Hide, the status dot in the top bar turns red, and the sign-in screen
+  names the platform and opens on its tab. Before, that platform's friends
+  just disappeared under a green dot. Signing out yourself shows nothing.
+- A ChilloutVR sign-in that stopped working no longer leaves the live
+  connection retrying forever: VRX checks the sign-in once and signs you out
+  if ChilloutVR refuses it.
+
 ## [1.4.3-dev.3] - 2026-11-10
 
 ### Fixed

@@ -191,13 +191,51 @@ describe('CvrAdapter', () => {
         platform: 'chilloutvr',
         state: 'unauthenticated',
         displayName: null,
-        accountId: null
+        accountId: null,
+        endedByPlatform: true
       })
       expect(store.deleted).toBe(1)
       expect(identities.at(-1)).toBeNull()
       // A second probe must NOT re-send the dead key.
       const second = await adapter.getAuthStatus()
       expect(second.state).toBe('unauthenticated')
+    })
+
+    it('says ChilloutVR ended the session until the user signs out', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 })))
+      )
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'dead-key' }),
+        instantAdmission()
+      )
+
+      expect(await adapter.getAuthStatus()).toMatchObject({
+        state: 'unauthenticated',
+        endedByPlatform: true
+      })
+      // A sign-out the user chose never reads as ChilloutVR's doing.
+      adapter.clearSession()
+      expect(await adapter.getAuthStatus()).not.toHaveProperty('endedByPlatform')
+    })
+
+    it('forgets that ChilloutVR ended the session once the user signs in again', async () => {
+      const fetchMock = vi.fn(() =>
+        Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 }))
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'dead-key' }),
+        instantAdmission()
+      )
+      expect(await adapter.getAuthStatus()).toMatchObject({ endedByPlatform: true })
+
+      fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      const status = await adapter.getAuthStatus()
+      expect(status.state).toBe('authenticated')
+      expect(status).not.toHaveProperty('endedByPlatform')
     })
 
     it('network trouble reports error WITHOUT clearing the session', async () => {

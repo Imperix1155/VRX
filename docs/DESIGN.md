@@ -706,7 +706,10 @@ until a save succeeds. Settings VRX couldn't read show the defaults under an
 alert that says so. If the first sign-in check fails, VRX shows a
 platform-specific recovery message with Retry, never a signed-out form. A
 saved VRChat session that needs a fresh sign-in code shows a one-line notice
-with Go to Accounts, and the connection label says Needs code. A panel failure
+with Go to Accounts, and the connection label says Needs code. When a
+platform signs the user out by itself, an alert names it with Go to Accounts
+and Hide, the status dot counts that platform as down, and the sign-in screen
+names it; a sign-out the user chose shows none of this. A panel failure
 stays inside its tab.
 
 **Dashboard switches.** Popular now off hides only its Dashboard section;

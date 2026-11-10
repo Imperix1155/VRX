@@ -397,6 +397,9 @@
         "looking": "この PC を確認しています…"
       },
       "needsCode": "{{platform}} のサインインコードが必要です。",
+      "signedOutByPlatform": "{{platform}}からサインアウトされました。{{platform}}のフレンドを表示するには、もう一度サインインしてください。",
+      "hideNotice": "非表示",
+      "hideSignedOut": "{{platform}}のサインアウトのお知らせを非表示",
       "openAccounts": "アカウントを開く",
       "profile": {
         "edit": "プロフィールを編集",
@@ -844,6 +847,8 @@
   },
   "login": {
     "subtitle": "Social VR コンパニオン",
+    "signedOutByPlatform": "{{platform}}からサインアウトされました。続けるには、もう一度サインインしてください。",
+    "signedOutByBoth": "{{vrchat}}と{{chilloutvr}}からサインアウトされました。続けるには、もう一度サインインしてください。",
     "username": "ユーザー名またはメールアドレス",
     "email": "メールアドレス",
     "usernamePlaceholder": "you@example.com",

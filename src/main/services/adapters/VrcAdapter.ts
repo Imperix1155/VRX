@@ -391,6 +391,8 @@ export class VrcAdapter
   private authPersistencePending = false
   /** True only after the current cookie has been saved with its validated owner. */
   private sessionPersistenceEstablished = false
+  /** VRChat refused the session VRX held; cleared by a new session or a sign-out. */
+  private sessionEndedByPlatform = false
   /** The user's block list as last read this session (Unfriend or block). */
   private blockList: { generation: number; at: number; list: VrcBlockList } | null = null
   private blockListRead: {
@@ -2331,6 +2333,7 @@ export class VrcAdapter
   }
 
   private setCookie(cookie: string): void {
+    this.sessionEndedByPlatform = false
     this.sessionPersistenceEstablished = false
     this.pipelineExchangeRejected = false
     this.cookie = cookie
@@ -2467,6 +2470,7 @@ export class VrcAdapter
    * persisted credential could resurrect the account on restart. */
   clearSession(): void {
     this.credentials.delete()
+    this.sessionEndedByPlatform = false
     this.clearSessionState()
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
@@ -2493,6 +2497,8 @@ export class VrcAdapter
     // replacement cookie yet; explicit clearSession remains the cancellation
     // boundary for active and queued auth operations.
     this.clearSessionState(true, false)
+    // VRChat ended it, not the user: the app says so until a sign-in or sign-out.
+    this.sessionEndedByPlatform = true
     try {
       this.credentials.delete()
     } catch {
@@ -2609,7 +2615,10 @@ export class VrcAdapter
       state,
       accountId: state === 'authenticated' ? this.accountId : null,
       displayName: state === 'authenticated' ? this.displayName : null,
-      ...(twoFactorMethod !== undefined ? { twoFactorMethod } : {})
+      ...(twoFactorMethod !== undefined ? { twoFactorMethod } : {}),
+      ...(state === 'unauthenticated' && this.sessionEndedByPlatform
+        ? { endedByPlatform: true as const }
+        : {})
     }
   }
 }

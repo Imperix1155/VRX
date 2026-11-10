@@ -80,7 +80,11 @@ afterEach(() => {
   useFriendsMock.mockReset()
   useAuthStatusMock.mockReset()
   Object.assign(window, { vrx: undefined })
-  useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
+  useUiStore.setState({
+    activeTab: 'dashboard',
+    settingsCategory: 'appearance',
+    signOutNoticeHidden: { vrchat: false, chilloutvr: false }
+  })
   if (vi.isMockFunction(document.hasFocus)) vi.mocked(document.hasFocus).mockRestore()
 })
 
@@ -271,6 +275,34 @@ describe('TopBar connection health (VRX-223)', () => {
 
     const indicator = await findIndicator('VRChat: Down; ChilloutVR: Signed out')
     expect(indicator.getAttribute('style')).toContain('var(--error)')
+  })
+
+  it('counts a platform that signed the user out by itself as down until its notice is hidden', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    stubFriends([], [])
+    useAuthStatusMock.mockImplementation((platform: Platform) => ({
+      data:
+        platform === 'vrchat'
+          ? authenticated(platform)
+          : {
+              platform,
+              state: 'unauthenticated',
+              accountId: null,
+              displayName: null,
+              endedByPlatform: true
+            }
+    }))
+    stubAppStatus('live', 'live')
+    render(<TopBar />)
+
+    const indicator = await findIndicator('VRChat: Live; ChilloutVR: Signed out')
+    expect(indicator.getAttribute('style')).toContain('var(--error)')
+    // The non-color cue: the down square, not the live dot.
+    expect(indicator.className).not.toContain('rounded-full')
+
+    // Hiding the notice is the user saying they know; the dot follows.
+    act(() => useUiStore.getState().setSignOutNoticeHidden('chilloutvr', true))
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
   })
 
   it('never shows the live dot when neither platform is signed in', async () => {

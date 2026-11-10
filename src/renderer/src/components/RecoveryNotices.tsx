@@ -5,6 +5,7 @@ import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { useAuthStatus } from '../queries/auth'
 import { isAuthCheckFailing } from '../queries/authCheck'
+import { useSignedOutByPlatform } from '../hooks/useSignedOutByPlatform'
 import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
 
 // A compact one-row strip: text and its action share the row, so a notice
@@ -15,6 +16,12 @@ const buttonClass =
   'shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--control-fill-hover)] disabled:opacity-50 aria-disabled:cursor-default aria-disabled:opacity-50'
 const noticeClass =
   'glass glass-layer mb-[var(--space-2)] flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-2)] text-xs leading-snug text-[var(--text-dim)]'
+
+/** A button that removes its own notice hands keyboard focus to the page,
+ *  never to the document body. */
+function focusPage(): void {
+  document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
+}
 
 function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | null {
   const { t } = useTranslation()
@@ -73,6 +80,59 @@ function TwoFactorNotice({ platform }: { platform: Platform }): React.JSX.Elemen
         }}
       >
         {t('settings.accounts.openAccounts')}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * The platform ended the session on its own (a refused or expired sign-in),
+ * at launch or while VRX ran. Under All the other platform keeps the app
+ * going, so without this line that platform's friends would just vanish.
+ * It stays until the user signs in again or hides it; Accounts, where the
+ * sign-in happens, doesn't repeat it.
+ */
+function SignedOutNotice({ platform }: { platform: Platform }): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const signedOut = useSignedOutByPlatform(platform)
+  const onAccounts = useUiStore(
+    (s) => s.activeTab === 'settings' && s.settingsCategory === 'accounts'
+  )
+  const setActiveTab = useUiStore((s) => s.setActiveTab)
+  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
+  const setHidden = useUiStore((s) => s.setSignOutNoticeHidden)
+  if (!signedOut || onAccounts) return null
+  const name = t(ACCOUNT_CARD_CONFIG[platform].labelKey)
+  return (
+    <div className={noticeClass} role="alert" data-signed-out-notice={platform}>
+      {/* The non-color cue (R2): a warning glyph before the words. */}
+      <span aria-hidden="true" className="shrink-0 text-sm text-[var(--error)]">
+        ⚠
+      </span>
+      <span className="min-w-0 flex-1">
+        {t('settings.accounts.signedOutByPlatform', { platform: name })}
+      </span>
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={() => {
+          setActiveTab('settings')
+          setSettingsCategory('accounts')
+          focusPage()
+        }}
+      >
+        {t('settings.accounts.openAccounts')}
+      </button>
+      <button
+        type="button"
+        className={buttonClass}
+        aria-label={t('settings.accounts.hideSignedOut', { platform: name })}
+        onClick={() => {
+          setHidden(platform, true)
+          focusPage()
+        }}
+      >
+        {t('settings.accounts.hideNotice')}
       </button>
     </div>
   )
@@ -159,6 +219,8 @@ export default function RecoveryNotices(): React.JSX.Element {
       <AuthNotice platform="chilloutvr" />
       <TwoFactorNotice platform="vrchat" />
       <TwoFactorNotice platform="chilloutvr" />
+      <SignedOutNotice platform="vrchat" />
+      <SignedOutNotice platform="chilloutvr" />
     </>
   )
 }

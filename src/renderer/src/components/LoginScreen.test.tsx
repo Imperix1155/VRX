@@ -749,6 +749,63 @@ describe('LoginScreen — platform tabs (VRX-217)', () => {
     expect(screen.getByLabelText(msg('login.email'))).toBeTruthy()
   })
 
+  it('names a platform that signed the user out and opens on its tab', () => {
+    window.localStorage.setItem(LAST_LOGIN_PLATFORM_STORAGE_KEY, 'vrchat')
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const signedOut = (platform: 'vrchat' | 'chilloutvr', ended: boolean): AuthStatus => ({
+      platform,
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null,
+      ...(ended ? { endedByPlatform: true as const } : {})
+    })
+    queryClient.setQueryData(authStatusQueryKey('vrchat'), signedOut('vrchat', false))
+    queryClient.setQueryData(authStatusQueryKey('chilloutvr'), signedOut('chilloutvr', true))
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginScreen initialTwoFactor={null} />
+      </QueryClientProvider>
+    )
+
+    const line = screen.getByText(i18n.t('login.signedOutByPlatform', { platform: 'ChilloutVR' }))
+    expect(line.getAttribute('role')).toBe('status')
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('names both platforms when both signed the user out, opening on VRChat', () => {
+    window.localStorage.setItem(LAST_LOGIN_PLATFORM_STORAGE_KEY, 'chilloutvr')
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      queryClient.setQueryData<AuthStatus>(authStatusQueryKey(platform), {
+        platform,
+        state: 'unauthenticated',
+        accountId: null,
+        displayName: null,
+        endedByPlatform: true
+      })
+    }
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginScreen initialTwoFactor={null} />
+      </QueryClientProvider>
+    )
+
+    expect(
+      screen.getByText(
+        i18n.t('login.signedOutByBoth', { vrchat: 'VRChat', chilloutvr: 'ChilloutVR' })
+      )
+    ).toBeTruthy()
+    expect(vrcTab().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('says nothing about a sign-out the user chose', () => {
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin()
+    expect(document.querySelector('[data-signed-out-notice]')).toBeNull()
+  })
+
   it('opens a VRChat 2FA reprompt on the VRChat tab even after a ChilloutVR sign-in', () => {
     window.localStorage.setItem(LAST_LOGIN_PLATFORM_STORAGE_KEY, 'chilloutvr')
     setBridge({ login: vi.fn(), verify2fa: vi.fn() })
