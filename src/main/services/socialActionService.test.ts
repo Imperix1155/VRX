@@ -241,6 +241,60 @@ describe('SocialActionService', () => {
     }
   })
 
+  it('keeps the actions when the platform refuses the block check', async () => {
+    const { service, vrc, cvr, log } = setup()
+    // A 403 is a refusal from a session that still works, never "signed out".
+    vrc.error = new AuthError('Forbidden', 403)
+    await expect(service.getRelationship('vrchat', FRIEND)).resolves.toEqual({
+      ok: true,
+      relationship: { platform: 'vrchat', userId: FRIEND, isFriend: true, blocked: null }
+    })
+    cvr.error = new NetworkError('HTTP 500')
+    await expect(service.getRelationship('chilloutvr', CVR_FRIEND)).resolves.toEqual({
+      ok: true,
+      relationship: {
+        platform: 'chilloutvr',
+        userId: CVR_FRIEND.toLowerCase(),
+        isFriend: true,
+        blocked: null
+      }
+    })
+    expect(log).toHaveBeenCalledWith('social action failed', {
+      platform: 'vrchat',
+      kind: 'relationship',
+      reason: 'unavailable'
+    })
+    // A failed check is not remembered: the next open asks again and can succeed.
+    vrc.error = null
+    vrc.blocked = true
+    await expect(service.getRelationship('vrchat', FRIEND)).resolves.toMatchObject({
+      ok: true,
+      relationship: { blocked: true }
+    })
+    expect(vrc.getBlocked).toHaveBeenCalledTimes(2)
+  })
+
+  it('says signed out only when the session is gone', async () => {
+    const { service, vrc, advance } = setup()
+    vrc.error = new AuthError('Session expired', 401)
+    await expect(service.getRelationship('vrchat', FRIEND)).resolves.toEqual({
+      ok: false,
+      reason: 'not-authenticated'
+    })
+    vrc.error = new AuthError('Forbidden', 403)
+    await expect(service.act('vrchat', FRIEND, 'block')).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable'
+    })
+    advance(SOCIAL_ACTION_COOLDOWN_MS)
+    vrc.error = null
+    vrc.signedIn = false
+    await expect(service.getRelationship('vrchat', FRIEND)).resolves.toEqual({
+      ok: false,
+      reason: 'not-authenticated'
+    })
+  })
+
   it('compares ChilloutVR IDs without case and sends them lower case', async () => {
     const { service, cvr, unfriended } = setup()
     await expect(service.act('chilloutvr', CVR_FRIEND, 'unfriend')).resolves.toMatchObject({

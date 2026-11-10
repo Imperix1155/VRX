@@ -86,7 +86,15 @@ export class SocialActionService {
       const blocked = await this.readBlocked(adapter, state, id)
       return { ok: true, relationship: this.relationship(platform, id, blocked) }
     } catch (error) {
-      return { ok: false, reason: this.failure(platform, 'relationship', error) }
+      const reason = this.failure(platform, 'relationship', error)
+      // The check is a convenience, not a gate: when the platform won't say,
+      // the actions stay reachable and the profile says it couldn't tell.
+      // Only a real sign-out or a slow-down stops here. Nothing is remembered,
+      // so the next open asks again.
+      if (reason === 'unavailable') {
+        return { ok: true, relationship: this.relationship(platform, id, null) }
+      }
+      return { ok: false, reason }
     }
   }
 
@@ -250,13 +258,25 @@ export class SocialActionService {
     kind: SocialAction | 'relationship',
     error: unknown
   ): SocialFailure {
-    const reason: SocialFailure =
-      error instanceof AuthError || error instanceof RequestCancelledError
-        ? 'not-authenticated'
-        : error instanceof RateLimitError || error instanceof RequestQueueFullError
-          ? 'rate-limited'
-          : 'unavailable'
+    const reason: SocialFailure = isSignedOut(error)
+      ? 'not-authenticated'
+      : error instanceof RateLimitError || error instanceof RequestQueueFullError
+        ? 'rate-limited'
+        : 'unavailable'
     this.log('social action failed', { platform, kind, reason })
     return reason
   }
+}
+
+/**
+ * Whether a failure means the session is gone. A 403 is a refusal of this one
+ * request from a session that still works (the platform said no, or a
+ * permission is missing), so it is never shown as "signed out". When a 403
+ * does come from a dead session, the adapter's own checks sign the account
+ * out and the profile follows.
+ */
+function isSignedOut(error: unknown): boolean {
+  if (error instanceof RequestCancelledError) return true
+  if (!(error instanceof AuthError)) return false
+  return error.status !== 403
 }

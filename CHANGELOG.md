@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Unfriend, Block and Unblock on a VRChat profile now work. VRX no longer
+  says "You're signed out of VRChat" while you are signed in: it now asks
+  VRChat whether you block someone the same way VRCX does, and if VRChat
+  still won't say, the buttons stay with a note that VRX couldn't tell.
+- After you unfriend one account of a linked person, that account's part of
+  the full profile stays open with "Unfriended" and Block until you close the
+  profile.
+- A friend's full profile opened right after VRX starts no longer gets stuck
+  on "Search for this person again"; it shows once your friends list is in.
+- Unfriend appears or goes away as soon as a friendship starts or ends while
+  VRX is open, and opening "Unfriend or block" scrolls its buttons into view.
+
 ## [1.4.3-dev.2] - 2026-11-09
 
 ### Fixed

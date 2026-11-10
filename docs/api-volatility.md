@@ -541,17 +541,25 @@ Routes and bodies follow the community specification and VRCX
 (`src/api/playerModeration.ts`, `friend.ts`). Source-derived; not yet run
 against a real account.
 
+- **Changed 2026-11:** the block check used to send the filtered form
+  `?type=block&targetUserId={userId}`, which VRCX never sends. On a real
+  signed-in account its answer surfaced as "signed out" and hid every action.
+  VRX now reads the whole list with no filter, as VRCX does, once for every
+  profile for 5 minutes. A refused (403) or failed check no longer reads as
+  signed out: the actions show with "couldn't tell".
+
 | Route                                                                   | Assumed shape                                                             |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `GET /auth/user/playermoderations?type=block&targetUserId={userId}`     | Array of the user's own moderations, each with `type` and `targetUserId`. |
+| `GET /auth/user/playermoderations`                                      | Array of the user's own moderations, each with `type` and `targetUserId`. |
 | `DELETE /auth/user/friends/{userId}`                                    | Unfriends; the body is ignored. 400 when not friends.                     |
 | `POST /auth/user/playermoderations` with `{ moderated, type: "block" }` | Blocks; the reply (the new moderation) is ignored.                        |
 | `PUT /auth/user/unplayermoderate` with `{ moderated, type: "block" }`   | Unblocks; the body is ignored.                                            |
 
 - **Blocked:** true only for a record whose `type` is `block` and whose
-  `targetUserId` is that person, so a reply that ignores the filter still
-  answers correctly. A reply that is not an array is unavailable, never "not
-  blocked".
+  `targetUserId` is that person; mutes and interaction toggles in the same
+  list are ignored. A reply that is not an array is unavailable, never "not
+  blocked". Past 20,000 records a person not found reads as unknown, not as
+  "not blocked".
 - **Writes** are sent once (`retry: 'none'`). A 401 emits `auth-invalidated`;
   a 429 or any other failure shows in the confirmation and changes nothing in
   VRX. The friend leaves the roster through the Pipeline's `friend-delete`.

@@ -13,9 +13,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import type { SocialAction, SocialActionResult } from '@shared/socialActions'
+import type { RelationshipResult, SocialAction, SocialActionResult } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
 import { useScrimDismiss } from '../hooks/useScrimDismiss'
+import { useAvatarAccount } from '../queries/avatarLibrary'
 import { useRelationship, useSocialAction } from '../queries/community'
 import { keepTabInModal } from '../utils/modalTab'
 import GoToAccountsButton from './GoToAccountsButton'
@@ -91,11 +92,33 @@ export default function ProfileActions({
   // close on their own when the friend leaves the list; the question goes too.
   if (confirming !== null && !panelOpen) setConfirming(null)
   const [done, setDone] = useState<SocialAction | null>(null)
+  // "✓ Unfriended" belongs to this visit; a later open of the same person
+  // (friends again, say) starts without it.
+  if (done !== null && !panelOpen) setDone(null)
   const panelId = useId()
   const toggleRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const relationship = useRelationship(platform, userId, open)
+  const signedIn = useAvatarAccount(platform) !== null
   const platformName = t(PLATFORM_KEYS[platform])
-  const result = relationship.data
+  const result: RelationshipResult | undefined = signedIn
+    ? relationship.data
+    : { ok: false, reason: 'not-authenticated' }
+  const shown = !open
+    ? 'closed'
+    : result === undefined
+      ? 'checking'
+      : result.ok
+        ? 'actions'
+        : 'error'
+
+  useEffect(() => {
+    // The options sit at the very end of a long profile: bring them into view
+    // when they open and again when the buttons replace "Checking…".
+    if (shown === 'closed') return
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    panelRef.current?.scrollIntoView?.({ block: 'nearest', behavior: still ? 'auto' : 'smooth' })
+  }, [shown])
 
   let body: React.JSX.Element | null = null
   if (open) {
@@ -183,7 +206,12 @@ export default function ProfileActions({
           )}
         </button>
       </div>
-      <div id={panelId} hidden={!open} className="flex flex-col gap-[var(--space-2)]">
+      <div
+        id={panelId}
+        ref={panelRef}
+        hidden={!open}
+        className="flex flex-col gap-[var(--space-2)]"
+      >
         {open ? (
           <>
             <p className="text-xs text-[var(--text-dim)]">

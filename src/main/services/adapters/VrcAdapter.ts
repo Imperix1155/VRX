@@ -68,7 +68,8 @@ import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
 import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
 import { parseVrcOwnProfile, vrcOwnProfileBody, vrcOwnUserBody } from './vrchat/parseOwnProfile'
 import { SocialDataError, type SocialActionAdapter } from './SocialActionAdapter'
-import { parseVrcBlocked } from './vrchat/parseBlocked'
+import { isVrcBlocked, parseVrcBlockList, type VrcBlockList } from './vrchat/parseBlocked'
+import { RELATIONSHIP_CACHE_MS } from '@shared/socialActions'
 import {
   COMMUNITY_LIST_MAX_WORLDS,
   COMMUNITY_MY_GROUPS_MAX,
@@ -390,6 +391,15 @@ export class VrcAdapter
   private authPersistencePending = false
   /** True only after the current cookie has been saved with its validated owner. */
   private sessionPersistenceEstablished = false
+  /** The user's block list as last read this session (Unfriend or block). */
+  private blockList: { generation: number; at: number; list: VrcBlockList } | null = null
+  private blockListRead: {
+    generation: number
+    writes: number
+    promise: Promise<VrcBlockList>
+  } | null = null
+  /** VRX's own block and unblock writes, so a list read across one is not kept. */
+  private blockWrites = 0
   /**
    * Set when a Pipeline token exchange 401 invalidated this cookie's session.
    * If the status check still accepts the cookie, a repeat 401 falls back to
@@ -1391,17 +1401,62 @@ export class VrcAdapter
 
   async getBlocked(userId: string, lease: RequestLease): Promise<boolean | null> {
     const id = this.socialUserId(userId)
-    const query = new URLSearchParams({ type: 'block', targetUserId: id })
-    const raw = await this.runCommunityRequest(lease, () =>
-      this.get(
-        `/auth/user/playermoderations?${query.toString()}`,
-        z.unknown(),
-        this.communityOptions(lease)
+    return isVrcBlocked(await this.readBlockList(lease), id)
+  }
+
+  /**
+   * The user's own moderations, asked for the way VRCX asks: the whole list,
+   * no filter. The filtered form VRX sent before (`?type=block&targetUserId=`)
+   * is not what VRCX sends, and on a real signed-in account its answer showed
+   * "signed out". One read serves every profile for RELATIONSHIP_CACHE_MS, so
+   * opening several profiles does not repeat it.
+   */
+  private readBlockList(lease: RequestLease): Promise<VrcBlockList> {
+    const kept = this.blockList
+    if (
+      kept !== null &&
+      kept.generation === lease.generation &&
+      Date.now() - kept.at < RELATIONSHIP_CACHE_MS
+    ) {
+      return Promise.resolve(kept.list)
+    }
+    const writesBefore = this.blockWrites
+    const running = this.blockListRead
+    // A read that started before VRX's own write can't answer for after it.
+    if (
+      running !== null &&
+      running.generation === lease.generation &&
+      running.writes === writesBefore
+    ) {
+      return running.promise
+    }
+    const promise: Promise<VrcBlockList> = (async () => {
+      const raw = await this.runCommunityRequest(lease, () =>
+        this.get('/auth/user/playermoderations', z.unknown(), this.communityOptions(lease))
       )
-    )
-    const blocked = parseVrcBlocked(raw, id)
-    if (blocked === null) throw new SocialDataError('VRChat block list response was malformed')
-    return blocked
+      const list = parseVrcBlockList(raw)
+      if (list === null) throw new SocialDataError('VRChat moderation list response was malformed')
+      // A block or unblock VRX sent while this read was out is newer than it.
+      if (lease.generation === this.sessionGeneration && this.blockWrites === writesBefore) {
+        this.blockList = { generation: lease.generation, at: Date.now(), list }
+      }
+      return list
+    })().finally(() => {
+      if (this.blockListRead?.promise === promise) this.blockListRead = null
+    })
+    this.blockListRead = { generation: lease.generation, writes: writesBefore, promise }
+    return promise
+  }
+
+  /** Keep the remembered list in step with a block or unblock VRX just sent. */
+  private noteBlockWrite(lease: RequestLease, id: string, blocked: boolean): void {
+    this.blockWrites += 1
+    const kept = this.blockList
+    if (kept === null || kept.generation !== lease.generation) return
+    const ids = new Set(kept.list.ids)
+    if (blocked) ids.add(id)
+    else ids.delete(id)
+    this.blockList = { ...kept, list: { ids, complete: kept.list.complete } }
   }
 
   async unfriend(userId: string, lease: RequestLease): Promise<void> {
@@ -1425,6 +1480,7 @@ export class VrcAdapter
         this.communityOptions(lease)
       )
     )
+    this.noteBlockWrite(lease, id, true)
   }
 
   async unblock(userId: string, lease: RequestLease): Promise<void> {
@@ -1437,6 +1493,7 @@ export class VrcAdapter
         this.communityOptions(lease)
       )
     )
+    this.noteBlockWrite(lease, id, false)
   }
 
   private socialUserId(userId: string): string {
@@ -2354,6 +2411,8 @@ export class VrcAdapter
     this.freshAuthBuckets = null
     this.rosterRefresh.clear()
     this.userReads.clear()
+    this.blockList = null
+    this.blockListRead = null
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.worldResolver.clear()
