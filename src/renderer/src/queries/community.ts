@@ -6,7 +6,12 @@
  * caches every answer for 5 minutes, so these queries match that.
  */
 import { useCallback, useEffect, useRef } from 'react'
-import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+  type UseQueryResult
+} from '@tanstack/react-query'
 import {
   COMMUNITY_CACHE_MS,
   type CommunitySearchResult,
@@ -86,6 +91,18 @@ export const PROFILE_WAIT_TRIES = 10
  * must not stick for the usual five minutes: they are asked again on the next
  * open.
  */
+/**
+ * A profile that gave up waiting for its person to show up in a roster asks
+ * again once a roster read lands, so a friend's open profile never stays on
+ * "search for this person again".
+ */
+export function askAgainForUnknownPeople(client: QueryClient, platform: Platform): void {
+  void client.invalidateQueries({
+    queryKey: ['profile', platform],
+    predicate: (query) => notReadyYet(query.state.data as ProfileResult | undefined)
+  })
+}
+
 function notReadyYet(data: ProfileResult | undefined): boolean {
   return (
     data !== undefined &&

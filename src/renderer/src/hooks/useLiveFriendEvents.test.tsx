@@ -23,6 +23,7 @@ import i18n from '../i18n'
 import {
   ROSTER_CHANGED_MAX_WAIT_MS,
   ROSTER_CHANGED_SETTLE_MS,
+  ROSTER_SLOW_DOWN_RETRY_MS,
   useLiveFriendEvents
 } from './useLiveFriendEvents'
 
@@ -462,6 +463,54 @@ describe('useLiveFriendEvents — roster-changed bursts', () => {
     act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
     act(() => vi.advanceTimersByTime(ROSTER_CHANGED_MAX_WAIT_MS))
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('chilloutvr') })
+  })
+})
+
+describe('useLiveFriendEvents — a friends read refused for a slow-down', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('reads once more after the slow-down, and not once a read lands', async () => {
+    vi.useFakeTimers()
+    stubBridge()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mount(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const reads = (): number =>
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(friendsQueryKey('chilloutvr'))
+      ).length
+
+    await act(async () => {
+      await client
+        .fetchQuery({
+          queryKey: friendsQueryKey('chilloutvr'),
+          queryFn: () => Promise.reject(new Error('rate_limited'))
+        })
+        .catch(() => undefined)
+    })
+    act(() => vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS - 1))
+    expect(reads()).toBe(0)
+    act(() => vi.advanceTimersByTime(1))
+    expect(reads()).toBe(1)
+
+    // A refusal followed by a read that lands some other way waits for nothing.
+    await act(async () => {
+      await client
+        .fetchQuery({
+          queryKey: friendsQueryKey('chilloutvr'),
+          queryFn: () => Promise.reject(new Error('rate_limited'))
+        })
+        .catch(() => undefined)
+      await client.fetchQuery({
+        queryKey: friendsQueryKey('chilloutvr'),
+        queryFn: () => Promise.resolve([])
+      })
+    })
+    act(() => vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS))
+    expect(reads()).toBe(1)
   })
 })
 

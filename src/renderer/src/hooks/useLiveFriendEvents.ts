@@ -43,7 +43,7 @@ import { favoritesPlatformKeys } from '../queries/favorites'
 import { gameFavoritesPlatformKey } from '../queries/gameFavorites'
 import { avatarQueryKeysForPlatform } from '../queries/avatarLibrary'
 import { homeWorldQueryKeyForPlatform } from '../queries/homeWorld'
-import { communityQueryKeysForPlatform } from '../queries/community'
+import { askAgainForUnknownPeople, communityQueryKeysForPlatform } from '../queries/community'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 import { coalesce, type Coalesced } from '../utils/coalesce'
@@ -52,6 +52,13 @@ import { coalesce, type Coalesced } from '../utils/coalesce'
 export const ROSTER_CHANGED_SETTLE_MS = 400
 /** ...but no longer than this while they keep coming. */
 export const ROSTER_CHANGED_MAX_WAIT_MS = 3_000
+/**
+ * A friends read refused for a slow-down (the platform's cooldown or the local
+ * read limit) is read once more this long after, while the refusal lasts. Main
+ * answers instantly during a cooldown, so this sends nothing to the platform
+ * until the cooldown is over.
+ */
+export const ROSTER_SLOW_DOWN_RETRY_MS = 30_000
 
 export function useLiveFriendEvents(): void {
   const queryClient = useQueryClient()
@@ -99,8 +106,28 @@ export function useLiveFriendEvents(): void {
       }
       read.trigger()
     }
+    // A friends read refused for a slow-down reads once more after it, as a
+    // VRChat reconnect would; without this a 429 at startup left ChilloutVR's
+    // list unloaded until the user pressed Retry.
+    const slowDownReads = new Map<Friend['platform'], Coalesced>()
+    const scheduleSlowDownRead = (platform: Friend['platform']): void => {
+      let read = slowDownReads.get(platform)
+      if (read === undefined) {
+        read = coalesce(
+          () => void queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) }),
+          ROSTER_SLOW_DOWN_RETRY_MS,
+          ROSTER_SLOW_DOWN_RETRY_MS
+        )
+        slowDownReads.set(platform, read)
+      }
+      read.trigger()
+    }
+    const dropSlowDownRead = (platform: Friend['platform']): void => {
+      slowDownReads.get(platform)?.cancel()
+    }
     const dropRosterRead = (platform: Friend['platform']): void => {
       rosterReads.get(platform)?.cancel()
+      dropSlowDownRead(platform)
     }
 
     const applyToCache = (
@@ -264,6 +291,18 @@ export function useLiveFriendEvents(): void {
     const unsubscribeCache = queryClient.getQueryCache().subscribe((cacheEvent) => {
       if (cacheEvent.type !== 'updated') return
       const action = cacheEvent.action
+      if (action.type === 'error') {
+        const failedKey = cacheEvent.query.queryKey as readonly unknown[]
+        const failedPlatform = failedKey[1] as Friend['platform']
+        if (
+          failedKey[0] === 'friends' &&
+          isRateLimited(action.error) &&
+          !quarantined.has(failedPlatform)
+        ) {
+          scheduleSlowDownRead(failedPlatform)
+        }
+        return
+      }
       if (action.type !== 'success') return
       // TanStack types the notify-event's query with `any` generics, so queryKey
       // widens to `any` — pin it back to the real QueryKey shape.
@@ -326,6 +365,8 @@ export function useLiveFriendEvents(): void {
       // writes (which dispatch 'success' with manual:true) or it recurses/loops.
       if (action.manual) return
       if (key[0] !== 'friends') return
+      // A read that landed some other way makes a waiting slow-down read moot.
+      dropSlowDownRead(platform)
       // Quarantine invariant (Codex): while a platform's session is dead, its
       // roster MUST stay []. A friends fetch can still succeed after we cleared
       // it — an in-flight request that started before the 401, or a refetch that
@@ -335,6 +376,7 @@ export function useLiveFriendEvents(): void {
         queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), [], EMPTY_ROSTER_PLACEHOLDER)
         return
       }
+      askAgainForUnknownPeople(queryClient, platform)
       const snapshot = latestSnapshot.get(platform)
       const roster = cacheEvent.query.state.data as Friend[] | undefined
       if (snapshot === undefined || roster === undefined) return
@@ -346,6 +388,11 @@ export function useLiveFriendEvents(): void {
       unsubscribeIdentityBoundary()
       unsubscribeCache()
       for (const read of rosterReads.values()) read.cancel()
+      for (const read of slowDownReads.values()) read.cancel()
     }
   }, [queryClient])
+}
+
+function isRateLimited(error: unknown): boolean {
+  return error instanceof Error && error.message === 'rate_limited'
 }
