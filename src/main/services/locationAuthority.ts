@@ -318,6 +318,28 @@ export class LocationAuthority {
     }
   }
 
+  /**
+   * ChilloutVR roster rows with the presence the socket delivered since the
+   * latest live connection (see keepsLiveLocation), so a window that loads
+   * later, such as after a reload, shows what main knows instead of everyone
+   * offline. Other platforms' rows carry their own presence and pass through.
+   */
+  withLivePresence(platform: Platform, friends: Friend[]): Friend[] {
+    if (platform !== 'chilloutvr') return friends
+    const state = this.states[platform]
+    let changed = false
+    const rows = friends.map((friend) => {
+      const current = state.friends.get(friend.platformUserId)
+      if (current === undefined || !this.keepsLiveLocation(platform, state, current)) return friend
+      const live = current.friend ?? current.pending
+      if (live === undefined || live.presence.state === 'offline') return friend
+      changed = true
+      return { ...friend, presence: live.presence, instance: live.instance } as Friend
+    })
+    // Nothing live to add: hand back the same rows, untouched.
+    return changed ? rows : friends
+  }
+
   /** Whether the last roster or live update named this friend. Says nothing about location. */
   hasFriend(platform: Platform, friendId: string): boolean {
     const entry = this.states[platform].friends.get(friendId)
