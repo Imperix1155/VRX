@@ -21,7 +21,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `getFriends`, `onFriendEvent`, `onIdentityBoundary` | [`queries/friends.ts`](../../src/renderer/src/queries/friends.ts) and [`hooks/useLiveFriendEvents.ts`](../../src/renderer/src/hooks/useLiveFriendEvents.ts) (mounted once in `App`). Dialogs and hooks also subscribe to fence their own state. |
 | `getAvatar`, `getKeptAvatar` | [`hooks/useAvatar.ts`](../../src/renderer/src/hooks/useAvatar.ts) |
 | `getAuthStatus`, `login`, `verify2fa`, `importSession`, `logout` | [`queries/auth.ts`](../../src/renderer/src/queries/auth.ts), [`hooks/useAuthFlow.ts`](../../src/renderer/src/hooks/useAuthFlow.ts), and `logout` in [`AccountCard.tsx`](../../src/renderer/src/components/AccountCard.tsx) |
-| `getAccounts` | [`stores/accounts.ts`](../../src/renderer/src/stores/accounts.ts) |
+| `getAccounts` | No renderer caller. |
 | `getFriendNote`, `setFriendNote` | [`hooks/useFriendNote.ts`](../../src/renderer/src/hooks/useFriendNote.ts) |
 | `getAlertPicks`, `setAlertPick` | [`queries/alertPicks.ts`](../../src/renderer/src/queries/alertPicks.ts) |
 | `getLinkedProfiles`, `changeLinkedProfile`, `onLinkedProfilesChanged` | [`queries/linkedProfiles.ts`](../../src/renderer/src/queries/linkedProfiles.ts) |

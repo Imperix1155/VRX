@@ -131,8 +131,6 @@ Only the `friends` namespace is persisted (localStorage key `vrx-query-cache`). 
 | `useFriendsStore` | [`friends.ts`](../../src/renderer/src/stores/friends.ts) | Social view state: `search` and the global `platformFilter` (`PlatformFilter` = `Platform \| 'all'`, default `all`). Roster data stays in the query cache. The filter is persisted through `usePlatformFilterSettings`. |
 | `useProfileSelection` | [`profileSelection.ts`](../../src/renderer/src/stores/profileSelection.ts) | Navigation identity only: `target` (`ProfileTarget \| null`) and `select`. FriendsList resolves it with `resolveLinkedProfile` and hands the result to FriendDrawer. Presence and notes come from their owners. |
 
-[`stores/accounts.ts`](../../src/renderer/src/stores/accounts.ts) exports `useAccountsStore` (`accounts`, `fetchAccounts`, `activeAccount`). No production code imports it, and it holds server data, which the store rule forbids. Do not build on it; account state belongs in a query.
-
 ## Utilities
 
 | Symbol | File | Purpose |
