@@ -1985,8 +1985,10 @@ export class VrcAdapter
     // cookie must never be swallowed as a generic operation failure (VRX-42).
     const generation = this.sessionGeneration
     try {
+      // A write: sent once per press and never resent, even after a 429.
       await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown(), {
-        priority: 'interactive'
+        priority: 'interactive',
+        retry: 'none'
       })
       // A replacement session landed while the request was in flight; its outcome
       // belongs to the new identity, not to the caller that issued this one.

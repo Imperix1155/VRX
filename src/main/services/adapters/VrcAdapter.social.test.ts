@@ -158,6 +158,17 @@ describe('VrcAdapter unfriend and block', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('never resends a self-invite after a 429', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 429, headers: { 'Retry-After': '0' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+    await expect(adapter.selfInvite('wrld_example:12345~private(usr_self)')).rejects.toThrow()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('refuses a malformed person ID before any request', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
