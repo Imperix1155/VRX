@@ -19,9 +19,10 @@ import {
   type WorldListResult
 } from '@shared/community'
 import type { RelationshipResult, SocialAction, SocialActionResult } from '@shared/socialActions'
-import type { Platform } from '@shared/types'
+import type { Friend, Platform } from '@shared/types'
 import { keepShown, type Kept } from '../utils/community'
 import { useAvatarAccount } from './avatarLibrary'
+import { friendsQueryKey, isRosterPlaceholder } from './friends'
 
 type CommunityKind =
   | 'profile'
@@ -75,6 +76,36 @@ const READ_OPTIONS = {
   networkMode: 'always'
 } as const
 
+/** How often, and how many times, a friend main doesn't know yet is asked again. */
+export const PROFILE_WAIT_MS = 2_000
+export const PROFILE_WAIT_TRIES = 10
+
+/**
+ * Just after launch, or after a session check, main may not have the friends
+ * list or the session back yet, and refuses a friend's profile. Those answers
+ * must not stick for the usual five minutes: they are asked again on the next
+ * open.
+ */
+function notReadyYet(data: ProfileResult | undefined): boolean {
+  return (
+    data !== undefined &&
+    !data.ok &&
+    (data.reason === 'unknown-person' || data.reason === 'not-authenticated')
+  )
+}
+
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(done, ms)
+    signal.addEventListener('abort', done, { once: true })
+    function done(): void {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', done)
+      resolve()
+    }
+  })
+}
+
 /** A person's full profile, read once when their profile opens. */
 export function useProfile(
   platform: Platform,
@@ -83,9 +114,20 @@ export function useProfile(
   const accountId = useAvatarAccount(platform)
   return useQuery({
     queryKey: communityQueryKey('profile', platform, accountId, userId ?? ''),
-    queryFn: () => bridge().getProfile({ platform, userId: userId! }),
+    queryFn: async ({ signal }) => {
+      // "Unknown person" is decided in main with no request. While the friends
+      // list is still loading, the profile keeps saying it is loading and is
+      // asked again every couple of seconds, so it appears on its own.
+      for (let tries = 1; ; tries += 1) {
+        const result = await bridge().getProfile({ platform, userId: userId! })
+        const waiting = !result.ok && result.reason === 'unknown-person'
+        if (!waiting || tries >= PROFILE_WAIT_TRIES || signal.aborted) return result
+        await pause(PROFILE_WAIT_MS, signal)
+      }
+    },
     enabled: accountId !== null && userId !== null,
-    ...READ_OPTIONS
+    ...READ_OPTIONS,
+    staleTime: (query) => (notReadyYet(query.state.data) ? 0 : COMMUNITY_CACHE_MS)
   })
 }
 
@@ -301,6 +343,64 @@ export function useRelationship(
         : COMMUNITY_CACHE_MS
     }
   })
+}
+
+/**
+ * Keeps one person's saved "is a friend" answers in step with the friends
+ * list while their profile shows. A friendship that starts while VRX runs (a
+ * request accepted on either side) or ends (they unfriend you) changes the
+ * profile's buttons at once, with no new read. Being on the list always means
+ * a friend; leaving it counts only when seen happening, since a list still
+ * loading can't say who is missing.
+ */
+export function useFollowFriendship(platform: Platform, userId: string): void {
+  const client = useQueryClient()
+  const accountId = useAvatarAccount(platform)
+  useEffect(() => {
+    if (accountId === null) return
+    const rosterKey = friendsQueryKey(platform)
+    const id = platform === 'chilloutvr' ? userId.toLowerCase() : userId
+    const onList = (): boolean | null => {
+      const state = client.getQueryState<Friend[]>(rosterKey)
+      if (state?.data === undefined || isRosterPlaceholder(state)) return null
+      return state.data.some(
+        (friend) =>
+          friend.platform === platform &&
+          (platform === 'chilloutvr'
+            ? friend.platformUserId.toLowerCase()
+            : friend.platformUserId) === id
+      )
+    }
+    const apply = (isFriend: boolean): void => {
+      client.setQueryData<RelationshipResult>(
+        communityQueryKey('relationship', platform, accountId, userId),
+        (old) =>
+          old?.ok && old.relationship.isFriend !== isFriend
+            ? { ...old, relationship: { ...old.relationship, isFriend } }
+            : old
+      )
+      client.setQueryData<ProfileResult>(
+        communityQueryKey('profile', platform, accountId, userId),
+        (old) =>
+          old?.ok && old.profile.isFriend !== isFriend
+            ? { ...old, profile: { ...old.profile, isFriend } }
+            : old
+      )
+    }
+    let last: boolean | null = null
+    const sync = (): void => {
+      const now = onList()
+      if (now === null) return
+      if (now) apply(true)
+      else if (last === true) apply(false)
+      last = now
+    }
+    sync()
+    return client.getQueryCache().subscribe((event) => {
+      const key = event.query.queryKey as readonly unknown[]
+      if (event.type === 'updated' && key[0] === rosterKey[0] && key[1] === rosterKey[1]) sync()
+    })
+  }, [client, platform, userId, accountId])
 }
 
 /**

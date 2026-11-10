@@ -730,8 +730,10 @@ function DrawerFullProfile({
   const [open, setOpen] = useState(false)
   // An account that leaves the friends list while the profile is open (an
   // Unfriend from its own section, say) keeps its section until the profile
-  // closes, so "✓ Unfriended" and Block stay on screen, as they do for someone
-  // with one account. An account that was only unlinked goes at once.
+  // closes, so "✓ Unfriended" and Block stay on screen beside the accounts
+  // still listed. When the last account leaves, the person has left the list
+  // and their details close, as for anyone who leaves it. An account that was
+  // only unlinked goes at once.
   const [departed, setDeparted] = useState<readonly Friend[]>([])
   const accountsKey = accounts.map(accountKey).join('|')
   const [previous, setPrevious] = useState({ key: accountsKey, accounts })

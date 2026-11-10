@@ -21,7 +21,12 @@ import type { FriendActionResult, FriendRequestAnswer } from '@shared/friendActi
 import type { Platform, TrustRank } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
 import { useAuthStatus } from '../queries/auth'
-import { useProfile, useProfileGroups, useProfileWorlds } from '../queries/community'
+import {
+  useFollowFriendship,
+  useProfile,
+  useProfileGroups,
+  useProfileWorlds
+} from '../queries/community'
 import { sendFriendRequest, useAnswerFriendRequest } from '../queries/friendActions'
 import { useInbox } from '../queries/inbox'
 import { platformName } from '../utils/community'
@@ -77,6 +82,7 @@ export default function ProfileDetails({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const profile = useProfile(platform, userId)
+  useFollowFriendship(platform, userId)
   const result = profile.data
   const lineRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
