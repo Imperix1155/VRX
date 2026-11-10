@@ -133,6 +133,9 @@ describe('useJoinInstance', () => {
       occupancy: { state: 'complete', value: 2, source: 'vrc-room-n-users' },
       capacity: 20,
       full: false,
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null,
       action: { state: 'available', selectionRef: 'selection-ref' }
     }
     const hook = renderHook(() => useJoinInstance())
@@ -173,6 +176,9 @@ describe('useJoinInstance', () => {
       occupancy: { state: 'partial', value: null, source: 'unknown' },
       capacity: null,
       full: false,
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null,
       action: { state: 'disabled', reason: 'stale' }
     }
     const hook = renderHook(() => useJoinInstance())

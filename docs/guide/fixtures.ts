@@ -413,6 +413,9 @@ const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
     occupancy: { state: 'complete', value: 12, source: 'visible-rooms' },
     capacity: 32,
     full: false,
+    instanceTitle: world.platform === 'vrchat' ? 'Evening hangout' : null,
+    instanceDescription: world.platform === 'vrchat' ? 'Quiet voices, somewhere to sit.' : null,
+    spokenLanguage: world.platform === 'vrchat' ? 'en' : null,
     action: { state: 'available', selectionRef: `guide-selection-${world.worldRef}-east` }
   },
   {
@@ -425,6 +428,9 @@ const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
     occupancy: { state: 'complete', value: 24, source: 'visible-rooms' },
     capacity: 24,
     full: true,
+    instanceTitle: null,
+    instanceDescription: null,
+    spokenLanguage: null,
     action: { state: 'disabled', reason: 'full' }
   },
   {
@@ -437,6 +443,9 @@ const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
     occupancy: { state: 'unknown', value: null, source: 'unknown' },
     capacity: null,
     full: null,
+    instanceTitle: null,
+    instanceDescription: null,
+    spokenLanguage: null,
     action: { state: 'disabled', reason: 'unavailable' }
   }
 ]

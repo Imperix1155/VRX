@@ -356,4 +356,58 @@ describe('VRChat Explore parsers', () => {
       source: 'unknown'
     })
   })
+
+  it('keeps a room name, description and known spoken language, and drops everything else', () => {
+    const base = { worldId, instanceId: publicRoom }
+    const titled = parseVrcExploreRoom(
+      {
+        ...base,
+        displayName: '  Friday\n lobby \u0000',
+        description: 'Bring a chair.',
+        dominantLanguage: 'EN',
+        categoryId: 'icat_not-a-label',
+        vibeIds: ['ivib_not-a-label'],
+        ownerId: null,
+        creatorId: 'usr_11111111-1111-1111-1111-111111111111'
+      },
+      worldId,
+      publicRoom
+    )
+    expect(titled).toMatchObject({
+      instanceTitle: 'Friday lobby',
+      instanceDescription: 'Bring a chair.',
+      spokenLanguage: 'en'
+    })
+    const encoded = JSON.stringify(titled)
+    expect(encoded).not.toContain('icat_')
+    expect(encoded).not.toContain('ivib_')
+    expect(encoded).not.toContain('usr_')
+
+    expect(
+      parseVrcExploreRoom(
+        { ...base, displayName: '   ', description: 12, dominantLanguage: 'english' },
+        worldId,
+        publicRoom
+      )
+    ).toMatchObject({
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null
+    })
+
+    const long = 'あ'.repeat(90)
+    expect(
+      parseVrcExploreRoom({ ...base, displayName: long }, worldId, publicRoom)?.instanceTitle
+    ).toBe(`${'あ'.repeat(79)}…`)
+
+    const inherited = Object.assign(
+      Object.create({ displayName: 'Hidden', description: 'Hidden', dominantLanguage: 'ja' }),
+      base
+    )
+    expect(parseVrcExploreRoom(inherited, worldId, publicRoom)).toMatchObject({
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null
+    })
+  })
 })

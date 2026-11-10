@@ -75,7 +75,8 @@ Before adding a channel, event, hook, store, parser, service or constant, look
 it up in the [internal API catalog](INTERNAL-API.md) and read the code it
 points to. The catalog is one file per area in [`internal-api/`](internal-api/);
 search it with `rg -n 'name' docs/internal-api`. Before adding a platform
-request, read the [API policy](api-policy.md).
+request, read the [API policy](api-policy.md). Dated prep notes live in
+[`plans/`](plans/). A plan never overrides a contract or the current source.
 
 ## Design guide
 

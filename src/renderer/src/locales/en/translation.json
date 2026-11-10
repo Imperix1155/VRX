@@ -935,6 +935,9 @@
       "joining-disabled": "Disabled"
     },
     "peopleCount": "People: <value>{{count}}</value>",
+    "room": {
+      "language": "Language: {{language}}"
+    },
     "region": {
       "usWest": "US West",
       "usEast": "US East",

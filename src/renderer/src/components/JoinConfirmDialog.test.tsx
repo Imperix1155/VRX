@@ -199,6 +199,9 @@ const exploreRoom: ExploreRoom = {
   occupancy: { state: 'complete', value: 12, source: 'vrc-room-n-users' },
   capacity: 40,
   full: false,
+  instanceTitle: null,
+  instanceDescription: null,
+  spokenLanguage: null,
   action: { state: 'available', selectionRef: 'explore-selection-ref' }
 }
 

@@ -74,7 +74,9 @@ transport, and published adapter events.
   empty instance. The URI carries no desktop/VR mode. Final
   `isAllowedLaunchUrl` validation and `shell.openExternal` stay in IPC.
 - `parseExplore.ts` accepts only internally consistent public candidates and
-  returns evidence without references, actions, URLs, or raw responses.
+  returns evidence without references, actions, URLs, or raw responses. Room
+  detail may include a clipped `displayName`, `description` and a known
+  `dominantLanguage`. Category ids, vibe ids and owner ids are not copied.
 - `parseAvatars.ts` reads only the fields the Avatars page shows; a record
   without an `avtr_` ID or a name is skipped, and image URLs must be `https`.
 - `parseBlocked.ts` answers whether a player-moderation list holds a `block`

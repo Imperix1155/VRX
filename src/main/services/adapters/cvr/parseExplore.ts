@@ -187,6 +187,10 @@ export function parseCvrExploreRoom(
     access,
     region: text(raw.region),
     groupName: text(record(raw.group)?.name),
+    // ChilloutVR instance details have no title, description or spoken language.
+    instanceTitle: null,
+    instanceDescription: null,
+    spokenLanguage: null,
     occupancy:
       occupants === null
         ? unknown()

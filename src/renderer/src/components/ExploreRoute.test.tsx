@@ -117,6 +117,9 @@ const ready: ExploreWorldSnapshot = {
       occupancy: { state: 'complete', value: 5, source: 'vrc-room-n-users' },
       capacity: 20,
       full: false,
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null,
       action: { state: 'available', selectionRef: 'selection' }
     }
   ],

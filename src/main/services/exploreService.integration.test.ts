@@ -234,6 +234,9 @@ describe('ExploreService integration bounds', () => {
         occupancy: { state: 'complete', value: 1, source: 'cvr-room-current-player-count' },
         capacity: 1,
         full: true,
+        instanceTitle: null,
+        instanceDescription: null,
+        spokenLanguage: null,
         joinEligibility: 'eligible'
       })
     }
@@ -274,6 +277,9 @@ describe('ExploreService integration bounds', () => {
       occupancy: countUnknown(),
       capacity: null,
       full: null,
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null,
       joinEligibility: 'eligible'
     })
     h.now.value = 60_001
@@ -351,6 +357,9 @@ describe('ExploreService integration bounds', () => {
       occupancy: { state: 'complete', value: 1, source: 'vrc-room-n-users' },
       capacity: 16,
       full: false,
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null,
       joinEligibility: 'eligible'
     })
     await load(h, 'vrchat')
@@ -392,6 +401,9 @@ describe('ExploreService integration bounds', () => {
       occupancy: { state: 'complete', value: 1, source: 'vrc-room-n-users' },
       capacity: 16,
       full: false,
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null,
       joinEligibility: 'eligible'
     })
     await load(h, 'vrchat')
@@ -438,6 +450,9 @@ describe('ExploreService integration bounds', () => {
       occupancy: countUnknown(),
       capacity: null,
       full: null,
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null,
       joinEligibility: 'eligible'
     })
     await load(h, 'chilloutvr')

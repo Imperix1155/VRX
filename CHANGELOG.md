@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Explore: a VRChat public room shows its instance name, a short description
+  and its language, when VRChat sends them and the language is one VRX can
+  name. A room without those still looks the same. ChilloutVR rooms do not
+  have them.
+
+### Changed
+
+- The desktop shell now uses Electron 45.2.3. The app build uses Vite 8.3.7
+  and the TypeScript lint rules from typescript-eslint 8.72.2.
+
 ## [1.4.3-dev.5] - 2026-11-10
 
 ### Fixed

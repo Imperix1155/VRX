@@ -928,6 +928,9 @@
       "joining-disabled": "無効"
     },
     "peopleCount": "人数: <value>{{count}}</value>",
+    "room": {
+      "language": "言語: {{language}}"
+    },
     "region": {
       "usWest": "米国西部",
       "usEast": "米国東部",
