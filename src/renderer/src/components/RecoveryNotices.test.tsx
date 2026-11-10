@@ -51,7 +51,8 @@ afterEach(() => {
     dirty: false,
     saveError: false,
     saving: false,
-    loadFallback: false
+    loadFallback: false,
+    newerFile: false
   })
 })
 it('retains an unsaved warning and retries the latest settings without navigation', () => {
@@ -80,6 +81,14 @@ it('says the saved settings could not be read while defaults stand in for them',
   // Once a save reaches the real file, the notice goes.
   act(() => useSettingsStore.setState({ dirty: false, saveError: false, loadFallback: false }))
   expect(screen.queryByRole('alert')).toBeNull()
+})
+
+it('says why a newer version’s settings file is not saved over, with no Retry', () => {
+  vrchatAuthError = false
+  useSettingsStore.setState({ dirty: true, saveError: true, newerFile: true })
+  render(<RecoveryNotices />)
+  expect(screen.getByRole('alert').textContent).toContain(i18n.t('settings.persistence.newerFile'))
+  expect(screen.queryByRole('button')).toBeNull()
 })
 
 it('exposes a platform-specific auth failure and retry alongside usable shell content', () => {

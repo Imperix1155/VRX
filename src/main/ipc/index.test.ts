@@ -345,12 +345,39 @@ describe('registerIpcHandlers rate limiting', () => {
     expect(join(invokeEvent)).toEqual({ ok: false, reason: 'rate-limited' })
   })
 
+  it('counts sign-ins per platform, so one platform’s mistakes never block the other', () => {
+    registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
+    const login = electron.invokeHandlers.get('login')!
+    const denied = { ok: false, needs2fa: false, error: 'rate_limited' }
+
+    for (let request = 0; request < 6; request += 1) {
+      expect(login(invokeEvent, { platform: 'chilloutvr' })).toEqual({ ok: true })
+    }
+    expect(login(invokeEvent, { platform: 'chilloutvr' })).toEqual(denied)
+    expect(login(invokeEvent, { platform: 'vrchat' })).toEqual({ ok: true })
+    // Anything not naming a platform shares one allowance of its own.
+    for (let request = 0; request < 6; request += 1) login(invokeEvent, { platform: 'other' })
+    expect(login(invokeEvent, null)).toEqual(denied)
+  })
+
   it('throws rate_limited for a query channel', () => {
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
     const getFriends = electron.invokeHandlers.get('get-friends')!
 
     for (let request = 0; request < 12; request += 1) getFriends(invokeEvent)
     expect(() => getFriends(invokeEvent)).toThrowError('rate_limited')
+  })
+
+  it('counts friends-list reads per platform, so one failing platform never blocks the other', () => {
+    registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
+    const getFriends = electron.invokeHandlers.get('get-friends')!
+
+    for (let request = 0; request < 12; request += 1)
+      getFriends(invokeEvent, { platform: 'vrchat' })
+    expect(() => getFriends(invokeEvent, { platform: 'vrchat' })).toThrowError('rate_limited')
+    expect(getFriends(invokeEvent, { platform: 'chilloutvr' })).toEqual([
+      { platformUserId: 'friend' }
+    ])
   })
 
   it('rejects untrusted invokes before they can consume the trusted sender budget', () => {

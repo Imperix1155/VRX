@@ -158,6 +158,17 @@ describe('VrcAdapter unfriend and block', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('never resends a self-invite after a 429', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 429, headers: { 'Retry-After': '0' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+    await expect(adapter.selfInvite('wrld_example:12345~private(usr_self)')).rejects.toThrow()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('refuses a malformed person ID before any request', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
@@ -167,6 +178,18 @@ describe('VrcAdapter unfriend and block', () => {
         SocialDataError
       )
       await expect(adapter.block(bad, adapter.captureSocialLease())).rejects.toBeInstanceOf(
+        SocialDataError
+      )
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('never names the signed-in user in a write', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+    for (const action of ['unfriend', 'block', 'unblock'] as const) {
+      await expect(adapter[action](ME, adapter.captureSocialLease())).rejects.toBeInstanceOf(
         SocialDataError
       )
     }

@@ -414,6 +414,44 @@ describe('AvatarsView', () => {
     expect(within(worn).getByRole('button', { name: cardName(cvrOther) })).toBeTruthy()
   })
 
+  it('keeps a Wear that finished while a Refresh asked before it was still out', async () => {
+    renderView()
+    await screen.findAllByRole('button', { name: cardName(cvrOther) })
+    const waiting: Array<() => void> = []
+    bridge.getAvatarLibrary.mockImplementation(
+      ({ platform }) =>
+        new Promise<AvatarLibraryResult>((resolve) =>
+          // The platform read happened before the Wear, so it names the old avatar.
+          waiting.push(() => resolve(library(platform)))
+        )
+    )
+    fireEvent.click(screen.getByRole('button', { name: msg('avatars.refresh') }))
+    await screen.findByRole('button', { name: msg('avatars.refreshing') })
+    fireEvent.click(screen.getAllByRole('button', { name: cardName(cvrOther) })[0]!)
+    const sheet = screen.getByRole('dialog', {
+      name: msg('avatars.sheet.aria', {
+        name: cvrOther.name,
+        platform: msg('dashboard.platformCvr')
+      })
+    })
+    fireEvent.click(
+      within(sheet).getByRole('button', {
+        name: msg('avatars.sheet.wearAria', {
+          name: cvrOther.name,
+          platform: msg('dashboard.platformCvr')
+        })
+      })
+    )
+    await within(sheet).findByText(
+      msg('avatars.sheet.switched', { platform: msg('dashboard.platformCvr') })
+    )
+    await act(async () => waiting.forEach((answer) => answer()))
+    await screen.findByRole('button', { name: msg('avatars.refresh') })
+    const worn = screen.getByRole('region', { name: msg('avatars.wearingNow') })
+    expect(within(worn).getByRole('button', { name: cardName(cvrOther) })).toBeTruthy()
+    expect(within(worn).queryByRole('button', { name: cardName(cvrWorn) })).toBeNull()
+  })
+
   it('keeps keyboard focus on Wear while it works, then on what takes its place', async () => {
     let finish: (result: { ok: boolean }) => void = () => undefined
     bridge.switchAvatar.mockImplementationOnce(

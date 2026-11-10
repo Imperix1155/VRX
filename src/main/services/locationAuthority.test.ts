@@ -595,6 +595,31 @@ describe('LocationAuthority', () => {
     })
   })
 
+  it('hands a later roster read the CVR presence it kept, and nothing from before a drop', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+    const live = friend('chilloutvr', 'cvr_1', 'i+live-instance').instance!
+    authority.consume({
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [{ platformUserId: 'cvr_1', presence: { state: 'in-game' }, instance: live }]
+    })
+    const rows = [cvrRestRow('cvr_1'), cvrRestRow('cvr_2')]
+    authority.seed('chilloutvr', rows, authority.captureSeedRevision('chilloutvr'))
+
+    // A reloaded window reads the roster again; the socket sends no new set.
+    expect(authority.withLivePresence('chilloutvr', rows)).toMatchObject([
+      { presence: { state: 'in-game' }, instance: { instanceId: 'i+live-instance' } },
+      { presence: { state: 'offline' }, instance: null }
+    ])
+    // A VRChat roster carries its own presence.
+    const vrc = [friend('vrchat', 'usr_1')]
+    expect(authority.withLivePresence('vrchat', vrc)).toBe(vrc)
+
+    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'reconnecting' })
+    expect(authority.withLivePresence('chilloutvr', rows)).toBe(rows)
+  })
+
   it('does not revive a CVR friend who left the online set before the first roster read', () => {
     const authority = new LocationAuthority()
     authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })

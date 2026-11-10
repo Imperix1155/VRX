@@ -182,7 +182,8 @@ function sortRows(rows: LinkedRow[]): LinkedRow[] {
     const sectionOrder =
       (SECTION_ORDER.get(left.section) ?? 0) - (SECTION_ORDER.get(right.section) ?? 0)
     if (sectionOrder !== 0) return sectionOrder
-    const nameOrder = nameCollator.compare(left.name, right.name)
+    // Names show without their leading and trailing spaces, so they sort that way too.
+    const nameOrder = nameCollator.compare(left.name.trim(), right.name.trim())
     return nameOrder === 0 ? keyCollator.compare(left.key, right.key) : nameOrder
   })
 }

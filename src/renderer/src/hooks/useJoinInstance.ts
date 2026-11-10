@@ -630,8 +630,8 @@ const sharedJoinStore = createJoinStore()
  * The ONE join-a-friend flow (VRX-166 row pill · VRX-69 drawer button).
  * All state is GLOBAL via the shared store above: `isJoining` is true on
  * every surface while any join runs (all Join buttons disable together — no
- * enabled-looking button whose click silently no-ops), and the one 2.5s
- * failure blip is ATTRIBUTED to the friend that failed. `joinFailureFor`
+ * enabled-looking button whose click silently no-ops), and the failure
+ * feedback, kept until the next attempt, is ATTRIBUTED to the friend that failed. `joinFailureFor`
  * retains the typed denial for honest copy, while `joinFailedFor` remains the
  * boolean convenience API. Both clear at the start of a new attempt and on
  * success, wherever it fires. Callers own event concerns. A Join that reached

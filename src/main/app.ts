@@ -451,7 +451,9 @@ app
     const friendActionsBoundary: { current?: FriendActionsService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
-    const socialStore = new SocialStore(accountSession)
+    const socialStore = new SocialStore(accountSession, undefined, (message, detail) =>
+      log.warn(message, detail)
+    )
     const alertPicks = new FriendAlertPicks(accountSession, socialStore)
     // Favorite friends and worlds: local stars, never sent to a platform.
     const favorites = new Favorites(accountSession, socialStore)

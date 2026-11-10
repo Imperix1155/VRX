@@ -490,7 +490,7 @@ describe('self-invite handler', () => {
     ).resolves.toEqual({ ok: true })
   })
 
-  it('returns invite-failed without leaking the rejection and releases the lock', async () => {
+  it('returns invite-failed without leaking the rejection and waits out the cooldown', async () => {
     seed()
     vi.mocked(adapter.selfInvite).mockRejectedValueOnce(
       new Error('invite failed for wrld_example:instance-1')
@@ -499,6 +499,12 @@ describe('self-invite handler', () => {
     await expect(
       call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
     ).resolves.toEqual({ ok: false, reason: 'invite-failed' })
+    // A failed write is spaced like one that went through.
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    ).resolves.toEqual({ ok: false, reason: 'cooldown' })
+    expect(adapter.selfInvite).toHaveBeenCalledTimes(1)
+    now += 3_000
     await expect(
       call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
     ).resolves.toEqual({ ok: true })
@@ -627,7 +633,7 @@ describe('join in a game that is already open', () => {
     expect(adapter.selfInvite).toHaveBeenCalledTimes(2)
   })
 
-  it('reports invite-failed and keeps the destination retryable', async () => {
+  it('reports invite-failed and keeps the destination retryable after the cooldown', async () => {
     seed()
     running.add('vrchat')
     hostPlatform = 'linux'
@@ -636,6 +642,12 @@ describe('join in a game that is already open', () => {
       ok: false,
       reason: 'invite-failed'
     })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'cooldown'
+    })
+    expect(adapter.selfInvite).toHaveBeenCalledTimes(1)
+    now += 3_000
     await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
       ok: true,
       handoff: 'invite'

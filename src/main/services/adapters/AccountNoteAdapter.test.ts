@@ -287,3 +287,43 @@ describe("one read of a person's record for their details", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('profile reads tell a missing person from an unreadable reply', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('VRChat: a 404 is a missing person', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
+    const adapter = vrcSignedIn()
+    await expect(
+      adapter.getProfile(VRC_FRIEND, adapter.captureCommunityLease())
+    ).resolves.toBeNull()
+  })
+
+  it('VRChat: an unreadable or mismatched reply is a failed read', async () => {
+    for (const reply of [{ weird: true }, { id: VRC_ME, displayName: 'Someone else' }]) {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(reply)))
+      const adapter = vrcSignedIn()
+      await expect(
+        adapter.getProfile(VRC_FRIEND, adapter.captureCommunityLease())
+      ).rejects.toBeInstanceOf(CommunityDataError)
+    }
+  })
+
+  it('ChilloutVR: a 404 is a missing person and an unreadable reply is a failed read', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(jsonResponse({ message: 'ok', data: 'not-an-object' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = cvrSignedIn()
+    await expect(
+      adapter.getProfile(CVR_FRIEND, adapter.captureCommunityLease())
+    ).resolves.toBeNull()
+    await expect(
+      adapter.getProfile(CVR_FRIEND, adapter.captureCommunityLease())
+    ).rejects.toBeInstanceOf(CommunityDataError)
+  })
+})

@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Friends list:
+  - A friend you removed no longer comes back for a while when a late
+    VRChat update about them arrives.
+  - After a reload of the window, ChilloutVR friends show where they are
+    again instead of everyone looking offline.
+  - When a platform asks VRX to slow down while loading friends, VRX loads
+    them again on its own once the wait is over.
+  - Refreshing often while one platform is failing no longer shows a false
+    "could not refresh" for the other one.
+  - A burst of ChilloutVR friend list changes turns into one reload, and
+    linked profiles load once per burst of renames.
+  - Names sort the way they show, and initials skip invisible marks.
+- Profiles:
+  - A profile VRX couldn't read says "Couldn't load this profile" with Try
+    again, instead of "no longer available".
+  - Unfriend for someone who already left your list says you're not friends
+    anymore. Add friend goes away once you block someone.
+  - Saving your own profile while another profile opens no longer reads it
+    twice, and a profile you close while it waits stops asking.
+- Join and invites:
+  - After a failed Join, focus stays in the world sheet and the failure
+    message scrolls into view.
+  - A failed invite is never sent again by itself, and the next one waits
+    the same short pause as after a success.
+  - Long world names wrap in the join dialogs instead of pushing labels out.
+- Dashboard: Popular now has a Retry for a platform whose worlds didn't
+  load, and Wearing now shows Try again when the reply couldn't be read.
+- Explore: Favorites says when your starred worlds couldn't load instead of
+  calling the list empty, and worlds whose name is only spaces are skipped.
+- Search marks ChilloutVR friends like VRChat ones, and a long notice wraps
+  beside its platform dot.
+- Notes: a note save the platform slowed down says so, and the shared note
+  hint says notes are private.
+- Inbox: a reused record from a new sender replaces the old row.
+- Avatars: a just-worn avatar stays when an older Refresh answers after it.
+- Top bar: the status dot follows the live connection at once, so launch no
+  longer shows a red "Down" for several seconds.
+- Sign-in:
+  - Mistyped sign-ins on one platform never block the other.
+  - A damaged local sign-in key is replaced at the next sign-in instead of
+    failing every time.
+  - When VRChat refuses the sign-in mid-session, VRX stops the live
+    connection instead of retrying it.
+- Settings:
+  - Settings saved by a newer VRX say so, instead of offering a Retry that
+    can't work.
+  - A damaged notes and stars file is set aside so saving works again.
+  - The alert threshold buttons keep focus at their ends, Escape cancels
+    Sign out, and sign-in fields stop at the length VRX accepts.
+- About: a double click on Report a bug or Open logs folder opens one window.
+- Accessibility: tiles read their detail line after the name.
+- Security hardening.
+
 ## [1.4.3-dev.4] - 2026-11-10
 
 ### Fixed

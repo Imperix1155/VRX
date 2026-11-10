@@ -104,6 +104,13 @@ const BARE_CONTENT_TYPES: ReadonlySet<string> = new Set([
   'clear-notification'
 ])
 
+/**
+ * How long a `friend-delete` keeps out presence for that person. VRChat can
+ * deliver a location or online event a moment after the delete; without this
+ * it would put the person back on the list until the next roster read.
+ */
+export const VRC_REMOVED_FRIEND_GRACE_MS = 2 * 60_000
+
 // ─── Client ───────────────────────────────────────────────────────────────────
 
 export class VrcPipeline extends ReconnectingPipeline<string> {
@@ -111,11 +118,15 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
 
   private readonly tokenProvider: () => Promise<string | null>
   private readonly socketFactory: (url: string) => PipelineSocket
+  private readonly clock: () => number
+  /** People a `friend-delete` just removed, with when; a `friend-add` clears one. */
+  private readonly removedAt = new Map<string, number>()
 
   constructor(deps: VrcPipelineDeps) {
     super(deps)
     this.tokenProvider = deps.tokenProvider
     this.socketFactory = deps.socketFactory
+    this.clock = deps.now ?? Date.now
   }
 
   protected prepareConnection(): Promise<string | null> {
@@ -181,9 +192,9 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
     switch (type) {
       case 'friend-online':
       case 'friend-location':
-        return this.presenceEvent(content, 'in-game')
+        return this.presenceEvent(type, content, 'in-game')
       case 'friend-active':
-        return this.presenceEvent(content, 'active')
+        return this.presenceEvent(type, content, 'active')
       case 'friend-offline': {
         const parsed = friendIdSchema.safeParse(content)
         if (!parsed.success) return this.dropped(type)
@@ -197,11 +208,13 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
           wireState === 'online' ? 'in-game' : wireState === 'offline' ? 'offline' : 'active'
         const friend = this.buildFriend(content, state)
         if (!friend) return this.dropped(type)
+        this.removedAt.delete(friend.platformUserId)
         return { type: 'friend-added', platform: 'vrchat', friend }
       }
       case 'friend-delete': {
         const parsed = friendIdSchema.safeParse(content)
         if (!parsed.success) return this.dropped(type)
+        this.noteRemoved(parsed.data.userId)
         return { type: 'friend-removed', platform: 'vrchat', platformUserId: parsed.data.userId }
       }
       case 'friend-update': {
@@ -254,10 +267,34 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
     return null
   }
 
-  private presenceEvent(content: unknown, state: 'in-game' | 'active'): AdapterEvent | null {
+  private presenceEvent(
+    type: string,
+    content: unknown,
+    state: 'in-game' | 'active'
+  ): AdapterEvent | null {
     const friend = this.buildFriend(content, state)
     if (!friend) return null
+    if (this.wasJustRemoved(friend.platformUserId)) {
+      this.log('debug', 'pipeline: presence for a just-removed friend dropped', { type })
+      return null
+    }
     return { type: 'friend-presence', platform: 'vrchat', friend }
+  }
+
+  private noteRemoved(userId: string): void {
+    const now = this.clock()
+    for (const [id, at] of this.removedAt) {
+      if (now - at >= VRC_REMOVED_FRIEND_GRACE_MS) this.removedAt.delete(id)
+    }
+    this.removedAt.set(userId, now)
+  }
+
+  private wasJustRemoved(userId: string): boolean {
+    const at = this.removedAt.get(userId)
+    if (at === undefined) return false
+    if (this.clock() - at < VRC_REMOVED_FRIEND_GRACE_MS) return true
+    this.removedAt.delete(userId)
+    return false
   }
 
   /**
@@ -274,6 +311,11 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
       return null
     }
     const { userId, user, location } = parsed.data
+    // The event names one person; a user object for someone else is not theirs.
+    if (user.id !== userId) {
+      this.log('debug', 'pipeline: friend payload names two people')
+      return null
+    }
     const friend = normalize(
       user,
       toBucketSets({

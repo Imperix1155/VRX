@@ -14,6 +14,7 @@ import type { AuthStatus, Friend, Platform } from '@shared/types'
 import {
   PROFILE_WAIT_MS,
   PROFILE_WAIT_TRIES,
+  askAgainForUnknownPeople,
   communityQueryKey,
   useFollowFriendship,
   useProfile
@@ -99,6 +100,34 @@ describe('useProfile', () => {
       expect(result.current.data).toEqual({ ok: false, reason: 'unknown-person' })
     )
     expect(bridge.getProfile).toHaveBeenCalledTimes(PROFILE_WAIT_TRIES)
+  })
+
+  it('asks nothing more once the profile closes during the wait', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    bridge.getProfile.mockResolvedValue({ ok: false, reason: 'unknown-person' })
+    const client = newClient()
+    renderHook(() => useProfile('vrchat', VRC_ID), { wrapper: wrapper(client) })
+    await waitFor(() => expect(bridge.getProfile).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      await client.cancelQueries()
+      await vi.advanceTimersByTimeAsync(PROFILE_WAIT_MS * 3)
+    })
+    expect(bridge.getProfile).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks again once a roster read lands after it gave up waiting', async () => {
+    const client = newClient()
+    const key = ['profile', 'vrchat', 'vrchat-me', VRC_ID] as const
+    client.setQueryData(key, { ok: false, reason: 'unknown-person' })
+    client.setQueryData(['profile', 'vrchat', 'vrchat-me', 'usr_other'], {
+      ok: false,
+      reason: 'unavailable'
+    })
+    askAgainForUnknownPeople(client, 'vrchat')
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true)
+    expect(
+      client.getQueryState(['profile', 'vrchat', 'vrchat-me', 'usr_other'])?.isInvalidated
+    ).toBe(false)
   })
 
   it('asks again on the next open after "unknown person", but keeps a platform failure', async () => {

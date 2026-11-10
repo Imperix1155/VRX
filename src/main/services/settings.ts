@@ -222,6 +222,19 @@ export function saveSettings(patch: Partial<Settings>): Promise<Settings> {
   })
 }
 
+/**
+ * True when settings.json was written by a newer VRX (a rollback from Beta or
+ * Dev, or an older reinstall). Saves are refused so its newer fields survive;
+ * the renderer says so instead of offering a Retry that cannot work.
+ */
+export function isSettingsFileNewer(): boolean {
+  try {
+    return !shouldPersistSettings(getStore().store)
+  } catch {
+    return false
+  }
+}
+
 /** Synchronously persist any queued settings snapshot (used by before-quit). */
 export function flushPendingSettingsSave(): void {
   const pending = pendingSettingsSave

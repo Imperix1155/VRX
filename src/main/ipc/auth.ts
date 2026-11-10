@@ -1,4 +1,9 @@
 import { ipcMain } from 'electron'
+import {
+  MAX_PASSWORD_LENGTH,
+  MAX_TWO_FACTOR_CODE_LENGTH,
+  MAX_USERNAME_LENGTH
+} from '@shared/constants'
 import type { IpcInvoke } from '@shared/ipc'
 import type { AuthStatus, LoginResult, Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
@@ -6,9 +11,6 @@ import log from '../logger'
 import { isTrustedIpcSender } from './security'
 
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
-const MAX_USERNAME_LENGTH = 256
-const MAX_PASSWORD_LENGTH = 1_024
-const MAX_TWO_FACTOR_CODE_LENGTH = 64
 
 function isBoundedString(value: unknown, maxLength: number): value is string {
   return typeof value === 'string' && value.length <= maxLength

@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { MAX_TWO_FACTOR_CODE_LENGTH } from '@shared/constants'
 import type { TwoFactorMethod } from '@shared/types'
 import AuthInput from './AuthInput'
 import ErrorBanner from './ErrorBanner'
@@ -86,6 +87,7 @@ export default function TwoFactorForm({
             inputMode="numeric"
             autoComplete="one-time-code"
             required
+            maxLength={MAX_TWO_FACTOR_CODE_LENGTH}
             value={code}
             onChange={(e) => onCodeChange(e.target.value)}
             disabled={isSubmitting || locked}

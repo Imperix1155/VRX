@@ -261,6 +261,15 @@ describe('OwnProfileService saves', () => {
     expect(vrc.saveOwnProfile).toHaveBeenCalledWith({ pronouns: 'he/him' }, expect.anything())
   })
 
+  it('shares the read a Save starts with a profile opened meanwhile', async () => {
+    const { service, vrc } = setup()
+    const saving = service.saveOwnProfile('vrchat', { bio: 'New bio', pronouns: '' })
+    const opened = service.getOwnProfile('vrchat')
+    await Promise.all([saving, opened])
+    expect(vrc.getOwnProfile).toHaveBeenCalledTimes(1)
+    expect(vrc.saveOwnProfile).toHaveBeenCalledOnce()
+  })
+
   it('maps a sign-in failure and logs no profile text', async () => {
     const { service, vrc, log } = setup()
     await service.getOwnProfile('vrchat')

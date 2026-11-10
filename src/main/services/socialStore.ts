@@ -1,3 +1,6 @@
+import { readFileSync, renameSync } from 'node:fs'
+import { join } from 'node:path'
+import { app } from 'electron'
 import Store from 'electron-store'
 import { z } from 'zod'
 import type { AccountScoped, Platform } from '@shared/types'
@@ -117,6 +120,11 @@ export interface SocialStoreFile {
 export interface SocialStoreStorage {
   read(): unknown
   write(value: SocialStoreFile): void
+  /**
+   * Move a damaged file aside (renamed, never deleted) so the next write
+   * starts a fresh one. Throws when the file could not be moved.
+   */
+  setAside?(): void
 }
 
 const namespaceSchemas: Record<SmallSocialNamespace, z.ZodType> = {
@@ -169,11 +177,27 @@ class ElectronSocialStoreStorage implements SocialStoreStorage {
   private store: Store<Record<string, unknown>> | null = null
 
   read(): unknown {
-    return this.getStore().store
+    try {
+      return this.getStore().store
+    } catch (error) {
+      // Not JSON: hand back the text, so the store can still tell whether a
+      // newer build wrote it before deciding what to do.
+      if (!(error instanceof SyntaxError)) throw error
+      return readFileSync(this.filePath(), 'utf8')
+    }
   }
 
   write(value: SocialStoreFile): void {
     this.getStore().store = { ...value }
+  }
+
+  setAside(): void {
+    renameSync(this.filePath(), join(app.getPath('userData'), `social.corrupt-${Date.now()}.json`))
+    this.store = null
+  }
+
+  private filePath(): string {
+    return join(app.getPath('userData'), 'social.json')
   }
 
   private getStore(): Store<Record<string, unknown>> {
@@ -237,6 +261,10 @@ function parseRoot(raw: unknown): SocialStoreLoadResult {
   }
 }
 
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -247,7 +275,17 @@ function requirePlatformAccountId(platformAccountId: string): void {
   }
 }
 
-/** Versioned, bounded persistence for small account-scoped social overlays. */
+type SocialStoreLog = (message: string, detail?: string) => void
+
+/**
+ * Versioned, bounded persistence for small account-scoped social overlays.
+ *
+ * A file this build can't read (damaged JSON or the wrong shape) is moved
+ * aside as `social.corrupt-<time>.json` and the store starts empty, like
+ * settings.json; otherwise every later write would fail with no way back.
+ * A file from a newer build, or one that could not be read at all (I/O,
+ * permissions), stays untouched and the store stays read-only.
+ */
 export class SocialStore {
   private readonly storage: SocialStoreStorage
   private file: SocialStoreFile
@@ -255,15 +293,34 @@ export class SocialStore {
 
   constructor(
     private readonly accountSession: AccountSession,
-    storage?: SocialStoreStorage
+    storage?: SocialStoreStorage,
+    log: SocialStoreLog = () => undefined
   ) {
     this.storage = storage ?? new ElectronSocialStoreStorage()
+    let loaded: SocialStoreLoadResult
     try {
-      const loaded = parseRoot(this.storage.read())
+      loaded = parseRoot(this.storage.read())
+    } catch (error) {
+      log('social store: could not read the file; keeping it', errorText(error))
+      this.file = emptySocialStoreFile()
+      this.loadValid = false
+      return
+    }
+    // A rejected file from a newer build is kept as it is (see write()).
+    if (loaded.loadValid || loaded.file.storeFormatVersion > SOCIAL_STORE_FORMAT_VERSION) {
       this.file = loaded.file
       this.loadValid = loaded.loadValid
-    } catch {
+      return
+    }
+    try {
+      if (!this.storage.setAside) throw new Error('no set-aside in this storage')
+      this.storage.setAside()
+      log('social store: damaged file kept as social.corrupt-*.json; starting fresh')
       this.file = emptySocialStoreFile()
+      this.loadValid = true
+    } catch (error) {
+      log('social store: could not move the damaged file aside', errorText(error))
+      this.file = loaded.file
       this.loadValid = false
     }
   }

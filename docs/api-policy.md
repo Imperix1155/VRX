@@ -176,8 +176,8 @@ what each counts.
   same. The user decides when to try again. After VRChat accepts a code, the
   one read of the account that says who signed in is a session check.
 - **Other requests retry a 429 at most 3 times.** This covers session checks,
-  the VRChat pipeline token exchange, the VRChat self-invite, and interactive
-  CVR instance lookups.
+  the VRChat pipeline token exchange, and interactive CVR instance lookups.
+  Writes, the VRChat self-invite included, are never resent.
 - **Sockets share the cooldown.** A rejected socket upgrade with status 429
   extends the platform's REST cooldown, and every socket connect waits for that
   cooldown first. Sockets do not take an admission slot.
@@ -294,7 +294,8 @@ default; Off always launches).
   and Proton, where the pipe sits inside the game's container, or the user
   picked **Send invite**): one self-invite to the friend's main-owned location,
   public instances included. It is the same single write VRX already makes,
-  under the Join's lock and cooldown. VRX never launches a second copy in this
+  under the Join's lock and cooldown; an invite that fails starts the
+  cooldown too. VRX never launches a second copy in this
   case.
 - **Same account only.** A Join remembers the signed-in account when it
   starts. If that sign-in changes while VRX checks for the game or waits on the
@@ -456,8 +457,9 @@ behind a confirmation. VRX keeps them to the same shape:
   The Pipeline's own `friend-delete` message then removes the friend.
 - **ChilloutVR** writes are one message on the already open `/users/ws`
   socket of the same account, as CVRX sends them: `{ RequestType, Data: { id } }`
-  with 8 (unfriend), 30 (block) or 31 (unblock). A closed socket sends
-  nothing and the user is told so; nothing is queued. The socket gives no
+  with 8 (unfriend), 30 (block) or 31 (unblock). A closed socket, or a
+  ChilloutVR 429 cooldown still running, sends nothing and the user is told
+  so; nothing is queued. The socket gives no
   reply, so VRX reports the message as sent. The `FRIEND_LIST_UPDATED` message
   then refreshes the roster with the usual single `/friends` read.
 

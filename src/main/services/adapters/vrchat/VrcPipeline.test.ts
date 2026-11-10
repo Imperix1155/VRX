@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent } from '@shared/types'
 import type { PipelineSocket } from './VrcPipeline'
-import { VrcPipeline } from './VrcPipeline'
+import { VRC_REMOVED_FRIEND_GRACE_MS, VrcPipeline } from './VrcPipeline'
 
 // ─── Harness ──────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,9 @@ interface Rig {
   log: ReturnType<typeof vi.fn>
 }
 
-function rig(opts: { token?: string | null | (() => string | null) } = {}): Rig {
+function rig(
+  opts: { token?: string | null | (() => string | null); now?: () => number } = {}
+): Rig {
   const events: AdapterEvent[] = []
   const sockets: FakeSocket[] = []
   const urls: string[] = []
@@ -70,7 +72,8 @@ function rig(opts: { token?: string | null | (() => string | null) } = {}): Rig 
       sleeps.push(ms)
       return tick()
     },
-    log
+    log,
+    ...(opts.now ? { now: opts.now } : {})
   })
 
   return { pipeline, events, sockets, urls, sleeps, tokenProvider, log }
@@ -311,6 +314,50 @@ describe('VrcPipeline', () => {
       platform: 'vrchat',
       platformUserId: 'usr_1'
     })
+    r.pipeline.stop()
+  })
+
+  it('keeps a just-removed friend off the list when a late presence event follows', async () => {
+    let now = 1_000_000
+    const r = rig({ now: () => now })
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    const socket = r.sockets[0]!
+    const presence = (): AdapterEvent[] =>
+      r.events.filter((event) => event.type === 'friend-presence')
+
+    socket.fire('message', frame('friend-delete', { userId: 'usr_1' }))
+    socket.fire(
+      'message',
+      frame('friend-location', { userId: 'usr_1', user: USER, location: 'private' })
+    )
+    socket.fire('message', frame('friend-online', { userId: 'usr_1', user: USER }))
+    socket.fire('message', frame('friend-active', { userid: 'usr_1', user: USER }))
+    expect(presence()).toEqual([])
+
+    // A new friendship (they were added back) clears it at once.
+    socket.fire('message', frame('friend-add', { userId: 'usr_1', user: USER }))
+    socket.fire('message', frame('friend-online', { userId: 'usr_1', user: USER }))
+    expect(presence()).toHaveLength(1)
+
+    // So does time: a later event is ordinary presence again.
+    socket.fire('message', frame('friend-delete', { userId: 'usr_1' }))
+    now += VRC_REMOVED_FRIEND_GRACE_MS
+    socket.fire('message', frame('friend-online', { userId: 'usr_1', user: USER }))
+    expect(presence()).toHaveLength(2)
+    r.pipeline.stop()
+  })
+
+  it('drops a friend event whose user object is someone else', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    const baseline = r.events.length
+    r.sockets[0]!.fire('message', frame('friend-online', { userId: 'usr_other', user: USER }))
+    r.sockets[0]!.fire('message', frame('friend-add', { userId: 'usr_other', user: USER }))
+    expect(r.events.length).toBe(baseline)
     r.pipeline.stop()
   })
 

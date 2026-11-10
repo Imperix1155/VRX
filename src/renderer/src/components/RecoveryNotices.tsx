@@ -156,6 +156,7 @@ export function SettingsPersistenceNotice(): React.JSX.Element | null {
   const dirty = useSettingsStore((s) => s.dirty)
   const saveError = useSettingsStore((s) => s.saveError)
   const loadFallback = useSettingsStore((s) => s.loadFallback)
+  const newerFile = useSettingsStore((s) => s.newerFile)
   const saving = useSettingsStore((s) => s.saving)
   const settings = useSettingsStore((s) => s.settings)
   const retrySave = useSettingsStore((s) => s.retrySave)
@@ -188,13 +189,16 @@ export function SettingsPersistenceNotice(): React.JSX.Element | null {
       <span className="min-w-0 flex-1">
         {t(
           failed
-            ? 'settings.persistence.error'
+            ? newerFile
+              ? 'settings.persistence.newerFile'
+              : 'settings.persistence.error'
             : loadFallback
               ? 'settings.persistence.loadFallback'
               : 'settings.persistence.unsaved'
         )}
       </span>
-      {failed && (
+      {/* A newer build's file is kept on purpose, so a Retry could never work. */}
+      {failed && !newerFile && (
         <button
           type="button"
           className={buttonClass}

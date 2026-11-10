@@ -30,8 +30,9 @@ function record(value: unknown): RecordValue | null {
     : null
 }
 
+/** A string with something to show; blank or spaces-only counts as missing. */
 function text(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null
+  return typeof value === 'string' && value.trim().length > 0 ? value : null
 }
 
 function nonNegativeInteger(value: unknown): number | null {

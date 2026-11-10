@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query'
 import type { LinkRequest, LinkResult, LinkSnapshot } from '@shared/linkedProfiles'
 import type { Friend } from '@shared/types'
+import { coalesce } from '../utils/coalesce'
 
 export const linkedProfilesKey = ['linked-profiles'] as const
 const emptyLinkSnapshot: LinkSnapshot = {
@@ -83,6 +84,11 @@ export async function changeLinkedProfile(
   }
 }
 
+/** A linked-profile re-read after roster name changes waits for them to pause this long... */
+export const LINKED_ROSTER_SETTLE_MS = 400
+/** ...but no longer than this while they keep coming. */
+export const LINKED_ROSTER_MAX_WAIT_MS = 3_000
+
 /** One app-lifetime subscription; shared notes never enter persisted friends caches. */
 export function subscribeLinkedProfiles(client: QueryClient): () => void {
   if (typeof window === 'undefined') return () => {}
@@ -114,6 +120,9 @@ export function subscribeLinkedProfiles(client: QueryClient): () => void {
   const invalidate = (): void => {
     void client.invalidateQueries({ queryKey: linkedProfilesKey })
   }
+  // Renames and list changes arrive one live event at a time; a burst of them
+  // becomes one read instead of using up the read budget.
+  const rosterChange = coalesce(invalidate, LINKED_ROSTER_SETTLE_MS, LINKED_ROSTER_MAX_WAIT_MS)
   const changed = window.vrx?.onLinkedProfilesChanged?.(invalidate)
   const boundary = window.vrx?.onIdentityBoundary?.(() => {
     void client.cancelQueries({ queryKey: linkedProfilesKey })
@@ -126,7 +135,8 @@ export function subscribeLinkedProfiles(client: QueryClient): () => void {
       const next = rosterOf(event.query.state.data)
       const previous = rosters.get(event.query.queryHash)
       rosters.set(event.query.queryHash, next)
-      if (previous === undefined || namesChanged(previous, next)) invalidate()
+      if (previous === undefined) invalidate()
+      else if (namesChanged(previous, next)) rosterChange.trigger()
     }
     if (
       event.type === 'updated' &&
@@ -139,6 +149,7 @@ export function subscribeLinkedProfiles(client: QueryClient): () => void {
     changed?.()
     boundary?.()
     auth()
+    rosterChange.cancel()
   }
 }
 

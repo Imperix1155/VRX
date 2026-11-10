@@ -20,6 +20,7 @@ Pure types, values and helpers imported as `@shared/...` by main, preload and re
 | `FRIENDS_RECONCILE_MS` | [`constants.ts`](../../src/shared/constants.ts) | 300,000. The `5m` value of `RECONCILE_INTERVAL_MS`. |
 | `SEARCH_DEBOUNCE_MS` | [`constants.ts`](../../src/shared/constants.ts) | 200. Friend search debounce. |
 | `MAX_FRIENDS` | [`constants.ts`](../../src/shared/constants.ts) | 5,000. Roster cap; reaching it makes a VRChat roster partial. |
+| `MAX_USERNAME_LENGTH` / `MAX_PASSWORD_LENGTH` / `MAX_TWO_FACTOR_CODE_LENGTH` | [`constants.ts`](../../src/shared/constants.ts) | 256 / 1,024 / 64. Longest sign-in details the auth IPC accepts; the sign-in fields use them as `maxLength`. |
 | `CONCURRENCY_LIMIT` | [`constants.ts`](../../src/shared/constants.ts) | 10. Worker count for metadata batches; requests still pass the admission queue. |
 | `WORLD_CACHE_TTL_MS` | [`constants.ts`](../../src/shared/constants.ts) | 86,400,000 (24 h). VRChat world metadata success TTL. |
 | `INSTANCE_CACHE_TTL_MS` | [`constants.ts`](../../src/shared/constants.ts) | 300,000 (5 min). ChilloutVR instance detail success TTL. |

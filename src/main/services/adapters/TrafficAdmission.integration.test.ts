@@ -3,6 +3,7 @@ import { AvatarCache } from '../avatarCache'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import { CvrAdapter } from './CvrAdapter'
 import { VrcAdapter } from './VrcAdapter'
+import { RateLimitError } from './errors'
 import { markVrcSessionEstablished, jsonResponse } from './__testutils__/adapterTestKit'
 
 afterEach(() => {
@@ -11,7 +12,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('shares VRC action retries and image hops while CVR authentication progresses independently', async () => {
+it('holds VRC image hops behind a write’s 429 while CVR authentication progresses independently', async () => {
   vi.useFakeTimers()
   vi.setSystemTime(10_000)
   vi.spyOn(Math, 'random').mockReturnValue(0)
@@ -50,7 +51,9 @@ it('shares VRC action retries and image hops while CVR authentication progresses
     vrcSessionProvider: () => vrc.getAvatarRequestLease()
   })
 
-  const action = vrc.selfInvite('wrld_fixture:123~hidden(usr_fixture)')
+  const action = vrc
+    .selfInvite('wrld_fixture:123~hidden(usr_fixture)')
+    .catch((error: unknown) => error)
   await vi.advanceTimersByTimeAsync(0)
   const image = cache.get('https://api.vrchat.cloud/api/1/image/file_fixture/1/256')
   const login = cvr.login({ username: 'fixture', password: 'fixture' })
@@ -58,11 +61,11 @@ it('shares VRC action retries and image hops while CVR authentication progresses
   expect((await login).ok).toBe(false)
   expect(starts.map(({ at }) => at)).toEqual([10_000, 10_000])
   expect(starts[1]?.cookie).toBeNull()
+  expect(await action).toBeInstanceOf(RateLimitError)
   await vi.advanceTimersByTimeAsync(1_001)
-  await expect(action).resolves.toBeUndefined()
   await expect(image).resolves.toMatch(/^data:image\/png;base64,/)
-  expect(invites).toBe(2) // Existing bounded action retry, still paced and lease-owned.
-  expect(starts.slice(2).map(({ at }) => at)).toEqual([70_000, 71_000, 71_000])
+  expect(invites).toBe(1) // A write is sent once and never resent after a 429.
+  expect(starts.slice(1).map(({ at }) => at)).toEqual([10_000, 70_000, 70_000])
   expect(starts.at(-1)?.cookie).toBeNull()
   expect(vrcAdmission.pendingCount).toBe(0)
 })
