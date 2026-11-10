@@ -202,7 +202,10 @@ export class InboxService {
       const id = itemIdOf(entry)
       if (inbox.dismissed.has(id) || this.justAnswered(inbox, id)) continue
       const existing = inbox.items.get(id)
-      if (existing) {
+      // The same record from someone else is not a replay: the platform reused
+      // the ID, so the newer record replaces the row instead of mixing the two.
+      if (existing && existing.item.senderId !== entry.senderId) inbox.items.delete(id)
+      else if (existing) {
         // A replay of a known record: refresh names, keep its time and place.
         const { item } = existing
         if (item.senderName !== entry.senderName || item.worldName !== entry.worldName) {

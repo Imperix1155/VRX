@@ -120,6 +120,27 @@ describe('InboxService', () => {
     })
   })
 
+  it('a reused record ID from someone else replaces the row instead of mixing the two', () => {
+    const r = rig({ invite: true })
+    r.inbox.consume(add('chilloutvr', entry({ sourceId: 'inv-1', worldName: 'First' })))
+    r.advance(1_000)
+    r.inbox.consume(
+      add(
+        'chilloutvr',
+        entry({ sourceId: 'inv-1', senderId: 'cvr-bob', senderName: 'Bob', worldName: 'Second' })
+      )
+    )
+    expect(r.inbox.snapshot().items).toEqual([
+      expect.objectContaining({
+        senderId: 'cvr-bob',
+        senderName: 'Bob',
+        worldName: 'Second',
+        receivedAt: 1_001_000
+      })
+    ])
+    expect(r.notify).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps one row per sender and kind, and a replaced invite stays hidden', () => {
     const r = rig()
     r.inbox.consume(add('chilloutvr', entry({ sourceId: 'inv-1', worldName: 'Old' })))
