@@ -46,6 +46,7 @@ import { homeWorldQueryKeyForPlatform } from '../queries/homeWorld'
 import { communityQueryKeysForPlatform } from '../queries/community'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
+import { coalesce, type Coalesced } from '../utils/coalesce'
 
 /** A roster re-read waits for "roster changed" triggers to pause this long... */
 export const ROSTER_CHANGED_SETTLE_MS = 400
@@ -85,33 +86,21 @@ export function useLiveFriendEvents(): void {
     // A burst of "roster changed" triggers (one per wire frame) becomes one
     // re-read: main reads the list once anyway, and the renderer's own asks
     // share a small per-window budget with every other friends read.
-    const rosterReads = new Map<
-      Friend['platform'],
-      { timer: ReturnType<typeof setTimeout>; firstAt: number }
-    >()
-    const refetchRoster = (platform: Friend['platform']): void => {
-      rosterReads.delete(platform)
-      void queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) })
-    }
+    const rosterReads = new Map<Friend['platform'], Coalesced>()
     const scheduleRosterRead = (platform: Friend['platform']): void => {
-      const now = Date.now()
-      const pending = rosterReads.get(platform)
-      if (pending !== undefined) clearTimeout(pending.timer)
-      const firstAt = pending?.firstAt ?? now
-      if (now - firstAt >= ROSTER_CHANGED_MAX_WAIT_MS) {
-        refetchRoster(platform)
-        return
+      let read = rosterReads.get(platform)
+      if (read === undefined) {
+        read = coalesce(
+          () => void queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) }),
+          ROSTER_CHANGED_SETTLE_MS,
+          ROSTER_CHANGED_MAX_WAIT_MS
+        )
+        rosterReads.set(platform, read)
       }
-      rosterReads.set(platform, {
-        timer: setTimeout(() => refetchRoster(platform), ROSTER_CHANGED_SETTLE_MS),
-        firstAt
-      })
+      read.trigger()
     }
     const dropRosterRead = (platform: Friend['platform']): void => {
-      const pending = rosterReads.get(platform)
-      if (pending === undefined) return
-      clearTimeout(pending.timer)
-      rosterReads.delete(platform)
+      rosterReads.get(platform)?.cancel()
     }
 
     const applyToCache = (
@@ -356,7 +345,7 @@ export function useLiveFriendEvents(): void {
       unsubscribe()
       unsubscribeIdentityBoundary()
       unsubscribeCache()
-      for (const platform of [...rosterReads.keys()]) dropRosterRead(platform)
+      for (const read of rosterReads.values()) read.cancel()
     }
   }, [queryClient])
 }
