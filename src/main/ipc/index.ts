@@ -58,12 +58,16 @@ import {
   type RateLimitWarn
 } from './rate-limit'
 
-/** Sign-in channels whose IPC allowance is counted per platform. */
+/**
+ * Channels whose IPC allowance is counted per platform: sign-in, and the
+ * friends list, so one platform's failing reads never use up the other's.
+ */
 const PER_PLATFORM_LIMITED: ReadonlySet<IpcInvokeChannel> = new Set<IpcInvokeChannel>([
   'login',
   'verify-2fa',
   'import-session',
-  'logout'
+  'logout',
+  'get-friends'
 ])
 
 /** The platform a request names, or one shared key for anything else. */

@@ -368,6 +368,18 @@ describe('registerIpcHandlers rate limiting', () => {
     expect(() => getFriends(invokeEvent)).toThrowError('rate_limited')
   })
 
+  it('counts friends-list reads per platform, so one failing platform never blocks the other', () => {
+    registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
+    const getFriends = electron.invokeHandlers.get('get-friends')!
+
+    for (let request = 0; request < 12; request += 1)
+      getFriends(invokeEvent, { platform: 'vrchat' })
+    expect(() => getFriends(invokeEvent, { platform: 'vrchat' })).toThrowError('rate_limited')
+    expect(getFriends(invokeEvent, { platform: 'chilloutvr' })).toEqual([
+      { platformUserId: 'friend' }
+    ])
+  })
+
   it('rejects untrusted invokes before they can consume the trusted sender budget', () => {
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
     const getFriends = electron.invokeHandlers.get('get-friends')!
