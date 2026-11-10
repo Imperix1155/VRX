@@ -247,7 +247,9 @@ describe('SocialStore', () => {
     const log = vi.fn()
     storage.value = '{"storeFormatVersion":1,"accounts":'
     const setAside = vi.fn(() => {
-      throw new Error('EBUSY')
+      throw Object.assign(new Error("EBUSY: resource busy, rename '/srv/vrx-data/social.json'"), {
+        code: 'EBUSY'
+      })
     })
     store = new SocialStore(session, Object.assign(storage, { setAside }), log)
     expect(() =>

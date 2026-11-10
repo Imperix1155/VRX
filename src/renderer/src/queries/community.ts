@@ -368,9 +368,10 @@ export function useRelationship(
  * Keeps one person's saved "is a friend" answers in step with the friends
  * list while their profile shows. A friendship that starts while VRX runs (a
  * request accepted on either side) or ends (they unfriend you) changes the
- * profile's buttons at once, with no new read. Being on the list always means
- * a friend; leaving it counts only when seen happening, since a list still
- * loading can't say who is missing.
+ * profile's buttons at once, with no new read. Being on the list when the
+ * profile opens, or joining it, means a friend; leaving it counts only when
+ * seen happening, since a list still loading can't say who is missing. Staying
+ * on it changes nothing, so a confirmed Unfriend holds until the list catches up.
  */
 export function useFollowFriendship(platform: Platform, userId: string): void {
   const client = useQueryClient()
@@ -410,8 +411,10 @@ export function useFollowFriendship(platform: Platform, userId: string): void {
     const sync = (): void => {
       const now = onList()
       if (now === null) return
-      if (now) apply(true)
-      else if (last === true) apply(false)
+      // Only a change in this person's place on the list counts. Between VRX's
+      // own Unfriend and the list dropping them, another friend's update must
+      // not call them a friend again.
+      if (now !== last && (now || last === true)) apply(now)
       last = now
     }
     sync()
