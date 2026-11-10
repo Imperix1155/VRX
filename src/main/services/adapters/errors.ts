@@ -30,6 +30,14 @@ export class NetworkError extends Error {
   }
 }
 
+/** The platform answered with an HTTP error status that has no meaning of its own here. */
+export class HttpStatusError extends NetworkError {
+  constructor(public readonly status: number) {
+    super(`HTTP ${status}`)
+    this.name = 'HttpStatusError'
+  }
+}
+
 /** Obsolete work is stopped locally; it is neither a network nor an auth failure. */
 export class RequestCancelledError extends Error {
   constructor() {

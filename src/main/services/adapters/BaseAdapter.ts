@@ -10,7 +10,13 @@ import type {
   Platform
 } from '@shared/types'
 import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
-import { AuthError, NetworkError, RateLimitError, RequestCancelledError } from './errors'
+import {
+  AuthError,
+  HttpStatusError,
+  NetworkError,
+  RateLimitError,
+  RequestCancelledError
+} from './errors'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import type { RequestPriority } from './ApiAdmissionController'
 import { assertRequestLease, type RequestLease } from './RequestLease'
@@ -188,7 +194,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       await response.body?.cancel().catch(() => {})
       this.assertRequestCurrent(options, requestOptions)
       if (recordCircuitFailure === true) this.recordFailure()
-      throw new NetworkError(`HTTP ${response.status}`)
+      throw new HttpStatusError(response.status)
     }
 
     let data: unknown

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { RELATIONSHIP_CACHE_MS, SOCIAL_ACTION_COOLDOWN_MS } from '@shared/socialActions'
 import type { Platform } from '@shared/types'
 import { SocialNotSentError, type SocialActionAdapter } from './adapters/SocialActionAdapter'
-import { AuthError, NetworkError, RateLimitError } from './adapters/errors'
+import { AuthError, HttpStatusError, NetworkError, RateLimitError } from './adapters/errors'
 import type { RequestLease } from './adapters/RequestLease'
 import { SocialActionService } from './socialActionService'
 
@@ -216,6 +216,28 @@ describe('SocialActionService', () => {
     })
     advance(SOCIAL_ACTION_COOLDOWN_MS)
     await expect(service.act('vrchat', FRIEND, 'block')).resolves.toMatchObject({ ok: true })
+  })
+
+  it('says they are not friends anymore when the platform refuses an Unfriend for that', async () => {
+    const { service, vrc, advance } = setup()
+    vrc.error = new HttpStatusError(400)
+    await expect(service.act('vrchat', FRIEND, 'unfriend')).resolves.toEqual({
+      ok: false,
+      reason: 'not-friend'
+    })
+    expect(vrc.unfriend).toHaveBeenCalledTimes(1)
+    // Any other refusal, or the same status on Block, stays a plain failure.
+    advance(SOCIAL_ACTION_COOLDOWN_MS)
+    await expect(service.act('vrchat', FRIEND, 'block')).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable'
+    })
+    advance(SOCIAL_ACTION_COOLDOWN_MS)
+    vrc.error = new HttpStatusError(500)
+    await expect(service.act('vrchat', FRIEND, 'unfriend')).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable'
+    })
   })
 
   it('maps failures to typed reasons and logs no person', async () => {

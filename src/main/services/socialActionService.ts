@@ -12,6 +12,7 @@ import type { Platform } from '@shared/types'
 import { SocialNotSentError, type SocialActionAdapter } from './adapters/SocialActionAdapter'
 import {
   AuthError,
+  HttpStatusError,
   RateLimitError,
   RequestCancelledError,
   RequestQueueFullError
@@ -136,6 +137,16 @@ export class SocialActionService {
       if (error instanceof SocialNotSentError) {
         this.log('social action failed', { platform, kind: action, reason: 'not-connected' })
         return { ok: false, reason: 'not-connected' }
+      }
+      // VRChat answers an Unfriend for someone who already left the list with
+      // 400 ("These users aren't friends"); pressing again can't change that.
+      if (
+        action === 'unfriend' &&
+        error instanceof HttpStatusError &&
+        (error.status === 400 || error.status === 404)
+      ) {
+        this.log('social action failed', { platform, kind: action, reason: 'not-friend' })
+        return { ok: false, reason: 'not-friend' }
       }
       return { ok: false, reason: this.failure(platform, action, error) }
     } finally {
