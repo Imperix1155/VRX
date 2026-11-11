@@ -84,6 +84,9 @@ vi.mock('./instance', () => ({
 vi.mock('./app-status', () => ({
   registerAppStatusHandlers: () => electron.ipcMain.handle('get-app-status', () => ({ ok: true }))
 }))
+vi.mock('./login-item', () => ({
+  registerLoginItemHandlers: () => electron.ipcMain.handle('get-login-item', () => 'off')
+}))
 vi.mock('./activity', () => ({
   registerActivityHandlers: () => {
     electron.ipcMain.handle('get-activity', () => [])
@@ -174,6 +177,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-inbox',
   'get-join-handoff',
   'get-linked-profiles',
+  'get-login-item',
   'get-my-groups',
   'get-own-profile',
   'get-players-online',
@@ -234,6 +238,7 @@ function options(): IpcHandlerOptions {
     gameFavorites: {},
     links: { linkGraph: {} },
     appStatus: {},
+    loginItem: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
     inbox: {} as IpcHandlerOptions['inbox'],
     friendActions: {} as IpcHandlerOptions['friendActions'],

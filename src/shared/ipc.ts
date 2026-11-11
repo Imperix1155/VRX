@@ -85,6 +85,13 @@ export type AppBackgroundResult =
         | 'save-failed'
     }
 
+/**
+ * Whether the operating system will start VRX at sign-in. `unavailable`: this
+ * copy of VRX cannot register itself (a development run, or a system VRX has
+ * no startup entry for). Never carries a path.
+ */
+export type LoginItemStatus = 'on' | 'off' | 'unavailable'
+
 export type InstanceActionResult =
   | {
       ok: true
@@ -244,6 +251,9 @@ export interface IpcInvoke {
    *  Main decides again when the Join happens. */
   'get-join-handoff': { req: { platform: Platform }; res: JoinHandoff }
   'get-app-status': { req: void; res: AppStatus }
+  /** What the operating system's startup list says now, for Settings to show
+   *  when the Start with your computer choice could not be applied. */
+  'get-login-item': { req: void; res: LoginItemStatus }
   /** The in-memory activity list, newest first. Main records it from the live
    *  sockets; reading it makes no platform request. */
   'get-activity': { req: void; res: ActivityEntry[] }

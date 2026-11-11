@@ -47,6 +47,13 @@ here.
   fallback. Second-instance, notification and tray actions focus or recreate
   the current window at click time. One recovery dialog per window handles
   crashes and hangs.
+- Start with your computer (`services/loginItem.ts`): the `startWithComputer`
+  setting is mirrored to the operating system at startup and after a save,
+  writing only on a mismatch. Only a packaged copy registers. On Linux the one
+  file is `<config>/autostart/vrx.desktop`, and only an entry with VRX's own
+  marker is ever removed. A launch the computer made carries
+  `--launched-at-login`; with the In the tray choice its first window stays
+  hidden (`createShowGate` `startHidden`) until VRX is asked for.
 - On Windows and Linux, close hides to the tray until `before-quit` sets the
   single `quitting` flag; a throwing teardown must not skip the flag. macOS
   keeps native close. Hide, minimize, close and renderer loss stop Explore

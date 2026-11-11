@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Start with your computer: Settings → About has a new choice, Off by
+  default. On opens VRX when you sign in to your computer; In the tray does
+  the same but keeps the window closed until you open it from the tray icon.
+  It works on Windows and Linux, and Settings tells you if your computer did
+  not accept it.
 - Join from an invite: an invite in the Inbox that names its instance now
   has a Join button. It opens the game in that instance through the same
   join steps as a friend's Join (with the confirmation, when you keep it

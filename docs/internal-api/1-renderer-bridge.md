@@ -31,6 +31,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `getJoinHandoff` | [`hooks/useJoinHandoff.ts`](../../src/renderer/src/hooks/useJoinHandoff.ts), once per join dialog open |
 | `setExploreActive`, `getExplore`, `getExploreImage`, `getExploreWorld`, `cancelExploreWorld`, `onExploreChanged` | [`hooks/useExploreCoordinator.ts`](../../src/renderer/src/hooks/useExploreCoordinator.ts), [`queries/explore.ts`](../../src/renderer/src/queries/explore.ts), [`hooks/useExploreWorldSelection.ts`](../../src/renderer/src/hooks/useExploreWorldSelection.ts) |
 | `getAppStatus` | [`queries/appStatus.ts`](../../src/renderer/src/queries/appStatus.ts) (`useConnectionHealth`, read by `TopBar`), every 7.5 s while the window shows; `useLiveFriendEvents` writes pushed `connection` events into it in between. It reads main's local snapshot and makes no platform request. |
+| `getLoginItem` | [`queries/loginItem.ts`](../../src/renderer/src/queries/loginItem.ts) (`useLoginItemProblem`, read by Settings → About once the choice is saved) |
 | `getSettings`, `saveSettings` | [`hooks/useSettingsPersistence.ts`](../../src/renderer/src/hooks/useSettingsPersistence.ts) |
 | `getUpdaterState`, `checkForUpdates`, `downloadUpdate`, `installUpdate`, `onUpdaterStateChanged` | [`hooks/useUpdater.ts`](../../src/renderer/src/hooks/useUpdater.ts) |
 | `openUrl`, `openLogsFolder` | [`SettingsView.tsx`](../../src/renderer/src/components/SettingsView.tsx) |

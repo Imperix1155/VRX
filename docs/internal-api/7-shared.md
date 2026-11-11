@@ -37,7 +37,7 @@ Pure types, values and helpers imported as `@shared/...` by main, preload and re
 
 | Symbol | File | Purpose |
 | --- | --- | --- |
-| `SETTINGS_VERSION` | [`settings.ts`](../../src/shared/settings.ts) | 27. Rule: every new persisted field bumps it and adds an identity migration, so an older build refuses to rewrite the newer file. |
+| `SETTINGS_VERSION` | [`settings.ts`](../../src/shared/settings.ts) | 28. Rule: every new persisted field bumps it and adds an identity migration, so an older build refuses to rewrite the newer file. |
 | `ACTIVITY_KINDS` / `ActivityKind` / `ActivityEntry` / `ACTIVITY_FILTERS` / `ActivityFilter` | [`activity.ts`](../../src/shared/activity.ts) | Activity entry values (`online`, `world`, `offline`; display name, world name or null, time) and the page's Show filter. No location crosses IPC. |
 | `SettingsSchema` / `Settings` | [`settings.ts`](../../src/shared/settings.ts) | Zod schema; each field uses `.catch(default)`, so a missing or invalid value degrades to its default. Unknown keys are stripped. |
 | `DEFAULT_SETTINGS` | [`settings.ts`](../../src/shared/settings.ts) | `SettingsSchema.parse({})`: every default in one object. |
@@ -53,7 +53,7 @@ Every persisted field in `SettingsSchema`. "Where" is the place a user changes i
 
 | Field | Type and allowed values | Default | Where | Notes |
 | --- | --- | --- | --- | --- |
-| `version` | non-negative integer | `27` | none | Schema version; drives migrations. |
+| `version` | non-negative integer | `28` | none | Schema version; drives migrations. |
 | `theme` | `'dark'` \| `'system'` \| `'light'` | `'system'` | Settings → Appearance | `system` follows the OS. |
 | `backgroundGlow` | `'off'` \| `'muted'` \| `'standard'` \| `'vivid'` | `'standard'` | Settings → Appearance | Background aurora intensity; `off` hides it. |
 | `backgroundPictureFade` | `'low'` \| `'medium'` \| `'high'` | `'medium'` | Settings → Appearance | How far the background picture fades toward the theme base. Shown once a picture is set; the picture itself is a main-owned file, not a setting. |
@@ -100,6 +100,7 @@ Every persisted field in `SettingsSchema`. "Where" is the place a user changes i
 | `activityFilter` | `'all'` \| `'online'` \| `'world'` \| `'offline'` | `'all'` | Activity page (Show) | Which kind of entry the Activity page lists. |
 | `collapsedFriendSections` | array of `'favorites'` \| `'in-game'` \| `'online'` \| `'offline'` | `['offline']` | Friends list section headers | Collapsed sections. `favorites` (v24) is the starred friends who are in game (also listed under In-Game). |
 | `friendSort` | `'name'` \| `'recent'` \| `'world'` \| `'joinable'` | `'name'` | Friends list Order control | The order inside each friends-list group (v27). Recent is hidden and reads as Name while the Activity page is off. |
+| `startWithComputer` | `'off'` \| `'window'` \| `'tray'` | `'off'` | Settings → About | VRX opens when the user signs in to the computer (v28): with its window, or waiting in the tray. Main mirrors it to the operating system's startup list (`LoginItem`); `tray` hides the window only on a launch the computer made. |
 | `density` | `'comfortable'` \| `'compact'` | `'comfortable'` | none | Read by the friends list; no control sets it. |
 | `language` | string, 2 to 35 characters | `'en'` | none | No reader. Both processes use the OS locale (`navigator.language`, `app.getLocale()`). |
 | `firstRunDisclaimerAcknowledged` | boolean | `false` | none | No reader. |
@@ -126,7 +127,9 @@ Turning off a Dashboard section keeps its child preferences, such as the thresho
 | `VR_ALERT_DURATIONS` / `VrAlertDuration` | [`types.ts`](../../src/shared/types.ts) | `short`, `medium`, `long`. How long an Alerts in VR message stays. |
 | `JOIN_MODE_PREFERENCES` / `JoinModePreference` | [`types.ts`](../../src/shared/types.ts) | `ask`, `vr`, `desktop`. The saved preference; `ask` defers to the join dialog. |
 | `VRCHAT_OPEN_GAME_JOINS` / `VrchatOpenGameJoin` | [`types.ts`](../../src/shared/types.ts) | `go`, `invite`. How a VRChat Join reaches a game that is already open. |
+| `START_WITH_COMPUTER` / `StartWithComputer` | [`types.ts`](../../src/shared/types.ts) | `off`, `window`, `tray`. Whether VRX opens at sign-in, and whether its window shows. |
 | `JOIN_HANDOFFS` / `JoinHandoff` | [`types.ts`](../../src/shared/types.ts) | `launch`, `in-game`, `invite`: what a Join did, or would do now (start the game, hand off to the open game, or send a VRChat self-invite). |
+| `LoginItemStatus` | [`ipc.ts`](../../src/shared/ipc.ts) | `on`, `off`, `unavailable`: what the operating system's startup list says. `unavailable` means this copy cannot register (a development run, or an unsupported system). |
 | `UPDATE_CHANNELS` / `UpdateChannel` | [`types.ts`](../../src/shared/types.ts) | `stable`, `beta`, `dev`. Settings label for the updater feed. Stable publishes as `latest`. |
 
 ## Core types

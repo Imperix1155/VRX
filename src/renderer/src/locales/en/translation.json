@@ -210,6 +210,17 @@
       "1h": "1h",
       "manual": "Manual only"
     },
+    "startWithComputer": {
+      "label": "Start with your computer",
+      "description": "Opens VRX when you sign in to this computer.",
+      "aria": "Start with your computer",
+      "off": "Off",
+      "window": "On",
+      "tray": "In the tray",
+      "notApplied": "Your computer didn't accept this. Try it again.",
+      "stillOn": "VRX is still in this computer's startup.",
+      "unavailable": "This copy of VRX can't start with your computer."
+    },
     "labelScheme": {
       "label": "Instance labels",
       "description": "Which words the instance labels use.",

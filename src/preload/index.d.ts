@@ -101,6 +101,7 @@ type VrxBridge = {
     req: IpcInvoke['get-join-handoff']['req']
   ) => Promise<IpcInvoke['get-join-handoff']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
+  getLoginItem: () => Promise<IpcInvoke['get-login-item']['res']>
   /** The in-memory activity list; reading it makes no platform request. */
   getActivity: () => Promise<IpcInvoke['get-activity']['res']>
   /** Forget only what the Activity page shows: its platforms and kind. */

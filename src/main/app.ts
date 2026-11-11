@@ -16,6 +16,7 @@ import type { GameFavoritesAdapter } from './services/adapters/GameFavoritesAdap
 import { HomeWorldService } from './services/homeWorldService'
 import type { HomeWorldAdapter } from './services/adapters/HomeWorldAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
+import { LoginItem } from './services/loginItem'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
 import type { AvatarLibraryAdapter } from './services/adapters/AvatarLibraryAdapter'
@@ -35,11 +36,17 @@ import {
 } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'node:url'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { applyUpdaterSettings, initAutoUpdater, STARTUP_CHECK_DELAY_MS } from './updater'
-import { flushPendingSettingsSave, getSettingsSnapshot, loadSettings } from './services/settings'
+import {
+  flushPendingSettingsSave,
+  getSettingsSnapshot,
+  isSettingsFallback,
+  loadSettings
+} from './services/settings'
 import {
   CREDENTIAL_KEYS,
   clearCredential,
@@ -133,6 +140,10 @@ const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
   }
 })
 const rendererHydrationGates = new WeakMap<WebContents, ShowGate>()
+// Start with your computer, In the tray: the first window of a launch the
+// computer made at sign-in stays hidden until the user asks for VRX (tray,
+// starting it again, an alert click). Only that one window is ever held.
+let startInTray = false
 const rendererRecoveries = new WeakMap<WebContents, RendererRecovery>()
 
 const onRendererHydrated = (event: IpcMainEvent): void => {
@@ -182,8 +193,11 @@ function createWindow(): BrowserWindow {
     }
   })
 
+  const startHidden = startInTray
+  startInTray = false
   const showGate = createShowGate({
     timeoutMs: 3_000,
+    startHidden,
     onShow: () => {
       if (!mainWindow.isDestroyed()) mainWindow.show()
     },
@@ -408,6 +422,41 @@ app
     // Set app user model id for windows — must match electron-builder `appId`
     // so Windows groups the taskbar entry and update notifications fire.
     electronApp.setAppUserModelId('com.imperix.vrx')
+
+    // Start with your computer: keep the operating system's startup entry in
+    // step with the setting (it writes only when they differ), and keep the
+    // window in the tray when the computer started VRX and the user chose that.
+    // After the app user model id: Windows names the startup entry by it.
+    const loginItem = new LoginItem({
+      platform: process.platform,
+      isPackaged: app.isPackaged,
+      execPath: process.execPath,
+      env: {
+        APPIMAGE: process.env['APPIMAGE'],
+        PORTABLE_EXECUTABLE_FILE: process.env['PORTABLE_EXECUTABLE_FILE']
+      },
+      argv: process.argv,
+      configPath: () => app.getPath('appData'),
+      getLoginItemSettings: (query) => app.getLoginItemSettings(query),
+      setLoginItemSettings: (next) => app.setLoginItemSettings(next),
+      files: {
+        read: (path) => {
+          try {
+            return readFileSync(path, 'utf8')
+          } catch {
+            return null
+          }
+        },
+        write: (path, content) => writeFileSync(path, content, { mode: 0o644 }),
+        makeFolder: (path) => void mkdirSync(path, { recursive: true }),
+        remove: (path) => rmSync(path, { force: true })
+      },
+      warn: (message) => log.warn(message)
+    })
+    // Defaults standing in for an unreadable settings file say nothing about
+    // what the user chose, so they never remove the entry.
+    if (!isSettingsFallback()) loginItem.sync(settings.startWithComputer !== 'off')
+    startInTray = settings.startWithComputer === 'tray' && loginItem.wasLaunchedAtLogin()
 
     // Default open or close DevTools by F12 in development
     // and ignore CommandOrControl + R in production.
@@ -905,6 +954,7 @@ app
       onSettingsApplied: (saved) => {
         applyWindowTheme(saved.theme)
         applyUpdaterSettings(saved)
+        loginItem.follow(saved.startWithComputer !== 'off')
         // Turning the Activity page off also forgets what it kept.
         if (!saved.showActivityPage) activityFeed.clearAll()
       },
@@ -924,6 +974,7 @@ app
         }
       },
       appStatus,
+      loginItem,
       activity: activityFeed,
       importSession: createSessionImporter({
         discoverVrchat: importVrcxSession,
@@ -1080,6 +1131,13 @@ app
       if (BrowserWindow.getAllWindows().length === 0) {
         currentWindow = createWindow()
         trayHandle?.wireWindow(currentWindow)
+      } else if (
+        currentWindow !== null &&
+        !currentWindow.isDestroyed() &&
+        rendererHydrationGates.get(currentWindow.webContents)?.isShown() === false
+      ) {
+        // Started in the tray: the dock icon is how the user asks for VRX.
+        focusMainWindow()
       }
     })
   })
