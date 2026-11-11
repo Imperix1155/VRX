@@ -779,6 +779,7 @@ main-only base `https://api.chilloutvr.net`. The WebSocket is
 | `/users/ws` WebSocket             | Live presence                            | Live 2026-07-07                       | Friends stay offline          |
 | Image hosts                       | Pictures                                 | Live 2026-07-16                       | Placeholder                   |
 | `chilloutvr://instance/join` link | Join                                     | Documented                            | Join denied before launch     |
+| `chilloutvr://details/…` links    | Copy link (clipboard only)               | Source-derived                        | The pasted link does nothing  |
 | Local session files               | Sign-in from this PC (button)            | Source-derived, checked 2026-08-24    | No import, direct sign-in     |
 
 ### Session values and headers
@@ -1172,6 +1173,18 @@ response or write has been captured yet.
   `startInVR` equal to `true` or `false`.
 - **When it breaks:** the join is denied with `invalid-url` before
   `shell.openExternal`.
+
+### Copy links: `chilloutvr://details/…`
+
+- **Source-derived from CVRX:** its copy buttons write
+  `chilloutvr://details/user?id=<guid>`, `chilloutvr://details/world?id=<guid>`
+  and `chilloutvr://details/instance?id=<i+… id, with + as %2B>`, which the
+  game opens as its own details pages. Not checked against a live game.
+- **Builds** them in [shareLinks.ts](../src/shared/shareLinks.ts) only from IDs
+  with the documented shapes, for the clipboard. VRX never opens one, and they
+  are not part of the launch allowlist.
+- **When it breaks:** a pasted link does nothing in the game. Nothing in VRX
+  depends on it.
 
 ### Local session import files
 

@@ -907,7 +907,7 @@ limits.
 
 | Kind              | Look                                                                                                       | Used for                                             |
 | ----------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Quiet             | `--control-fill` fill, no border, `--text-dim` word, 12 px, radius 12 px                                   | "Refresh", "Avatars", "See all 3", "Settings"        |
+| Quiet             | `--control-fill` fill, no border, `--text-dim` word, 12 px, radius 12 px                                   | "Refresh", "Avatars", "See all 3", "Copy link"       |
 | Bordered          | 1 px `--border`, `--control-fill` or no fill, `--text` word                                                | "Cancel", "Retry", "Sign out", settings actions      |
 | Confirm (neutral) | `--control-fill-hover` fill, `--control-active-border` border, 600                                         | "Accept", "Add friend"                               |
 | Join              | `--op-public` word on a 16% tint with a 45% edge                                                           | "Join" everywhere                                    |
@@ -1216,7 +1216,8 @@ only and takes no clicks. The list behind stays usable.
 7. **Show full profile.** A quiet button. It opens, in place, the profile for
    each account (bio, pronouns, rank, badges, with worlds and groups behind
    their own "Show worlds" and "Show groups" buttons) and the friend actions
-   from §9.7. Nothing here is fetched until the button is pressed.
+   from §9.7. Under the rank it lists the User ID with "Copy link" beside it
+   (§9.3). Nothing here is fetched until the button is pressed.
 8. **Foot row**, pinned at the bottom: "Identities" at the left (§10), then
    the favorite star and the alerts bell at the right, both 32 px round
    `.glass` buttons.
@@ -1391,6 +1392,16 @@ sheet. They share one frame.
   Friends here, Region, Access, Group, Instance ID. A value the platform
   does not give reads "Not shown".
 
+**Copy link.** An ID in a sheet's expanded list has a quiet "Copy link"
+button beside it ([`CopyLinkButton.tsx`](../src/renderer/src/components/CopyLinkButton.tsx)):
+Instance ID in the hot instance sheet, World ID in the world sheet, User ID
+in the person sheet and in friend details under "Show full profile". It puts
+a link to that person, world or instance on the clipboard and VRX opens
+nothing. The button's word says what happened for 2 seconds, "✓ Copied" or
+"Couldn't copy", so the result never depends on color. VRChat links are its
+website pages; ChilloutVR links open the page in the game. An ID with no
+valid link shows without the button.
+
 The world, avatar, and person and group sheets are described with their
 pages in §9.4 and §9.7.
 
@@ -1453,8 +1464,8 @@ in the shared sheet frame (§9.3):
 - Room states: "Loading visible public rooms…", "Visible public rooms could
   not load." (`--error`), "No visible public rooms are available.", "Only
   some visible public rooms are available."
-- Expanded, "ABOUT THIS WORLD" lists People now, Room regions and Last
-  checked.
+- Expanded, "ABOUT THIS WORLD" lists People now, Room regions, Last
+  checked and World ID, with "Copy link" beside the ID (§9.3).
 
 Joining a room goes through the join confirmation (§9.3).
 

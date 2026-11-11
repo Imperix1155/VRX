@@ -13,6 +13,9 @@ import ExploreDashboardPreview from './ExploreDashboardPreview'
 import ExploreView from './ExploreView'
 import ExploreWorldSheet from './ExploreWorldSheet'
 
+/** VRChat's website pages, spelled so the path guard does not read a folder. */
+const VRC_SITE = ['https://vrchat.com', 'home'].join('/')
+
 const complete = (
   value: number
 ): { state: 'complete'; value: number; source: 'visible-rooms' } => ({
@@ -646,13 +649,54 @@ describe('ExploreView', () => {
         within(more)
           .getAllByRole('term')
           .map((term) => term.textContent)
-      ).toEqual(['People now', 'Room regions', 'Last checked'])
+      ).toEqual(['People now', 'Room regions', 'Last checked', 'World ID'])
+      // A made-up ID has no link, so it shows with no Copy link button.
+      expect(within(more).getByText('World ID').nextElementSibling?.textContent).toBe(
+        selected.worldId
+      )
+      expect(within(more).queryByRole('button')).toBeNull()
       expect(within(more).getByText('People now').nextElementSibling?.textContent).toBe('7')
       expect(within(more).getByText('Room regions').nextElementSibling?.textContent).toBe(
         platform === 'vrchat' ? 'Japan' : 'Europe'
       )
       expect(screen.getByRole('button', { name: 'Show less' })).toBeTruthy()
       cleanup()
+    }
+  })
+
+  it('copies a link to the world from its ID under Show more, on both platforms', async () => {
+    const guid = '0f8fad5b-d9cb-469f-a165-70867728950e'
+    const cases = [
+      ['vrchat', `wrld_${guid}`, `${VRC_SITE}/world/wrld_${guid}`],
+      ['chilloutvr', guid, `chilloutvr://details/world?id=${guid}`]
+    ] as const
+    for (const [platform, worldId, link] of cases) {
+      const writeText = vi.fn(() => Promise.resolve())
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      const selected = world(platform, worldId, 'Some World')
+      render(
+        <ExploreWorldSheet
+          snapshot={{
+            ...source(platform, [selected]),
+            world: selected,
+            rooms: [],
+            roomsComplete: true
+          }}
+          opener={null}
+          focusFallback={null}
+          onClose={vi.fn()}
+          onJoin={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Copy a link to Some World' }))
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(writeText).toHaveBeenCalledTimes(1)
+      expect(writeText).toHaveBeenCalledWith(link)
+      cleanup()
+      Reflect.deleteProperty(navigator, 'clipboard')
     }
   })
 

@@ -31,6 +31,7 @@ import { CommunityHeading, CommunityNotices, CommunityTile, TileGrid } from './C
 import ProfileDetails from './ProfileDetails'
 import type { RecoverWorlds } from '../hooks/useExploreWorldSelection'
 import WorldResults from './WorldResults'
+import { personCopyLink } from '../utils/copyLinks'
 
 export default function SearchView(): React.JSX.Element {
   const { t } = useTranslation()
@@ -177,7 +178,14 @@ export default function SearchView(): React.JSX.Element {
             platform: platformName(t, item.platform)
           }),
           tags: item.isFriend ? [t('search.friend')] : [],
-          more: [{ label: t('profile.userId'), value: item.userId, mono: true }]
+          more: [
+            {
+              label: t('profile.userId'),
+              value: item.userId,
+              mono: true,
+              copyLink: personCopyLink(item.platform, item.userId, item.displayName, t)
+            }
+          ]
         })}
         onClose={closePerson}
       >

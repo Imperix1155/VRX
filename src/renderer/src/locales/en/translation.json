@@ -966,7 +966,8 @@
       "heading": "About this world",
       "people": "People now",
       "regions": "Room regions",
-      "checked": "Last checked"
+      "checked": "Last checked",
+      "worldId": "World ID"
     },
     "home": {
       "set": "Set as home world",
@@ -1401,5 +1402,13 @@
       "offNote": "Showing your game favorites is off.",
       "settings": "Settings"
     }
+  },
+  "copyLink": {
+    "copy": "Copy link",
+    "copied": "Copied",
+    "failed": "Couldn't copy",
+    "personAria": "Copy a link to {{name}}",
+    "worldAria": "Copy a link to {{world}}",
+    "instanceAria": "Copy a link to this instance in {{world}}"
   }
 }

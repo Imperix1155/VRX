@@ -959,7 +959,8 @@
       "heading": "このワールドについて",
       "people": "現在の人数",
       "regions": "ルームのリージョン",
-      "checked": "最終確認"
+      "checked": "最終確認",
+      "worldId": "ワールド ID"
     },
     "home": {
       "set": "ホームワールドに設定",
@@ -1391,5 +1392,13 @@
       "offNote": "ゲームのお気に入りの表示はオフです。",
       "settings": "設定"
     }
+  },
+  "copyLink": {
+    "copy": "リンクをコピー",
+    "copied": "コピーしました",
+    "failed": "コピーできませんでした",
+    "personAria": "{{name}} へのリンクをコピー",
+    "worldAria": "{{world}} へのリンクをコピー",
+    "instanceAria": "{{world}} のこのインスタンスへのリンクをコピー"
   }
 }

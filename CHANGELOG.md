@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Copy link: a quiet "Copy link" button now sits beside the ID under Show
+  more in the world sheet and the hot instance sheet, in a person's sheet
+  from Search, and under Show full profile in friend details. It copies a
+  link to that person, world or instance to paste to a friend. VRChat links
+  open its website; ChilloutVR links open the page in the game.
+
 ## [1.4.4-dev.1] - 2026-11-11
 
 ### Fixed

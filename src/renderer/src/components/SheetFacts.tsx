@@ -1,14 +1,20 @@
+import type { CopyLink } from '../utils/copyLinks'
+import CopyLinkButton from './CopyLinkButton'
+
 /**
  * The extra details a bottom sheet shows once its grab bar is expanded: a
  * small heading over label and value pairs. Values wrap instead of
  * truncating, because seeing all of them is the point of expanding. IDs use
- * the monospace face and can be selected and copied.
+ * the monospace face and can be selected and copied. An ID with a `copyLink`
+ * also gets a quiet "Copy link" button beside it.
  */
 export interface SheetFact {
   label: string
   value: string
   /** IDs and codes: monospace, break anywhere. */
   mono?: boolean
+  /** A link to what this ID names, for the clipboard. */
+  copyLink?: CopyLink
 }
 
 export function SheetFacts({
@@ -41,7 +47,16 @@ export function SheetFacts({
               }`}
               style={fact.mono ? { fontFamily: 'ui-monospace, monospace' } : undefined}
             >
-              {fact.value}
+              {fact.copyLink === undefined ? (
+                fact.value
+              ) : (
+                <span className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)]">
+                  <span className="min-w-0">{fact.value}</span>
+                  <span className="select-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    <CopyLinkButton link={fact.copyLink.link} ariaLabel={fact.copyLink.ariaLabel} />
+                  </span>
+                </span>
+              )}
             </dd>
           </div>
         ))}

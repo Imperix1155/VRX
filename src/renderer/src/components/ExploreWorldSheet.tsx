@@ -11,6 +11,7 @@ import PlatformPill from './PlatformPill'
 import WorldFavoriteStar from './WorldFavoriteStar'
 import HomeWorldControl from './HomeWorldControl'
 import SheetGrabBar from './SheetGrabBar'
+import { shareLink } from '@shared/shareLinks'
 import { SheetFacts, type SheetFact } from './SheetFacts'
 import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
@@ -281,6 +282,7 @@ export default function ExploreWorldSheet({
         .map((key) => t(key))
     )
   ]
+  const worldLink = shareLink({ kind: 'world', platform: world.platform, worldId: world.worldId })
   const moreFacts: SheetFact[] = [
     {
       label: t('explore.more.people'),
@@ -301,6 +303,15 @@ export default function ExploreWorldSheet({
           : new Intl.DateTimeFormat(i18n.language, { timeStyle: 'short' }).format(
               new Date(shown.updatedAt)
             )
+    },
+    {
+      label: t('explore.more.worldId'),
+      value: world.worldId,
+      mono: true,
+      copyLink:
+        worldLink === null
+          ? undefined
+          : { link: worldLink, ariaLabel: t('copyLink.worldAria', { world: world.name }) }
     }
   ]
   return (
