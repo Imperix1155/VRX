@@ -39,7 +39,9 @@ through `@shared`.
   typed results where they have them: `accountNotes.ts` (note sync),
   `favorites.ts` (local stars),
   `gameFavorites.ts` (account favorite groups and categories), `homeWorld.ts`,
-  `ownProfile.ts` and `avatarLibrary.ts` (avatar lists and Wear).
+  `ownProfile.ts` and `avatarLibrary.ts` (avatar lists and Wear),
+  `worldRating.ts` (the signed-in user's own VRChat rating) and
+  `languageTag.ts` (a BCP-47 tag and its display name).
 - `constants.ts`: the single source for API endpoints and app-wide limits
   and TTLs. A feature's own limits live in its module above.
 - Look up symbols in the [internal API catalog](../../docs/INTERNAL-API.md):

@@ -28,6 +28,10 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'join-explore-room': { max: 20, windowMs: 60_000 },
   // The 5 s per-platform cooldown in main allows at most 24 changes/minute.
   'set-home-world': { max: 24, windowMs: 60_000 },
+  // A world sheet reads its rating when it opens; main reuses an answer for 5 min.
+  'get-world-rating': { max: 60, windowMs: 60_000 },
+  // Like and Dislike presses. Main allows one VRChat change at a time, 1 s apart.
+  'set-world-rating': { max: 30, windowMs: 60_000 },
   // Counted per platform (ipc/index.ts), so one platform's retries never use
   // up the other's reads. A denial reads as a slow-down, and the renderer asks
   // again after it.
@@ -165,6 +169,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'save-own-profile':
     case 'social-action':
     case 'set-home-world':
+    case 'set-world-rating':
     case 'set-friend-note':
     case 'sync-friend-note':
     case 'set-alert-pick':

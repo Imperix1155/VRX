@@ -1010,6 +1010,29 @@
         "not-authenticated": "ホームワールドを変更するには {{platform}} にもう一度サインインしてください。",
         "unknown-world": "このワールドを更新してから、もう一度お試しください。"
       }
+    },
+    "rating": {
+      "like": "いいね",
+      "dislike": "よくない",
+      "liked": "いいね済み",
+      "disliked": "よくない済み",
+      "group": "このワールドへのあなたの評価",
+      "likeAria": "{{world}} にいいね",
+      "dislikeAria": "{{world}} をよくない",
+      "likedAria": "いいね済み。{{world}} の評価を消す",
+      "dislikedAria": "よくない済み。{{world}} の評価を消す",
+      "signedOut": "このワールドを評価するには VRChat にサインインしてください。",
+      "loading": "あなたの評価を読み込み中…",
+      "saving": "評価を保存しています…",
+      "failed": {
+        "cooldown": "少し待ってからもう一度評価を変更してください。",
+        "rate-limited": "VRChat から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+        "failed": "VRChat で評価を保存できませんでした。もう一度お試しください。",
+        "not-authenticated": "このワールドを評価するには VRChat にもう一度サインインしてください。",
+        "unknown-world": "このワールドを更新してから、もう一度お試しください。",
+        "stale": "評価するにはもう一度サインインしてください。",
+        "not-vrchat": "評価できるのは VRChat のワールドだけです。"
+      }
     }
   },
   "avatars": {

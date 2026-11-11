@@ -9,6 +9,7 @@ import type {
 } from '@shared/explore'
 import PlatformPill from './PlatformPill'
 import WorldFavoriteStar from './WorldFavoriteStar'
+import WorldRatingControl from './WorldRatingControl'
 import HomeWorldControl from './HomeWorldControl'
 import SheetGrabBar from './SheetGrabBar'
 import { shareLink } from '@shared/shareLinks'
@@ -417,6 +418,15 @@ export default function ExploreWorldSheet({
                   leading={<PlatformPill platform={world.platform} />}
                 />
               </div>
+              {isVrc ? (
+                <div className="mt-[var(--space-2)]">
+                  <WorldRatingControl
+                    key={world.worldRef}
+                    worldRef={world.worldRef}
+                    worldName={world.name}
+                  />
+                </div>
+              ) : null}
               {showStaleNote || (isStale && onRefresh) ? (
                 <div className="mt-[var(--space-1)] flex items-center gap-[var(--space-2)]">
                   {showStaleNote ? (

@@ -140,7 +140,7 @@ here.
   location fences.
 - A session boundary clears that platform's alerts, locations, inbox (unless
   `identityRetained`), Explore, avatars, community, game favorites, note sync,
-  home world, friend actions, social actions and own-profile state, then sends
+  home world, world rating, friend actions, social actions and own-profile state, then sends
   `identity-boundary`. A VRChat data-path 401
   sets `identityRetained`: clear main state, send no boundary; the following
   `auth-invalidated` quarantines the renderer.
@@ -182,6 +182,8 @@ the `/users/ws` socket are never queued while it is closed.
   ChilloutVR item's categories before writing so none is dropped.
 - `AvatarLibraryService` and `currentAvatarService.ts`: Wear switches avatars
   only on a press.
+- `WorldRatingService`: the user's own VRChat rating. The sheet reads it when
+  it opens; Like, Dislike and clearing it are the only writes.
 
 **Reads and images**
 

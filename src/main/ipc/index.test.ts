@@ -192,6 +192,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-relationship',
   'get-settings',
   'get-world-list',
+  'get-world-rating',
   'import-session',
   'join-explore-room',
   'join-instance',
@@ -213,6 +214,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'set-friend-note',
   'set-game-favorite',
   'set-home-world',
+  'set-world-rating',
   'social-action',
   'switch-avatar',
   'sync-friend-note',
@@ -258,6 +260,10 @@ function options(): IpcHandlerOptions {
       joinRoom: vi.fn(() => ({ ok: true }))
     },
     homeWorld: { setHomeWorld: vi.fn() },
+    worldRating: {
+      getWorldRating: vi.fn(async () => ({ ok: true, value: null })),
+      setWorldRating: vi.fn(async () => ({ ok: true, value: 'like' }))
+    },
     avatarLibrary: {
       getLibrary: vi.fn(),
       getDetails: vi.fn(),
@@ -379,6 +385,26 @@ describe('registerIpcHandlers rate limiting', () => {
 
     for (let request = 0; request < 12; request += 1) getFriends(invokeEvent)
     expect(() => getFriends(invokeEvent)).toThrowError('rate_limited')
+  })
+
+  it('counts world-rating reads and writes on their own budgets', () => {
+    registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
+    const read = electron.invokeHandlers.get('get-world-rating')!
+    const write = electron.invokeHandlers.get('set-world-rating')!
+    const req = { platform: 'vrchat' as const, worldRef: 'ref' }
+
+    for (let request = 0; request < 60; request += 1) read(invokeEvent, req)
+    expect(() => read(invokeEvent, req)).toThrowError('rate_limited')
+
+    for (let request = 0; request < 30; request += 1) {
+      write(invokeEvent, { ...req, value: 'like' as const })
+    }
+    expect(write(invokeEvent, { ...req, value: null })).toEqual({
+      ok: false,
+      reason: 'rate-limited'
+    })
+    // A used-up read budget does not spend the write budget, or the reverse.
+    expect(() => read(invokeEvent, req)).toThrowError('rate_limited')
   })
 
   it('counts friends-list reads per platform, so one failing platform never blocks the other', () => {

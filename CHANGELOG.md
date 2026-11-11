@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Rate a VRChat world from its sheet. Like and Dislike show your own rating,
+  and pressing the one you already chose clears it. A change that does not
+  go through puts the previous rating back and says so, then the message
+  clears. ChilloutVR worlds have no rating, so those buttons are not on
+  that sheet. There is no public like count.
+
 ## [1.4.4-dev.3] - 2026-11-11
 
 ### Fixed

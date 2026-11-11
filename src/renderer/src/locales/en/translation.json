@@ -1017,6 +1017,29 @@
         "not-authenticated": "Sign in to {{platform}} again to change your home world.",
         "unknown-world": "Refresh this world, then try again."
       }
+    },
+    "rating": {
+      "like": "Like",
+      "dislike": "Dislike",
+      "liked": "Liked",
+      "disliked": "Disliked",
+      "group": "Your rating of this world",
+      "likeAria": "Like {{world}}",
+      "dislikeAria": "Dislike {{world}}",
+      "likedAria": "Liked. Clear your rating of {{world}}",
+      "dislikedAria": "Disliked. Clear your rating of {{world}}",
+      "signedOut": "Sign in to VRChat to rate this world.",
+      "loading": "Loading your rating…",
+      "saving": "Saving your rating…",
+      "failed": {
+        "cooldown": "Wait a moment before changing your rating again.",
+        "rate-limited": "VRChat asked VRX to slow down. Try again in a minute.",
+        "failed": "VRChat didn't save your rating. Try again.",
+        "not-authenticated": "Sign in to VRChat again to rate this world.",
+        "unknown-world": "Refresh this world, then try again.",
+        "stale": "Sign in again to rate this world.",
+        "not-vrchat": "Only VRChat worlds can be rated."
+      }
     }
   },
   "avatars": {
