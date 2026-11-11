@@ -35,6 +35,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `getSettings`, `saveSettings` | [`hooks/useSettingsPersistence.ts`](../../src/renderer/src/hooks/useSettingsPersistence.ts) |
 | `getUpdaterState`, `checkForUpdates`, `downloadUpdate`, `installUpdate`, `onUpdaterStateChanged` | [`hooks/useUpdater.ts`](../../src/renderer/src/hooks/useUpdater.ts) |
 | `openUrl`, `openLogsFolder` | [`SettingsView.tsx`](../../src/renderer/src/components/SettingsView.tsx) |
+| `exportData` | [`components/ExportDataRow.tsx`](../../src/renderer/src/components/ExportDataRow.tsx) (Settings → Accounts) |
 | `getAppBackground`, `chooseAppBackground`, `clearAppBackground` | [`queries/appBackground.ts`](../../src/renderer/src/queries/appBackground.ts), through [`hooks/useBackgroundPicturePicker.ts`](../../src/renderer/src/hooks/useBackgroundPicturePicker.ts) |
 | `setHomeWorld` | [`queries/homeWorld.ts`](../../src/renderer/src/queries/homeWorld.ts), from [`HomeWorldControl.tsx`](../../src/renderer/src/components/HomeWorldControl.tsx) on a world sheet |
 | `getAvatarLibrary`, `getAvatarDetails`, `switchAvatar` | [`queries/avatarLibrary.ts`](../../src/renderer/src/queries/avatarLibrary.ts) |

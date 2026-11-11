@@ -84,6 +84,10 @@ vi.mock('./instance', () => ({
 vi.mock('./app-status', () => ({
   registerAppStatusHandlers: () => electron.ipcMain.handle('get-app-status', () => ({ ok: true }))
 }))
+vi.mock('./data-export', () => ({
+  registerDataExportHandlers: () =>
+    electron.ipcMain.handle('export-data', () => ({ ok: false, reason: 'cancelled' }))
+}))
 vi.mock('./login-item', () => ({
   registerLoginItemHandlers: () => electron.ipcMain.handle('get-login-item', () => 'off')
 }))
@@ -156,6 +160,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'clear-app-background',
   'clear-inbox',
   'dismiss-inbox-item',
+  'export-data',
   'get-accounts',
   'get-activity',
   'get-alert-picks',
@@ -240,6 +245,7 @@ function options(): IpcHandlerOptions {
     appStatus: {},
     loginItem: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
+    dataExport: {} as IpcHandlerOptions['dataExport'],
     inbox: {} as IpcHandlerOptions['inbox'],
     friendActions: {} as IpcHandlerOptions['friendActions'],
     vrOverlayAlerts: { test: async () => undefined },

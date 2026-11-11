@@ -253,6 +253,30 @@ describe('GameFavoritesService', () => {
     expect(adapter.writes).toHaveLength(0)
   })
 
+  it('peeks at what is loaded without ever starting a read', async () => {
+    expect(service.peek('vrchat')).toBeNull()
+    expect(service.peek('chilloutvr')).toBeNull()
+    expect(adapter.reads).toBe(0)
+
+    await service.get('vrchat')
+    expect(service.peek('vrchat')?.friends[OTHER]).toEqual(['friend:group_0'])
+    expect(service.peek('vrchat')?.groups.friend.map((g) => g.name)).toEqual(['Besties', 'Group 2'])
+
+    enabled = false
+    expect(service.peek('vrchat')).toBeNull()
+    enabled = true
+    adapter.generation += 1
+    expect(service.peek('vrchat')).toBeNull()
+    adapter.generation -= 1
+    adapter.signedIn = false
+    expect(service.peek('vrchat')).toBeNull()
+    adapter.signedIn = true
+    expect(service.peek('vrchat')).not.toBeNull()
+    service.clearPlatform('vrchat')
+    expect(service.peek('vrchat')).toBeNull()
+    expect(adapter.reads).toBe(1)
+  })
+
   it('reports a failed write without resending it', async () => {
     await service.get('vrchat')
     adapter.writeError = new RateLimitError(1000)

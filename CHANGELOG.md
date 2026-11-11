@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Export your data: Settings → Accounts has a new "Export…" button that
+  saves your friends, notes and favorites to a file you pick on your
+  computer. VRChat and ChilloutVR are written the same way and the file holds
+  no sign-in details. It is made from what VRX already has; with "Use my game
+  favorites" on it first waits for the one favorites read VRX makes per
+  sign-in, and tells you if your game favorites could not be included.
 - Start with your computer: Settings → About has a new choice, Off by
   default. On opens VRX when you sign in to your computer; In the tray does
   the same but keeps the window closed until you open it from the tray icon.

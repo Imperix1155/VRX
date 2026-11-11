@@ -135,6 +135,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   // Deliberate button presses; choosing opens a native dialog.
   'choose-app-background': { max: 10, windowMs: 60_000 },
   'clear-app-background': { max: 10, windowMs: 60_000 },
+  // A deliberate press that opens a native save dialog.
+  'export-data': { max: 10, windowMs: 60_000 },
   // Re-read after each inbox push; pushes are bounded by what the sockets send.
   'get-inbox': { max: 240, windowMs: 60_000 },
   // Human clicks that only hide rows locally.
@@ -172,6 +174,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'get-linked-profiles':
     case 'change-linked-profile':
     case 'test-vr-alert':
+    case 'export-data':
       return { ok: false, reason: 'rate-limited' }
     case 'get-game-favorites':
       return { state: 'rate-limited' }

@@ -54,6 +54,15 @@ here.
   marker is ever removed. A launch the computer made carries
   `--launched-at-login`; with the In the tray choice its first window stays
   hidden (`createShowGate` `startHidden`) until VRX is asked for.
+- Export your data (`services/dataExport.ts`, `ipc/data-export.ts`): built
+  only from what main already holds. The builder reads in-game favorite groups
+  with `GameFavoritesService.peek`; before it runs, the handler's `prepare`
+  waits up to 10 s for the once-per-sign-in favorites read (`get` without
+  refresh, the read the Friends page starts), and only when an export is
+  possible. Groups that still are not there are marked `unavailable` in the
+  file and in the answer. The file carries no credential, session or
+  own-account id, and the same fields for both platforms. Main owns the save
+  dialog and the path; the renderer gets counts or a typed reason.
 - On Windows and Linux, close hides to the tray until `before-quit` sets the
   single `quitting` flag; a throwing teardown must not skip the flag. macOS
   keeps native close. Hide, minimize, close and renderer loss stop Explore

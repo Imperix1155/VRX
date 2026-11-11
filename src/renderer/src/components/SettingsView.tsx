@@ -43,6 +43,7 @@ import { useBackgroundPicturePicker } from '../hooks/useBackgroundPicturePicker'
 import { useAlertPicks } from '../queries/alertPicks'
 import { useLoginItemProblem, type LoginItemProblem } from '../queries/loginItem'
 import PickedFriendsDialog from './PickedFriendsDialog'
+import ExportDataRow from './ExportDataRow'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -1260,6 +1261,7 @@ export default function SettingsView(): React.JSX.Element {
               <AccountCard platform="vrchat" profileEditing />
               <AccountCard platform="chilloutvr" profileEditing />
             </div>
+            <ExportDataRow />
             <p className="text-xs text-[var(--text-dim)]">{t('shell.unofficialNotice')}</p>
           </section>
         )}

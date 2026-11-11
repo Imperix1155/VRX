@@ -221,6 +221,17 @@
       "stillOn": "VRX is still in this computer's startup.",
       "unavailable": "This copy of VRX can't start with your computer."
     },
+    "export": {
+      "label": "Export your data",
+      "description": "Saves your friends, notes and favorites to a file on this computer.",
+      "button": "Export…",
+      "saved": "Saved. Friends: {{friends}}, notes: {{notes}}, favorites: {{favorites}}.",
+      "noGameFavorites": "Your game favorites couldn't be read just now, so the file has VRX stars only.",
+      "signedOut": "Sign in to an account first.",
+      "notReady": "VRX is still loading your friends. Try again in a moment.",
+      "failed": "Couldn't save the file. Try another folder.",
+      "tooMany": "Too many tries. Wait a minute, then try again."
+    },
     "labelScheme": {
       "label": "Instance labels",
       "description": "Which words the instance labels use.",

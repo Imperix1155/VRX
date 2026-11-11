@@ -12,6 +12,7 @@ import { registerAvatarHandlers } from './avatar'
 import { registerAppBackgroundHandlers, type AppBackgroundHandlerOptions } from './app-background'
 import { registerFriendsHandlers } from './friends'
 import { registerInboxHandlers } from './inbox'
+import { registerDataExportHandlers, type DataExportHandlerOptions } from './data-export'
 import { registerLoginItemHandlers } from './login-item'
 import { registerFriendActionHandlers } from './friend-actions'
 import type { FriendActionsService } from '../services/friendActions'
@@ -106,6 +107,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   ownProfile: OwnProfileService
   social: SocialActionService
   appBackground: AppBackgroundHandlerOptions
+  dataExport: DataExportHandlerOptions
   inbox: InboxService
   friendActions: FriendActionsService
   vrOverlayAlerts: Pick<VrOverlayAlerts, 'test'>
@@ -209,6 +211,7 @@ export function registerIpcHandlers(
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)
+    registerDataExportHandlers(options.dataExport)
     registerInboxHandlers(options.inbox)
     registerFriendActionHandlers(options.friendActions)
     registerVrAlertHandlers(options.vrOverlayAlerts)

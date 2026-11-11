@@ -92,6 +92,24 @@ export type AppBackgroundResult =
  */
 export type LoginItemStatus = 'on' | 'off' | 'unavailable'
 
+/**
+ * Result of Settings → Accounts → Export. Counts only: the file's place on
+ * the computer never crosses the bridge.
+ */
+export type DataExportResult =
+  | {
+      ok: true
+      friends: number
+      notes: number
+      favorites: number
+      /** The accounts' own favorite groups could not be read, so the file has VRX's stars only. */
+      gameFavoritesMissing: boolean
+    }
+  | {
+      ok: false
+      reason: 'cancelled' | 'signed-out' | 'not-ready' | 'save-failed' | 'rate-limited'
+    }
+
 export type InstanceActionResult =
   | {
       ok: true
@@ -278,6 +296,10 @@ export interface IpcInvoke {
   'choose-app-background': { req: void; res: AppBackgroundResult }
   /** Forget the background picture. */
   'clear-app-background': { req: void; res: void }
+  /** Save friends, notes and favorites to a file the user picks in a native
+   *  dialog. Main builds the file from what it already holds; the renderer
+   *  supplies nothing. */
+  'export-data': { req: void; res: DataExportResult }
   /** Invites and requests that arrived while VRX was open. */
   'get-inbox': { req: void; res: InboxSnapshot }
   /** Join the instance an invite row leads to. Main looks the row up itself:

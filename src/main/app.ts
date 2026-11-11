@@ -17,6 +17,7 @@ import { HomeWorldService } from './services/homeWorldService'
 import type { HomeWorldAdapter } from './services/adapters/HomeWorldAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { LoginItem } from './services/loginItem'
+import { DATA_EXPORT_FAVORITES_WAIT_MS } from './services/dataExport'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
 import type { AvatarLibraryAdapter } from './services/adapters/AvatarLibraryAdapter'
@@ -37,6 +38,7 @@ import {
 import { join } from 'path'
 import { pathToFileURL } from 'node:url'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { writeFile } from 'node:fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
@@ -949,6 +951,57 @@ app
             ? await dialog.showOpenDialog(owner, options)
             : await dialog.showOpenDialog(options)
           return picked.canceled ? null : (picked.filePaths[0] ?? null)
+        }
+      },
+      // Settings → Accounts → Export: built from what VRX already holds.
+      dataExport: {
+        sources: {
+          accountId: (platform) =>
+            'status' in accountSession.resolve(platform)
+              ? null
+              : accountSession.getAccountId(platform),
+          roster: (platform) => locationAuthority.roster(platform),
+          favoriteFriendIds: (platform) => favorites.listFriends(platform).friendIds,
+          favoriteWorlds: (platform) => favorites.listWorlds(platform).worlds,
+          notes: (platform, accountId) =>
+            socialStore.read(platform, accountId, 'notes')?.data ?? {},
+          gameFavorites: (platform) => {
+            if (!getSettingsSnapshot().useGameFavorites) return 'off'
+            const view = gameFavorites.peek(platform)
+            return view === null ? 'unavailable' : { ...view, worldNames: view.worldEvidence }
+          },
+          linkedProfiles: () => linkGraph.list(),
+          now: () => new Date()
+        },
+        // The same once-per-sign-in read the Friends page starts; an answer
+        // already in memory returns at once, and nothing is ever refreshed.
+        prepare: async () => {
+          if (!getSettingsSnapshot().useGameFavorites) return
+          let timer: ReturnType<typeof setTimeout> | undefined
+          const reads = (['vrchat', 'chilloutvr'] as const).map((platform) =>
+            gameFavorites.get(platform).catch(() => undefined)
+          )
+          await Promise.race([
+            Promise.all(reads),
+            new Promise((resolve) => {
+              timer = setTimeout(resolve, DATA_EXPORT_FAVORITES_WAIT_MS)
+            })
+          ])
+          clearTimeout(timer)
+        },
+        saveFile: async (event, suggestedName, content) => {
+          const owner = BrowserWindow.fromWebContents(event.sender)
+          const options: Electron.SaveDialogOptions = {
+            title: mt('dataExport.dialogTitle'),
+            defaultPath: join(app.getPath('documents'), suggestedName),
+            filters: [{ name: mt('dataExport.dialogFilter'), extensions: ['json'] }]
+          }
+          const picked = owner
+            ? await dialog.showSaveDialog(owner, options)
+            : await dialog.showSaveDialog(options)
+          if (picked.canceled || !picked.filePath) return false
+          await writeFile(picked.filePath, content, 'utf8')
+          return true
         }
       },
       onSettingsApplied: (saved) => {
