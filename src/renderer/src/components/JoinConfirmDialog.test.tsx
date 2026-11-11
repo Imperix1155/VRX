@@ -291,6 +291,10 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   useFriendsMock.mockReset()
+  // The friends cache is module-level too. A re-read one test started (after
+  // a turned-down Join) has no query function here, so its retry would end as
+  // a read error in the middle of a later test and refuse that test's Confirm.
+  queryClient.removeQueries({ queryKey: ['friends'] })
 })
 
 describe('join path interception (confirmJoin on)', () => {
