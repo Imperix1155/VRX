@@ -620,6 +620,10 @@
       "offline": "Offline ({{count, number}})",
       "favorites": "Favorites ({{count, number}})"
     },
+    "favoriteGroup": {
+      "game": "{{name}} · {{platform}} ({{count, number}})",
+      "vrx": "Starred in VRX ({{count, number}})"
+    },
     "instance": {
       "unknownWorld": "Unknown World",
       "private": "Private",

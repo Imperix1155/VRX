@@ -131,6 +131,129 @@ describe('FriendsList presence sections — interaction (VRX-67)', () => {
     expect(screen.getAllByText('Ben')).toHaveLength(1)
   })
 
+  function showFavorites(game: {
+    groups: Array<[string, string]>
+    friends: Record<string, string[]>
+  }): void {
+    queryClient.setQueryData(['auth-status', 'vrchat'], {
+      platform: 'vrchat',
+      state: 'authenticated',
+      accountId: 'vrchat-test',
+      displayName: 'Test User'
+    })
+    queryClient.setQueryData(['favorite-friends', 'vrchat', 'vrchat-test'], {
+      friendIds: ['usr_Dee'],
+      revision: { platformAccountId: 'vrchat-test', epoch: 1 }
+    })
+    queryClient.setQueryData(['game-favorites', 'vrchat', 'vrchat-test'], {
+      state: 'ready',
+      favorites: {
+        oneGroupPerItem: true,
+        groups: {
+          friend: game.groups.map(([key, name]) => ({ key, name, capacity: 150, count: 0 })),
+          world: []
+        },
+        friends: game.friends,
+        worlds: {},
+        worldList: []
+      },
+      revision: { platformAccountId: 'vrchat-test', epoch: 1 }
+    })
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, collapsedFriendSections: [], useGameFavorites: true },
+      dirty: false
+    })
+    useFriendsMock.mockImplementation((platform: string) =>
+      platform === 'vrchat'
+        ? {
+            data: [
+              mk('Anna', 'in-game'),
+              mk('Ben', 'in-game'),
+              mk('Cy', 'in-game'),
+              mk('Dee', 'in-game'),
+              mk('Eve', 'in-game')
+            ],
+            isPending: false,
+            isError: false,
+            isFetching: false,
+            refetch: vi.fn()
+          }
+        : { data: [], isPending: false, isError: false, isFetching: false, refetch: vi.fn() }
+    )
+    render(<FriendsList />)
+  }
+
+  /** The words down the list, sub-headings and names, until the In-Game header. */
+  function favoritesBlock(): string[] {
+    const words: string[] = []
+    for (const item of document.querySelectorAll('#friends-virtual-list > li')) {
+      const kind = item.getAttribute('data-virtual-kind')
+      if (kind === 'section') {
+        if (item.textContent?.startsWith('In-Game')) break
+        continue
+      }
+      words.push(
+        kind === 'group'
+          ? (item.textContent ?? '')
+          : (item.querySelector('[data-friend-name]')?.textContent ?? item.textContent ?? '')
+      )
+    }
+    return words
+  }
+
+  it("splits Favorites by the account's favorite groups, then the friends starred in VRX", () => {
+    showFavorites({
+      groups: [
+        ['g1', 'Besties'],
+        ['g2', 'Dance crew'],
+        ['g3', 'Empty group']
+      ],
+      friends: { usr_Ben: ['g2'], usr_Anna: ['g1'], usr_Cy: ['g1'] }
+    })
+    expect(screen.getByRole('button', { name: 'Favorites (4)' })).toBeTruthy()
+    const groups = [...document.querySelectorAll('[data-virtual-kind="group"]')].map(
+      (item) => item.textContent
+    )
+    // The platform is a word beside the name; an empty group gets no heading.
+    expect(groups).toEqual(['Besties · VRC (2)', 'Dance crew · VRC (1)', 'Starred in VRX (1)'])
+    const block = favoritesBlock()
+    expect(block.filter((word) => groups.includes(word))).toEqual(groups)
+    expect(block.indexOf('Besties · VRC (2)')).toBeLessThan(
+      block.findIndex((word) => word.includes('Anna'))
+    )
+    expect(block.findIndex((word) => word.includes('Cy'))).toBeLessThan(
+      block.indexOf('Dance crew · VRC (1)')
+    )
+    expect(block.findIndex((word) => word.includes('Ben'))).toBeLessThan(
+      block.indexOf('Starred in VRX (1)')
+    )
+    expect(block.indexOf('Starred in VRX (1)')).toBeLessThan(
+      block.findIndex((word) => word.includes('Dee'))
+    )
+    // Each favorite shows once in Favorites and once in In-Game, never more.
+    for (const name of ['Anna', 'Ben', 'Cy', 'Dee']) {
+      expect(screen.getAllByText(name)).toHaveLength(2)
+    }
+    expect(screen.getAllByText('Eve')).toHaveLength(1)
+    // A sub-heading is words only: nothing to press or focus.
+    for (const item of document.querySelectorAll('[data-virtual-kind="group"]')) {
+      expect(item.querySelector('button, [tabindex]')).toBeNull()
+    }
+
+    // Collapsing Favorites folds its sub-headings away with it.
+    fireEvent.click(screen.getByRole('button', { name: 'Favorites (4)' }))
+    expect(document.querySelectorAll('[data-virtual-kind="group"]')).toHaveLength(0)
+  })
+
+  it('keeps Favorites one plain list when every favorite sits in the same place', () => {
+    showFavorites({
+      groups: [['g1', 'Besties']],
+      friends: { usr_Dee: ['g1'], usr_Anna: ['g1'] }
+    })
+    expect(screen.getByRole('button', { name: 'Favorites (2)' })).toBeTruthy()
+    expect(document.querySelectorAll('[data-virtual-kind="group"]')).toHaveLength(0)
+  })
+
   it('shows no Favorites section while no starred friend is in game', () => {
     queryClient.setQueryData(['auth-status', 'vrchat'], {
       platform: 'vrchat',

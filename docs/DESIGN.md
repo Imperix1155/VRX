@@ -1002,6 +1002,16 @@ found by another of their names shows that name beside the row name. A
 - **Favorites** lists favorite friends who are in a game right now. They also
   stay in In-Game: Favorites is a shortcut, not a move. With no favorite in a
   game the section is absent.
+- **Favorite groups.** When those favorites sit in more than one place,
+  Favorites splits under small sub-headings: each of the account's own
+  favorite groups that has someone in a game ("Besties · VRC (2)", VRChat's
+  groups first in the account's order, then ChilloutVR's categories), then
+  "Starred in VRX (1)" for friends starred only in VRX. A sub-heading is plain
+  words in 11.5 px / 600 `--text-dim`, never a chip or a button: the group's
+  name, the platform as a word, and the count. A friend shows once, under the
+  first group that holds them. With one place only, Favorites stays one plain
+  list. Sub-headings fold away with the section and do not collapse on their
+  own.
 
 **Row** (`FriendRow`). 60 px tall, 4 px between rows, radius 13 px. A
 four-column grid, `14px 42px 1fr auto` with a 12 px gap, padding 8 px top and
