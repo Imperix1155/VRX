@@ -31,7 +31,8 @@ const service = vi.hoisted(() => ({
   isSettingsFallback: vi.fn(),
   isSettingsFileNewer: vi.fn(),
   hasPendingSettingsSave: vi.fn(),
-  saveSettings: vi.fn()
+  saveSettings: vi.fn(),
+  wasSettingsFileReset: vi.fn()
 }))
 vi.mock('../services/settings', () => service)
 
@@ -44,6 +45,7 @@ beforeEach(() => {
   service.hasPendingSettingsSave.mockReturnValue(false)
   service.isSettingsFallback.mockReturnValue(false)
   service.isSettingsFileNewer.mockReturnValue(false)
+  service.wasSettingsFileReset.mockReturnValue(false)
   handlers.clear()
   trusted.value = true
   service.loadSettings.mockReset().mockReturnValue({ ...DEFAULT_SETTINGS })
@@ -74,6 +76,11 @@ describe('get-settings', () => {
   it('labels a file a newer VRX wrote, which saves never overwrite', () => {
     service.isSettingsFileNewer.mockReturnValue(true)
     expect(call('get-settings')).toEqual({ ...DEFAULT_SETTINGS, newerFile: true })
+  })
+
+  it('labels defaults that replaced a damaged file this run', () => {
+    service.wasSettingsFileReset.mockReturnValue(true)
+    expect(call('get-settings')).toEqual({ ...DEFAULT_SETTINGS, reset: true })
   })
 
   it('delegates to loadSettings', () => {
