@@ -378,7 +378,8 @@ chip's lift without the blur.
 
 **Opaque surfaces.** `.glass-information` replaces the see-through fill with
 the solid `--glass-information` backing and turns the blur off. Anything a
-person must read over busy content uses it:
+person must read over busy content uses it. The welcome setup card stays the
+frosted back panel from layer 2.
 
 | Surface                                                              | Classes                                          |
 | -------------------------------------------------------------------- | ------------------------------------------------ |
@@ -974,7 +975,8 @@ inside each group" with "Name", "Recent", "World", "Joinable". Right: a
 people count ("15 people", only when linked friends exist, since linked
 people count once) and a quiet "Refresh" button.
 
-- Order never moves a friend between sections. Name is A to Z. Recent puts
+- Order never moves a friend between sections. Name is A to Z, compared as
+  the names are shown, ignoring spaces at either end. Recent puts
   the friend with the newest Activity entry first. World puts friends who
   share an instance together, the biggest group first. Joinable puts the
   most open joinable instance first, in the order of the access ladder
@@ -1675,13 +1677,15 @@ A two-column fact list in 13 px (Pronouns, Rank; "Not shown" when the
 platform gives none), "BIO" ("No bio."), "BADGES" as small bordered pills
 with a 16 px picture ("No badges shown."), and two quiet buttons, "Show
 worlds" and "Show groups", that load those lists only when pressed. Loading
-reads "Loading profile…"; a failure reads "Couldn't load this profile." or a
-more exact sentence.
+reads "Loading profile…"; a failure reads "Couldn't load this profile." with
+Try again. "This profile is no longer available." is only when the platform
+says the profile is gone.
 
 **Friend actions** ([`ProfileActions.tsx`](../src/renderer/src/components/ProfileActions.tsx)):
 
 - Not a friend: "Add friend" (the neutral confirm button). It reads
-  "Sending…" and then "Friend request sent."
+  "Sending…" and then "Friend request sent." Someone already blocked gets no
+  Add friend; Unblock stays in the options below.
 - They sent a request: "Sent you a friend request." with "Accept" and
   "Decline".
 - **Unfriend or block** is behind a quiet button of that name ("Block or

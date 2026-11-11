@@ -5,6 +5,7 @@ directories:
 files:
   - '!{coverage,test-results,playwright-report,blob-report,.codex,.superpowers,.fallow}/**'
   - '!**/*.{test,spec}.{ts,tsx,js,mjs,cjs}'
+  - '!**/__testutils__/**'
   - '!scripts/generate-app-icons.mjs'
   - '!docs/guide/**'
   - '!docs/design.html'

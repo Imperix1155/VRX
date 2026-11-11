@@ -8,7 +8,7 @@
  *             `status` string field.
  *
  * DESIGN.md §5: these axes are independent — never conflate them.
- * CLAUDE.md: unknown API enum values degrade gracefully, never crash.
+ * docs/api-policy.md (No invented data): unknown values degrade, never crash.
  */
 
 import type { PresenceState, UserStatus } from '@shared/types'
@@ -83,7 +83,7 @@ function mapStatus(raw: string | null | undefined): UserStatus {
   // nullish fallback would silently rewrite offline to 'online' (audit W7).
   const mapped = STATUS_MAP[key]
   if (Object.hasOwn(STATUS_MAP, key) && mapped !== undefined) return mapped
-  // Unknown strings degrade to 'online' (generic green pill — never crash per CLAUDE.md §API etiquette).
+  // Unknown strings degrade to 'online' (generic green pill — docs/api-policy.md, No invented data).
   return 'online'
 }
 

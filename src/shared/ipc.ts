@@ -454,7 +454,7 @@ export interface IpcInvoke {
 /**
  * Push channels — main → renderer: `webContents.send(channel, payload)` ↔
  * `ipcRenderer.on(channel, …)`. This is the LIVE path: WS events pushed to the UI,
- * never polled (CLAUDE.md).
+ * never polled (docs/api-policy.md, Live presence and recovery).
  */
 export interface IpcEvents {
   'explore-changed': { platform: Platform }

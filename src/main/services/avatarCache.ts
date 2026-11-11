@@ -155,7 +155,7 @@ function parseAllowedAvatarUrl(value: string): URL | null {
       url.port !== '' ||
       url.username !== '' ||
       url.password !== '' ||
-      !AVATAR_ALLOWED_HOSTS.has(url.hostname)
+      !AVATAR_ALLOWED_HOSTS.has(canonicalHostname(url.hostname))
     ) {
       return null
     }
@@ -168,13 +168,22 @@ function parseAllowedAvatarUrl(value: string): URL | null {
 
 const IPV4_LITERAL_RE = /^\d{1,3}(\.\d{1,3}){3}$/
 
+/**
+ * Host checks compare one form of a name. A trailing DNS root dot and letter
+ * case do not make it a different host (security hardening, VRX-202).
+ */
+function canonicalHostname(hostname: string): string {
+  return hostname.replace(/\.+$/u, '').toLowerCase()
+}
+
 /** Reject IP-literal and localhost redirect targets (SSRF hardening, VRX-202). */
 function isForbiddenRedirectHost(hostname: string): boolean {
+  const host = canonicalHostname(hostname)
   return (
-    hostname === 'localhost' ||
-    hostname.endsWith('.localhost') ||
-    hostname.includes(':') || // WHATWG keeps IPv6 literals bracket-stripped with colons
-    IPV4_LITERAL_RE.test(hostname)
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.includes(':') || // WHATWG keeps IPv6 literals bracket-stripped with colons
+    IPV4_LITERAL_RE.test(host)
   )
 }
 
@@ -345,7 +354,7 @@ export class AvatarCache {
   /** Explicit VRChat sign-out: forget every stored API image, on disk and in memory. */
   async clearStoredImages(): Promise<void> {
     for (const url of [...this.cache.keys()]) {
-      if (new URL(url).hostname === AVATAR_COOKIE_HOST) this.deleteEntry(url)
+      if (canonicalHostname(new URL(url).hostname) === AVATAR_COOKIE_HOST) this.deleteEntry(url)
     }
     await this.diskStore?.clear()
   }
@@ -382,7 +391,10 @@ export class AvatarCache {
       this.deleteEntry(key)
     }
 
-    const lease = parsed.hostname === AVATAR_COOKIE_HOST ? this.vrcSessionProvider?.() : undefined
+    const lease =
+      canonicalHostname(parsed.hostname) === AVATAR_COOKIE_HOST
+        ? this.vrcSessionProvider?.()
+        : undefined
     // No durable session yet: no request, but an image already on disk can show.
     if (lease === null) return this.readStored(url, rendition)
     const pending = this.inFlight.get(key)
@@ -426,7 +438,8 @@ export class AvatarCache {
   }
 
   private storeFor(url: string): ImageDiskStore | null {
-    return this.diskStore !== null && new URL(url).hostname === AVATAR_COOKIE_HOST
+    return this.diskStore !== null &&
+      canonicalHostname(new URL(url).hostname) === AVATAR_COOKIE_HOST
       ? this.diskStore
       : null
   }
@@ -490,7 +503,8 @@ export class AvatarCache {
    *    The TARGET is not allowlist-checked (VRChat rotates signed-CDN hosts
    *    freely), but it cannot redirect again, which kills chains.
    *  - Targets must be bare https (no port, no credentials) on a NAMED public
-   *    host (IP literals and localhost names rejected). Residual: a DNS name
+   *    host (IP literals and localhost names rejected; a trailing DNS root dot
+   *    and letter case are ignored). Residual: a DNS name
    *    resolving privately is only reachable via an api.vrchat.cloud open
    *    redirect — accepted, documented.
    *  - The auth cookie is attached ONLY when the CURRENT hop is the API host —
@@ -505,8 +519,9 @@ export class AvatarCache {
     let target = new URL(url)
     for (let hop = 0; hop <= AVATAR_MAX_REDIRECTS; hop++) {
       assertRequestLease(lease)
-      const usesApiLane = target.hostname === AVATAR_COOKIE_HOST
-      const admission = usesApiLane ? this.apiAdmission : this.cdnAdmission(target.hostname)
+      const host = canonicalHostname(target.hostname)
+      const usesApiLane = host === AVATAR_COOKIE_HOST
+      const admission = usesApiLane ? this.apiAdmission : this.cdnAdmission(host)
       if (usesApiLane) {
         await this.acquireApiFetchSlot(lease?.signal)
         try {
@@ -518,7 +533,7 @@ export class AvatarCache {
           throw error
         }
       } else {
-        this.cdnUsers.set(target.hostname, (this.cdnUsers.get(target.hostname) ?? 0) + 1)
+        this.cdnUsers.set(host, (this.cdnUsers.get(host) ?? 0) + 1)
         try {
           // Do not occupy CDN body slots while one host is cooling down.
           for (;;) {
@@ -528,7 +543,7 @@ export class AvatarCache {
             this.releaseFetchSlot()
           }
         } catch (error) {
-          this.releaseCdnUser(target.hostname)
+          this.releaseCdnUser(host)
           throw error
         }
       }
@@ -594,7 +609,7 @@ export class AvatarCache {
           this.releaseApiFetchSlot()
         } else {
           this.releaseFetchSlot()
-          this.releaseCdnUser(target.hostname)
+          this.releaseCdnUser(host)
         }
       }
     }
