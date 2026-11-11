@@ -649,7 +649,20 @@ describe('ExploreView', () => {
         within(more)
           .getAllByRole('term')
           .map((term) => term.textContent)
-      ).toEqual(['People now', 'Room regions', 'Last checked', 'World ID'])
+      ).toEqual([
+        'Creator',
+        'Description',
+        'Tags',
+        'Room size',
+        'People now',
+        'Room regions',
+        'Last checked',
+        'World ID'
+      ])
+      // Nothing read about the world yet: every detail line says so.
+      for (const label of ['Creator', 'Description', 'Tags']) {
+        expect(within(more).getByText(label).nextElementSibling?.textContent).toBe('Not shown')
+      }
       // A made-up ID has no link, so it shows with no Copy link button.
       expect(within(more).getByText('World ID').nextElementSibling?.textContent).toBe(
         selected.worldId
@@ -660,6 +673,79 @@ describe('ExploreView', () => {
         platform === 'vrchat' ? 'Japan' : 'Europe'
       )
       expect(screen.getByRole('button', { name: 'Show less' })).toBeTruthy()
+      cleanup()
+    }
+  })
+
+  it('lists the creator, description, tags and room size the same way on both platforms', () => {
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      const selected = world(platform, `${platform}-w`, 'Some World')
+      render(
+        <ExploreWorldSheet
+          snapshot={{
+            ...source(platform, [selected]),
+            world: selected,
+            rooms: [],
+            roomsComplete: true,
+            about: {
+              creator: 'Sample Maker',
+              description: 'A quiet place to sit.',
+              tags: ['chill', 'music'],
+              capacity: 1200
+            }
+          }}
+          opener={null}
+          focusFallback={null}
+          onClose={vi.fn()}
+          onJoin={vi.fn()}
+        />
+      )
+      // Simple by default: none of it shows until Show more.
+      expect(screen.queryByText('Sample Maker')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      const more = screen.getByRole('region', { name: 'About this world' })
+      const value = (label: string): string | null | undefined =>
+        within(more).getByText(label).nextElementSibling?.textContent
+      expect(value('Creator')).toBe('Sample Maker')
+      expect(value('Description')).toBe('A quiet place to sit.')
+      expect(value('Tags')).toBe('chill, music')
+      expect(value('Room size')).toBe('1,200')
+      cleanup()
+    }
+  })
+
+  it('takes the room size from the rooms when the world gives none and they agree', () => {
+    const selected = world('chilloutvr', 'cvr-w', 'Some World')
+    const open = { state: 'disabled', reason: 'full' } as const
+    const sized = (capacity: number | null, id: string): ExploreRoom => ({
+      ...room('chilloutvr', open, selected.worldId),
+      roomId: id,
+      capacity
+    })
+    const cases: Array<[ExploreRoom[], string]> = [
+      [[sized(40, 'a'), sized(40, 'b'), sized(null, 'c')], '40'],
+      [[sized(40, 'a'), sized(20, 'b')], 'Not shown'],
+      [[], 'Not shown']
+    ]
+    for (const [rooms, expected] of cases) {
+      render(
+        <ExploreWorldSheet
+          snapshot={{
+            ...source('chilloutvr', [selected]),
+            world: selected,
+            rooms,
+            roomsComplete: true,
+            about: { creator: null, description: null, tags: [], capacity: null }
+          }}
+          opener={null}
+          focusFallback={null}
+          onClose={vi.fn()}
+          onJoin={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      const more = screen.getByRole('region', { name: 'About this world' })
+      expect(within(more).getByText('Room size').nextElementSibling?.textContent).toBe(expected)
       cleanup()
     }
   })

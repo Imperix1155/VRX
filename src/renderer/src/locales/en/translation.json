@@ -964,6 +964,10 @@
     },
     "more": {
       "heading": "About this world",
+      "creator": "Creator",
+      "description": "Description",
+      "tags": "Tags",
+      "capacity": "Room size",
       "people": "People now",
       "regions": "Room regions",
       "checked": "Last checked",

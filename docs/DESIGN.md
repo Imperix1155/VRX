@@ -1464,8 +1464,13 @@ in the shared sheet frame (§9.3):
 - Room states: "Loading visible public rooms…", "Visible public rooms could
   not load." (`--error`), "No visible public rooms are available.", "Only
   some visible public rooms are available."
-- Expanded, "ABOUT THIS WORLD" lists People now, Room regions, Last
-  checked and World ID, with "Copy link" beside the ID (§9.3).
+- Expanded, "ABOUT THIS WORLD" lists Creator, Description, Tags, Room size,
+  People now, Room regions, Last checked and World ID, with "Copy link"
+  beside the ID (§9.3). The same lines in the same order on both platforms.
+  Tags are plain words joined by the language's list separator, never chips.
+  VRChat lists the creator's own tags only. ChilloutVR sets the size per
+  room, so its Room size comes from the visible rooms when they agree. A
+  line the platform does not give reads "Not shown".
 
 Joining a room goes through the join confirmation (§9.3).
 

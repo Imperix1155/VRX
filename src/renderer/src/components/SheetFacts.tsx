@@ -13,6 +13,8 @@ export interface SheetFact {
   value: string
   /** IDs and codes: monospace, break anywhere. */
   mono?: boolean
+  /** Longer text someone wrote: its own line breaks are kept. */
+  multiline?: boolean
   /** A link to what this ID names, for the clipboard. */
   copyLink?: CopyLink
 }
@@ -44,7 +46,7 @@ export function SheetFacts({
                 fact.mono
                   ? 'break-all text-[12px] text-[var(--text-dim)]'
                   : 'break-words text-[var(--text)]'
-              }`}
+              }${fact.multiline ? ' whitespace-pre-line' : ''}`}
               style={fact.mono ? { fontFamily: 'ui-monospace, monospace' } : undefined}
             >
               {fact.copyLink === undefined ? (

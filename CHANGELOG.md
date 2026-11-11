@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- World details: Show more in a world's sheet now lists its creator,
+  description, tags and room size, the same way for VRChat and ChilloutVR.
+  They come with the read VRX already makes when the sheet opens, so nothing
+  extra is asked of either platform.
 - Copy link: a quiet "Copy link" button now sits beside the ID under Show
   more in the world sheet and the hot instance sheet, in a person's sheet
   from Search, and under Show full profile in friend details. It copies a

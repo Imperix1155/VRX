@@ -549,6 +549,12 @@ export function getWorldSnapshot(
     world,
     rooms: baseRoom(world),
     roomsComplete: true,
+    about: {
+      creator: 'Sample Maker',
+      description: 'A calm rooftop garden with music, seats and a view over the city.',
+      tags: ['chill', 'music', 'garden'],
+      capacity: world.platform === 'vrchat' ? 32 : null
+    },
     status: 'ready',
     problem: null,
     isStale: mode === 'stale',

@@ -1,4 +1,9 @@
-import type { ExploreJoinDenial, ExploreRoom, ExploreWorld } from '@shared/explore'
+import type {
+  ExploreJoinDenial,
+  ExploreRoom,
+  ExploreWorld,
+  ExploreWorldAbout
+} from '@shared/explore'
 import type { Platform } from '@shared/types'
 import type { RequestPriority } from './BaseAdapter'
 import type { RequestLease } from './RequestLease'
@@ -15,6 +20,8 @@ export interface ExploreWorldDetail {
   world: ExploreWorldEvidence
   roomIds: string[]
   roomsComplete: boolean
+  /** Creator, description, tags and capacity from the same response. */
+  about?: ExploreWorldAbout
 }
 
 /** The discovery service owns this operation and supplies its existing lease. */

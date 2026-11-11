@@ -392,6 +392,10 @@ are Synthetic.
   (non-negative integer), `thumbnailImageUrl` and `popularity` are optional.
   Duplicates are dropped. A world detail must echo the requested `id`. More than
   100 tuples makes the visible-room count partial.
+- **World details (Source-derived from VRCX):** the same world response may
+  carry `authorName`, `description`, `capacity` and `tags`. All four are
+  optional and bounded; only `author_tag_<word>` tags are shown, without the
+  prefix. A missing or odd value shows "Not shown".
 - **Strict public grammar for room ids:** the base is `[A-Za-z0-9_-]{1,80}` and
   not a sentinel such as `private`. Each modifier may appear once. Allowed
   modifiers are `region` (`us`, `use`, `usw`, `eu`, `jp`), `nonce` (with a
@@ -928,6 +932,10 @@ path. Each read is one request with no retry. They are Synthetic.
   detail must echo the requested `id`. Room ids must match the
   `i+<16 hex>-<6 hex>-<6 hex>-<8 hex>` grammar; any other entry makes coverage
   incomplete.
+- **World details (Source-derived from CVRX):** the same world response may
+  carry `author.name`, `description` and a `tags` array of words. All are
+  optional and bounded. It carries no room size; a room's `maxPlayer` gives
+  that. A missing or odd value shows "Not shown".
 - **Rooms:** `id` and `world.id` must equal the target. Access comes from
   `instanceSettingPrivacy`, `privacy` or both. Only the exact strings `Public` and
   `GroupPublic` qualify, in any case. When both fields exist they must agree.

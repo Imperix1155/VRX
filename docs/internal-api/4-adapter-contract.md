@@ -33,7 +33,7 @@ Rule (auth fencing): a later login supersedes an earlier one at its next await, 
 | `ExploreAdapter` | [`ExploreAdapter.ts`](../../src/main/services/adapters/ExploreAdapter.ts) | Narrow main-only discovery capability. It does not extend `IPlatformAdapter`. Both adapters implement it; only `ExploreService` calls it. |
 | `captureExploreLease()` | same | Captures the current session lease. Throws while the session is not durably ready. |
 | `getExploreCandidates(context)` | same | One active-worlds request. Parses at most 12 records into `ExploreWorldEvidence[]`. |
-| `getExploreWorld(worldId, context)` | same | One world-detail request → `ExploreWorldDetail \| null` (`world`, up to 100 `roomIds`, `roomsComplete`). More rooms than that mark the room count partial. |
+| `getExploreWorld(worldId, context)` | same | One world-detail request → `ExploreWorldDetail \| null` (`world`, up to 100 `roomIds`, `roomsComplete`, and `about`: the creator, description, tags and room size parsed from the same response). More rooms than that mark the room count partial. |
 | `getExploreRoom(target, context)` | same | One room-detail request → `ExploreRoomEvidence \| null` with `joinEligibility`. A response for another world or room is an error. |
 | `ExploreRequestContext` | same | `{ lease, signal, priority, beforeDispatch }` from `ExploreService`. Adapters send it as `retry: 'none'`, so each call is one physical request; `beforeDispatch` is the service's per-minute start budget. |
 | `ExploreWorldEvidence`, `ExploreRoomEvidence`, `ExploreWorldDetail` | same | Evidence without renderer references: world evidence omits `worldRef`, room evidence omits `action` and adds `joinEligibility`. Main issues opaque references only after rechecking evidence. |

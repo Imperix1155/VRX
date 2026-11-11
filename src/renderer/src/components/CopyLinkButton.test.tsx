@@ -146,4 +146,20 @@ describe('SheetFacts copy link', () => {
     expect(screen.getByText('wrld_0f8fad5b-d9cb-469f-a165-70867728950e')).toBeTruthy()
     expect(screen.getByText('odd id')).toBeTruthy()
   })
+
+  it('keeps the line breaks of a multiline fact, and of no other', () => {
+    render(
+      <SheetFacts
+        heading="About this world"
+        facts={[
+          { label: 'Creator', value: 'Builder' },
+          { label: 'Description', value: 'First line.\nSecond line.', multiline: true }
+        ]}
+      />
+    )
+    const description = screen.getByText(/First line/)
+    expect(description.className).toContain('whitespace-pre-line')
+    expect(description.textContent).toBe('First line.\nSecond line.')
+    expect(screen.getByText('Builder').className).not.toContain('whitespace-pre-line')
+  })
 })

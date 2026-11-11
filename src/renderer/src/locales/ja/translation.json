@@ -957,6 +957,10 @@
     },
     "more": {
       "heading": "このワールドについて",
+      "creator": "作者",
+      "description": "説明",
+      "tags": "タグ",
+      "capacity": "ルームの定員",
       "people": "現在の人数",
       "regions": "ルームのリージョン",
       "checked": "最終確認",

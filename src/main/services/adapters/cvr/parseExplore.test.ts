@@ -65,9 +65,47 @@ describe('ChilloutVR Explore parsers', () => {
         visibleRoomCount: { state: 'unknown', value: null, source: 'visible-rooms' }
       }),
       roomIds: [roomId],
-      roomsComplete: false
+      roomsComplete: false,
+      about: { creator: null, description: null, tags: [], capacity: null }
     })
     expect(parseCvrExploreWorld({ id: 'other', name: 'wrong', instances: [] }, worldId)).toBeNull()
+  })
+
+  it('reads the creator, description and tags from the same world response', () => {
+    const detail = parseCvrExploreWorld(
+      {
+        id: worldId,
+        name: 'Synthetic world',
+        description: '  A quiet place.\nBring friends.  ',
+        author: { id: 'someone', name: ' Sample Maker ' },
+        tags: ['Chill', 'chill', 7, '', 'Music'],
+        instances: []
+      },
+      worldId
+    )!
+    expect(detail.about).toEqual({
+      creator: 'Sample Maker',
+      description: 'A quiet place.\nBring friends.',
+      tags: ['Chill', 'Music'],
+      // ChilloutVR sets the size per room, never per world.
+      capacity: null
+    })
+  })
+
+  it('treats odd creator, description and tag shapes as not given', () => {
+    const detail = parseCvrExploreWorld(
+      {
+        id: worldId,
+        name: 'Synthetic world',
+        description: { text: 'nope' },
+        author: 'Sample Maker',
+        tags: 'Chill',
+        maxPlayer: 40,
+        instances: []
+      },
+      worldId
+    )!
+    expect(detail.about).toEqual({ creator: null, description: null, tags: [], capacity: null })
   })
 
   it('requires explicit matching known privacy fields before public promotion', () => {
