@@ -1,7 +1,7 @@
 import { useEffect, useState, type RefObject } from 'react'
 import { apiImageQueue, DROPPED, isApiImageUrl, type QueuedResult } from './apiImageQueue'
 
-export const AVATAR_RENDERER_CACHE_MAX_ENTRIES = 200
+const AVATAR_RENDERER_CACHE_MAX_ENTRIES = 200
 /** Aggregate data-URL budget for the renderer copy (#370); mirrors main's. */
 export const AVATAR_RENDERER_CACHE_MAX_BYTES = 48 * 1024 * 1024
 /** Just past main's 30 s negative cache, so a retry can reach the network again. */

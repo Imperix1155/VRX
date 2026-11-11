@@ -18,11 +18,12 @@ the design.
 **Source of truth.** The renderer components in
 [`src/renderer/src/components`](../src/renderer/src/components) and the
 stylesheet [`main.css`](../src/renderer/src/assets/main.css) are the
-implementation. This document records the decisions that code must keep, and
-Appendix A is generated from `main.css` (`npm run design:tokens`), so its
-values always match the app. If the code and the prose disagree, investigate
-before changing either. A known defect is never a design rule, and an old
-example is never an approved redesign.
+implementation. This document records what that code does and the decisions it
+must keep. Appendix A is generated from `main.css` (`npm run design:tokens`),
+so its values always match the app. Sizes given in pixels were measured in the
+running app at 100% display scale. If the code and the prose disagree,
+investigate before changing either. A known defect is never a design rule, and
+an old example is never an approved redesign.
 
 **Stable references.** Code comments cite this document by section ("DESIGN.md
 §5") and by Locked rule number ("Locked rule 5"). Keep both numbering schemes.
@@ -32,18 +33,19 @@ translates them.
 ## Quick start for agents
 
 VRX is a dense desktop companion for two social VR platforms, VRChat and
-ChilloutVR. Its look is **layered frosted glass over a dark aurora canvas**:
-a blue glow in the top-left corner, an orange glow in the bottom-right, faint
+ChilloutVR. Its look is **layered frosted glass over an aurora canvas**: a blue
+glow in the top-left corner, an orange glow in the bottom-right, faint
 scanlines, and stacked translucent panes that blur whatever is behind them.
 Inter carries the interface; the retro VT323 face is a small accent.
 
 To build a screen that belongs in VRX:
 
-1. **Pick the layer.** The page sits on a back panel (`.glass .glass-panel`) or
-   straight on the canvas. Cards and rows are `.glass .glass-layer` (or
-   `.platform-row` when they belong to one platform). Pills and badges are
-   `.glass-chip`. Menus and dialogs are opaque (`.glass .glass-information`,
-   plus `.glass-frosted-heavy` for a confirmation). See §3.
+1. **Pick the layer.** A page sits straight on the canvas or on a back panel
+   (`.glass-panel`). Cards are `.glass .glass-layer`; rows that belong to one
+   platform are `.platform-row`; Settings rows are `.setting-card`. Pills,
+   badges and small counts are `.glass-chip`. Menus and dialogs are opaque
+   (`.glass .glass-information`, plus `.glass-frosted-heavy` for a
+   confirmation). See §3.
 2. **Use tokens, never raw colors.** Every color is a CSS variable from
    Appendix A, used through Tailwind arbitrary values such as
    `text-[var(--text-dim)]` or `bg-[var(--control-fill)]`. Light mode is the
@@ -53,21 +55,25 @@ To build a screen that belongs in VRX:
    ChilloutVR or CVR. Status, access and errors carry words or glyphs too.
    The only color-only cue is the friends-list avatar ring (Locked rule 4).
 4. **Treat both platforms the same.** Same layout, same fields in the same
-   order, same size, same wording weight. VRChat first when an order is needed.
-   Never invent a feature for the platform that lacks it.
+   order, same size, same wording weight. VRChat comes first where a fixed
+   order is needed (tabs, account cards, the filter). Never invent a feature
+   for the platform that lacks it.
 5. **Say little.** Show what most people need in few words; put the rest
    behind a quiet "?" or Show more control, in Settings, or in About.
-6. **Type:** Inter 13 px for body text, 12–12.5 px for labels, 25 px extra
-   bold for the page title, VT323 only for the wordmark, section kickers and
-   big numbers. Text is `--text`, secondary text is `--text-dim`.
-7. **Shape:** panels round at 20 px, controls and rows at 12 px, pills at
-   9–10 px. Spacing comes from the 4 px scale (`--space-1` … `--space-10`).
+6. **Type:** Inter 14 px for names and labels, 12–13 px for secondary text,
+   25 px extra bold for the page title, VT323 only for the wordmark, section
+   kickers and big numbers. Text is `--text`, secondary text is `--text-dim`.
+7. **Shape:** panels and cards round at 20 px, controls and rows at 12–13 px,
+   pills at 9–10 px. Spacing comes from the token scale (`--space-0-5` …
+   `--space-10`, 2 to 40 px).
 8. **Controls:** choices are the shared segmented control (`SegmentedControl`,
-   or `Toggle` for On/Off). Buttons are quiet fills on `--control-fill`; the
-   one filled button on a screen is the main action.
-9. **Accessibility is part of the look:** visible focus rings, keyboard paths
-   for everything, motion only under `motion-safe:`, nothing color-only, and
-   every workflow usable at the 900×670 minimum window.
+   or `Toggle` for On/Off); numbers use `NumberStepper`. Buttons are quiet
+   fills on `--control-fill`. A platform's own action (Connect, Save) is a
+   button tinted in that platform's color; "Sign in" on the sign-in screen is
+   the only solid platform-colored button.
+9. **Accessibility is part of the look:** visible focus, keyboard paths for
+   everything, motion only under `motion-safe:`, nothing color-only, and every
+   workflow usable at the 900×670 minimum window.
 10. **Check both themes** (dark and light), every glow level, with and without
     a background picture, and in Japanese, before calling a change done.
 
@@ -80,35 +86,36 @@ explicit approval.
    weight, wording weight, and features wherever both platforms support them.
    That includes the app icon, where the V and X are the same size (§1).
 2. **Brand colors.** VRChat is blue (`--vrc`) and ChilloutVR is orange
-   (`--cvr`), following each platform's brand. The combined "All" view uses
-   the blue-to-orange blend.
+   (`--cvr`), following each platform's brand. The combined "All" view and a
+   linked person use the blue-to-orange blend.
 3. **Color always means something, and never alone.** Every color cue sits in
    a consistent place with a non-color cue nearby: a word, glyph, shape, or
    label. Platform pills and tabs carry the platform name, instance pills are
    words, and the connection indicator pairs color with shape (§8).
 4. **The one color-only exception.** In the friends list, the avatar ring and
    its corner dot show presence and status by color alone, to keep rows clean.
-   The row's accessible label names the state, and the friend details panel
+   The row's accessible name includes the state, and the friend details panel
    shows the written status (§5). Don't "fix" this.
 5. **Missing is red, stale is dim.** A source that never loaded uses the error
    color (`--error`). A source showing older data uses `--text-dim` (§9.4).
-6. **Layered glass.** The UI is panes of frosted glass stacked on each other
-   (owner, 2026-11-04): the background, then the sidebar and back panels, then
-   the cards and rows on them, then the small chips on the cards. The
-   background shows through every pane as blurred color; words stay readable
-   and platform color stays the strongest tint on a platform card. Menus and
-   dialogs stay opaque (§3).
+6. **Layered glass.** The UI is panes of frosted glass stacked on each other:
+   the background, then the sidebar and back panels, then the cards and rows
+   on them, then the small chips on the cards. The background shows through
+   every pane as blurred color; words stay readable and platform color stays
+   the strongest tint on a platform card. Menus and dialogs stay opaque (§3).
 7. **Dashboard layout.** Under the numbers the Dashboard has four sections:
    Wearing now (the worn avatar per signed-in platform), Latest invites (the
    newest invite per platform), Popular now and Hot Instances, in that order
    by default. Settings → Dashboard → Sections moves each one up or down and
    turns it on or off, all on by default; off only hides the Dashboard section
-   (§8, §9.1). Wearing now and Latest invites share one glance row while they
+   (§9.1, §9.8). Wearing now and Latest invites share one glance row while they
    sit next to each other. Of Popular now and Hot Instances, the first shown
    uses picture cards and the second uses bars with the world picture behind
    them. Each shows two cards: the top one per platform when both have one,
-   otherwise the top two. Hide empty sections, on by default, lets a section
-   with nothing to show step aside so the others take its space.
+   otherwise the top two. A picture-card section on a window wide enough for
+   three or more columns fills one whole row instead. Hide empty sections, on
+   by default, lets a section with nothing to show step aside so the others
+   take its space.
 8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
    hot instance, most friends first. It shows by default and can be hidden in
    Settings → Appearance → Sidebar pages (§8). While it shows, the Dashboard
@@ -127,7 +134,7 @@ explicit approval.
 Two more owner rules apply to every change:
 
 - **Never force a tour.** Optional guidance always has a visible Skip; the
-  welcome setup is the only guided flow (§9.4).
+  welcome setup is the only guided flow (§9.9).
 - **No personal information** about the owner or any real user appears in the
   app, the guide, fixtures or screenshots. Sample data is invented.
 
@@ -136,13 +143,20 @@ Two more owner rules apply to every change:
 VRX is a dense desktop companion, not a website. Equivalent concepts on the
 two platforms use the same presentation and terminology. A feature one
 platform doesn't have stays absent for that platform; never fake it, and never
-add a feature just to make the platforms match.
+add a feature just to make the platforms match. Name the platforms only, never
+the companies behind them.
 
-Dark is the stylesheet baseline (`:root`). Light mode uses the same
-components, hierarchy, interactions, and meaning, with token overrides under
-`[data-theme='light']`. The stored Theme preference defaults to System, which
-follows the operating system. Don't confuse the dark baseline with the default
-preference.
+Dark is the stylesheet baseline (`:root`, with `color-scheme: dark`). Light
+mode uses the same components, hierarchy, interactions, and meaning, with
+token overrides under `[data-theme='light']`. The stored Theme preference
+defaults to System, which follows the operating system and switches live when
+the system does. Don't confuse the dark baseline with the default preference.
+
+The interface language follows the operating system: Japanese when the system
+language is Japanese, English otherwise. There is no language control in the
+app. Every visible string comes from
+[`locales/en`](../src/renderer/src/locales/en/translation.json) and
+[`locales/ja`](../src/renderer/src/locales/ja/translation.json).
 
 Visible wording, layout, and interaction changes need the owner's approval
 unless an approved issue already specifies the outcome. Polish that keeps the
@@ -154,11 +168,20 @@ redesigning the app.
 
 **Wordmark.** Inside the app, the brand is the horizontal VRX wordmark in
 VT323 with the platform colors on V (`--vrc`) and X (`--cvr`) and the neutral
-bridge color (`--bridge`) on R, with the subtitle "Social VR Companion" in
-11 px `--text-faint` below it. The sidebar sets it at 40 px with 2 px
-tracking; the welcome screen at 64 px. Page titles name the active view. When
-a platform logo is needed, use the platform's official asset; never draw a
-substitute.
+bridge color (`--bridge`) on R. It has `role="img"` so it reads as one name.
+
+| Place                       | Wordmark size                     | Below it                                                       |
+| --------------------------- | --------------------------------- | -------------------------------------------------------------- |
+| Sidebar                     | 40 px, 2 px tracking              | "Social VR Companion", 11 px, `--text-faint`, 0.5 px tracking  |
+| Sign-in screen              | 40 px, 2 px tracking              | the same subtitle                                              |
+| Welcome setup, first screen | 64 px, 2 px tracking              | the title "Welcome to VRX"                                     |
+| Loading and error screens   | 36 px (`text-4xl`), wide tracking | "Connecting…", or the error heading                            |
+| Sidebar footer              | 16 px, 1 px tracking              | "Social VR Companion · v" and the version, 11 px, `--text-dim` |
+
+Page titles name the active view in the sidebar's words (Dashboard, Friends,
+Hot Instances, Activity, Inbox, Explore, Search, Groups, Avatars, Settings).
+The window title is "VRX". VRX draws no platform logos: a platform is always
+named by its word (VRChat, ChilloutVR) or short tab (VRC, CVR).
 
 **App icon.** The launcher icon is the VRX lettering on a frosted glass chat
 bubble, drawn as the app's layered glass: the blue and orange aurora is the
@@ -171,999 +194,1872 @@ to 32 px and `build/icon-16.svg` a pixel drawing for 16 px.
 [App icon](APP-ICON.md) owns the files, sizes, and the
 `npm run icons:generate` / `npm run icons:check` workflow.
 
+**Tray.** The tray icon uses the same artwork, with the tooltip "VRX" and a
+menu of Show VRX or Hide VRX, and Quit VRX. On Windows and Linux the window's
+close button hides the window to the tray instead of quitting.
+
 Sources: [`Sidebar.tsx`](../src/renderer/src/components/Sidebar.tsx),
 [`LoginScreen.tsx`](../src/renderer/src/components/LoginScreen.tsx),
-[`viewTitles.ts`](../src/renderer/src/utils/viewTitles.ts).
+[`BootSplash.tsx`](../src/renderer/src/components/BootSplash.tsx),
+[`viewTitles.ts`](../src/renderer/src/utils/viewTitles.ts),
+[`tray.ts`](../src/main/tray.ts).
 
 ## §2 Tokens and themes
 
 `main.css` owns every token value, font face, spacing step, radius, material
-class, background effect, and light override. [Appendix A](#appendix-a-token-reference)
-lists all of them with both themes' values. Use the existing semantic
-variables and the spacing scale; add a shared token only for an approved need
-that existing ones can't meet, and never copy a value into a component.
+class, and theme override. Tokens are plain CSS variables on `:root` (dark)
+with a second block under `[data-theme='light']`. Only five live in Tailwind's
+`@theme` block, so they also exist as utilities: `--radius-pill` (9 px,
+`rounded-pill`), `--radius-control` (12 px, `rounded-control`),
+`--radius-panel` (20 px, `rounded-panel`), `--font-mono` (VT323) and
+`--font-sans` (Inter). Everything else is used through arbitrary values:
+`text-[var(--text-dim)]`, `p-[var(--space-4)]`.
 
-Themed colors are raw CSS variables, not Tailwind theme colors, so they switch
-at runtime. Components consume them through arbitrary values
-(`text-[var(--text-dim)]`, `border-[var(--border)]`) or `style={{ color:
-'var(--vrc)' }}`. Only the static scale (radii, fonts) lives in Tailwind's
-`@theme` (`rounded-control`, `rounded-panel`, `font-mono`). A build must never
-bake light and dark values into a fixed palette.
-[`applyTheme`](../src/renderer/src/hooks/useApplyTheme.ts) sets
-`data-theme="light"` on `<html>` for light and removes it for dark.
+Rules:
+
+- No raw hex, `rgb()` or named color in a component. If a color is missing,
+  add a token to both theme blocks and run `npm run design:tokens`.
+- A token has one meaning. Do not reuse `--error` for decoration or a
+  platform color for emphasis.
+- Derive tints with `color-mix(in srgb, var(--vrc) 16%, transparent)` so
+  they follow the theme.
+- React `style={}` is allowed for token-driven values. The page's content
+  security policy forbids `<style>` elements and inline style strings.
 
 ### Token families
 
-| Family                  | Tokens                                                               | Job                                                                     |
-| ----------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Canvas and text         | `--bg-base`, `--text`, `--text-dim`, `--text-faint`, `--names-lift`  | The base canvas and the three text steps                                |
-| Neutral controls        | `--border`, `--surface-hover`, `--control-fill(-hover)`              | Hairlines, hover wash, quiet button fills                               |
-| Feedback                | `--error`, `--warning`, `--favorite`                                 | Missing data and failures; caution; the favorite star                   |
-| Platforms               | `--vrc`, `--cvr`, `--bridge`                                         | Brand hues: fills, rings, edges, glow                                   |
-| Platform words          | `--plat-*-word`, `--plat-*-ghost-text`, `--login-tab-*`              | A brand word set in its own color, lifted to 4.5:1                      |
-| Platform badges         | `--plat-*-badge-*`, `--plat-*-rail-*`, `--plat-*-picture-badge-bg`   | Small VRC / CVR labels: quiet outline in dark, solid fill in light      |
-| Platform surfaces       | `--tint-*-bg`, `--tint-*-border`, `--platform-row-tint-*`            | Platform-tinted cards and rows                                          |
-| Presence                | `--ingame`, `--active`, `--offline` (+ `-text`)                      | Friend state: in a world, online outside the game, offline              |
-| VRChat status           | `--st-joinme`, `--st-online`, `--st-askme`, `--st-dnd` (+ `-text`)   | The four VRChat statuses                                                |
-| Instance access         | `--op-*` (+ `-text`)                                                 | The openness ladder: green (open) to orange (locked), purple for groups |
-| Policy space            | `--policy-public`, `--policy-private` (+ `-text`)                    | Moderation context: rose public, ice private                            |
-| Pill strength           | `--pill-tint`, `--pill-edge` (+ `-strong`)                           | How much of a pill's hue fills and edges it, per theme                  |
-| Glass                   | `--glass-*`, `--scrim*`, `--control-active-*`, `--seg-bubble-*`      | The material: fills, blur, edges, shadows, sheen, selected states       |
-| Pictures and sheets     | `--hot-sheet-*`, `--group-*`                                         | Banner scrims, shadows and filters                                      |
-| Canvas glow             | `--aurora-*`, `--glow-*`, `--wisp-*`, `--scanline-*`                 | The aurora and scanlines (§4)                                           |
-| Spacing and geometry    | `--space-*`, `--sidebar-width`, `--content-inset-*`                  | The 4 px spacing scale and shell geometry                               |
-| Static scale (`@theme`) | `--radius-pill` 9, `--radius-control` 12, `--radius-panel` 20, fonts | Radii and font stacks, the same in both themes                          |
+Appendix A lists every token with both values. The families:
+
+| Family          | Tokens                                                                                                                                                                                                         | Job                                                                                        |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Base            | `--bg-base`, `--text`, `--text-dim`, `--text-faint`, `--border`                                                                                                                                                | Canvas color, the three text steps, the neutral hairline.                                  |
+| Fills           | `--surface-hover`, `--control-fill`, `--control-fill-hover`                                                                                                                                                    | Hover wash on rows; resting and hover fill of quiet buttons and fields.                    |
+| Feedback        | `--error`, `--warning`, `--favorite`                                                                                                                                                                           | Failure and destructive actions; reconnecting; the favorite star.                          |
+| Spacing         | `--space-0-5`, `--space-1`, `--space-2`, `--space-2-5`, `--space-3`, `--space-4`, `--space-6`, `--space-8`, `--space-10`                                                                                       | 2, 4, 8, 10, 12, 16, 24, 32, 40 px.                                                        |
+| Layout          | `--sidebar-width`, `--content-inset-left`, `--content-inset-right`                                                                                                                                             | 248 px sidebar; the content area's left and right edges, used by bottom sheets and scrims. |
+| Identity        | `--vrc`, `--cvr`, `--bridge`                                                                                                                                                                                   | VRChat blue, ChilloutVR orange, the neutral R of the wordmark.                             |
+| Presence        | `--ingame`, `--active`, `--offline`, each with a `-text` twin                                                                                                                                                  | In a world, online outside the game, offline (§5).                                         |
+| Status          | `--st-joinme`, `--st-online`, `--st-askme`, `--st-dnd`, each with a `-text` twin                                                                                                                               | VRChat's four statuses (§5).                                                               |
+| Access tiers    | `--op-*` (eight tiers, each with a `-text` twin)                                                                                                                                                               | Instance pills, from Public to Group (§6.1).                                               |
+| Policy space    | `--policy-public`, `--policy-private`, each with a `-text` twin                                                                                                                                                | The Public space and Private space pill (§6.2).                                            |
+| Platform chips  | `--plat-*-badge-*`, `--plat-*-ghost-*`, `--plat-*-rail-*`, `--plat-*-picture-badge-bg`, `--plat-vrc-word`, `--plat-cvr-word`, `--linked-rail-text`                                                             | Platform pills, the friends-list rail, badges over pictures, the filter words.             |
+| On-color text   | `--text-on-vrc`, `--text-on-cvr`, `--login-tab-vrc`, `--login-tab-cvr`, `--names-lift`                                                                                                                         | Text on a solid platform button; sign-in tab words; the who's-here line on cards.          |
+| Glass           | `--glass-*` (blur, fills, border, sheen, shadows)                                                                                                                                                              | The material (§3).                                                                         |
+| Tints and mixes | `--tint-vrc-bg`, `--tint-vrc-border`, `--tint-cvr-bg`, `--tint-cvr-border`, `--platform-row-tint-strong`, `--platform-row-tint-soft`, `--pill-tint`, `--pill-edge`, `--pill-tint-strong`, `--pill-edge-strong` | Platform wash on cards and rows; how strong a pill's fill and edge are.                    |
+| Controls        | `--control-active-bg`, `--control-active-border`, `--control-active-shadow`, `--seg-bubble-bg`, `--seg-bubble-shadow`, `--sidebar-foot-border`, `--scrollbar-thumb`                                            | Active sidebar item, the segmented bubble, the footer hairline, the scrollbar.             |
+| Overlays        | `--scrim`, `--scrim-soft`, `--hot-sheet-shadow`, `--hot-sheet-banner-*`, `--hot-sheet-group-image-filter`, `--group-icon-shadow`, `--group-icon-ring`, `--group-banner-scrim`                                  | Dimming behind overlays; sheet and banner treatment (§9.3).                                |
+| Canvas          | `--aurora-gradient`, `--glow-*`, `--wisp-*`, `--scanline-color`, `--scanline-blend`, `--scanline-opacity`                                                                                                      | The aurora, its glow levels and the scanlines (§4).                                        |
+| Setup previews  | `--setup-picture-*`                                                                                                                                                                                            | The small theme pictures in the welcome setup (§9.4).                                      |
+| Linked geometry | `--linked-world-corner`, `--linked-world-name-max`, `--linked-world-pair-max`                                                                                                                                  | Sizes for a linked person's two-world line and picture (§10).                              |
+
+Some components set local variables that are not theme tokens:
+`--instance-pill-bg` (a pill's own fill), `--platform-row-color` and its
+`--platform-row-from`, `--platform-row-to`, `--platform-row-border` (a
+platform row's wash), `--app-backdrop-fade` (the fade over a background
+picture), `--aurora-floor`, `--alert-step` (stagger in the alerts panel),
+`--linked-platform` and `--linked-badge-bg` (a linked person's platform tag),
+and the edge-reach variables `--glass-reach`, `--glass-clip-radius`,
+`--glass-face`, `--glass-edge` (§3).
 
 ### Text steps
 
-- `--text` is for names, headings, values, and anything that must be read.
-- `--text-dim` is for secondary text a person still needs: labels, notices,
-  fine print, counters, versions, loading lines, Dashboard section headings.
-- `--text-faint` is only for the wordmark subtitle, placeholders, disabled
-  controls, and technical identifiers such as the Hot Instance ID. It never
-  carries information a person must read.
+| Token          | Dark                        | Light                    | Use                                                                 |
+| -------------- | --------------------------- | ------------------------ | ------------------------------------------------------------------- |
+| `--text`       | `#f3f1fb`                   | `#12111a`                | Names, titles, values, button words.                                |
+| `--text-dim`   | `rgba(231, 225, 250, 0.72)` | `rgba(26, 24, 38, 0.76)` | Secondary lines, labels, idle sidebar items, kickers, hints.        |
+| `--text-faint` | `rgba(216, 208, 242, 0.46)` | `rgba(44, 41, 62, 0.56)` | Placeholders, the wordmark subtitle, a stepper button at its bound. |
 
-### How light differs from dark
+`--text-faint` never carries information a person must read to use the app.
 
-Light is not dark inverted. The canvas is a cool gray (`--bg-base: #e7ecf3`)
-and cards are white, so panels read as raised. Brand colors stay at full
-strength for fills, rings, edges and the glow, while words in a brand color
-use a deeper companion that clears 4.5:1 on white and on the platform tints.
-Every small platform label (the friends-list rail, platform pills, the short
-badge on a picture) is solid platform color with white words in light, so blue
-and orange show at a glance down a list; in dark the same labels are quiet
-outlines, where the word and edge already glow. The ChilloutVR badge fill is
-one step deeper than the raw orange (`--plat-cvr-solid`) so its white word
-clears 4.5:1. The dark friends-list rail is the one firmer outline: it sits on
-a row already washed in its own hue, so it takes a stronger tint, edge and word
-(`--plat-*-rail-*`), and it sits 3 px in from the row's edges.
+### How light differs
 
-Contrast targets: body text and every word that carries meaning clear 4.5:1 on
-the surface it actually sits on, in both themes, including over the glow and a
-background picture. Token comments in `main.css` record the measured ratios;
-re-measure when a token changes.
+Light is not an inverted dark. The same classes read these changes from the
+light token block:
+
+- **Canvas.** `--bg-base` is a cool pale grey (`#e7ecf3`) and the aurora sits
+  on a soft top-to-bottom gradient instead of a flat floor. The glows are
+  stronger so they still read on a pale ground (§4).
+- **Glass.** Panes are white-based: `--glass-bg` runs from 66% to 34% white,
+  the blur is 24 px with 175% saturation (dark: 26 px, 165%), borders are a
+  cool dark hairline, and shadows are soft grey-blue instead of black.
+- **Platform chips turn solid.** A platform pill and the friends-list rail are
+  white words on the solid platform color in light, and tinted glass with
+  lighter platform-colored words in dark. Short badges over pictures keep a
+  card-colored backing in both.
+- **Colored words darken.** Access-tier pill words use the darker `-text`
+  twins (Public is `#11652d` on a 17% green fill; dark uses the bright
+  `#3ee36a` on a 13% fill). `--error` is `#b4232c` (dark `#fca5a5`),
+  `--favorite` is `#a16207` (dark `#fcd34d`).
+- **Platform rows** take a 28% wash and a strong platform-colored border in
+  light (dark: 24% wash, a soft 34–36% border).
+- **Scanlines** multiply dark lines at 40% opacity in light; dark overlays
+  light lines at 60%.
+- **Words on a background picture** get a small card-colored backing in light
+  only (§4).
+
+The window's own background, painted by the main process before the page
+loads and during resize, matches `--bg-base`: `#08080b` in dark and `#e7ecf3`
+in light ([`windowTheme.ts`](../src/main/windowTheme.ts)).
+
+Sources: [`main.css`](../src/renderer/src/assets/main.css),
+[`useApplyTheme.ts`](../src/renderer/src/hooks/useApplyTheme.ts),
+[`cssTokens.ts`](guide/cssTokens.ts).
 
 ## §3 Material: layered glass
 
-The whole interface is one material in five layers. Each layer is a pane of
-frosted glass that blurs what is under it, so a background picture or the
-aurora glows through as soft color, while each pane keeps enough fill that its
-words stay readable.
+Everything visible is a pane of glass on the canvas. Panes stack in a fixed
+order, and each layer has one class.
 
-| Layer | What it is                                       | Class                                                   | Fill token                       |
-| ----- | ------------------------------------------------ | ------------------------------------------------------- | -------------------------------- |
-| 0     | Canvas: base, picture, aurora                    | `body`, `.app-backdrop`                                 | `--bg-base`, `--aurora-*`        |
-| 1     | Shell chrome: sidebar, tracks                    | `.glass`                                                | `--glass-bg` (translucent)       |
-| 2     | Back panels and side sheets                      | `.glass .glass-panel`, `.glass .glass-sheet`            | `--glass-panel`, `--glass-sheet` |
-| 3     | Cards, rows, headers, fields                     | `.glass .glass-layer`, `.platform-row`, `.setting-card` | `--glass-layer`                  |
-| 4     | Chips: pills, badges, rails                      | `.glass-chip`                                           | the chip's own tint              |
-| —     | Opaque information: menus, dialogs, error screen | `.glass .glass-information` (+ frost)                   | `--glass-information`            |
+| Layer | What it is                                   | Class                                                                | Fill                                         | Blur                           |
+| ----- | -------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------- | ------------------------------ |
+| 0     | The canvas: aurora or the user's own picture | (`body`, §4)                                                         | `--bg-base`                                  | none                           |
+| 1     | Shell and control glass                      | `.glass`                                                             | `--glass-bg` gradient                        | `--glass-blur` (26 px, 165%)   |
+| 2     | Back panels, drawers and bottom sheets       | `.glass-panel`, `.glass-sheet`                                       | `--glass-panel` (50%), `--glass-sheet` (66%) | `--glass-blur-frosted` (34 px) |
+| 3     | Cards, rows, section headers, fields         | `.glass-layer`, `.platform-row`, `.setting-card`                     | `--glass-layer` (44%)                        | `--glass-blur`                 |
+| 4     | Chips: pills, badges, rails, small counts    | `.glass-chip`                                                        | the chip's own tint                          | `--glass-blur`                 |
+| —     | Menus, dialogs, loading and error screens    | `.glass-information` (with `.glass-frosted`, `.glass-frosted-heavy`) | `--glass-information`, opaque                | none                           |
 
-**`.glass`** is the base skin: a soft diagonal gradient (`--glass-bg`), the
-sidebar's blur (`--glass-blur`), a hairline edge (`--glass-border`), the panel
-radius, and a deep shadow with a lit top edge (`--glass-shadow`). Its
-`::before` paints a sheen (`--glass-sheen`) from the top-left corner at
-z-index -1, under every child, so it lights the pane and never washes out
-text, logos or pictures.
+The percentages are the dark values; Appendix A has both themes.
 
-**`.glass-panel`** is the back panel a page's cards sit on (the Friends list,
-Settings). **`.glass-sheet`** is the frost of the friend details drawer and the
-world, hot instance, avatar and group sheets, heavier than a panel
-(`--glass-sheet`) because sheets float over live cards and what is behind them
-must read as glow, never as words. Both draw their blur on an `::after` layer
-at z-index -2, never as a `backdrop-filter` on the element itself: a backdrop
-filter makes its element the containing block for fixed children, which would
-pin the friend drawer inside the list. Never put a backdrop filter on an
-ancestor of a fixed overlay.
+**Layer 1, `.glass`.** The base skin: `--glass-bg` (a 135° white gradient, 9%
+to 2.4% in dark), a 1 px `--glass-border`, the 20 px panel radius,
+`--glass-shadow` (a deep drop shadow plus a lit top edge), and the blur. Its
+`::before` paints `--glass-sheen`, a soft light from the top-left corner, at
+`z-index: -1` so it lights the pane but never the content. `.glass` sets
+`position: relative` and `isolation: isolate`. Used as is by the sidebar,
+every segmented control track, the number stepper, the round "?" help
+buttons, and the round favorite and alert buttons in friend details.
 
-**Edge reach.** On a scaled display (125%, 150%) the graphics card's blur can
-stop short of a blurred box's right and bottom edges and fill the last strip
-with one flat color, which shows as a seam over a busy picture. So a blur
-layer reaches `--glass-reach` (32px) past those two edges and a clip-path
-trims it back to the box's rounded shape; the short strip falls outside and is
-never seen. Panels, sheets and the unclipped `.glass-layer` cards (statistics,
-notices, empty states) draw their blur this way. Bottom sheets round only their
-top corners, so they set `--glass-clip-radius` to match. A clip-path hides
-paint but the hidden reach still counts as content, so the app shell wraps
-its views in a box that clips sideways at the scroller's padding edge (and
-downward on Settings, whose bottom padding is thinner than the reach). Any
-other scroller that holds reaching glass near its edge needs the same.
+**Layer 2, back panels and sheets.** `.glass-panel` is the panel a page's
+cards sit on: the Settings panel and the welcome setup card
+(`.glass .glass-panel`), and the Friends list panel (`.glass-panel` with its
+own `--glass-border` border and `rounded-panel`). `.glass-sheet` is a drawer
+or sheet that floats over live content: the friend details drawer
+(`.glass .glass-sheet`) and the bottom sheets (§9.3). Both remove the
+element's own blur and put it on `::after` at `z-index: -2`, under the sheen
+and the content. The reason is a browser rule: an element with a
+`backdrop-filter` becomes the containing block for fixed-position
+descendants, which would trap the drawer inside the list panel. **Never put a
+`backdrop-filter` on an element that contains a fixed overlay.**
 
-**`.glass-layer`** makes a card, row, header or field its own frosted pane: the
-sidebar's blur, a thinner fill (`--glass-layer`), lifted by a lit top edge and
-a soft shadow (`--glass-layer-depth`). On a back panel it blurs the already
-frosted panel, so the stack reads glass over glass; on the bare canvas it is as
-frosted as the sidebar. It covers platform rows, setting cards, the Friends
-section headers and search field, statistics, Hot Instances, Popular now,
-Explore, avatar, group and account cards, the login card, the sign-in fields,
-the welcome setup's theme choices, notices and empty states. No fixed-position
-child may live inside one. Small icon tiles in setup are `.glass-chip`s.
-A `.glass .glass-layer` card that does not clip its content builds its pane
-from layers for the edge reach: `::after` is the blur, `::before` the fill,
-face (`--glass-bg` or the platform tint, through `--glass-face`), sheen,
-border (`--glass-edge`) and lift, and the card itself paints nothing. It looks
-the same as a card that blurs itself. Picture cards (Hot instances, Explore,
-avatars, groups) take the reach too: instead of clipping the whole card they
-round their pictures to the card's inner corners (`.glass-clip-top`,
-`.glass-clip-left`, `.glass-clip-all`). They brighten on hover with
-`.glass-hover`, which brightens the pane, its blur and the pictures by 5%. A
-`hover:brightness` filter on the card would make it a backdrop root and empty
-its blur layer, so a test refuses one on any `.glass-layer`. Only the sign-in
-and account cards still clip their content (`overflow-hidden`) and blur
-themselves.
+**Layer 3, cards and rows.**
 
-**`.platform-row`** is a layer-3 row that belongs to one platform: the same
-glass, washed in its platform's hue from the left (`--platform-row-tint-strong`
-fading to `--platform-row-tint-soft`) and a soft platform-colored border.
-No solid accent bar on any edge (owner, 2026-11-06), here or on any card,
-sheet or dialog: the frosted tint and the VRC/CVR word carry the platform. Modifiers: `.platform-row--vrchat`, `.platform-row--chilloutvr`, `.platform-row--vrx` (a
-linked person, blue running into orange) and `.platform-row--none` (loading and empty rows,
-plain). Friend rows, Activity, Inbox and the Dashboard glance rows all use it,
-so a platform looks the same on every list.
+- `.glass .glass-layer` is a card: the Dashboard number cards, hot instance
+  cards, world cards, avatar cards, group and people tiles, help panels,
+  notices above a page, and the empty and not-connected cards. The card
+  paints nothing itself. Its `::before` is the pane (fill, face, sheen, border
+  and the `--glass-layer-depth` lift) and its `::after` is the blur. A card
+  that must clip its content (`overflow-hidden`: the sign-in card and the
+  account cards) keeps blurring itself instead.
+- `.glass-layer` without `.glass` makes a small element its own pane: the
+  Friends search field, the Friends section headers, and the sign-in fields
+  inside the welcome setup.
+- `.platform-row` is a row that belongs to one platform: a friend row, an
+  Activity entry, an Inbox row, a Dashboard glance row. It is a
+  `--glass-layer` pane washed in the platform color from the left
+  (`--platform-row-tint-strong` falling to `--platform-row-tint-soft`), with a
+  1 px platform-tinted border and the 12 px control radius.
+  `.platform-row--vrchat` is blue, `.platform-row--chilloutvr` is orange,
+  `.platform-row--vrx` (a linked person) runs blue into orange with a blue
+  top and left border and an orange right and bottom border, and
+  `.platform-row--none` is the same capsule with no color (loading and empty
+  rows).
+- `.setting-card` is a Settings row on the Settings panel: `--glass-layer`
+  with the sheen, a 1 px `--border`, 12 px radius, 8 px by 12 px padding.
 
-**`.glass-chip`** is the top pane (owner, 2026-11-04): instance, platform and
-rule pills, platform badges on pictures and in friend details, the
-friends-list platform rail, the linked VRC and CVR tags, the friend details
-status band, alert kinds, and the sidebar's Inbox count. A chip keeps its own
-tinted fill under the sidebar's blur, with a glossy top light under its word
-(`--glass-chip-sheen`, on `::after` at z-index -1) and a tight lift
-(`--glass-chip-depth`). Chips over a picture sit on a heavy card-color frost
-(74% of `--glass-information`), so the art glows through but never sits bare
-under the word. Presence dots keep their solid color and take only the lift
-(`.status-badge`). Words that must be read, such as names, custom status
-messages, world names and other details, stay plain text on their card and
-never become chips.
+**Layer 4, `.glass-chip`.** The top pane: the blur under the chip's own
+tinted fill, `--glass-chip-depth` (a tight lift and a lit edge), and
+`--glass-chip-sheen` on `::after` under the word. Instance pills, platform
+pills, the policy pill, the friends-list rail, short badges over pictures,
+the sidebar's Inbox count, and the platform and status chips in friend
+details are chips. Names, custom status text, pictures and status dots never
+get one. `.status-badge` gives the opaque presence dot on an avatar the
+chip's lift without the blur.
 
-**`.glass-information`** puts an opaque neutral backing
-(`--glass-information`) under the existing gradients and turns the blur off
-(nothing behind an opaque pane can show, so it saves the GPU). Menus,
-dialogs, the boot splash, the error screen, the top-bar counts panel and the
-favorite and alert panels use it, so their colors and meaning never change
-with the background. The welcome setup card is a frosted back panel, like
-Settings (§9.4), not this opaque backing. Add **`.glass-frosted`** for a
-frosted dialog and **`.glass-frosted-heavy`** for a true confirmation modal
-(Join, Unfriend, Block); both use the stronger `--glass-blur-frosted`.
+**Opaque surfaces.** `.glass-information` replaces the see-through fill with
+the solid `--glass-information` backing and turns the blur off. Anything a
+person must read over busy content uses it. The welcome setup card stays the
+frosted back panel from layer 2.
 
-**Platform tints.** `.tint-vrc` and `.tint-cvr` wash a card in its platform's
-hue (`--tint-*-bg`) with a platform edge (`--tint-*-border`). They set
-`background-image` only, never the `background` shorthand, which would clear
-an opaque backing. On a platform card, platform color stays the strongest tint
-in the stack.
+| Surface                                                              | Classes                                          |
+| -------------------------------------------------------------------- | ------------------------------------------------ |
+| Top-bar counts panel, loading screen card, error screen card         | `.glass .glass-information`                      |
+| Favorites panel and alerts panel in friend details (16 px radius)    | `.glass .glass-information`                      |
+| Edit profile, Identities, Picked friends, Choose destination dialogs | `.glass .glass-frosted .glass-information`       |
+| Join confirmation; Unfriend, Block and Unblock confirmation          | `.glass .glass-frosted-heavy .glass-information` |
 
-**Layer order rules.** Keep the material classes in `@layer components` so a
-utility on the same element still wins (for example `fixed` on the drawer).
-Frost modifiers follow `.glass`; `.glass-information` follows the frost
-modifiers so its backing wins without clearing the gradient; `.glass-panel`
-and `.glass-sheet` follow `.glass-information` so their transparent backing
-wins. In compiled CSS `-webkit-backdrop-filter` comes before the standard
-`backdrop-filter` (Electron needs the standard property). Check the
-computed result, not just source order.
+`.glass-frosted` and `.glass-frosted-heavy` on their own give a 78% and a 94%
+card-colored underlay with the 34 px blur. In the shipped app they always
+come with `.glass-information`.
 
-**Overlays and focus.** Use the existing overlay components instead of
-building a new scrim or focus pattern. The friend drawer and bottom sheets are
-non-modal: a soft scrim (`--scrim-soft`) that doesn't block input, no
-`aria-modal`, no focus trap. A true modal keeps keyboard focus inside, even
-when its actions are disabled, and uses the heavy frost.
+**Edge reach.** On a display scaled to 125% or 150% a blur can stop short of
+a pane's right and bottom edges and leave a flat strip. Panels, sheets and
+reach cards therefore extend the blur layer `--glass-reach` (32 px) past
+those two edges and cut it back with a `clip-path` to the pane's rounded
+shape. `--glass-clip-radius` gives that shape; bottom sheets set it to round
+only the top two corners. Because a reach card no longer clips its content, a
+picture inside it rounds itself with `.glass-clip-top`, `.glass-clip-left` or
+`.glass-clip-all` (19 px, one less than the card).
 
-**Busy and finished buttons.** Outside a modal dialog, a button that is busy,
-or has nothing left to do, stays focusable with `aria-disabled` rather than
-`disabled`, which drops keyboard focus to the page. A dialog that disables its
-controls while saving puts focus back on the control last used, or ✕, when the
-save settles. When a button gives way to a result, or its item leaves a list,
-focus moves to the result or the item in its place; focus the user moved
-elsewhere stays put. A held Enter presses a button, or sends a form, once
-([`installHeldEnterGuard.ts`](../src/renderer/src/installHeldEnterGuard.ts)).
+**Platform tint.** `.tint-vrc` and `.tint-cvr` wash a card in its platform
+color (`--tint-vrc-bg`, `--tint-cvr-bg`) and tint its border. They set the
+background image only, so an opaque backing survives, and they hand the same
+tint to a reach card's pane through `--glass-face` and `--glass-edge`.
 
-Sources: [`main.css`](../src/renderer/src/assets/main.css),
-[`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),
-[`ExploreWorldSheet.tsx`](../src/renderer/src/components/ExploreWorldSheet.tsx),
-[`JoinConfirmDialog.tsx`](../src/renderer/src/components/JoinConfirmDialog.tsx),
-[`instancePill.ts`](../src/renderer/src/utils/instancePill.ts).
+**No solid colored edge.** A card, row, sheet or dialog never carries a solid
+colored bar or line along one edge. The platform shows as the wash, the soft
+tinted border and the platform chip.
+
+**Hover and press.**
+
+| Element                          | Hover                               | Press           |
+| -------------------------------- | ----------------------------------- | --------------- |
+| Rows, idle sidebar items         | `--surface-hover` wash              | —               |
+| Quiet buttons and fields         | `--control-fill-hover`              | —               |
+| Picture cards (`.glass-hover`)   | pane, blur and pictures brighten 5% | —               |
+| Actionable pills, filled actions | `brightness-110`                    | `brightness-95` |
+| Platform buttons                 | 90% opacity                         | —               |
+
+Never put a `filter` on a card that holds a blur layer or on its ancestors;
+it empties the blur. That is why picture cards use `.glass-hover`. Color and
+filter transitions take 150 ms and only run when the system allows motion.
+
+**Radius scale.**
+
+| Radius | Used by                                                                                 |
+| ------ | --------------------------------------------------------------------------------------- |
+| 20 px  | Sidebar, panels, cards, dialogs, segmented tracks, the top two corners of bottom sheets |
+| 16 px  | The segmented bubble, the favorites and alerts panels                                   |
+| 13 px  | Friend rows, world picture and room rows in the world sheet                             |
+| 12 px  | `rounded-control`: buttons, fields, platform rows, setting cards, active sidebar item   |
+| 10 px  | Instance, platform and policy pills, small Settings buttons, the status chip            |
+| 9 px   | `rounded-pill`: short badges, the friends-list rail, segmented options, close buttons   |
+| Full   | Avatars, dots, round icon buttons, the sidebar update button, the Inbox count           |
+
+**Stacking.** Background picture −3, aurora −2, scanlines −1, page content 0,
+sticky Friends section headers 10, scrims 40, drawers, sheets, dialogs and the
+counts panel 50.
+
+Sources: [`main.css`](../src/renderer/src/assets/main.css) (the
+`@layer components` block),
+[`catalog-scenes.tsx`](guide/catalog-scenes.tsx) (the `layers` scene).
 
 ## §4 Canvas, glow and background picture
 
-The document body draws the canvas with two fixed pseudo-elements:
-`body::before` (z-index -2) is the aurora, two large radial glows (VRChat blue
-centered near the top-left at 12% 6%, ChilloutVR orange near the bottom-right
-at 92% 96%) plus two optional smaller wisps, over `--aurora-gradient` (flat
-`--bg-base` in dark, a soft vertical gradient in light). `body::after` (z-index
--1) is the scanline texture: a 1 px line every 3 px in `--scanline-color`,
-blended (`overlay` in dark, `multiply` in light) at low opacity. It is a faint
-texture, never a visible grid.
+**Canvas.** `body` is `--bg-base` with `overflow: hidden`; only the content
+area scrolls (§8). Two fixed layers sit behind everything:
 
-**Glow levels.** [`applyGlow`](../src/renderer/src/hooks/useApplyGlow.ts) sets
-Settings → Appearance → Background glow: Off, Muted, Standard and Vivid.
-Standard, the default, sets no `data-glow` attribute; the others set
-`data-glow` on `<html>` and override the size, fade and alpha variables
-(Appendix A). Off keeps the plain base canvas. In light mode Standard is
-deliberately stronger than Muted, so the brand corners read as clearly as in
-dark. Background glow and a pane's tint are separate: changing the glow never
-changes the colors of informational surfaces. Reduced motion keeps the same
-static composition (the canvas never animates).
+- `body::before` (`z-index: -2`) is the aurora: a blue radial glow anchored
+  at 12% 6% (top-left) and an orange one at 92% 96% (bottom-right), two
+  smaller wisps at 30% 22% and 74% 78% that only the Vivid level lights, and
+  the floor `--aurora-gradient` (flat `--bg-base` in dark, a pale vertical
+  gradient in light). Blue is always top-left and orange bottom-right.
+- `body::after` (`z-index: -1`) is the scanlines: a 1 px line every 3 px in
+  `--scanline-color`, blended with `--scanline-blend` at
+  `--scanline-opacity`. They are a faint texture, never a visible grid, and
+  ignore the pointer.
 
-**Background picture.** The user may put their own picture behind the app
-(Settings → Appearance → Background picture).
-[`AppBackdrop`](../src/renderer/src/components/AppBackdrop.tsx) draws it as a
-fixed, decorative `.app-backdrop` layer at z-index -3, and
-`data-app-background` on `<html>` drops the aurora's opaque floor so any glow
-the user keeps sits over the picture. A fade layer in the theme's base color
-(Low, Medium, High; Medium by default) keeps words over the picture readable;
-light uses a lighter fade so a picture never turns milky white. The layered
-glass above shows the picture blurred, and opaque information surfaces keep
-their own backing, so a picture never changes their colors or meaning.
+**Background glow.** Settings → Appearance → Background glow has four levels.
+A level only changes variables on `<html>`: `data-glow` is `off`, `muted` or
+`vivid`, and absent for Standard.
 
-**Words on the canvas.** Text set straight on the canvas (`.canvas-text`: page
-titles, the top-bar counts, Dashboard section headings) and the small buttons
-beside it (`.canvas-control`) get, over a light-theme picture only, a small
-crisp card-color backing with near-solid ink, so a dark picture can't swallow
-them. Words never get a glow or halo: on a light theme it reads as fuzzy text.
+| Level              | Glow size (`--glow-size-x` × `--glow-size-y`) | Fades out at (`--glow-fade`) | Blue / orange strength, dark | Blue / orange strength, light | Wisps        |
+| ------------------ | --------------------------------------------- | ---------------------------- | ---------------------------- | ----------------------------- | ------------ |
+| Off                | —                                             | —                            | 0 / 0                        | 0 / 0                         | none         |
+| Muted              | 58% × 50%                                     | 60%                          | 26% / 20%                    | 30% / 27%                     | none         |
+| Standard (default) | 95% × 78%                                     | 74%                          | 29.9% / 23%                  | 42% / 38%                     | none         |
+| Vivid              | 120% × 95%                                    | 82%                          | 39% / 30%                    | 54% / 48%                     | 15% / 12.75% |
 
-Main refuses a picture that can't fill the landscape window (smaller than
-640×360, taller than 0.6 of its width, or wider than 5:1;
-[`backgroundPicture.ts`](../src/shared/backgroundPicture.ts)) and Settings
-gives one short warning line for a usable picture that will crop hard or look
-soft.
+The strengths are `--glow-a-vrc` and `--glow-a-cvr` (wisps: `--wisp-a-vrc`,
+`--wisp-a-cvr`), mixed into `--vrc` and `--cvr`. Off leaves the plain canvas
+and the scanlines.
+
+**Background picture.** Settings → Appearance → Background picture puts the
+user's own PNG or JPEG behind the whole app. The row shows "Choose picture";
+once a picture is kept it shows a 48×28 thumbnail
+(`.background-picture-thumb`), "Change picture" and "Remove", and the card
+opens a second row, Picture fade: Low, Medium (default) or High.
+
+- `.app-backdrop` is fixed at `z-index: -3`, fills the window and crops the
+  picture to cover. `data-app-background` on `<html>` sets `--aurora-floor`
+  to transparent so the picture shows through the aurora. Whatever glow level
+  the user keeps sits over the picture.
+- `.app-backdrop::after` fades the picture toward `--bg-base` by
+  `--app-backdrop-fade`: 35%, 55% or 75% in dark and 18%, 34% or 55% in light
+  for Low, Medium and High. Light also raises the picture's saturation to
+  115%.
+- In light only, words set straight on the canvas (`.canvas-text`) get a
+  crisp backing: 2 px by 8 px padding, 8 px radius, `--glass-information` at
+  78%, and near-solid `--text-dim`. Small buttons on the canvas
+  (`.canvas-control`) take the same 78% fill. Dark needs neither.
+- A picture the app cannot decode falls back to the normal canvas. The picker
+  refuses pictures it cannot use and warns about ones that will crop badly,
+  in a line under the row.
+
+Mark any text placed directly on the canvas with `.canvas-text` and any small
+button there with `.canvas-control`, or it becomes unreadable over a light
+picture. Page titles, section headings, the top-bar counts, and page hints do
+this.
+
+Sources: [`main.css`](../src/renderer/src/assets/main.css),
+[`useApplyGlow.ts`](../src/renderer/src/hooks/useApplyGlow.ts),
+[`AppBackdrop.tsx`](../src/renderer/src/components/AppBackdrop.tsx),
+[`BackgroundPicturePicker.tsx`](../src/renderer/src/components/BackgroundPicturePicker.tsx).
 
 ## §5 Presence, status, and privacy
 
-Presence state and VRChat status are separate inputs. State is
-`in-game | active | offline`; VRChat status is
-`join-me | online | ask-me | dnd`. VRChat's upstream status string `active`
-becomes Online; it is not the presence state `active`, which means online
-outside the game. ChilloutVR has no status, custom status, or trust rank; never
-fabricate them.
+Two separate facts describe a friend, and the UI never merges them.
 
-[`ringFor`](../src/renderer/src/utils/statusRing.ts) decides the avatar ring:
+**Presence state** is where they are: `in-game` (in a world), `active`
+(online outside the game, such as on the website), or `offline`. The Friends
+list groups by it: In-Game, Online, Offline.
 
-- Active and offline friends use their presence color (`--active`,
-  `--offline`).
-- In-game VRChat friends use their status color (`--st-*`).
-- In-game friends without a status, including every ChilloutVR friend, use
-  Online (`--st-online`).
-- Row avatars have a plain corner dot and an accessible label naming the
-  state. Drawer avatars have no dot; the drawer shows the written status in a
-  status band (a chip in the status color with the status word).
+**Status** is VRChat's own setting: Join Me, Online, Ask Me, Do Not Disturb.
+ChilloutVR has no such setting, so a ChilloutVR friend never shows one.
 
-This is the color-only exception in Locked rule 4. Don't add a row status pill,
-and don't read raw presence from ring color alone. Platform identity stays
-readable as text (the VRC or CVR rail or platform pill) as well as tint, and a
-linked person's rail says VRX.
+| Meaning          | Token         | Dark      | Light      | Word on screen |
+| ---------------- | ------------- | --------- | ---------- | -------------- |
+| Join Me          | `--st-joinme` | `#3aa0ff` | see App. A | Join Me        |
+| Online (in game) | `--st-online` | `#43c95a` | see App. A | Online         |
+| Ask Me           | `--st-askme`  | `#ff9a3d` | see App. A | Ask Me         |
+| Do Not Disturb   | `--st-dnd`    | `#e5484b` | see App. A | Do Not Disturb |
+| Active           | `--active`    | `#2dd4bf` | see App. A | Active         |
+| Offline          | `--offline`   | `#6b6480` | see App. A | Offline        |
+| Live connection  | `--ingame`    | `#34d399` | see App. A | Live           |
 
-**Privacy.** Ask Me and Do Not Disturb hide the world and instance. Active and
-offline friends never show a stale cached instance. Rows, the drawer, Hot
-Instances, Activity, notifications, and actions all use the shared
-hidden-location and membership checks in
-[`hotInstanceKey.ts`](../src/shared/hotInstanceKey.ts) and
-[`joinability.ts`](../src/shared/joinability.ts). Never put a hidden
-identifier in gesture metadata, an accessible name, or an image. An invite is
-the one place a world name can appear for any sender: the sender chose to
-share it by inviting, so the Inbox shows the world the invite names, never a
-location read from presence (§9.6).
+Each has a `-text` twin for words in that color.
 
-**Joining** is a separate decision, made by
-[`isFriendJoinable`](../src/shared/joinability.ts) and the existing Join flow.
-There is no Ask-to-join action. "Always ask" in Settings → Behavior → Join in
-chooses a ChilloutVR launch mode; it doesn't request an invitation. When the
-game is already open, Join uses it instead of starting a second copy, the same
-way on both platforms: the join dialog shows one quiet note in place of the
-mode picker or launch note ("VRChat is open, so Join takes you there in the
-game.", "ChilloutVR is open, …"), and afterwards the status line under Join
-says "Sent to your open game" or, for a VRChat invite, "Invite sent. Accept it
-in VRChat." for 8 seconds. While VRX checks whether the game is open, that line
-keeps its place but stays blank, so the dialog never shows the picker and then
-swaps it for the note; when the picker would show, Join waits for it.
+**The avatar ring.** `Avatar` draws the ring as a `box-shadow` on
+`.presence-ring`: 2.5 px wide (1.5 px on the 24 px size). Its color comes
+from `ringFor` in [`statusRing.ts`](../src/renderer/src/utils/statusRing.ts):
 
-**Trust.** Names stay neutral. When VRChat provides a trust rank, it appears as
-quiet 12 px plain text below Notes in the drawer; a combined linked profile can
-use its VRChat member's rank. There is no row trust pill, trust toggle, or
-ChilloutVR equivalent.
+1. Not in a world: the presence color (`--active` or `--offline`).
+2. In a world on VRChat with a status: that status color.
+3. Otherwise in a world (every ChilloutVR friend in game): `--st-online`.
+
+Rows also show a 16 px corner dot in the same color (`.status-badge`, with a
+2 px `--bg-base` border so it reads as cut out of the avatar). Offline
+friends get no dot, and the drawer's 64 px avatar has none. Avatars come in
+three sizes: 42 px in rows, 64 px in friend details, 24 px in small lists.
+Without a picture, the avatar is the name's first letter on a 10% `--text`
+disc. A linked person's avatar is split on the diagonal: VRChat in the
+upper-right half, ChilloutVR in the lower-left.
+
+This ring and dot are the one color-only cue in the app (Locked rule 4). The
+words are never far: the row opener's accessible name is the friend's name,
+the "favorite" mark if starred, the status or presence word, the world, and
+the platform; friend details show a status chip with a 10 px dot, the status
+word in its color, and a plain description ("Open to joins — hop in freely",
+"Around and reachable", "Ask before joining", "Not accepting joins", "Not
+connected").
+
+**Custom status text** (VRChat only) is plain `--text-dim` text beside the
+name in a row and under the name in friend details. It is never a chip, and
+it is hidden for offline friends.
+
+**Privacy (Locked rule 9).** A VRChat friend set to Ask Me or Do Not Disturb
+never shows a world or instance:
+
+- no world line, no world picture, no instance pill beyond the neutral
+  "Private", no Join;
+- not counted toward a hot instance, not named on its card, in its sheet or
+  in its accessible name;
+- not named with a location in any alert.
+
+Friends whose location the platform itself hides (private, traveling) get the
+same neutral treatment. Use the shared helpers `isWorldHidden`,
+`isHotInstanceMember`, `hotInstanceKey` and `isFriendJoinable`
+([`joinability.ts`](../src/shared/joinability.ts),
+[`hotInstanceKey.ts`](../src/shared/hotInstanceKey.ts)); never write a local
+copy of the rule.
+
+Sources: [`Avatar.tsx`](../src/renderer/src/components/Avatar.tsx),
+[`statusRing.ts`](../src/renderer/src/utils/statusRing.ts),
+[`FriendRow.tsx`](../src/renderer/src/components/FriendRow.tsx),
+[`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx).
 
 ## §6 Instance labels and policy
 
-### §6.1 Access labels
+### §6.1 Instance pills
 
-`InstanceInfo.type` stays platform-true: eight VRChat types and nine
-ChilloutVR types, including the ChilloutVR Offline Instance. Every access pill
-goes through [`instancePillFor`](../src/renderer/src/utils/instancePill.ts) and
-renders [`InstancePill`](../src/renderer/src/components/InstancePill.tsx), one
-component for the friends list, the Dashboard, friend details and the join
-dialog, so the pill looks identical everywhere.
+An instance pill says who may join the instance a friend is in. It is always
+a word on a tinted chip, never a color alone.
 
-Settings → Appearance → Instance labels picks the wording: VRChat (the default
-on both platforms), Per platform, or ChilloutVR, in that order. The label maps
-live in [`instanceTypeLabels.ts`](../src/renderer/src/utils/instanceTypeLabels.ts);
-never copy a map into a component or derive a label from a color.
+**Geometry** (`PILL_BASE` in
+[`instancePill.ts`](../src/renderer/src/utils/instancePill.ts)): a
+`.glass-chip`, 28 px tall, 10 px radius, 1 px border, 12 px side padding,
+12 px semibold, one line. In a friend row the pill column is at least 78 px
+wide so pills line up.
 
-Pills are words with no icon, on the shared geometry (`PILL_BASE`: a 28 px
-glass chip, 10 px radius, 12 px semibold, 12 px side padding). The tier color
-fills the pill at `--pill-tint` and edges it at `--pill-edge`, and the word uses
-the tier's `-text` companion. Friend-family tiers run green to orange (Public,
-Friends+, Friends, Invite+, Invite) and group-family tiers use purple (Group
-Public, Group+, Group). Group labels stay in full. `opennessUnknown: true`
-shows a neutral Unknown under every scheme; hidden in-game locations can show a
-neutral Private; the Offline Instance is neutral under every scheme. These
-neutral states share one look (a `--text` wash) but keep their own words. No
-pill appears for an active or offline friend's old location. The pill's
-discreet Join shortcut is an approved design, not a defect.
+**Color.** The pill takes its tier's `--op-*` token: the word is the tier's
+`-text` twin, the fill is the tier color at `--pill-tint` and the border at
+`--pill-edge`.
+
+| Tier token          | VRChat word  | ChilloutVR word     | Dark color |
+| ------------------- | ------------ | ------------------- | ---------- |
+| `--op-public`       | Public       | Public              | `#3ee36a`  |
+| `--op-friends-plus` | Friends+     | Friends of Friends  | `#b7de4f`  |
+| `--op-friends`      | Friends      | Friends             | `#e6c353`  |
+| `--op-invite-plus`  | Invite+      | Everyone Can Invite | `#ffc172`  |
+| `--op-invite`       | Invite       | Owner Must Invite   | `#ffa14e`  |
+| `--op-group-public` | Group Public | Group Public        | `#bfa0ff`  |
+| `--op-group-plus`   | Group+       | Friends of Members  | `#9d80f6`  |
+| `--op-group`        | Group        | Members Only        | `#8d61f0`  |
+
+The scale runs green (most open) through yellow and orange to violet
+(group). The neutral pill (`--text-dim` word, `--text` at 7% fill and 16%
+border) covers everything without a tier: "Private" for a friend who is in a
+world they do not share, ChilloutVR's "Offline Instance", and "Unknown" when
+the platform did not say.
+
+**Which words.** The data always keeps the platform's real type. Settings →
+Appearance → Instance labels only chooses the words:
+
+| Setting          | Effect                                                     |
+| ---------------- | ---------------------------------------------------------- |
+| VRChat (default) | Both platforms use the VRChat words for the matching tier. |
+| Per platform     | Each friend's pill uses their own platform's word.         |
+| ChilloutVR       | Both platforms use the ChilloutVR words.                   |
+
+**Actionable pills.** In a friend row, a joinable friend's pill is a button
+named "{access}: Join {name} in {world}". It brightens on hover, dims
+slightly on press, shows a 1 px `--text-dim` focus ring, and drops to 50%
+opacity while a join is pending. A linked person in two joinable places shows
+a "2 locations" button instead (§10). Over a picture, a pill sits on a 78%
+card-colored backing so its tint stays readable.
 
 ### §6.2 Policy space
 
-Policy space is separate from access. Use
-[`policySpaceFor`](../src/renderer/src/utils/instancePolicySpace.ts) and
-[`PolicySpacePill`](../src/renderer/src/components/PolicySpacePill.tsx): Public
-space is rose (`--policy-public`), Private space is ice (`--policy-private`),
-and Unknown is neutral. Never infer access, membership, or join permission from
-this moderation label. Keep its platform-specific explanation in the
-translation files.
+A second, never-clickable pill says which moderation context applies:
+"Public space" (rose, `--policy-public`), "Private space" (ice blue,
+`--policy-private`) or the neutral "Unknown". It uses the instance pill's
+geometry and mixes. It appears in the join confirmation, on hot instance
+sheets and in a linked person's world details, never in friend rows. A "More
+info" link beside it opens one plain sentence about that context.
 
-The guide shows the model's values; it doesn't prove every ChilloutVR wire
-form. Read [API volatility](api-volatility.md) before changing a mapping, and
-never invent a raw value for the Offline Instance.
+VRChat's Public and Group Public are public spaces; ChilloutVR's Public,
+Friends of Friends, Group Public and Friends of Members are public spaces;
+everything else is private. An unknown or impossible type is Unknown, never a
+confident claim.
+
+Sources: [`InstancePill.tsx`](../src/renderer/src/components/InstancePill.tsx),
+[`instanceTypeLabels.ts`](../src/renderer/src/utils/instanceTypeLabels.ts),
+[`PolicySpacePill.tsx`](../src/renderer/src/components/PolicySpacePill.tsx),
+[`instancePolicySpace.ts`](../src/renderer/src/utils/instancePolicySpace.ts).
 
 ## §7 Typography
 
-Two faces, both shipped as local WOFF2 files with their licenses and
-`SOURCES.json` (never load a remote font, never add another display face):
+VRX ships two typefaces, both as local files in
+[`assets/fonts/`](../src/renderer/src/assets/fonts) with their licenses:
 
-- **Inter** (`--font-sans`, variable 400–800) for names, headings, labels,
-  controls, body text, status, and help.
-- **VT323** (`--font-mono`, Tailwind `font-mono`) only for the VRX wordmark,
-  section kickers, prominent statistics, and the version line. Technical
-  identifiers use a readable monospace (`ui-monospace`), never VT323.
+- **Inter** (`--font-sans`): one variable file, weights 400 to 800. It sets
+  all body text, names, labels and buttons. `body` uses it with antialiasing.
+- **VT323** (`--font-mono`): one weight, 400. It is the pixel display face for
+  the wordmark, Dashboard section headings, the big Dashboard numbers and the
+  welcome setup's step counter. Nothing else uses it.
 
-| Role                          | Face  | Size         | Weight  | Color                                | Notes                                       |
-| ----------------------------- | ----- | ------------ | ------- | ------------------------------------ | ------------------------------------------- |
-| Wordmark (sidebar)            | VT323 | 40 px        | 400     | brand letters                        | 2 px tracking; 64 px on the welcome screen  |
-| Page title (`h1`, top bar)    | Inter | 25 px        | 800     | `--text`                             | `.canvas-text`; one per page                |
-| Statistic number              | VT323 | 38 px        | 400     | `--text`                             | tabular figures; label 12.5 px `--text-dim` |
-| Dashboard section heading     | VT323 | 18 px        | 400     | `--text-dim`                         | uppercase, 2 px tracking, `h2`              |
-| Popular now heading           | VT323 | 20 px        | 400     | `--text-dim`                         | 0.08em tracking, not uppercase, `h2`        |
-| Card title, world name        | Inter | 18 px        | 700     | `--text`                             | bar cards use 25 px                         |
-| Navigation item               | Inter | 13.5 px      | 600     | `--text-dim` → `--text` when current |                                             |
-| Body text, rows, buttons      | Inter | 13 px        | 400–600 | `--text`                             | `text-sm` for quiet buttons                 |
-| Labels, help, secondary       | Inter | 12–12.5 px   | 400–500 | `--text-dim`                         | segmented options are 12.5 px 600           |
-| Pills                         | Inter | 12 px        | 600     | tier `-text`                         | `PILL_BASE`                                 |
-| Meta, timestamps, small notes | Inter | 10.5–11.5 px | 500–600 | `--text-dim`                         | rails and badges 10–10.5 px                 |
+Both files hold Latin glyphs only. Japanese text falls back to the system's
+own fonts, in VT323 headings too, so a Japanese heading is not pixel-styled.
+Do not build a layout that depends on VT323's narrow letters.
 
-Dashboard section headings use `--text-dim` at weight 400 in both themes
-(owner, 2026-11-04: faint fell below 4.5:1 at their size), and all four stay
-semantic `h2` elements. Numbers use the reader's locale grouping
-(`Intl.NumberFormat`): "1,234 friends".
+Measured sizes (computed styles at 900 x 670; the same at every width):
 
-Never use negative letter spacing or scale type with the viewport. Japanese
-text wraps at phrase boundaries, never mid-word: `main.css` sets
-`word-break: auto-phrase` on `body:lang(ja)` only. Don't add per-component
-copies. A long name or custom status wraps to two lines before it is cut, and
-its tooltip shows it in full.
+| Text                                 | Size / weight          | Details                                                                                              |
+| ------------------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| Page title (`h1` in the top bar)     | 25 px / 800            | Line height 37.5 px, `--text`, `.canvas-text`                                                        |
+| Dashboard section heading            | VT323 18 px            | Uppercase, 2 px letter spacing, `--text-dim`                                                         |
+| Dashboard number                     | VT323 38 px            | Line height 1, tabular digits; label 12.5 px `--text-dim`                                            |
+| Wordmark                             | VT323 40 px            | 2 px letter spacing; 64 px in the welcome setup, 36 px on the boot screen, 16 px in the sidebar foot |
+| Sidebar page name                    | 13.5 px / 600          |                                                                                                      |
+| Sidebar subtitle and foot            | 11 px / 400            | Subtitle has 0.5 px letter spacing, `--text-faint`                                                   |
+| Names (rows, tiles, lists)           | 14 px / 600            | One line, cut with an ellipsis                                                                       |
+| Setting label                        | 14 px / 500            | Note under it: 12 px `--text-dim`                                                                    |
+| World line in a friend row           | 12.5 px / 400          | Fixed 16 px line, `--text-dim`                                                                       |
+| Secondary lines, hints, notices      | 12 to 13 px / 400      | `--text-dim`                                                                                         |
+| Instance, platform and policy pills  | 12 px / 600            | 28 px tall (§6.1)                                                                                    |
+| Friend row platform tab              | 10.5 px / 600          | Vertical, 0.09em letter spacing                                                                      |
+| Picture badge ("VRC", "CVR")         | 10 px / 700            |                                                                                                      |
+| Small heading in sheets and profiles | 10.5 px / 600          | Uppercase, 1.4 px letter spacing, `--text-dim`                                                       |
+| Small heading in friend details      | 10.5 px / 600          | Uppercase, 0.1em letter spacing (1.05 px)                                                            |
+| Friends section header               | 12 px / 600            | Uppercase, 0.1em letter spacing                                                                      |
+| Segmented option                     | 12.5 px / 600          | The platform filter alone is 700, uppercase, 0.025em                                                 |
+| Small button ("Refresh", "Retry")    | 12 px / 400            |                                                                                                      |
+| Settings button                      | 13 px / 500            |                                                                                                      |
+| Dialog action                        | 14 px / 500 or 600     | 600 on the confirming action                                                                         |
+| Hot instance title                   | 25 px / 700 (bar card) | 18 px / 700 on a picture card, 21 px / 700 in the sheet                                              |
+| Friend details name                  | 18 px / 700            | Up to two lines                                                                                      |
+| Dialog title                         | 16 px / 600            | 18 px / 700 in the linked-friend and profile dialogs                                                 |
+| Welcome setup title                  | 25 px / 800            | Line height 1.2; lead text 13 px                                                                     |
+
+Rules:
+
+- Counts, clock times, counters and the Dashboard numbers use tabular digits
+  (`tabular-nums`) so they do not shift as they change. Large counts follow
+  the app language's number format ("48,213").
+- A name never wraps a row. Rows and tiles cut it to one line; friend details
+  and the join confirmation allow two lines.
+- Japanese: `body:lang(ja)` sets `word-break: auto-phrase` and
+  `overflow-wrap: break-word`, so lines break between phrases, not inside
+  them. Japanese labels are often longer than the English ones ("ホットインスタンス" for
+  "Hot Instances"). Every page was checked in Japanese at 900 x 670; nothing
+  overflows sideways.
+- Text on the bare canvas (page title, section headings, counts, hints) takes
+  `.canvas-text` so it stays readable over a background picture (§4).
+
+Source: [`main.css`](../src/renderer/src/assets/main.css) (font faces and the
+`@theme` block), [`i18n/index.ts`](../src/renderer/src/i18n/index.ts).
 
 ## §8 Shell, layout and controls
 
-**Shell.** [`AppShell`](../src/renderer/src/components/AppShell.tsx) places the
-fixed [`Sidebar`](../src/renderer/src/components/Sidebar.tsx) (a translucent
-`.glass` column, 248 px wide, padding 20 px 16 px, 16 px from the window
-edges) beside the main column, which owns all scrolling; the body never
-scrolls. [`TopBar`](../src/renderer/src/components/TopBar.tsx) heads the main
-column. The default and minimum page size is 900×670, measured inside the
-window frame; on a smaller screen the minimum shrinks so the app stays usable.
-Every workflow must fit and stay reachable at that size. Don't design a mobile
-layout from a narrow documentation viewport.
+### Window
 
-**Navigation**, in order: Dashboard, Friends, Hot Instances, Activity, Inbox,
-Explore, Search, Groups, Avatars, Settings. Each item is a 13.5 px semibold
-label with an icon, 12 px radius. The current page has a raised selected
-surface (`--control-active-*`) and a 3 px spine at the sidebar's left edge in
-the platform filter's color (blue, orange, or the blue-to-orange blend for
-All); position carries "current page" and the color only echoes the filter.
-Hot Instances, Activity, Inbox, Explore, Search and Groups can be hidden in
-Settings → Appearance → Sidebar pages and in the welcome setup; a hidden page
-leaves the sidebar and its links, while its Dashboard section and alerts keep
-their own switches. A hidden page that is open falls back to the Dashboard; a
-hot-instance alert click still opens Hot Instances while that page is hidden,
-until the user goes elsewhere. The Inbox item shows a neutral count chip of new
-rows (the number is the cue, never a color).
+- The window opens at 900 x 670 (content size) and cannot be made smaller
+  than that, or than the screen's work area if that is smaller. Every page
+  must work at 900 x 670.
+- Title "VRX". The menu bar is hidden and there is no application menu.
+- The window background is painted before the page loads and matches
+  `--bg-base`: `#08080b` in dark, `#e7ecf3` in light.
+- On Windows and Linux, closing the window hides it to the tray. The tray icon
+  has the tooltip "VRX" and a menu with "Show VRX" or "Hide VRX", and
+  "Quit VRX".
 
-**Top bar.** It holds the page's single heading; panels below it keep their
-section headings for screen readers only. Its platform filter is a segmented
-control reading VRC / ALL / CVR, each platform word in its own lifted brand
-color (`--plat-*-word`), and filters the current social view; the sidebar's
-spine echoes it. The filter stays in the same horizontal position on every
-page that shows it, even when a scrollbar appears; nothing else may take its
-place. Settings replaces the filter with its category control, on its own row
-under the title, so the counts stay on the title row as on every other page.
+Source: [`src/main/app.ts`](../src/main/app.ts),
+[`windowTheme.ts`](../src/main/windowTheme.ts), [`tray.ts`](../src/main/tray.ts).
 
-**Connection indicator.** It pairs color with shape: a dot is live, a hollow
-ring is reconnecting, a square is down, and its label names each platform. The
-live dot pulses only while VRX has focus (an endless animation would keep the
-window redrawing behind a game), and stays steady on Linux, where some
-desktops drew the pulse's redraw a pixel off.
+### What the window shows
 
-**Top bar counts** (owner, 2026-11-01) sit right of the filter as one
-right-aligned block: "13 friends" with the connection indicator, and under it
-how many people play each shown platform ("VRC 48,213 CVR 1,876", each number
-beside its platform word). Both follow the platform filter; a platform with no
-answer drops out. Hovering or focusing the block opens a small opaque glass
-panel that spells out friends online, each platform's connection, the full
-platform names and where the numbers come from; Escape or leaving closes it.
-Settings → Dashboard → Player counts turns the player numbers off.
+[`App.tsx`](../src/renderer/src/App.tsx) picks one of four screens:
 
-**Scrollbars.** Every scroll area uses one slim 9 px rounded bar in
-`--scrollbar-thumb` on a clear track, set once in `main.css`.
+1. **Boot screen** (`BootSplash`) until saved settings are read and while the
+   sign-in check is pending: a centered `.glass.glass-information` card with
+   the wordmark and "Connecting…", which pulses unless motion is reduced.
+2. **Welcome setup** (`SetupWizard`, §9.9) while setup is pending. It is shown
+   on first run and can be skipped.
+3. **The shell** (`AppShell`) as soon as one platform is signed in, or its
+   check failed in a way that keeps the session.
+4. **Sign-in** (`LoginScreen`, §9.4) when no platform is signed in.
 
-**High Contrast.** Windows High Contrast removes shadows and the app's own
-colors, so `main.css` redraws, in forced colors only and in system colors, what
-VRX draws with them: the keyboard focus ring becomes a `Highlight` outline; the
-chosen side of a segmented control, the current page and the chosen status in
-Edit profile use `Highlight` with `HighlightText`; the welcome setup's chosen
-theme, choice dots and progress bars use `Highlight`. The presence ring and
-the status dot keep their own colors there, as Locked rule 4 needs.
+### Shell grid
 
-**Segmented controls.** Use
-[`SegmentedControl`](../src/renderer/src/components/SegmentedControl.tsx) and
-[`useSegmentedBubble`](../src/renderer/src/hooks/useSegmentedBubble.ts): a
-`.glass` track (4 px padding, 2 px gap) with an inset bubble
-(`--seg-bubble-bg`, 16 px radius) that measures the active label, because
-labels have unequal widths. Options are 12.5 px semibold, dim until chosen. It
-is a `radiogroup` with one tab stop, arrow-key movement, and visible focus. A
-combined or neutral option sits between the two platform options. On/off
-settings use [`Toggle`](../src/renderer/src/components/Toggle.tsx): the same
-control with visible On and Off labels. The bubble slides only under
-`motion-safe:`.
+`AppShell` is a two-column grid that fills the window: `--sidebar-width`
+(248 px) and the rest, with `--space-4` (16 px) padding and gap. Measured at
+900 x 670: sidebar 248 x 638 at (16, 16); main region 604 x 638 at (280, 16).
+At 1280 x 800 the main region is 984 px wide.
 
-**Buttons.** Most buttons are quiet: `rounded-control` with a
-`--control-fill` background that steps to `--control-fill-hover`, `--text`
-words at 12–13 px, and a 1 px `--text-dim` focus ring. Quieter still (Hide,
-Decline, See all) is text in `--text-dim` with a `--surface-hover` wash on
-hover. A row or card has at most one filled action. A friend action (Accept,
-Add friend) is the stronger fill (`--control-fill-hover` with the
-`--control-active-border` edge, semibold; `FRIEND_ACTION_BUTTON`). A
-platform's Connect button is filled with its brand color (`--text-on-vrc`
-white on blue, `--text-on-cvr` dark ink on orange). The welcome setup's main
-button is a solid `--text` fill with `--bg-base` words, so neither platform
-leads. Destructive actions (Unfriend, Block) wear the error tint with their
-word as the cue. Icon-only buttons have an accessible name and a tooltip.
+- `body` never scrolls. Only `<main>` scrolls, vertically, with a stable
+  scrollbar gutter so content does not shift when a scrollbar appears.
+- `<main>` has 8 px padding and 40 px at the bottom; on Settings it is 8 px
+  all round. Its accessible name is the current page name.
+- Changing page resets the scroll position to the top.
+- Inside `<main>`, in order: the top bar, recovery notices, then the page.
+  Each page sits in an error boundary, so one broken page shows "Something
+  went wrong" with "Reload" and "Copy diagnostics" while the sidebar keeps
+  working.
+- The join confirmation (§9.3) is mounted once, at shell level.
 
-**Settings** has six categories, each its own page with no scrolling at the
-default window size: Appearance, Dashboard, Behavior, Notifications, Accounts,
-and About. The page sits on a `.glass-panel`; each setting is a compact
-`.setting-card` (12 px radius, 8 px by 12 px padding, layered glass) with its
-label and help on the left and its control on the right.
+### Sidebar
 
-- Appearance: Theme, Background glow, Background picture (Choose picture;
-  once set, a thumbnail, Change picture, Remove, and Picture fade in the same
-  card), and Instance labels. Last, one Sidebar pages card with every optional
-  page switch in sidebar order (Hot Instances, Activity, Inbox, Explore,
-  Search, Groups; all on by default). Hiding a page keeps its alerts and
-  Dashboard section; Activity off also stops VRX keeping activity and forgets
-  what it kept.
-- Dashboard: Hide empty sections, then the Sections card (each section's
-  switch with move up and move down buttons), Popular now, Hot Instances, Hot
-  instance threshold, and Player counts.
-- Behavior: Friend details open from (whole card or avatar only), Save notes
-  to my accounts and Use my game favorites (one card), Friends background
-  re-sync, and Allow joining friends, which contains Confirm before joining,
-  Join in, and When the game is already open (Go there, Send invite, or Off;
-  Send invite changes only VRChat, since ChilloutVR has one way). Off keeps
-  the saved VRChat choice for when it is turned back on. Turning a parent off
-  collapses its card with a 220 ms height transition (instant under reduced
-  motion). Hidden children are inert and hidden from assistive technology,
-  focus returns to the parent control when needed, and their saved choices
-  survive.
-- Notifications: one alerts card. Who alerts you (Everyone or Picked friends;
-  with Picked friends its explanation becomes each platform's pick count and a
-  Show link, which lists picks VRChat first with a Remove for each), then
-  Friend comes online, Friend joins a world and Friend goes offline, then,
-  below a divider, the alerts picks never limit: Hot instance, Invite received
-  (invites and invite requests) and Friend request received. Each alert is
-  independent and off by default. Below it, Alerts in VR (off by default)
-  shows the alerts switched on above in the headset through XSOverlay, with
-  the same words for both platforms. On opens Time on screen (Short, Medium or
-  Long) with a Send a test link; for a few seconds after a test, the
-  explanation becomes a short sent or failed line beside the link.
-- Accounts: the VRChat and ChilloutVR account cards side by side at equal
-  height, then the one-line unofficial-app notice. A signed-in card has Edit
-  profile and Sign out sharing one row (each its own full-width line when the
-  words are long, as in Japanese). Sign out asks once, in place of its row
-  ("Sign out of VRChat?", with Sign out and Cancel, focus starting on Cancel),
-  since signing back in needs the password again. Edit profile opens a dialog
-  with bio and pronouns on both platforms in the same order, then, on VRChat
-  only, the four statuses (the friends-list dot beside each word) and the
-  status text. Each label carries its character count; Save stays off until
-  something changes, a failure keeps the text with a reason, and a stray press
-  outside or Escape never throws typed text away.
-- About: Automatic updates, with Stable, Beta and Dev in the same card beside
-  the on/off control and the check button, plus the installed version, Welcome
-  setup (Run setup again), Found a bug? (Report a bug opens GitHub's bug report
-  form in the browser), Open logs folder, and Legal (closed by default). The
-  portable build can't update itself, so its channel and on/off control stay
-  inactive under that note.
+`<aside class="glass flex flex-col">` with 20 px top and bottom padding and
+16 px at the sides. Top to bottom:
 
-**Notices.** Saving is reported once, in the shell (or the welcome setup,
-which replaces it), failures first. Shell notices are compact one-row
-`.glass-layer` strips with the action beside the text; a failure leads with a
-warning glyph as its non-color cue. A normal save is silent; a notice appears
-only if the latest change is still unsaved about two seconds later. A failed
-save shows an alert at once, keeps the latest edits, offers Retry, and stays
-until a save succeeds. Settings VRX couldn't read show the defaults under an
-alert that says so. If the first sign-in check fails, VRX shows a
-platform-specific recovery message with Retry, never a signed-out form. A
-saved VRChat session that needs a fresh sign-in code shows a one-line notice
-with Go to Accounts, and the connection label says Needs code. When a
-platform signs the user out by itself, an alert names it with Go to Accounts
-and Hide, the status dot counts that platform as down, and the sign-in screen
-names it; a sign-out the user chose shows none of this. A panel failure
-stays inside its tab.
+1. The wordmark (§1), then "Social VR Companion" in 11 px `--text-faint`.
+2. The page list (`<nav>`, named "Main navigation"), 3 px between items, in
+   this fixed order: Dashboard, Friends, Hot Instances, Activity, Inbox,
+   Explore, Search, Groups, Avatars, Settings.
+3. The foot, above a 1 px `--sidebar-foot-border` line: "VRX" in VT323 16 px,
+   then "Social VR Companion · v1.4.3" (the version comes from the build).
 
-**Dashboard switches.** Popular now off hides only its Dashboard section;
-Explore stays. Hot Instances off removes its Dashboard statistic, heading,
-threshold, cards, and details, and the remaining statistics fill two equal
-columns; it never hides the Hot Instances page or the Hot instance alert.
-Wearing now and Latest invites off hide only their glance section. A move
-button at the top or bottom stays focusable but does nothing, and each move is
-announced to screen readers. A compact "Settings" button below the Dashboard
-content opens Settings → Dashboard, even when every section is off.
+A page item is a button, 214 x 40 px at the minimum window: 18 px icon, 12 px
+gap, 13.5 px / 600 label, 9 px by 11 px padding, radius 12 px.
 
-**Hide empty sections** (owner, 2026-10-27; on by default) makes the Dashboard
-fit what it has: Latest invites with nothing waiting, a platform that reported
-no worn avatar, and Hot Instances with nothing hot step aside (Popular now
-already does). The Hot instances statistic stays, so "0" still explains the
-missing section. A lone glance section takes the whole row and puts its two
-platform rows side by side. Off shows each section's empty state, and card
-style follows the section order only.
+| State   | Look                                                                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Idle    | `--text-dim` label, no fill, transparent 1 px border                                                                           |
+| Hover   | `--surface-hover` fill, `--text` label                                                                                         |
+| Current | `--control-active-bg` fill, `--control-active-border` border, `--control-active-shadow`, `--text` label, `aria-current="page"` |
+| Focus   | The browser's own focus outline (§11)                                                                                          |
 
-**Updater.** The update control is a 36 px round button in the sidebar
-footer, right of the version line. When there is nothing to do it is absent;
-available, downloading, and downloaded each have their own icon, action and
-label. Hover or focus widens it to reveal the label without clipping the icon.
-Its label adds "try again" only after a download or install failed. While the
-button shows, the footer text stays clear of it, and a long pre-release
-version moves to its own line.
+The current page also has a 3 x 20 px rounded spine at the sidebar's left
+edge. Its color repeats the platform filter: `--vrc`, `--cvr`, or a
+top-to-bottom gradient of both for "ALL". Position marks the current page;
+the color is only an echo of the filter.
+
+- **Inbox count.** While Inbox is not the current page and new items are
+  waiting, its item ends with a small neutral `.glass-chip` count (11 px /
+  600, at least 20 px wide, "99+" above 99). Screen readers hear "3 new". It
+  is never colored.
+- **Hidden pages.** Settings → Appearance → Sidebar pages can turn off Hot
+  Instances, Activity, Inbox, Explore, Search and Groups. Dashboard, Friends,
+  Avatars and Settings always show. If the current page is turned off, the
+  app goes to the Dashboard.
+- **Update button.** Only when an update is available, downloading or ready,
+  a 36 px round button sits at the foot's right. On hover or focus it widens
+  to 104 px and shows its word: "Update", "Updating…" (or the percent), then
+  "Restart". The foot text keeps clear of it.
+
+Source: [`Sidebar.tsx`](../src/renderer/src/components/Sidebar.tsx),
+[`NavIcons.tsx`](../src/renderer/src/components/NavIcons.tsx).
+
+### Top bar
+
+One row at the top of `<main>`, 22 px above the page (8 px on Settings):
+
+- **Left:** the page title.
+- **Right:** the platform filter, then the counts block, 16 px apart.
+- **On Settings** the filter has no use, so the six settings categories take
+  its place on a second row of their own, right aligned. Title and counts
+  stay on the first row.
+
+**Platform filter.** A segmented control named "Platform filter" with
+"VRC", "ALL", "CVR" in that order. "VRC" is always `--plat-vrc-word` and
+"CVR" always `--plat-cvr-word`; "ALL" is `--text` when chosen and
+`--text-dim` when not. It filters every page and is remembered. Measured:
+172 x 41 px.
+
+**Counts block** (`TopBarCounts`, named "Friends and players online"):
+
+- Line 1: a connection dot, then "**13** friends" (13 px, tabular, the number
+  in `--text` 600). On Friends the number counts linked people once.
+- Line 2, when Player counts is on in Settings: "VRC 48,213 CVR 1,876"
+  (12 px; the platform words 11 px / 700 in the platform word colors). Only
+  the filtered platforms show.
+- Hover or keyboard focus opens a 272 px `.glass.glass-information` panel
+  under it: "13 friends online", the connection sentence ("VRChat: Live;
+  ChilloutVR: Live"), then "Playing right now" with one line per platform and
+  the note "As each platform reports it. Checked at most every 5 minutes."
+  Escape closes it. It is a description, not a dialog.
+
+**Connection dot** (8 px). The shape repeats the color:
+
+| Worst state among signed-in platforms | Shape                       | Color       | Word           |
+| ------------------------------------- | --------------------------- | ----------- | -------------- |
+| Live                                  | Filled circle, soft glow    | `--ingame`  | "Live"         |
+| Reconnecting                          | Hollow ring (2 px border)   | `--warning` | "Reconnecting" |
+| Down, or nothing signed in            | Filled square (1 px radius) | `--error`   | "Down"         |
+
+The live dot pulses only while the window has focus and motion is allowed,
+and never on Linux. A platform that is not signed in reads "Signed out" or
+"Needs code" in the sentence.
+
+Source: [`TopBar.tsx`](../src/renderer/src/components/TopBar.tsx),
+[`TopBarCounts.tsx`](../src/renderer/src/components/TopBarCounts.tsx).
+
+### Recovery notices
+
+Between the top bar and the page, one line per problem, each a
+`.glass.glass-layer` strip (12 px text, `--text-dim`) with a small bordered
+button:
+
+| Problem                             | Words                                                                                                       | Actions                  |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------ |
+| Platform cannot be reached          | "Can't reach {platform} right now — your session is safe."                                                  | "Retry"                  |
+| Platform wants a sign-in code       | "{platform} needs a sign-in code."                                                                          | "Go to Accounts"         |
+| The platform signed the person out  | "⚠" in `--error`, then "{platform} signed you out. Sign in again to see your {platform} friends."           | "Go to Accounts", "Hide" |
+| Settings could not be saved or read | For example "Settings could not be saved. Your changes are still applied here, but may be lost on restart." | "Retry saving settings"  |
+
+A sign-out the person did not ask for is announced as an alert. The same
+sentence opens the sign-in screen when no platform is left (§9.4).
+
+Source: [`RecoveryNotices.tsx`](../src/renderer/src/components/RecoveryNotices.tsx).
+
+### Settings layout
+
+Settings shows one category at a time: Appearance, Dashboard, Behavior,
+Notifications, Accounts, About. The category is kept for the session only.
+The page is one `.glass.glass-panel` with 8 px padding holding a column of
+`.setting-card` rows 8 px apart (`.settings-cards`).
+
+**No category scrolls at 900 x 670.** This was measured for all six
+categories in English and Japanese: the main region's scroll height equals
+its height (638 px). A new setting must keep that true: put it in the
+category with room, or behind a disclosure. §9.8 lists every setting.
+
+### Shared controls
+
+**Segmented control** ([`SegmentedControl.tsx`](../src/renderer/src/components/SegmentedControl.tsx)).
+One choice from a short list.
+
+- Track: `.glass` with 4 px padding and 2 px between options. It takes the
+  glass 20 px radius.
+- Options: buttons with `role="radio"`, 12.5 px / 600, 6 px by 13 px padding,
+  no fill of their own. Chosen `--text`, others `--text-dim`, unless the
+  caller gives fixed word colors.
+- The choice is shown by one sliding bubble (`.segmented-bubble`,
+  `--seg-bubble-bg` with `--seg-bubble-shadow`, radius 16 px), measured from
+  the chosen button. It slides in 200 ms; with reduced motion it jumps.
+- Keyboard: one Tab stop on the chosen option. Left and Up choose the previous
+  option, Right and Down the next, wrapping round; the choice applies at
+  once.
+- Disabled: 50% opacity and a not-allowed cursor; the options stay readable.
+- Measured height 41 px. Three short options take about 196 px.
+
+**Toggle** ([`Toggle.tsx`](../src/renderer/src/components/Toggle.tsx)). A
+segmented control with the two words "On" and "Off". VRX has no switch
+graphic and no checkbox for settings: the chosen word is the state.
+
+**Number stepper** ([`NumberStepper.tsx`](../src/renderer/src/components/NumberStepper.tsx)).
+A `.glass` capsule with "−", the value (12.5 px / 600, tabular, at least
+36 px wide) and "+". The round 24 px buttons have an 8% `--text` fill, 14% on
+hover; at a limit the sign turns `--text-faint`. The value is the one Tab
+stop (`role="spinbutton"`): arrow keys change it, Home and End jump to the
+limits.
+
+**Buttons.** See Appendix B.4 for the classes.
+
+| Kind              | Look                                                                                                       | Used for                                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Quiet             | `--control-fill` fill, no border, `--text-dim` word, 12 px, radius 12 px                                   | "Refresh", "Avatars", "See all 3", "Copy link"       |
+| Bordered          | 1 px `--border`, `--control-fill` or no fill, `--text` word                                                | "Cancel", "Retry", "Sign out", settings actions      |
+| Confirm (neutral) | `--control-fill-hover` fill, `--control-active-border` border, 600                                         | "Accept", "Add friend"                               |
+| Join              | `--op-public` word on a 16% tint with a 45% edge                                                           | "Join" everywhere                                    |
+| Platform          | 1 px `--vrc` or `--cvr` border, 16% fill of the same color, word in `--plat-vrc-word` or `--plat-cvr-word` | "Connect" on an account card, "Save" in Edit profile |
+| Platform, solid   | Solid `--vrc` or `--cvr` with `--text-on-vrc` or `--text-on-cvr`                                           | "Sign in" and "Verify" on the sign-in screen only    |
+| Setup primary     | Solid `--text` fill with `--bg-base` word                                                                  | "Get started", "Continue", "Open VRX"                |
+| Destructive       | `--error` word on a faint `--error` tint                                                                   | "Unfriend", "Block", "Unlink"                        |
+| Round icon        | 32 px `.glass` circle                                                                                      | "?", favorite star, alerts bell                      |
+| Close             | 28 px, radius 9 px, "✕" in `--text-dim`, `--surface-hover` on hover                                        | Sheets, friend details, dialogs                      |
+
+Disabled buttons drop to 40 to 60% opacity. A button that is busy keeps its
+place and changes its word ("Refreshing…", "Joining…", "Signing in…").
+
+**Text fields.** Radius 12 px, 1 px `--border`, `--control-fill` fill, 14 px
+text (13 px in small dialogs), placeholder in `--text-faint`. The Friends
+search field is a `.glass-layer` field with a "Clear search" button inside
+its right end.
+
+**Help.** A 32 px round "?" button opens a plain `.glass.glass-layer` text
+panel in the page. It is never a tour and never opens by itself.
+
+### Focus, keyboard and motion
+
+- Focus is always visible. Cards, rows, tiles, round buttons and the counts
+  block draw a 2 px `--text-dim` ring; small buttons, fields and close
+  buttons a 1 px ring. Sidebar items, segmented options and the stepper value
+  keep the browser's own outline (§11).
+- `/` moves focus to the Friends search field, unless focus is in a text
+  field or the join confirmation is open.
+- Escape closes the open sheet, friend details, menu or dialog and returns
+  focus to what opened it.
+- A held Enter key counts once: only its first keydown presses a button or
+  sends a form, so a held key cannot repeat a join, a favorite or a sign-in.
+  Text areas still take repeated new lines.
+- Motion is opt-in for the system: every transition is behind
+  `motion-safe:` or a `prefers-reduced-motion: no-preference` query. With
+  reduced motion, panels appear and disappear without movement.
+- Scrollbars are 9 px, with a fully rounded `--scrollbar-thumb` thumb and no
+  track.
+- Windows High Contrast (forced colors): focus gets a 2 px `Highlight`
+  outline, the segmented bubble and current sidebar page are painted with
+  `Highlight`, and the presence ring and status dot keep their own colors.
+
+Source: [`AppShell.tsx`](../src/renderer/src/components/AppShell.tsx),
+[`installHeldEnterGuard.ts`](../src/renderer/src/installHeldEnterGuard.ts),
+[`main.css`](../src/renderer/src/assets/main.css).
 
 ## §9 Component behavior
 
+Each part below gives the anatomy, the words on screen, the states and the
+source files. Sizes are measured at 900 x 670 unless a width is named.
+
 ### §9.1 Friends, Dashboard, and Hot Instances
 
-**Friends list.** The list sits on a `.glass-panel` with virtual rows and
-sticky, collapsible In-Game, Online, and Offline sections (each header a
-`.glass-layer` strip with its count); Offline starts collapsed. Above them, a
-Favorites section (owner, 2026-11-02) lists the starred friends who are in
-game and shows only while it has someone in it. Those friends also stay under
-In-Game, so a favorite in game shows twice; online and offline favorites stay
-only in their own section. A friend in one of the account's own favorite
-groups counts as starred too. Every starred row carries a small filled star
-after the name in `--favorite` yellow (yellow, not amber, so it reads apart
-from ChilloutVR orange), and the row's accessible name says favorite. A pinned
-section header sits at the scroll area's top edge, with no strip of rows above
-it.
+#### Friends page
 
-An Order control (owner, 2026-11-02), the same segmented control as the
-platform picker, sits on the left above Search friends, on the Refresh line.
-It orders the rows inside each section, the same way on both platforms: Name
-(A to Z, the default; compared as the names are shown, ignoring spaces at
-either end), Recent (the newest Activity first; hidden while the Activity page
-is off), World (friends in the same instance together, the biggest crowd
-first) or Joinable (the most open instance you can join first). Every choice
-keeps the sections and falls back to the name. Search shows
-matches without changing saved collapse settings; when nothing matches, only
-the no-results line shows. Roving focus moves between avatars, and off-screen
-rows stay out of the Tab order. Compact rows are at least 60 px and are
-re-measured as join feedback appears or clears.
+The page is one back panel: a `<section>` with `.glass-panel`, the 20 px
+panel radius, a 1 px `--glass-border` border and 16 px padding (579 px wide
+at the minimum window). The `.glass-panel` class here supplies only the
+blurred backing; this section does not also take `.glass`.
 
-A friend row is a `.platform-row` with, from left: the platform rail (a
-vertical VRC / CVR / VRX chip), the avatar with its ring and dot, the name
-(with the favorite star and the custom status, dim, beside it), the world line,
-and the instance pill with its Join shortcut on the right. The avatar opens
-friend details. By default the whole card opens them too, except the Join
-control and text selection; the "Avatar only" choice in Settings → Behavior →
-Friend details open from keeps the row body inert. The pill's spoken name
-starts with the access words it shows ("Public: Join Amy in SunDown"), so
-speech users can say what they see. Add friend's spoken name holds its visible
-words too: first in English ("Add friend: Amy on VRChat"), last in Japanese.
+**Header row.** Left: the Order control, a segmented control named "Order
+inside each group" with "Name", "Recent", "World", "Joinable". Right: a
+people count ("15 people", only when linked friends exist, since linked
+people count once) and a quiet "Refresh" button.
 
-Join failures wrap below the row's controls, stay until another attempt or an
-account change, and say what to do next. Retry uses the same Join control with
-its confirmation, busy state, and main-process checks. Joins never retry
-automatically.
+- Order never moves a friend between sections. Name is A to Z, compared as
+  the names are shown, ignoring spaces at either end. Recent puts
+  the friend with the newest Activity entry first. World puts friends who
+  share an instance together, the biggest group first. Joinable puts the
+  most open joinable instance first, in the order of the access ladder
+  (§6.1). Ties fall back to the name.
+- "Recent" is offered only while the Activity page is on; with it off, a
+  saved Recent choice shows as Name.
 
-**Dashboard statistics** are one set (owner, 2026-11-01): each card is a
-`.glass-layer` with the same layout, a VT323 number in `--text` and its label
-in `--text-dim`, with no icons. Numbers take no presence color: Friends online
-counts active and in-game friends together, and the label names each number.
-Statistics count accounts. Hot instances group by the exact platform instance,
-never just the world, and need at least the threshold number of visible
-in-game friends (2 by default, 1 to 10). The threshold stepper sits beside a
-quiet "?" button that toggles an explanation of grouping, visible friends, the
-platform filter, ranking, and the threshold; it starts closed and exposes its
-state to assistive technology.
+**Search.** A full-width field, "Search friends", 38 px tall. Typing filters
+after 200 ms across both platforms and a linked person's other names.
+Matching letters get a 16% `--text` highlight behind them. While a search is
+active every section is open and its header cannot collapse. A linked person
+found by another of their names shows that name beside the row name. A
+"Clear search" button (24 px) appears inside the field's right end.
 
-**Glance row.** Wearing now and Latest invites share a row while they are
-neighbors in the section order; apart, each gets its own full-width row. They
-sit side by side when the area is at least 520 px wide, one above the other
-below that; a lone section fills the row with its two platform rows side by
-side. Each is a heading with a quiet button (Avatars, or See all N for the
-Inbox, "See 1" for one) over a list of equal-height `.platform-row` rows: a
-picture, the name, and the platform as a word (`PlatformPill`), so VRChat and
-ChilloutVR read alike. Wearing now has one row per signed-in platform in the
-filter: the 4:3 avatar picture and name, or a one-line loading, not-reported,
-or failed state with Try again (Go to Accounts when the platform asks to sign
-in again). A row opens the Avatars page. Latest invites shows the newest
-invite or invite request per platform, VRChat's first, in the Inbox row's
-words and age; a row opens the Inbox, and with the Inbox page hidden the rows
-are plain text.
+**Sections.** In this order: "Favorites (3)", "In-Game (n)", "Online (n)",
+"Offline (n)".
 
-**Popular now and Hot Instances cards.** Each Dashboard section shows two
-cards, chosen as in Locked rule 7. Picture cards (`ExploreWorldCard`,
-`HotInstanceCard`) are `.glass-layer` cards with the world picture on top, a
-VRC or CVR chip on the picture, and the details below. Bar cards put the world
-picture behind a same-color scrim with the platform tint on top, so the
-platform color still reads at a glance; pills over a picture get the
-card-color backing. Card grids follow the card style, not the section order:
-picture cards sit two across when the area is at least 440 px wide, bars two
-across from 620 px. On wide windows picture grids (Explore, Popular now, world
-results, Hot Instances) add a column each time a column would pass about
-730 px: three from 1,480 px, four from 2,200 px, up to eight, so an ultrawide
-shows more cards instead of blurry ones. To avoid half-empty rows, Explore's
-Popular now rounds "Worlds shown" up to whole rows, and a Dashboard section
-with picture cards shows one full row. The rule lives in `main.css`
-(`.picture-grid`, `.hot-grid--picture`), mirrored for counts by
-[`pictureColumns.ts`](../src/renderer/src/utils/pictureColumns.ts).
+- A section header is a full-width button: `.glass-layer`, radius 12 px,
+  24 px tall, a 14 px chevron then the label in 12 px / 600 uppercase. The
+  chevron points down when open and turns to point right when collapsed.
+  Hover lightens the fill by 8% `--text`.
+- Collapsed sections are remembered. Offline starts collapsed.
+- The header of the section being read sticks to the top of the list while
+  its rows scroll under it.
+- **Favorites** lists favorite friends who are in a game right now. They also
+  stay in In-Game: Favorites is a shortcut, not a move. With no favorite in a
+  game the section is absent.
+- **Favorite groups.** When those favorites sit in more than one place,
+  Favorites splits under small sub-headings: each of the account's own
+  favorite groups that has someone in a game ("Besties · VRC (2)", VRChat's
+  groups first in the account's order, then ChilloutVR's categories), then
+  "Starred in VRX (1)" for friends starred only in VRX. A sub-heading is plain
+  words in 11.5 px / 600 `--text-dim`, never a chip or a button: the group's
+  name, the platform as a word, and the count. A friend shows once, under the
+  first group that holds them. With one place only, Favorites stays one plain
+  list. Sub-headings fold away with the section and do not collapse on their
+  own.
 
-The Hot Instances section adds a quiet "See all N" button, shown only while
-the page is, that opens the Hot Instances page: every hot instance as a
-picture card, most friends first, with the same header, empty state, and
-sheet. The access pill on a hot card is a discreet Join shortcut; don't turn
-it into a prominent Join button. The world name is the card's button for the
-keyboard and screen readers, beside the Join pill and never around it; a
-click elsewhere on the card, except Join and text selection, opens the sheet.
+**Row** (`FriendRow`). 60 px tall, 4 px between rows, radius 13 px. A
+four-column grid, `14px 42px 1fr auto` with a 12 px gap, padding 8 px top and
+bottom, 10 px left, 12 px right. The row is a `.platform-row` with the
+modifier for its platform (§3), so it has the platform's wash and soft edge.
+
+| Column       | Content                                                                                                                                                                                                                                  |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Platform tab | A 21 x 52 px `.glass-chip` with "VRC", "CVR" or "VRX" written bottom to top, in the platform rail colors                                                                                                                                 |
+| Avatar       | 42 px, with the presence ring and the 16 px status dot (§5). This is the button that opens details                                                                                                                                       |
+| Text         | Line 1: name (14 px / 600, at most 68% of the line), a 12 px `--favorite` star for a favorite, then custom status text in 12 px `--text-dim`. Line 2: world name, 12.5 px `--text-dim`, fixed 16 px tall so every row is the same height |
+| Access       | The instance pill (§6.1), at least 78 px wide, centered. Empty for friends who are not in a game                                                                                                                                         |
+
+- Custom status text is plain text beside the name, never a chip. It shows
+  for VRChat friends who are not offline.
+- A joinable friend's pill is a button (§6.1). If a join cannot go ahead, a
+  12 px `--text-dim` line under the row says why.
+- A friend in a game whose world is hidden shows the neutral "Private" pill
+  and no world name.
+- An unknown world reads "Unknown World".
+
+**Row states.**
+
+| State          | Look                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------- |
+| Hover          | `--surface-hover` fill over the wash. Pointer cursor when the whole card opens details       |
+| Keyboard focus | 2 px `--text-dim` ring round the row, 2 px away from it, plus the same ring on the avatar    |
+| Join pending   | The pill dims to 50%                                                                         |
+| Unavailable    | A plain bordered 60 px row reading "Unavailable", for a linked account whose data is missing |
+
+**Opening details.** By default a press anywhere on the row opens friend
+details (§9.2), except on the pill, and except when the press ends a text
+selection. Settings → Behavior → "Friend details open from" can limit this
+to the avatar. The avatar button is always the keyboard way in.
+
+**Keyboard.** The list is one Tab stop. Up and Down move between rows; Enter
+or Space on a row opens details; Tab moves on to the row's pill. The row
+announces its name, "favorite" when it is one, its status, its world and its
+platform. `/` focuses the search field.
+
+**List states.**
+
+| State                       | What shows                                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Checking sign-in, loading   | "Loading…" in 14 px `--text-dim`                                                                              |
+| No platform connected       | A `.glass.glass-layer` card: "Connect VRChat to see your friends here" and "Go to Accounts"                   |
+| Nothing loaded              | "Could not load friends" in `--error`                                                                         |
+| One platform failed         | Above the list: "VRChat friends could not load. This list is missing them." in `--error`, with "Retry VRChat" |
+| One platform is out of date | "VRChat friends could not refresh. Showing the last loaded list." in `--text-dim`, with the same button       |
+| No friends                  | "No friends yet"                                                                                              |
+| Search finds nothing        | "No friends match your search", with no empty section headers under it                                        |
+
+The list is virtual: only rows near the window are in the page, so it stays
+quick with thousands of friends.
+
+Source: [`FriendsList.tsx`](../src/renderer/src/components/FriendsList.tsx),
+[`FriendRow.tsx`](../src/renderer/src/components/FriendRow.tsx),
+[`FriendsSectionHeader.tsx`](../src/renderer/src/components/FriendsSectionHeader.tsx),
+[`FriendsSourceNotice.tsx`](../src/renderer/src/components/FriendsSourceNotice.tsx),
+[`Avatar.tsx`](../src/renderer/src/components/Avatar.tsx),
+[`friendSort.ts`](../src/renderer/src/utils/friendSort.ts).
+
+#### Dashboard
+
+Top to bottom:
+
+1. **Numbers.** A row of equal `.glass.glass-layer` cards, 14 px apart,
+   padding 16 px by 18 px: "Friends online", "In game right now" and, while
+   Hot Instances is on, "Hot instances". Each is a VT323 38 px number over a
+   12.5 px label. Three cards are 184 x 95 px each at the minimum window.
+2. **Sections**, in the order set in Settings → Dashboard → Sections. The
+   four sections are "Wearing now", "Latest invites", "Popular now" and
+   "Hot Instances". Each can be turned off.
+3. A quiet "Settings" button at the bottom right. It opens Settings →
+   Dashboard.
+
+A section heading is VT323 18 px, uppercase, 2 px letter spacing,
+`--text-dim`, with 24 px above it and 12 px below. Any button for the
+section sits on the same line at the right.
+
+**Wearing now** and **Latest invites** are the two glance sections. When
+they are neighbors in the order they share one row, two equal columns
+14 px apart; under 520 px of content width they stack. A lone glance
+section fills the row and lays its two platform rows side by side.
+
+- Wearing now: one `.platform-row` per platform, 78 px tall: a 60 x 45 px
+  avatar picture (radius 8 px), the avatar name (14 px / 600) and the
+  platform pill. A row opens the Avatars page. The heading has an "Avatars"
+  button. A platform that is loading, failed or not connected says so in its
+  row, with "Try again" or "Go to Accounts".
+- Latest invites: the newest invite from each platform since VRX opened,
+  one `.platform-row` each: sender name and platform pill, then the action
+  and its age ("Invited you to {world} · Just now") in 12 px. A row opens
+  the Inbox. With more waiting, the heading has "See all 5". With none, one
+  neutral row reads "No invites since VRX opened".
+
+**Popular now** shows the busiest public worlds from Explore (§9.4).
+**Hot Instances** shows instances where friends have gathered.
+
+- Whichever of these two comes first in the order shows **picture cards**;
+  the other shows **bar cards**. With "Hide empty sections" on, if the first
+  has nothing to show, the other takes the picture cards.
+- Count (Locked rule 7): a bar-card section shows two cards. A picture-card
+  section shows two, or one whole row when the window is wide enough for
+  three or more columns.
+- Hot Instances picks one instance per platform first, so both platforms
+  appear when both have one.
+- The Hot Instances heading line holds "See all 4" (when the Hot Instances
+  page is on), the label "Min. friends", a number stepper from 1 to 10
+  (default 2) and a "?" help button.
+- Empty Hot Instances: a `.glass.glass-layer` card at least 180 px tall,
+  "No hot instances currently" (14 px / 600 `--text-dim`) and "When 2 or more
+  friends gather in the same instance, it'll show up here." With "Hide empty
+  sections" on, the whole section is absent instead.
+
+Page states: "Loading…"; "Could not load your friends right now" in `--error`
+with "Retry"; the not-connected card (Appendix B.7); and the same per-platform
+source lines as Friends, worded "…so they are left out here."
+
+Source: [`DashboardView.tsx`](../src/renderer/src/components/DashboardView.tsx),
+[`DashboardGlance.tsx`](../src/renderer/src/components/DashboardGlance.tsx),
+[`ExploreDashboardPreview.tsx`](../src/renderer/src/components/ExploreDashboardPreview.tsx),
+[`HotInstancesHeader.tsx`](../src/renderer/src/components/HotInstancesHeader.tsx).
+
+#### Hot instance cards
+
+Both layouts are `.glass.glass-layer` with `.tint-vrc` or `.tint-cvr` and
+`.glass-hover`. The whole card opens the hot instance sheet (§9.3); the world
+name is the button for keyboard users and is named "{world} hot instance
+details". When that button has keyboard focus the card shows a 2 px
+`--text-dim` ring.
+
+**Bar card** (112 px tall at the minimum window; one column under 620 px of
+content width, two above; a lone card fills the row):
+
+- Top left: the world name, 25 px / 700, one line.
+- Top right: the instance pill. When a friend there can be joined it is the
+  join button.
+- Bottom left: up to four friend names in 13.5 px `--names-lift`, then
+  "+3" in bold `--text` for the rest. Names are plain text.
+- Bottom right: the platform pill.
+- With a world picture: the picture fills the card behind a left-to-right
+  veil of the opaque card color (90% to 62%) and the platform tint. The
+  pills then sit on a 78% card-color backing.
+
+**Picture card** (two columns from 440 px of content width; three from
+1480 px; one more column every 720 px after that):
+
+- A 16:7 picture on top (`.glass-clip-top`), with a "VRC" or "CVR"
+  `.glass-chip` badge at its top left (10 px / 700).
+- Under it, 12 px padding: the world name (18 px / 700) with the instance
+  pill on the same line, then the names line.
+
+**Hot Instances page.** The same header line without "See all", then every
+hot instance as picture cards in `.hot-grid.hot-grid--picture`. The empty
+card is the same as on the Dashboard. The help panel reads "Hot Instances
+show friends together in the same instance. Only in-game friends with
+visible locations count…" and explains the stepper.
+
+Source: [`HotInstanceCard.tsx`](../src/renderer/src/components/HotInstanceCard.tsx),
+[`HotInstancesView.tsx`](../src/renderer/src/components/HotInstancesView.tsx),
+[`CardPictureBackdrop.tsx`](../src/renderer/src/components/CardPictureBackdrop.tsx).
 
 ### §9.2 Friend details
 
-The friend details drawer is a non-modal `.glass .glass-sheet` panel pinned to
-the right edge (14 px inset, 372 px wide) over a soft scrim that doesn't block
-input. It slides in under `motion-safe:`. Escape, a click outside, and Close
-all dismiss it the same way, and opening another friend switches the profile.
-Focus returns to the opener or the search box. Closed content is inert and
-hidden from assistive technology. While a confirmation modal is open, the
-drawer pauses its own dismissal.
+Friend details is a panel that slides in from the right
+([`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx)). It
+is `.glass.glass-sheet`, 372 px wide, 14 px from the top, right and bottom
+of the window (372 x 642 px at the minimum window), radius 20 px. It slides
+in 260 ms; with reduced motion it appears at once.
 
-The order is: header (avatar without dot, name, platform badge chip), the
-written status band, Where, actions, Notes, Trust, then Show full profile
-(collapsed). A footer pinned below the scrolling area holds Identities on the
-left and, on the right, the favorite star and the alerts bell.
+**It is not modal.** A soft scrim (`--scrim-soft`) dims the window for depth
+only and takes no clicks. The list behind stays usable.
 
-- **Favorite star.** An outline when off and a filled `--favorite` star when
-  on, so its state never rests on color. It is filled while the friend is
-  starred in VRX or sits in one of the account's own favorite groups. Pressing
-  it springs the favorite panel out of it: a VRX row (a linked person is one
-  VRX star across both accounts, kept on this PC), then one section per
-  account with its game favorite groups as check rows (a ticked box, the group
-  name, and the count, with VRChat's cap). VRChat keeps a favorite in one
-  group, so the other groups wait until it leaves and a short line says why;
-  ChilloutVR allows several. The panel says when game favorites are off, still
-  loading, could not load (with Try again), or have no groups yet. It never
-  creates a group.
-- **Alerts bell.** It shows whether this friend can alert you by shape, not
-  color: sound waves when on, a slash when off, and the button's name says On
-  or Off. Pressing it springs a small opaque panel out of the bell (scale and
-  fade with a slight overshoot, rows following one after another, and the bell
-  swings); reduced motion shows and hides it without movement. The panel holds
-  Alert me about this friend while alerts are limited to picked friends
-  (otherwise one line says every friend can alert you), the three friend alert
-  kinds with a check or dash beside each, and Alert settings. Escape or a
-  press outside folds the panel before the drawer itself closes.
-- **Where** cards keep privacy rules, show neutral art when a picture is
-  missing, use instance labels, and never show raw IDs or policy pills; a
-  split card names each platform.
-- **Notes.** If notes load without a valid account revision, they stay
-  read-only with Retry. A failed save keeps the draft and a warning; a
-  successful save is quiet. A presence change never retargets a draft. With
-  Save notes to my accounts on, a line under the note says whether the
-  account's own copy matches, with Keep mine, Use the VRChat note, or Save to
-  VRChat; those buttons move focus to that line when pressed. A linked
-  person's note is headed "Shared notes (yours, private)" and stays on this
-  computer.
+- Pressing another friend's row or avatar switches the panel to that friend.
+- Pressing anywhere else outside closes it. So do "✕" and Escape.
+- Pressing a join pill outside closes the panel and then joins.
+- Focus moves to "✕" when the panel opens and returns to the friend's row
+  when it closes.
+
+**Content, top to bottom** (16 px padding, 16 px between blocks):
+
+1. **Header.** A 64 px avatar with the presence ring. The name, 18 px / 700,
+   up to two lines. Custom status text under it, 12.5 px `--text-dim`, plain
+   text. Then a 24 px platform chip ("VRChat" or "ChilloutVR"). A linked
+   person shows one small button per account instead (§10).
+2. **Status.** A full-width chip tinted in the status color (10% fill, 30%
+   edge): a 10 px dot, the status word in 14 px / 700 in the status text
+   color, and a plain description at the right in 12 px `--text-dim`:
+
+   | Status         | Description                     |
+   | -------------- | ------------------------------- |
+   | Join Me        | "Open to joins — hop in freely" |
+   | Online         | "Around and reachable"          |
+   | Ask Me         | "Ask before joining"            |
+   | Do Not Disturb | "Not accepting joins"           |
+   | Offline        | "Not connected"                 |
+
+3. **Where**, only while the friend is in a game: the small heading "WHERE",
+   then the world picture (338 x 190 px, radius 12 px) with the instance pill
+   and the world name over its lower edge. A hidden world shows the word
+   "Hidden" and no picture.
+4. **Join**, only when the friend can be joined: a full-width "Join" button
+   (38 px tall, the Join look from §8) and a 12 px status line under it for
+   "why not" messages.
+5. **Notes.** The heading "NOTES (YOURS, PRIVATE)", a four-row text area with
+   the placeholder "Add a private note…", and a line under it with the
+   account-note state at the left and the counter "128/500" at the right.
+   A note saves when focus leaves the field and when the panel closes or
+   switches friend.
+6. **Trust** (VRChat only): "Trust: Known User" in 12 px `--text-dim`.
+7. **Show full profile.** A quiet button. It opens, in place, the profile for
+   each account (bio, pronouns, rank, badges, with worlds and groups behind
+   their own "Show worlds" and "Show groups" buttons) and the friend actions
+   from §9.7. Under the rank it lists the User ID with "Copy link" beside it
+   (§9.3). Nothing here is fetched until the button is pressed.
+8. **Foot row**, pinned at the bottom: "Identities" at the left (§10), then
+   the favorite star and the alerts bell at the right, both 32 px round
+   `.glass` buttons.
+
+**Account-note states.** With "Save notes to my accounts" on in Settings,
+the line under the note says where the note is:
+
+| State                        | Words                                                                                                            | Action                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Saved to the account         | "Also saved to your VRChat account"                                                                              |                                    |
+| Saving                       | "Saving to your VRChat account…"                                                                                 |                                    |
+| Not sent yet                 | "Only on this PC so far."                                                                                        | "Save to VRChat"                   |
+| Too long for the platform    | "Only on this PC: VRChat keeps notes up to {max} characters."                                                    |                                    |
+| Platform unreachable         | "Couldn't reach VRChat. Saved on this PC."                                                                       | "Save to VRChat"                   |
+| Platform asked to slow down  | "VRChat asked VRX to slow down. Saved on this PC; try again in a minute."                                        |                                    |
+| The account has another note | A bordered box: "Your VRChat account has a different note for this friend:", that note quoted, up to three lines | "Use the VRChat note", "Keep mine" |
+
+A note that fails to load or save shows a bordered alert line with a bold
+"!" in `--error` and "Retry". Over 500 characters the note says "This note
+is over 500 characters. Shorten it to save your changes."
+
+**Favorite star.** An outline star in `--text-dim` when off; a filled star in
+`--favorite` when on, so shape and color both change. Pressing it opens the
+Favorite panel above it: a 300 px `.glass.glass-information` panel (radius
+16 px) with:
+
+- "VRX": one choice, "Star in VRX (this PC only)".
+- "VRChat favorites" or "ChilloutVR favorites": the account's own favorite
+  groups, each with its fill ("1/150"). This part shows only with "Use my
+  game favorites" on; otherwise it reads "Game favorites are off in
+  Settings." with a "Settings" link.
+- A choice is a row with a 16 px box that shows "✓" in `--favorite` when
+  chosen.
+- Messages, in 12 px: loading, "Couldn't load your …" with "Try again", "No
+  groups yet. Make one in the game, then check back.", "VRChat keeps a
+  favorite in one group…", "That group is full…", "That was a lot of changes
+  at once. Wait a moment, then try again."
+
+A linked person has one star for both accounts.
+
+**Alerts bell.** A bell in `--text-dim`, `--text` when alerts apply to this
+friend. Pressing it swings the bell and opens the Alerts panel (340 px, same
+material):
+
+- With "Who alerts you" set to Everyone: "Every friend can alert you. To
+  pick only some friends, change Who alerts you in Settings."
+- With it set to Picked friends: an "Alert me about this friend" row with an
+  On/Off toggle.
+- Then the three friend alerts as small chips: "✓ Comes online",
+  "– Joins a world", "– Goes offline". An alert that is off has the dash
+  and `--text-faint` words; screen readers hear "(on)" or "(off)". When all
+  three are off the line reads "Friend alerts are all off."
+- A link, "Alert settings →", opens Settings → Notifications.
+
+Both panels spring open from their button (320 ms) and their lines follow one
+after another; with reduced motion they simply appear. Escape or a press
+outside closes them.
+
+Source: [`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),
+[`AccountNoteStatus.tsx`](../src/renderer/src/components/AccountNoteStatus.tsx),
+[`FavoriteStar.tsx`](../src/renderer/src/components/FavoriteStar.tsx),
+[`FavoriteMenu.tsx`](../src/renderer/src/components/FavoriteMenu.tsx),
+[`FriendAlertBell.tsx`](../src/renderer/src/components/FriendAlertBell.tsx),
+[`LinkedWorlds.tsx`](../src/renderer/src/components/LinkedWorlds.tsx).
 
 ### §9.3 Confirmation and sheets
 
-**Join confirmation** is a true heavy-frosted modal (`.glass
-.glass-frosted-heavy .glass-information`, 400 px wide). It keeps focus inside,
-offers Cancel, respects permission denials, reviews the live target, and
-handles session changes and in-flight states. The main process has the final
-say, and confirmation preferences never bypass permission or target checks. A
-Join from a hot card or its sheet is for the instance: if the friend it went
-through leaves, the dialog joins through another friend still there, and shows
-the move or "no longer available" only once nobody is left. A press outside
-closes only the confirmation and returns focus to its opener.
+#### Join confirmation
 
-**Sheets.** Explore world, Hot Instance, Avatar, person and group sheets are
-contained, non-modal `.glass .glass-sheet` bottom sheets that share one
-layout: grab bar, then the picture starting below Close.
-Close stays reachable outside the scrolling area. In the light theme a sheet
-banner keeps the photo at full brightness and lays a soft card-colored scrim
-(`--hot-sheet-banner-scrim`) under the title instead of darkening it. Escape,
-a click outside, and Close return focus to the opener or a stable fallback.
-Picking another world while an Explore sheet is open switches it in place.
-Every sheet opens at its top, also for the one shown last. A confirmation
-modal owns dismissal while open, and the Dashboard never shows two sheet
-types at once.
+Joining a friend's instance asks first, unless "Confirm before joining" is
+off in Settings. The dialog is the one true modal in the shell
+([`JoinConfirmDialog.tsx`](../src/renderer/src/components/JoinConfirmDialog.tsx)).
 
-Every bottom sheet opens collapsed, and its grab bar is a real control
-([`SheetGrabBar`](../src/renderer/src/components/SheetGrabBar.tsx)): drag up
-to expand to nearly the window height, drag down to collapse, and pull a
-collapsed sheet down to close it. A press on the bar, Enter or Space toggles;
-Arrow Up and Arrow Down expand and collapse. Expanding grows the banner and
-adds the sheet's "more" details
-([`SheetFacts`](../src/renderer/src/components/SheetFacts.tsx)) from data
-already on hand, never a new platform request. Both platforms show the same
-extra fields in the same order. Each reopen starts collapsed.
+- **Material.** A `--scrim-soft` scrim over the whole window, and a centered
+  `.glass.glass-frosted-heavy.glass-information` panel, 400 px wide, 24 px
+  padding, 12 px between blocks, radius 20 px. It is opaque so the text is
+  never read through blur.
+- **Title row.** "Join this Public instance?" (16 px / 600; "Join this
+  instance?" when the access is unknown). At the right, stacked: the
+  platform pill and the instance pill.
+- **Context.** "{name} is in {world}" in 14 px `--text-dim`, up to two lines.
+- **Policy.** The policy space pill (§6.2) and a dotted-underline "More
+  info" link that opens one sentence.
+- **Who is here.** Small avatars of friends in that instance, then "+N".
+- **Notes** in 12 px, only when they apply: "VRChat chooses VR or desktop
+  from its own launch settings.", "Will launch in VR.", "Will launch on
+  desktop.", and the note for a game that is already open.
+- **ChilloutVR launch mode.** When Settings says "Always ask", a segmented
+  control named "Launch mode": "VR", "Desktop".
+- **Actions**, right aligned: "Cancel" (bordered, 14 px / 500) and "Join"
+  (the Join look, 14 px / 600). Both are 38 px tall.
+- **Foot.** "Don't ask again (turn it back on in Settings → Behavior)" as an
+  11 px link.
+
+Behavior:
+
+- Focus starts on "Cancel" and is kept inside the dialog. Escape and a press
+  on the scrim cancel.
+- While the join is being sent, "Join" reads "Joining…", both buttons are
+  held and Escape does nothing.
+- If the friend moves while the dialog is open, it does not join the old
+  place. It says "{name} moved to a different instance — review before
+  joining" with "Review updated location", or "Waiting for updated
+  location…", or "{name} is no longer available to join."
+- Joining a public room from Explore uses the same dialog, with "{n} people"
+  or "Count unknown" in place of the friend line.
+
+#### Other confirmations
+
+| Where                    | Kind                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Unfriend, Block, Unblock | A 400 px alert dialog on the heavier `--scrim` (§9.7)                                                                          |
+| Sign out of a platform   | In the account card itself: "Sign out of VRChat?" with "Sign out" and "Cancel" (§9.8)                                          |
+| Set as home world        | In the world sheet itself: "Make this your VRChat home world? It replaces the one you have now." with "Make home" and "Cancel" |
+| Link or unlink a friend  | Inside the Identities dialog (§10)                                                                                             |
+
+A confirmation always names what will change and where ("on VRChat"). The
+safe choice gets first focus.
+
+#### Bottom sheets
+
+Four sheets rise from the bottom of the content area: the hot instance
+sheet, the Explore world sheet, the avatar sheet, and the person and group
+sheet. They share one frame.
+
+- **Frame.** `.glass-sheet`, fixed to the bottom, spanning the content area
+  only (from `--content-inset-left` to `--content-inset-right`, so the
+  sidebar stays clear): 604 px wide at the minimum window. Top corners 20 px,
+  bottom corners square, a 1 px top border. Its fill is the opaque card
+  color behind a blur.
+- **Scrim.** `--scrim-soft` over the content area only. It takes no clicks.
+- **Not modal.** The page behind stays usable; pressing another card
+  switches the sheet. "✕" (top right), Escape and a press outside close it.
+  Focus moves to "✕" when the sheet opens and returns to the card that
+  opened it.
+- **Two heights.** A sheet opens collapsed and can expand to the window
+  height less 64 px (606 px at the minimum window). Every reopen starts
+  collapsed.
+
+  | Sheet            | Collapsed height                        |
+  | ---------------- | --------------------------------------- |
+  | Hot instance     | 360 px (or 34% of the window if taller) |
+  | Avatar           | 360 px (or 34% of the window if taller) |
+  | Explore world    | Up to 55% of the window (368 px at 670) |
+  | Person and group | 360 px up to 72% of the window          |
+
+- **Grab bar.** A full-width button at the top holding a 44 x 4 px rounded
+  bar in `--border`. Hover widens it to 52 px in `--text-faint`; while
+  dragged it is 56 px in `--text-dim`. It is named "Show more" or "Show
+  less", with the tooltip "Drag up or click for more" or "Drag down or click
+  for less".
+  - Click, Enter or Space toggles. Up expands. Down collapses.
+  - Dragging 56 px or a quick flick changes the state; less snaps back.
+    Dragging a collapsed sheet down 72 px closes it.
+- **Motion.** Height and slide take 220 ms with
+  `cubic-bezier(0.32, 0.72, 0.29, 1)`. While dragged the sheet follows the
+  pointer with no transition. The extra facts fade up in 260 ms. Reduced
+  motion removes all of it.
+
+**Hot instance sheet** ([`HotInstanceSheet.tsx`](../src/renderer/src/components/HotInstanceSheet.tsx)):
+
+- A world picture banner (radius 12 px; it grows when the sheet expands) with
+  the world name over its lower left (21 px / 700), the instance pill and
+  platform pill under the name, and "Join" at the lower right when a friend
+  there can be joined.
+- Under it: the policy space pill (§6.2), then "FRIENDS HERE — 4" and each
+  friend as a small avatar with the name in 12.5 px, inside a rounded
+  bordered capsule (`--border` edge, `--control-fill` fill; see §11).
+- At the right: for a group instance, the group's banner (200 x 80 px)
+  named "Hosted by {group}".
+- Expanded, "ABOUT THIS INSTANCE" adds a two-column list: People here,
+  Friends here, Region, Access, Group, Instance ID. A value the platform
+  does not give reads "Not shown".
+
+**Copy link.** An ID in a sheet's expanded list has a quiet "Copy link"
+button beside it ([`CopyLinkButton.tsx`](../src/renderer/src/components/CopyLinkButton.tsx)):
+Instance ID in the hot instance sheet, World ID in the world sheet, User ID
+in the person sheet and in friend details under "Show full profile". It puts
+a link to that person, world or instance on the clipboard and VRX opens
+nothing. The button's word says what happened for 2 seconds, "✓ Copied" or
+"Couldn't copy", so the result never depends on color. VRChat links are its
+website pages; ChilloutVR links open the page in the game. An ID with no
+valid link shows without the button.
+
+The world, avatar, and person and group sheets are described with their
+pages in §9.4 and §9.7.
+
+Source: [`useSheetExpansion.ts`](../src/renderer/src/hooks/useSheetExpansion.ts),
+[`SheetGrabBar.tsx`](../src/renderer/src/components/SheetGrabBar.tsx),
+[`SheetFacts.tsx`](../src/renderer/src/components/SheetFacts.tsx).
 
 ### §9.4 Explore, loading states and sign-in
 
-Explore and the Dashboard's Popular now use the same world card. Equivalent
-content from both platforms gets equal treatment. Occupancy is "People".
-Don't repeat the top-bar heading.
+#### Explore page
 
-**Loading.** Dashboard and Explore show one "Worlds loading…" line while any
-selected platform is loading for the first time with nothing to show yet, even
-beside cards from the other platform; those cards stay visible. A normal
-refresh with cards already shown is silent. Real errors, unavailable sources,
-stale results, and verified empty states stay visible. Unknown or partial
-counts stay unknown, never zero. Nothing here may add polling. Under All, a
-platform the user isn't signed in to adds no line; filtered to that platform,
-the page shows the Connect gate with Go to Accounts.
+Explore lists public worlds from both platforms.
 
-**Failures** follow Locked rule 5. A failed Refresh or re-read never clears a
-list that loaded: the platform keeps its cards and adds a dim line naming it
-(after a rate limit it also says to try again in a minute); the error color is
-for a platform with nothing loaded. Try again on a red line shows that
-platform's loading line until it answers. When one platform's roster fails,
-Friends keeps the usable list and shows a line naming that platform, with a
-Retry for that platform only; the Dashboard and Hot Instances show the same
-line. Right after a sign-in or account switch they say Loading until the real
-roster arrives, never 0 friends.
+- **Top row.** Left: a segmented control named "Which worlds to show" with
+  "Popular now", "New", "Recently updated", "Favorites". Right: a quiet
+  "Refresh" button that reads "Refreshing…" while it works.
+- **Hint line** under it, one plain sentence per list: "The busiest public
+  worlds on each platform right now.", "The newest public worlds on each
+  platform.", "Public worlds their creators updated most recently.", "Worlds
+  you starred in VRX, then the favorites in your game accounts."
+- **Popular now** also has a "Worlds shown" number stepper (2, 4 or 6;
+  default 4). The count is rounded up to whole rows, so a row is never left
+  half empty.
+- **Grid.** `.picture-grid` inside `.picture-gridwrap`: two columns from
+  440 px of content width, three from 1480 px, one more every 720 px after
+  that, 16 px apart.
 
-**Sign-in from this PC.** Under each sign-in form (login screen, Accounts,
-welcome setup) a quieter outlined button, "Use my sign-in from VRCX" for
-VRChat and "Use my sign-in from ChilloutVR" for ChilloutVR, sits below the
-platform-filled Connect button, so the password sign-in stays the main way in.
-Both platforms get the same button in the same place at the same size, with a
-one-line hint that the source app is only read. VRX looks only when the button
-is pressed. Not found and no-longer-accepted results name where VRX looked and
-point back to the password form.
+**World card** ([`ExploreWorldCard.tsx`](../src/renderer/src/components/ExploreWorldCard.tsx)).
+The picture card matches the hot instance picture card: `.glass.glass-layer`
+with the platform tint and `.glass-hover`, a 16:7 picture with a "VRC" or
+"CVR" badge, the world name (18 px / 700, one line), "People: **16**" in
+12 px, and the words "View rooms". The whole card is one button named
+"{world} on {platform}. View rooms". Focus draws a 2 px `--text-dim` ring.
+On the Dashboard, when Popular now takes bar cards, the card uses the bar
+layout: name in 25 px / 700, a neutral "View rooms" pill, the people count
+and the platform pill.
 
-**Sign-in text** explains OS-backed encryption and the weaker local-key
-fallback behind Show more, and never promises keychain protection everywhere.
-The sign-in screen and Accounts show the one-line unofficial-app notice in
-plain dim text; Settings → About → Legal holds the full text (see
-[API policy](api-policy.md)). Guide fixtures accept only made-up input and
-never sign in or save it.
+**Source lines.** Above the grid, per platform when something is off:
+"Worlds loading…"; "{platform} worlds could not load." in `--error`;
+"{platform} discovery is unavailable."; "{platform} results may be out of
+date." in `--text-dim`; each failure with a retry button. Missing is red,
+stale is dim (Locked rule 5).
 
-**Welcome setup.** A brand-new install opens one centered card before the
-app. It is layered glass like Settings: the card is a frosted back panel
-(`.glass .glass-panel`), and its cards, theme choices and sign-in fields
-are `.glass-layer` panes on it. It holds a welcome screen, five labeled steps
-(Sign in, Pages, Dashboard, Alerts, Look), then a summary. Type and shape
-follow the rest of the app: each step title is set like a page title (25 px
-extra bold), the step count is a VT323 section kicker, and the theme choices
-round at the control radius. Step state reads from position,
-weight and a check, not color. Sign-in shows the two account cards side by
-side at equal height, and the line under its title doubles as the live
-sign-in status; one ready account is enough to continue. Every other step
-changes the real settings as the user picks and keeps the defaults until
-changed. Look also offers the background picture and the instance label
-style. Skip setup is a visible button on every screen before the summary,
-never a small link; skipping before any account is ready shows sign-in only,
-then opens the app. The main button is a neutral `--text` fill, so neither
-platform color leads. Each screen keeps to a short line or two (Locked rule
-11). Settings → About offers Run setup again.
+**Empty.** "No worlds to show right now."; on Favorites, "No favorite worlds
+yet. Open a world and press the star to keep it here."
+
+**World sheet** ([`ExploreWorldSheet.tsx`](../src/renderer/src/components/ExploreWorldSheet.tsx)),
+in the shared sheet frame (§9.3):
+
+- The world picture (radius 13 px), then the world name (20 px / 700) with
+  the world's favorite star beside it, and the platform pill.
+- "Set as home world", a small button. It asks in place: "Make this your
+  {platform} home world? It replaces the one you have now." with "Make home"
+  and "Cancel". Afterwards it reads "Your home world".
+- On VRChat only, **Like** and **Dislike** for the signed-in user's own
+  rating. The sheet reads it when it opens. Pressing the choice already
+  shown clears it. While that request runs, both buttons stay disabled.
+  A failed change puts the previous rating back and shows a short error
+  that clears on its own. ChilloutVR has no world rating, so those buttons
+  are not on a ChilloutVR sheet. There is no public like count.
+- "Visible public rooms", then one bordered row per room (radius 13 px,
+  `--control-fill`): the instance pill, the people count ("3 / 30"), the
+  region, and a "Join" button. A room that cannot be joined keeps the
+  button's place with a plain word instead: "Full", "Restricted",
+  "Unavailable", "Refresh first", "Disabled", or "Joining…".
+- Room states: "Loading visible public rooms…", "Visible public rooms could
+  not load." (`--error`), "No visible public rooms are available.", "Only
+  some visible public rooms are available."
+- Expanded, "ABOUT THIS WORLD" lists Creator, Description, Tags, Room size,
+  People now, Room regions, Last checked and World ID, with "Copy link"
+  beside the ID (§9.3). The same lines in the same order on both platforms.
+  Tags are plain words joined by the language's list separator, never chips.
+  VRChat lists the creator's own tags only. ChilloutVR sets the size per
+  room, so its Room size comes from the visible rooms when they agree. A
+  line the platform does not give reads "Not shown".
+
+Joining a room goes through the join confirmation (§9.3).
+
+Source: [`ExploreRoute.tsx`](../src/renderer/src/components/ExploreRoute.tsx),
+[`ExploreView.tsx`](../src/renderer/src/components/ExploreView.tsx),
+[`ExploreLists.tsx`](../src/renderer/src/components/ExploreLists.tsx),
+[`ExploreFavorites.tsx`](../src/renderer/src/components/ExploreFavorites.tsx),
+[`ExploreSourceState.tsx`](../src/renderer/src/components/ExploreSourceState.tsx),
+[`HomeWorldControl.tsx`](../src/renderer/src/components/HomeWorldControl.tsx),
+[`WorldRatingControl.tsx`](../src/renderer/src/components/WorldRatingControl.tsx).
+
+#### Loading, empty, error and stale
+
+These rules hold on every page.
+
+| State             | Rule                                                                                                                                                                                                                                    |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Loading           | One plain line in 14 px `--text-dim` ("Loading…", "Loading activity…"). No skeleton screens and no spinner page. A picture that is on its way shows its box breathing softly (`.picture-waiting`) and then fades in (`.picture-arrive`) |
+| Empty             | A short sentence that says what will appear here, in a `.glass.glass-layer` card or as a plain line                                                                                                                                     |
+| Error             | The sentence in `--error`, with a retry button beside it. Never color alone: the words say what failed                                                                                                                                  |
+| Stale             | The last good data stays on screen with a `--text-dim` line that says it may be out of date                                                                                                                                             |
+| One platform down | The other platform's data still shows. The failed platform is named in the line (Locked rule 5)                                                                                                                                         |
+| Not connected     | The not-connected card (Appendix B.7): one sentence and "Go to Accounts"                                                                                                                                                                |
+| Busy button       | The button keeps its size and place and changes its word                                                                                                                                                                                |
+
+#### Sign-in screen
+
+Shown when no platform is signed in
+([`LoginScreen.tsx`](../src/renderer/src/components/LoginScreen.tsx)). One
+centered card, at most 384 px wide, 32 px padding: `.glass.glass-layer` with
+the tint of the chosen platform.
+
+1. The wordmark (40 px) and "Social VR Companion".
+2. After a sign-out the person did not ask for: "⚠" and "{platform} signed
+   you out. Sign in again to continue." in `--error`.
+3. A segmented control named "Sign-in platform": "VRChat" in
+   `--login-tab-vrc`, "ChilloutVR" in `--login-tab-cvr`. It is locked while a
+   sign-in is being sent.
+4. The form: "Username or email" (VRChat) or "Email address" (ChilloutVR)
+   with the placeholder "you@example.com", then "Password".
+5. "Sign in": a full-width solid platform button. It reads "Signing in…"
+   while busy.
+6. "Use my sign-in from VRCX" or "Use my sign-in from ChilloutVR": a quiet
+   action with a hint ("Quit VRCX first. Only reads it, never changes it.").
+7. Fine print: "Connects to VRChat for you and keeps your sign-in encrypted
+   on this device." with a "Show more" link, then the notice "VRX is an
+   unofficial app, not affiliated with the VRChat team nor the ChilloutVR
+   team."
+
+A wrong password or a network fault shows one alert line in `--error` in
+the card, with a glyph, in plain words ("Those sign-in details didn't work.
+Check them and try again."). When VRChat asks for a code the card changes to
+the code step: a prompt ("Open your authenticator app and enter the 6-digit
+code."), a "Verification code" field with the placeholder "000000", "Verify"
+and "Back".
+
+Source: [`auth/CredentialsForm.tsx`](../src/renderer/src/components/auth/CredentialsForm.tsx),
+[`auth/TwoFactorForm.tsx`](../src/renderer/src/components/auth/TwoFactorForm.tsx),
+[`auth/ErrorBanner.tsx`](../src/renderer/src/components/auth/ErrorBanner.tsx),
+[`FinePrint.tsx`](../src/renderer/src/components/FinePrint.tsx).
 
 ### §9.5 Activity
 
-The Activity page lists friends coming online, joining a world, and going
-offline, newest first. Main records it from the live sockets with the same
-transition rules as the alerts but without their rate limit, keeps it in
-memory only (up to 300 entries per platform), and forgets a platform's entries
-at an account change or sign-out. Reading it makes no platform request.
+A log of friends coming online, joining worlds and going offline while VRX
+is open ([`ActivityView.tsx`](../src/renderer/src/components/ActivityView.tsx)).
+It keeps at most 300 entries per platform.
 
-Both platforms share one row: a `.platform-row` capsule with a small avatar,
-the name, what happened in words, the platform pill filling a fixed-width
-column (both pills the same size, the word centered), and the time (with the
-date once it is not today). Coming online straight into a world is one entry
-that names the world; a ChilloutVR world name that resolves a moment later
-fills in, and its `(#…)` instance tag is trimmed in the row (the hover keeps
-it, by owner decision). Ask Me and Do Not Disturb friends never show a world,
-and their moves are not recorded. The top-bar filter scopes the list; the
-page's Show control (All, Online, Worlds, Offline) is a saved setting. Clear
-empties the list as shown; what the filters hide stays, and Clear is off while
-nothing shows. A row opens that friend's details on the Friends page; a friend
-no longer on the list is plain text.
+- **Top row.** A segmented control named "Show" with "All", "Online",
+  "Worlds", "Offline", and a quiet "Clear" button at the right. The filter
+  is remembered.
+- **Entries.** A list with 6 px between entries, newest first. Each is a
+  `.platform-row` for its platform, 12 px by 8 px padding:
+
+  | Part        | Detail                                                                                                          |
+  | ----------- | --------------------------------------------------------------------------------------------------------------- |
+  | Avatar      | 24 px                                                                                                           |
+  | Name        | 14 px / 500, one line                                                                                           |
+  | Description | 12 px `--text-dim`: "Came online", "Came online in {world}", "Joined {world}", "Joined a world", "Went offline" |
+  | Platform    | The platform pill, in a 96 px column                                                                            |
+  | Time        | Right aligned in a 104 px column, tabular digits                                                                |
+
+- An entry for a current friend is a button that opens that friend in
+  Friends. Hover adds `--surface-hover`; focus draws an inset ring.
+- **States.** "Loading activity…"; "No activity yet" with "Friends coming
+  online, joining worlds and going offline show up here while VRX is
+  open."; "Nothing to show with these filters."; "Couldn't load activity."
+  with "Retry"; the not-connected card.
 
 ### §9.6 Inbox
 
-The Inbox page lists invites, invite requests and friend requests that the
-two platform sockets deliver while VRX is open. Nothing is stored, so the
-list starts empty each launch.
+Invites and friend requests that arrive while VRX is open
+([`InboxView.tsx`](../src/renderer/src/components/InboxView.tsx)). The list
+is forgotten when VRX closes.
 
-- Two sections, Invites (invites and invite requests) and Friend requests,
-  each newest first, both platforms mixed in one list with equal weight.
-- A row is a `.platform-row`: the sender's picture when they are a friend (no
-  presence ring) or their initial, the name, a platform pill, the action
-  ("Invited you to Pug Lounge", "Asked you for an invite", "Sent you a friend
-  request"), a relative age ("Just now" under a minute) and a Hide button.
-- A friend request row adds Accept (the row's one filled button) and Decline
-  (quiet, like Hide), the same on both platforms (owner, 2026-11-01). While an
-  answer is on its way that button says "Accepting…" or "Declining…" and the
-  row's buttons wait. A line above the list says what happened or, in the
-  error color with words, why it did not; a failed answer keeps the row.
-  Invites stay view-only, and the "?" help says to answer those in the game.
-- Hide removes a row inside VRX only; Hide all hides every row in the current
-  platform filter.
-- The sidebar shows a neutral count chip of rows newer than the last ones
-  shown; opening the page clears it.
-- Invite and friend-request alerts are separate switches, both off by
-  default, and limited to a few a minute.
+- **Top line.** "3 waiting" at the left; "Hide all" and a round "?" at the
+  right. The "?" opens a `.glass.glass-layer` help panel: "Accept or Decline
+  answers a friend request on its platform. Join on an invite opens the game
+  in that instance, and tells the sender nothing…"
+- **Sections.** "INVITES" and "FRIEND REQUESTS", each a 12 px / 600
+  uppercase heading on the canvas.
+- **Row.** A `.platform-row` for its platform, 16 px by 12 px padding, 6 px
+  between rows: a 36 px avatar; the name (14 px / 600) with the platform
+  pill; under it the action and age in 12 px `--text-dim` ("Invited you to
+  {world} · Just now", "Asked you for an invite", "Sent you a friend
+  request"). Ages update every minute.
+- **Actions**, at the right of the row. A friend request has "Accept" (the
+  neutral confirm button), "Decline" and "Hide". An invite that named its
+  instance has "Join" (the same neutral confirm button) and "Hide"; an invite
+  that named none, and an invite request, have only "Hide". VRX never answers
+  an invite for the person: Join opens the game there through the join flow
+  (§9.4's confirmation, when it is on) and the row stays. It is the same on
+  both platforms.
+- **Join feedback.** What a Join said shows on a third line under the row's
+  action, 12 px `--text-dim`, in a `role="status"`: "This invite is no longer
+  here.", "Joining is disabled in Settings", "Sent to your open game". While
+  any Join runs, every Join is `aria-disabled`.
+- **Invite confirmation.** The join dialog titled with the invite's world
+  ("Join {name}'s invite?" when it named none), the platform pill, and
+  "{name} invited you here". No access pill, space pill or people count: an
+  invite does not say them, so nothing stands in. If the row leaves while the
+  dialog is open, "This invite is no longer here." shows and Join is
+  disabled.
+- **States.** Empty: a card reading "Nothing waiting" and "Invites and
+  friend requests that arrive while VRX is open show up here." Errors in
+  `--error` ("Could not load your inbox right now", "Couldn't hide that. Try
+  again."). The not-connected card.
+
+The sidebar count for new items is described in §8.
 
 ### §9.7 Search, profiles, Groups, Avatars and world lists
 
-Community views (owner, 2026-10-31) only read, except the profile's friend
-action and Unfriend or block. Every one follows the platform filter, offers Go
-to Accounts when the filtered platform is not connected, and adds no line
-under ALL for a platform the user isn't signed in to. A list says it is empty
-only once every shown platform has answered; next to a platform that failed
-with nothing loaded, its red line stands alone.
+#### Search
 
-- **Search** sends only on Enter or the Search button, never while typing.
-  People and Worlds are two sections; each alternates the platforms' results
-  (first of each, then second of each) so neither platform leads. People are
-  square picture tiles with the platform tint and VRC/CVR chip, and a
-  quiet "Friend" line; with no picture the tile shows the name's first letter.
-  While a tile's picture is on its way (owner, 2026-11-04) its box breathes
-  softly (`.picture-waiting`) with no letter, so a first letter always means
-  "no picture"; a picture that arrives after the page is up fades in
-  (`.picture-arrive`), one already loaded this session shows at once, and a
-  picture that fails falls back to the letter. Reduced motion shows the same
-  states without the pulse or fade. The guide's dashboard `pictures-loading`
-  variant holds every picture in the waiting state.
-  Worlds use the Explore world card and sheet with Join.
-- **Full profile** opens in the bottom sheet (Search) or behind "Show full
-  profile" in friend details. Fields come in one order on both platforms:
-  Pronouns, Rank, Bio, Badges, then Show worlds and Show groups, which read
-  only when pressed. A missing field says "Not shown". An unreadable reply
-  says "Couldn't load this profile" with Try again. "This profile is no longer
-  available" is only when the platform says the profile is gone.
-- **Friend action** (owner, 2026-11-01): a profile of someone who is not a
-  friend yet starts with one row, the same on both platforms: Accept and
-  Decline if their request waits in the Inbox, otherwise one filled Add friend
-  button that becomes "Sending…", then a check mark and "Friend request sent."
-  Someone already blocked gets no Add friend; Unblock stays in the options
-  below.
-- **Unfriend or block** closes every full profile, below a thin rule: one
-  quiet button that reads nothing until pressed. Open, it shows only what
-  applies, in one order on both platforms: Unfriend (friends only), then Block
-  or Unblock. Unfriend and Block wear the error tint with their word as the
-  cue; Unblock is plain. Each opens a heavy-frosted `alertdialog` with the
-  platform pill that names the person, says what changes, and
-  focuses Cancel. A success leaves a "✓ Unblocked on VRChat."-style line.
-- **Groups** is one name-sorted grid of `.glass-layer` cards wider than tall
-  (owner, 2026-11-04): the group's wide banner across the top with its square
-  icon (never cropped) in the bottom-left corner, then the name and the VRC or
-  CVR chip with the group code, led by "Owner ·" on a group you own. Icons
-  load first (with the same waiting look as Search tiles) and banners fade in
-  after; a group without a banner keeps the same layout over a blurred copy of
-  its icon, and no picture at all shows the name's first letter on the
-  platform color. A group opens the bottom sheet.
-  View only.
-- **Avatars** lists the avatars uploaded on each platform and the one worn
-  now, as picture cards with a VRC or CVR chip; the sheet has Wear this
-  avatar.
-- **Explore** has a segmented Popular now · New · Recently updated ·
-  Favorites control. The lists alternate platforms like Search and open the
-  same world sheet. Favorites lists the worlds starred in VRX, newest first,
-  then the account's own favorite worlds. The world sheet's star opens the
-  same favorite panel as a friend's. Refresh reads "Refreshing…" and stays off
-  until its reads answer.
-- **Set as home world** sits beside the platform pill on every world sheet,
-  the same small house-and-label button on both platforms. A press asks once
-  in an inline panel (Make home, Cancel). A success turns the button into a
-  quiet "Your home world" chip for the session; a failure is one line of text.
+[`SearchView.tsx`](../src/renderer/src/components/SearchView.tsx) searches
+people and worlds by name on both platforms.
+
+- A search form: a text field ("Search people and worlds") and a "Search"
+  button. The hint under it reads "Press Enter to search people and worlds
+  by name." Search runs on Enter or the button, not while typing. Fewer
+  than two letters gives "Type at least 2 letters."
+- Results come in two sections, "PEOPLE" and "WORLDS", each with a small
+  uppercase heading (10.5 px / 600, 1.4 px letter spacing).
+- **People** are tiles (`CommunityTile`, shape `square`): a 52 px picture
+  beside the name, a "VRC" or "CVR" badge, and "Friend" when they are one. A
+  tile opens the person sheet.
+- **Worlds** are the Explore world cards in a `.picture-grid`, and open the
+  world sheet.
+- Empty: "No people found.", "No worlds found."
+
+#### Tiles
+
+`CommunityTile` ([`CommunityParts.tsx`](../src/renderer/src/components/CommunityParts.tsx))
+is `.glass.glass-layer` with the platform tint. When it opens a sheet it also
+takes `.glass-hover` and a 2 px focus ring. Three shapes:
+
+| Shape    | Layout                                                                                                                                                                                         | Used by             |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `square` | 52 px picture beside the name                                                                                                                                                                  | People in Search    |
+| `wide`   | 4:3 picture on top, name under it                                                                                                                                                              | Worlds in a profile |
+| `icon`   | 112 px banner on top (`.glass-clip-top`), a 56 px icon (radius 14 px) with `--group-icon-ring` and `--group-icon-shadow` over its lower edge, name 14 px / 700, then a badge and a detail line | Groups              |
+
+#### Person and group sheet
+
+[`CommunitySheet.tsx`](../src/renderer/src/components/CommunitySheet.tsx), in
+the shared sheet frame (§9.3). A banner with the name over its lower left
+(21 px / 700) and pills under the name; then the profile.
+
+**Profile** ([`ProfileDetails.tsx`](../src/renderer/src/components/ProfileDetails.tsx)).
+A two-column fact list in 13 px (Pronouns, Rank; "Not shown" when the
+platform gives none), "BIO" ("No bio."), "BADGES" as small bordered pills
+with a 16 px picture ("No badges shown."), and two quiet buttons, "Show
+worlds" and "Show groups", that load those lists only when pressed. Loading
+reads "Loading profile…"; a failure reads "Couldn't load this profile." with
+Try again. "This profile is no longer available." is only when the platform
+says the profile is gone.
+
+**Friend actions** ([`ProfileActions.tsx`](../src/renderer/src/components/ProfileActions.tsx)):
+
+- Not a friend: "Add friend" (the neutral confirm button). It reads
+  "Sending…" and then "Friend request sent." Someone already blocked gets no
+  Add friend; Unblock stays in the options below.
+- They sent a request: "Sent you a friend request." with "Accept" and
+  "Decline".
+- **Unfriend or block** is behind a quiet button of that name ("Block or
+  unblock" for someone who is not a friend). Opened, it shows the hint
+  "These change your {platform} account, one person at a time.", then
+  "Unfriend" (friends only), "Block" or "Unblock". Unfriend and Block use
+  the destructive look; Unblock is neutral. While VRX checks the block state
+  it reads "Checking…".
+- Each of the three asks first, in an alert dialog: a 400 px
+  `.glass.glass-frosted-heavy.glass-information` panel over the heavier
+  `--scrim`, titled "Unfriend {name}?", "Block {name}?" or "Unblock
+  {name}?" with the platform pill, one sentence on what happens, then
+  "Cancel" (first focus) and the action. While sending, the action reads
+  "Sending…". Escape cancels.
+- Afterwards a status line reads "Unfriended on {platform}.", "Blocked on
+  {platform}." or "Unblocked on {platform}.". A failure says why in plain
+  words and changes nothing.
+
+#### Groups
+
+[`GroupsView.tsx`](../src/renderer/src/components/GroupsView.tsx) is view
+only. The hint "The groups you belong to. View only." with "Refresh" at the
+right; the heading "YOUR GROUPS" with "12 groups"; then `icon` tiles in a
+grid of columns at least 220 px wide, 12 px apart. A tile shows the banner
+(or a soft copy of the icon until the banner arrives), the icon, the name,
+the platform badge and a detail line such as the person's role. Empty: "You
+aren't in any groups yet." A tile opens the group sheet with the description
+and facts.
+
+#### Avatars
+
+[`AvatarsView.tsx`](../src/renderer/src/components/AvatarsView.tsx) shows the
+person's own avatars. "Refresh" sits at the top right.
+
+- **Wearing now.** One bar card per platform in a grid of columns at least
+  260 px wide: a 128 px wide 4:3 picture at the left (`.glass-clip-left`) and
+  the avatar name in 18 px / 700.
+- **Your uploads**, with "24 avatars": cards in a grid of columns at least
+  168 px wide, 12 px apart. Each card
+  ([`AvatarCard.tsx`](../src/renderer/src/components/AvatarCard.tsx)) is
+  `.glass.glass-layer` with the platform tint and `.glass-hover`: a 4:3
+  picture on top with the platform badge, the name in 14.5 px / 700, and
+  "Wearing now" in 12 px / 600 on the one in use. A long list is drawn 48
+  cards at a time so it never holds up the page.
+- Per-platform lines say what is wrong: "Couldn't load your {platform}
+  avatars.", "Couldn't refresh your {platform} avatars. Showing what loaded
+  last.", "You haven't uploaded any avatars yet."
+
+**Avatar sheet** ([`AvatarSheet.tsx`](../src/renderer/src/components/AvatarSheet.tsx)),
+in the shared frame: a banner with the name and pills, and at its lower
+right "Wear this avatar" with the hint "Changes the avatar on your
+{platform} account." ("Switching…" while busy; "You're wearing this" on the
+current one; then "Done. {platform} has your new avatar."). Under it,
+"DESCRIPTION" and "DETAILS": Creator, Visibility ("Public" or "Private"),
+Uploaded, Updated, Avatar ID.
+
+#### World lists
+
+[`WorldResults.tsx`](../src/renderer/src/components/WorldResults.tsx) draws
+any list of worlds (Search, Explore's lists and favorites) as Explore world
+cards in `.picture-gridwrap` and `.picture-grid`, so a world looks and
+behaves the same wherever it is listed.
+
+### §9.8 Settings, accounts and editing your profile
+
+[`SettingsView.tsx`](../src/renderer/src/components/SettingsView.tsx). The
+layout rule is in §8.
+
+**Row anatomy.** A setting is a `.setting-card.setting-row`: label (14 px / 500) and a one-line note (12 px `--text-dim`) at the left, the control at
+the right, 16 px apart, 8 px by 12 px padding, radius 12 px, about 59 px
+tall. Under 760 px of window width the control wraps under the text. A
+setting with more options is a `.setting-card` whose extra rows sit in a
+`.setting-disclosure` that opens in 220 ms; the extra rows
+(`.setting-children`) are indented under the first.
+
+A change applies at once and is saved; there is no Save button.
+
+| Category      | Settings, in order                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Appearance    | **Theme** (Dark, System, Light; default System). **Background glow** (Off, Muted, Standard, Vivid; default Standard). **Background picture** ("Choose picture"; then a thumbnail, "Change picture", "Remove" and **Picture fade**: Low, Medium, High). **Instance labels** (VRChat, Per platform, ChilloutVR). **Sidebar pages**: On/Off for Hot Instances, Activity, Inbox, Explore, Search, Groups in two columns |
+| Dashboard     | **Hide empty sections**. **Player counts**. **Sections**: the four sections in order, each with "↑" and "↓" (24 px round buttons) and On/Off. **Hot instance threshold** (stepper, 1 to 10, default 2)                                                                                                                                                                                                              |
+| Behavior      | **Friend details open from** (Whole card, Avatar only). **Save notes to my accounts**, with **Use my game favorites** under it. **Friends background re-sync** (5m, 10m, 30m, 1h, Manual only; default 1h). **Allow joining friends**, with **Confirm before joining**, **Join in** (VR, Always ask, Desktop) and **When the game is already open** (Go there, Send invite, Off) under it                           |
+| Notifications | **Who alerts you** (Everyone, Picked friends; with Picked friends, a count line and a "Show" link to the Picked friends dialog). **Friend comes online**, **Friend joins a world**, **Friend goes offline**, **Hot instance**, **Invite received**, **Friend request received**: all Off by default. **Alerts in VR**, with **Time on screen** (Short, Medium, Long) and "Send a test" under it                     |
+| Accounts      | Two account cards side by side. **Export your data** ("Export…" saves friends, notes and favorites to a file the user picks; the result reads in words under the description). Then the unofficial-app notice                                                                                                                                                                                                       |
+| About         | **Automatic updates** (channel: Stable, Beta, Dev; On/Off; an action button; "VRX v1.4.3"). **Start with your computer** (Off, On, In the tray; default Off). **Welcome setup** ("Run setup again"). **Found a bug?** ("Report a bug"). **Logs** ("Open logs folder"). **Legal** ("Show" opens Not an official app, Getting help, Platforms and terms, Privacy, License)                                            |
+
+A settings action button is 13 px / 500, radius 10 px, 1 px `--border`,
+`--control-fill`, about 30 px tall. Moving a Dashboard section announces
+its new place to screen readers ("Popular now: 2 of 4").
+
+**Account card** ([`AccountCard.tsx`](../src/renderer/src/components/AccountCard.tsx)).
+One per platform, VRChat first, in a two-column grid 24 px apart. Each is
+`.glass.glass-layer` with the platform tint and 24 px padding.
+
+| State          | Content                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Checking       | "Connecting…"                                                                                                      |
+| Signed in      | "✓ Connected as {name}", then "Edit profile" and "Sign out" (bordered buttons)                                     |
+| Sign-out asked | In the card: "Sign out of {platform}?" with "Sign out" and "Cancel"; "Signing out…" while it works. Escape cancels |
+| Cannot reach   | "Can't reach {platform} right now — your session is safe." with "Retry" ("Retrying…") and "Sign out"               |
+| Signed out     | The sign-in form from §9.4 with "Connect" as the platform button, and the "Use my sign-in from …" action           |
+| Needs a code   | The verification code step from §9.4                                                                               |
+
+After a profile save the card reads "Profile saved to {platform}."
+
+**Edit profile** ([`OwnProfileDialog.tsx`](../src/renderer/src/components/OwnProfileDialog.tsx)).
+A dialog titled "Your {platform} profile" in the shared dialog frame (§10):
+
+- The first line says what it does: "What you save here changes your
+  profile in {platform}."
+- Fields: **Bio** (text area) and **Pronouns** on both platforms; **Status**
+  and **Status text** on VRChat. Each text field has a counter at its right
+  ("128/512"). A counter over its limit turns `--error` and 600, and "Save"
+  is held. "Save" is also held until something has changed.
+- **Status** is four tiles in a 2 x 2 grid, each a 9 px status dot with its
+  word: "Join Me", "Online", "Ask Me", "Do Not Disturb". The dot and word
+  together follow §5.
+- "Cancel" (bordered) and "Save" (the platform button; "Saving…" while
+  busy).
+- While there are unsaved edits, Escape and a press outside do not close
+  the dialog, so text is not lost by accident.
+- Loading reads "Loading your profile…". A failure shows a line with a bold
+  "!" and the reason, with "Retry".
+
+### §9.9 Welcome setup
+
+The welcome setup ([`SetupWizard.tsx`](../src/renderer/src/components/setup/SetupWizard.tsx),
+[`SetupSteps.tsx`](../src/renderer/src/components/setup/SetupSteps.tsx))
+fills the window on first run. It can be skipped at any time and run again
+from Settings → About. It never appears over the app as a tour.
+
+**Card.** One centered `.glass.glass-panel` card, at most 640 px wide and
+660 px tall (640 x 638 at the minimum window), with 30 px side padding. The
+canvas, glow and background picture show behind it. No step scrolls at
+900 x 670, in English or Japanese.
+
+**Steps.** Welcome, then five numbered steps: Sign in, Pages, Dashboard,
+Alerts, Look; then a closing summary.
+
+- **Progress**, on the five numbered steps: "STEP 2 OF 5" in VT323 18 px,
+  uppercase, 2 px letter spacing; then five equal columns
+  (`.setup-progress-step`), each a 3 px bar (`.setup-progress-bar`) over its
+  step name. A finished step shows a check mark and can be pressed to go
+  back; later steps cannot be pressed.
+- **Title.** Each step has a 25 px / 800 title and a 13 px lead line. Focus
+  moves to the title when the step changes.
+- **Foot.** Above a 1 px line: "Skip setup" at the left; "Back" and the
+  primary button at the right. The primary button is the setup primary look
+  (§8): "Get started", then "Continue", then "Open VRX".
+- A choice applies as it is made, so the window behind the card already
+  shows the chosen look.
+
+| Step      | Content                                                                                                                                                                                                                                              |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Welcome   | The wordmark at 64 px, "Welcome to VRX", "Your social VR companion for VRChat and ChilloutVR.", three `.setting-card` rows with a 32 px `.glass-chip` icon tile each ("One friends list", "Hot Instances", "Explore"), and the unofficial-app notice |
+| Sign in   | The two account cards side by side. The lead changes: "Connect one platform or both. You can add the other later.", "One connected. Continue, or connect the other one too.", "Both connected." "Continue" is held until one account is connected    |
+| Pages     | "Pick your pages": six On/Off rows (Hot Instances, Activity, Inbox, Explore, Search, Groups), each with one line on what the page is                                                                                                                 |
+| Dashboard | "Your Dashboard": On/Off for Popular now and Hot Instances, and "Which comes first?" ("The first one gets the big pictures.")                                                                                                                        |
+| Alerts    | "Desktop alerts": "Every alert stays off unless you turn it on." The six alert toggles in two cards, and a "Turn all on" button that becomes "Turn all off"                                                                                          |
+| Look      | "Pick a look": three picture tiles (`.setup-theme-choice`), "Match my PC", "Dark", "Light", each a radio with a small preview; then Background glow, Background picture and Instance labels                                                          |
+| Done      | A summary list of what was chosen (Accounts, Pages, Dashboard, Alerts, Look, Instance labels) in 13 px, with a 128 px label column                                                                                                                   |
+
+"Skip setup" before signing in goes to the Sign in step, since the app needs
+one account; after that it opens the app with the usual settings.
 
 ## §10 Linked friends
 
-Linking is explicit and local. Each person links one VRChat account and one
-ChilloutVR account, scoped to the signed-in accounts. Original names and notes
-stay; a new link starts with its own blank shared note. Never infer a link
-from similar names or presence, and never read or write VRCX or CVRX data for
-it.
+A person who uses both platforms can be linked by hand: one VRChat friend
+and one ChilloutVR friend become one VRX person. The link, its VRX name and
+its shared note are kept in VRX on this PC. Nothing about a link is sent to
+either platform.
 
-The platform filter shows the saved person without changing the link: All
-combines the accounts, and a single-platform view shows that account. The
-header prefers in-game, then active, then offline, with the preferred platform
-breaking ties. A merged picture changes artwork only, never the status source.
-A linked row's rail reads VRX on a blue-to-orange chip and the row is a
-`.platform-row--vrx`. Two locations use a hard, centered 45-degree split,
-VRChat upper-right and ChilloutVR lower-left. In the row, two joinable
-locations share one "2 locations" pill whose halves carry each access tier by
-color, so the world line names each tier in words after its platform tag.
-Search finds a person by any of their names; when the row's own name has no
-match, the name that matched takes the custom status's place beside it, dim,
-with the match marked.
+**One row, both platforms.** A linked person takes one row in Friends and
+counts once in "15 people" and in the top bar count.
 
-Combined Join always opens the destination chooser, even with one eligible
-choice, and never picks for the user. Single-platform views use the normal
-direct flow. Hidden or stale location data never becomes an action or leaks
-through metadata. Friends' online count counts unique people; Dashboard
-statistics stay account-based.
+- The row is `.platform-row.platform-row--vrx`: the wash runs from `--vrc` at
+  the left to `--cvr` at the right, and the soft edge is blue on the top and
+  left, orange on the right and bottom.
+- The platform tab reads "VRX" on a fill that runs from the ChilloutVR rail
+  color at the bottom to the VRChat rail color at the top
+  (`.linked-platform-rail`). In dark the word is a gradient
+  (`.linked-gradient-text`); in light it is plain `--linked-rail-text`,
+  because light rails are solid color.
+- The row shows the account with the stronger presence (in a game, then
+  online, then offline). On a tie it shows the person's preferred platform.
+  The name is the VRX name if one was set, otherwise the name of the
+  preferred platform's account.
+- With "Use merged profile picture" on, the avatar is cut on the diagonal:
+  the VRChat picture in the upper right half, the ChilloutVR picture in the
+  lower left.
+- **World line.** When both accounts are in a game the line shows both
+  places (`.linked-world-pair`): for each, a small "VRC" or "CVR" chip
+  (`.linked-world-platform`, 10 px / 600), the access word in its tier text
+  color, and the world name. The platform chip is the cue; the colors only
+  repeat it.
+- **Access column.** One joinable place shows the normal join pill. Two
+  joinable places show a "2 locations" button (`.linked-location-button`,
+  28 px tall): its fill is split on the diagonal between the two places'
+  access colors, and its tooltip names both ("VRChat: Public · ChilloutVR:
+  Friends"). It opens the destination dialog.
 
-Identities manages links in native modal dialogs. Replacing or unlinking shows
-the affected pairs and any shared-note loss and needs an explicit
-acknowledgement. Unsaved or in-flight drafts block destructive changes. If
-linked profiles fail to load, Friends and Identities offer a local Retry.
+**Choose a destination.** A dialog titled "Choose a destination" with one
+bordered card per joinable account: the platform name, the world name, the
+instance pill, and a "Join on {platform}" button; then "Cancel". If the
+person moves while it is open it says "Activity changed. Review the current
+location." With nowhere to go it says "No joinable locations are currently
+available."
 
-Sources: [`projectLinkedFriends.ts`](../src/renderer/src/utils/projectLinkedFriends.ts),
-[`IdentitiesDialog.tsx`](../src/renderer/src/components/IdentitiesDialog.tsx),
-[`LinkedDialog.tsx`](../src/renderer/src/components/LinkedDialog.tsx),
-[`LinkedWorlds.tsx`](../src/renderer/src/components/LinkedWorlds.tsx).
+**Friend details for a linked person.** The same panel as §9.2, with these
+differences:
+
+- Under the name, one small button per account ("VRChat", "ChilloutVR")
+  opens that account's own view; there a "Back to combined profile" link
+  returns. An account whose platform is not available is disabled and its
+  tooltip reads "Unavailable".
+- The status chip adds "VRC" or "CVR" after the status word, since a status
+  belongs to one account.
+- "WHERE" shows both worlds in one 16:9 picture cut on the diagonal
+  (`.linked-world-composite`): VRChat's world in the upper right with its
+  caption there, ChilloutVR's in the lower left. Each half carries its
+  platform chip and access pill.
+- The note is the shared note, headed "SHARED NOTES (YOURS, PRIVATE)".
+- One favorite star and one alerts pick cover both accounts.
+- The foot row's "Identities" button has a thin outline that runs from blue
+  to orange (`.linked-identities`).
+
+**Identities dialog** ([`IdentitiesDialog.tsx`](../src/renderer/src/components/IdentitiesDialog.tsx)).
+Opened from "Identities". Its buttons are small bordered buttons (12 px).
+
+- For a friend who is not linked: "Link this account to a friend on the
+  other platform." and "Link an account". That opens a picker: "Choose the
+  {platform} account belonging to this same person. Offline friends are
+  included.", a search field and a scrolling list of friends on the other
+  platform. A friend who is already linked is marked "Already linked ·
+  Review before replacing". No match reads "No matching friends."
+- For a linked person: each account with "View {platform} profile" and
+  "Replace account"; "VRX name" with "Save name" and "Use platform name"
+  ("Only changes the name in VRX."); "Preferred platform" as a native
+  drop-down ("Used when both accounts have the same presence level."); a
+  checkbox, "Use merged profile picture"; then "Unlink accounts", whose word
+  is `--error`, and "Done".
+- Linking needs both platforms signed in and reachable; otherwise the dialog
+  says "Both platforms must be signed in and available to link."
+
+**Confirming a link change** ([`LinkConfirmDialog.tsx`](../src/renderer/src/components/LinkConfirmDialog.tsx)).
+Every link, replacement and unlink is reviewed inside the same dialog before
+it is saved.
+
+- Link: "Link these accounts?", "Do these accounts belong to the same
+  person?", the two accounts, a "Preferred platform" choice, the combined
+  name, then "Back", "Cancel" and "Link accounts".
+- Replace: a bordered warning, "Existing links will be replaced", lists each
+  old pair and what happens to it ("Remove this link and permanently delete
+  its shared note."). The person must tick "I understand that the listed
+  shared notes will be permanently deleted." before "Replace and link" works.
+- Unlink: "Unlink accounts?", "The shared note will be permanently deleted.
+  Save any text you want to keep before unlinking." and "Both original
+  account notes stay unchanged." The person must tick "I understand the
+  shared note will be deleted." before "Unlink and delete shared note"
+  works.
+- While saving, the action reads "Saving…". A failure keeps the dialog open
+  and says nothing was changed ("Save failed. Existing links and notes are
+  unchanged. Try again or cancel.").
+
+**Shared dialog frame** ([`LinkedDialog.tsx`](../src/renderer/src/components/LinkedDialog.tsx)).
+Identities, Choose a destination, Picked friends and Edit profile use one
+frame:
+
+- A native modal `<dialog>`, at most 440 px wide (never closer than 16 px to
+  the window sides) and never taller than the window less 48 px; long
+  content scrolls inside it.
+- The backdrop is `--scrim-soft`. The panel is
+  `.glass.glass-frosted.glass-information` with 20 px padding.
+- An 18 px / 700 title and a 28 px "✕" at the top right, which takes first
+  focus.
+- Escape and a press on the backdrop close it, except while it is saving or
+  holds unsaved edits. Focus returns to the control that opened it.
+
+If linked profiles cannot be read, Friends and the Identities dialog show
+"Could not load linked profiles. Retry to restore identity management." with
+"Retry linked profiles".
+
+Source: [`FriendRow.tsx`](../src/renderer/src/components/FriendRow.tsx),
+[`LinkedWorlds.tsx`](../src/renderer/src/components/LinkedWorlds.tsx),
+[`LinkedDestinationChooser.tsx`](../src/renderer/src/components/LinkedDestinationChooser.tsx),
+[`LinkedProfilesLoadError.tsx`](../src/renderer/src/components/LinkedProfilesLoadError.tsx),
+[`projectLinkedFriends.ts`](../src/renderer/src/utils/projectLinkedFriends.ts).
 
 ## §11 Known open findings
 
-These are tracked separately and are not design rules: Full shown below
-capacity, and Private versus Hidden wording. Don't fix them in passing or
-present them as approved. A proposed design is labeled as a proposal and never
-replaces a current example before approval.
+These were reproduced in version 1.4.3 while this document was written. They
+are defects or loose ends, not rules. Do not copy them into new work, and
+remove an entry when it is fixed.
 
-A source or sample-data check doesn't prove the owner accepted something in an
-installed app. Never hide a product defect with preview-only styles. Keep
-access to existing controls and workflows. The security, credential, account,
-request-rate, and merge rules in the root contract still apply; no visual
-change waives them.
+1. **Keyboard focus looks different on three controls.** Sidebar items,
+   segmented options (the platform filter included) and the number stepper's
+   value show the browser's default outline, while every other control draws
+   a `--text-dim` ring. Source:
+   [`Sidebar.tsx`](../src/renderer/src/components/Sidebar.tsx),
+   [`SegmentedControl.tsx`](../src/renderer/src/components/SegmentedControl.tsx),
+   [`NumberStepper.tsx`](../src/renderer/src/components/NumberStepper.tsx).
+2. **Three tokens are defined and never used:** `--aurora-vrc`,
+   `--aurora-cvr` and `--friend-status-description-width`.
+3. **The stored `density` setting has no control.** Settings offers no way
+   to change it, and in the renderer it only sets a 60 px minimum height on
+   friend rows, which rows already have.
+4. **Friend names in the hot instance sheet sit in capsules.** Each friend
+   under "FRIENDS HERE" is an avatar and a name inside a bordered capsule.
+   Everywhere else a name is plain text, and the design contract says names
+   never become chips. This one is for the owner to decide. Source:
+   [`HotInstanceSheet.tsx`](../src/renderer/src/components/HotInstanceSheet.tsx).
 
 ## §12 Workflow and verification
 
-1. Read the owning source and the [internal API catalog](INTERNAL-API.md).
-   Reuse the existing component, resolver, hook, store, token, and translation
-   before adding one. All copy goes through i18next with every key in English
-   and Japanese.
-2. Run `npm run guide:dev` and open `http://127.0.0.1:4173/design.html`, or a
-   single scene such as `glass.html?scene=dashboard&theme=light`.
-3. Check both themes, each glow level, with and without a background picture,
-   at 900×670 and wider, in English and Japanese (`ja-JP`), with keyboard
-   focus, reduced motion, and the loading, error, empty and disabled states the
-   change can reach. Material changes need a look over a busy picture.
-4. A served page or a successful build is not an observed render. Sample
-   scenes prove only their sample behavior, not live accounts or a packaged
-   install.
-5. Run `npm run guide:build` and the guide tests. For app or build changes,
-   also run the root gate and the relevant behavior tests. Token changes run
-   `npm run design:tokens` to refresh Appendix A (the guide test fails until
-   you do).
-6. Update this document, the guide, the owning `AGENTS.md` files, the catalog,
-   and the changelog in the same change. Keep section and rule numbers stable.
+**Before a UI change**
+
+1. Read this document's Quick start and Locked rules, and the section for
+   the surface you will touch.
+2. Open the visual guide: `npm run guide:dev`, then
+   `http://127.0.0.1:4173/design.html`. It renders the production components
+   with sample data, never real accounts.
+3. Find the component in
+   [`src/renderer/src/components`](../src/renderer/src/components) and reuse
+   it. Add a token to [`main.css`](../src/renderer/src/assets/main.css) only
+   when no existing one has the meaning you need, and define it in both
+   themes.
+
+**Checking a change by eye.** One scene at a time, without the guide's
+chrome: `http://127.0.0.1:4173/glass.html?scene=NAME&theme=dark&render=1`.
+
+- Scenes: `dashboard`, `hot`, `friends`, `linked`, `activity`, `inbox`,
+  `search`, `groups`, `avatars`, `settings`, `updater`, `drawer`, `join`,
+  `login`, `setup`, and the catalog scenes `explore`, `layers`, `materials`,
+  `semantics`, `instances`, `typography`, `controls`, `feedback`, `icons`.
+- Add `theme=light`, `glow=off`, `glow=muted` or `glow=vivid`, `picture=1`
+  for a background picture, and `variant=` for a state (for example
+  `variant=cvr-missing` on `friends`, `variant=note-account-conflict` on
+  `drawer`, `variant=hot-first` on `dashboard`). The states are listed in
+  [`docs/guide/scenarios.ts`](guide/scenarios.ts).
+
+Check every change against this list:
+
+- Dark and light.
+- Glow Off, Muted, Standard and Vivid, and with a background picture.
+- 900 x 670, and a wide window (1280 and up) for grids.
+- Keyboard only: Tab order, arrow keys, Enter, Escape, visible focus, focus
+  returning to the opener.
+- Reduced motion.
+- Japanese. The app follows the system language, and the guide follows the
+  browser's, so a browser set to Japanese shows every scene in Japanese.
+- Every state the surface has: hover, pressed, disabled, busy, loading,
+  empty, error, stale, one platform missing, not connected.
+- Both platforms side by side, and a linked person where rows are involved.
+- No color without a word, glyph or shape beside it.
+
+**Commands**
+
+| Command                       | What it does                                                             |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `npm run guide:dev`           | Serves the guide and the scenes at port 4173                             |
+| `npm run guide:build`         | Builds `docs/design.html` and `docs/glass.html`                          |
+| `npm run guide:typecheck`     | Type-checks the guide against the production components                  |
+| `npm run design:tokens`       | Rewrites Appendix A from `main.css`                                      |
+| `npm run design:tokens:check` | Fails when Appendix A is out of date                                     |
+| `npx vitest run docs/guide`   | Runs the guide tests, including the ones that keep this document in step |
+| `npm run docs:links`          | Checks every link in the documentation                                   |
+| `npm run icons:check`         | Checks the app icon files ([APP-ICON.md](APP-ICON.md))                   |
+
+`design-doc.test.ts` fails when this document names a token or a material
+class that is not in `main.css`, when Appendix A is stale, or when a rule in
+Appendix B.1 differs from the stylesheet.
+
+**After a UI change**
+
+1. If a token changed, run `npm run design:tokens`.
+2. Update the section of this document that describes the surface, in the
+   same change. Describe what the app does now.
+3. Add or update a guide scene or variant when a new surface or state
+   appears ([`docs/guide/AGENTS.md`](guide/AGENTS.md)).
+4. Keep the section numbers and Locked rule numbers stable. Code comments
+   cite them.
 
 ## Appendix A: Token reference
 
-Every custom property in `main.css`, both themes. "(same as dark)" means the
-light theme inherits the dark value; "(light only)" means the token exists
-only under `[data-theme='light']`. Values that reference other tokens resolve
-at runtime in the active theme.
+Every custom property in the theme blocks of `main.css`, in both themes. The
+table between the two markers is generated: run `npm run design:tokens` after
+changing a token, and never edit it by hand. "(same as dark)" means light
+uses the dark value; "(light only)" means the token exists only under
+`[data-theme='light']`. A value that names another token resolves in the
+active theme.
 
 <!-- design-tokens:start -->
 
@@ -1408,12 +2304,15 @@ at runtime in the active theme.
 
 ## Appendix B: Recipes
 
-Each recipe follows the shipped code: B.1 is copied from `main.css` (a test
-checks it), and the others use the real components and class strings, named
-here as constants where the source writes them inline. The visual guide shows
-each one rendered next to its code.
+Every recipe is taken from the shipped code. Class strings are the ones the
+named component uses today.
 
 ### B.1 The material classes (`main.css`, `@layer components`)
+
+These rules are copied from [`main.css`](../src/renderer/src/assets/main.css)
+with comments removed. A test compares them with the stylesheet. The two
+tint classes are outside the cascade layer on purpose, so they win over the
+glass background.
 
 ```css
 .glass {
@@ -1426,6 +2325,7 @@ each one rendered next to its code.
   border-radius: var(--radius-panel);
   box-shadow: var(--glass-shadow);
 }
+
 .glass::before {
   content: '';
   position: absolute;
@@ -1435,11 +2335,25 @@ each one rendered next to its code.
   pointer-events: none;
   background: var(--glass-sheen);
 }
+
+.glass-frosted {
+  background-color: var(--glass-frost);
+  -webkit-backdrop-filter: var(--glass-blur-frosted);
+  backdrop-filter: var(--glass-blur-frosted);
+}
+
+.glass-frosted-heavy {
+  background-color: var(--glass-frost-heavy);
+  -webkit-backdrop-filter: var(--glass-blur-frosted);
+  backdrop-filter: var(--glass-blur-frosted);
+}
+
 .glass-information {
   background-color: var(--glass-information);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
+
 .glass-panel,
 .glass-sheet {
   position: relative;
@@ -1448,6 +2362,7 @@ each one rendered next to its code.
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
+
 .glass-panel::after,
 .glass-sheet::after {
   --glass-reach: 32px;
@@ -1459,16 +2374,22 @@ each one rendered next to its code.
     0 var(--glass-reach) var(--glass-reach) 0 round var(--glass-clip-radius, var(--radius-panel))
   );
   pointer-events: none;
-  background-color: var(--glass-panel); /* --glass-sheet for .glass-sheet */
+  background-color: var(--glass-panel);
   -webkit-backdrop-filter: var(--glass-blur-frosted);
   backdrop-filter: var(--glass-blur-frosted);
 }
+
+.glass-sheet::after {
+  background-color: var(--glass-sheet);
+}
+
 .glass-layer {
   background-color: var(--glass-layer);
   box-shadow: var(--glass-layer-depth);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
+
 .glass.glass-layer:not(.overflow-hidden) {
   --glass-reach: 32px;
   background: none;
@@ -1478,6 +2399,7 @@ each one rendered next to its code.
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
+
 .glass.glass-layer:not(.overflow-hidden)::before {
   inset: -1px;
   border: 1px solid var(--glass-edge, var(--glass-border));
@@ -1485,6 +2407,7 @@ each one rendered next to its code.
   background-image: var(--glass-sheen), var(--glass-face, var(--glass-bg));
   box-shadow: var(--glass-layer-depth);
 }
+
 .glass.glass-layer:not(.overflow-hidden)::after {
   content: '';
   position: absolute;
@@ -1497,6 +2420,7 @@ each one rendered next to its code.
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
+
 .glass-chip {
   position: relative;
   isolation: isolate;
@@ -1504,6 +2428,7 @@ each one rendered next to its code.
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
+
 .glass-chip::after {
   content: '';
   position: absolute;
@@ -1513,212 +2438,296 @@ each one rendered next to its code.
   pointer-events: none;
   background: var(--glass-chip-sheen);
 }
+
+.tint-vrc {
+  background-image: var(--tint-vrc-bg);
+  border-color: var(--tint-vrc-border);
+  --glass-face: var(--tint-vrc-bg);
+  --glass-edge: var(--tint-vrc-border);
+}
+
+.tint-cvr {
+  background-image: var(--tint-cvr-bg);
+  border-color: var(--tint-cvr-border);
+  --glass-face: var(--tint-cvr-bg);
+  --glass-edge: var(--tint-cvr-border);
+}
+
+.platform-row {
+  --platform-row-from: var(--platform-row-color);
+  --platform-row-to: var(--platform-row-color);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--platform-row-border);
+  border-radius: var(--radius-control);
+  background-color: var(--glass-layer);
+  box-shadow: var(--glass-layer-depth);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--platform-row-from) var(--platform-row-tint-strong), transparent),
+    color-mix(in srgb, var(--platform-row-to) var(--platform-row-tint-soft), transparent)
+  );
+}
 ```
 
-### B.2 Stacking the layers (JSX)
+Also in the stylesheet, and described in §3: the hover rules for
+`.glass-hover`, the corner helpers `.glass-clip-top`, `.glass-clip-left` and
+`.glass-clip-all`, the `.platform-row` platform modifiers, `.status-badge`,
+`.setting-card`, and the canvas helpers `.canvas-text` and `.canvas-control`.
+
+### B.2 Stacking the layers
 
 ```tsx
-// Layer 2: the back panel a page sits on.
-<section className="glass glass-panel p-[var(--space-4)]">
-  {/* Layer 3: a card on the panel. */}
-  <div className="glass glass-layer p-[16px_18px]">
-    <div className="font-[family-name:var(--font-mono)] text-[38px] leading-none tabular-nums text-[var(--text)]">
-      13
-    </div>
-    <div className="mt-[var(--space-1)] text-[12.5px] text-[var(--text-dim)]">Friends online</div>
-  </div>
-  {/* Layer 3: a row that belongs to one platform. */}
-  <div className="platform-row platform-row--vrchat flex items-center gap-[var(--space-3)] p-[var(--space-2)]">
-    <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text)]">Amy</span>
-    {/* Layer 4: chips. */}
-    <PlatformPill platform="vrchat" />
-    <InstancePill label="Public" tier="public" />
-  </div>
-</section>
+// Layer 2: a back panel that groups a page
+<section className="glass-panel rounded-panel border border-[var(--glass-border)] p-[var(--space-4)]">…</section> // Friends
+<div className="glass glass-panel settings-panel p-[var(--space-2)]">…</div>                                    // Settings
+
+// Layer 3: a card, straight on the canvas or on a panel
+<div className="glass glass-layer min-w-0 p-[16px_18px]">…</div>                         // Dashboard number
+<div className="glass glass-layer tint-cvr glass-hover relative cursor-pointer">…</div>  // a platform's card that opens a sheet
+
+// Layer 3: a row that belongs to one platform
+<li className="platform-row platform-row--vrchat flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)]">
+  <span className="truncate text-sm font-semibold text-[var(--text)]">{name}</span>
+  <PlatformPill platform="vrchat" />
+</li>
+
+// Layer 3: a Settings row
+<div className="setting-card setting-row">…</div>
+
+// Layer 4: a pill or small count on any of the above
+<span className={PILL_BASE}>…</span>
+
+// Opaque: a menu or popover, then a confirmation
+<div role="tooltip" className="glass glass-information absolute right-0 top-full z-50 mt-[10px] w-[272px] p-[12px_14px] text-left text-[12.5px] leading-[1.45]">…</div>
+<div role="dialog" aria-modal="true" className="glass glass-frosted-heavy glass-information relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)]">…</div>
 ```
 
-### B.3 Pills (`utils/instancePill.ts`, `InstancePill.tsx`, `PlatformPill.tsx`)
+Rules for stacking:
 
-```ts
+- A pane never sits on a pane of the same layer. A card does not hold a
+  card; it holds rows of text, chips and controls.
+- A platform tint (`.tint-vrc`, `.tint-cvr`) goes on a layer 3 card. A row
+  uses the `.platform-row` modifier instead.
+- Anything that carries reading text over busy content is opaque
+  (`.glass-information`).
+- Do not add `overflow-hidden` to a `.glass.glass-layer` card to clip a
+  picture; use `.glass-clip-top`, `.glass-clip-left` or `.glass-clip-all` on
+  the picture.
+
+### B.3 Pills
+
+```tsx
+// utils/instancePill.ts
 export const PILL_BASE =
   'glass-chip inline-flex h-[28px] shrink-0 items-center justify-center ' +
   'rounded-[10px] border px-[12px] text-[12px] font-semibold whitespace-nowrap'
 
-// A tiered pill: the tier's hue fills at --pill-tint and edges at --pill-edge.
-const style = {
-  color: `var(--op-${tier}-text)`,
-  '--instance-pill-bg': `color-mix(in srgb, var(--op-${tier}) var(--pill-tint), transparent)`,
-  borderColor: `color-mix(in srgb, var(--op-${tier}) var(--pill-edge), transparent)`
-}
-// A neutral pill (Private, Offline Instance, Unknown).
-const neutral = {
-  color: 'var(--text-dim)',
-  '--instance-pill-bg': 'color-mix(in srgb, var(--text) 7%, transparent)',
-  borderColor: 'color-mix(in srgb, var(--text) 16%, transparent)'
-}
-// A platform pill: the same geometry with the platform badge tokens.
-const platform = {
-  color: 'var(--plat-vrc-badge-text)',
-  borderColor: 'var(--plat-vrc-badge-border)',
-  background: 'var(--plat-vrc-badge-bg)'
-}
+// Access: the label and the color tier come from one helper
+const { labelKey, tier } = instancePillFor(instance, labelScheme)
+<InstancePill label={t(labelKey)} tier={tier} className="min-w-[78px]" />
+
+// The same pill as the join button
+<InstancePill label={t(labelKey)} tier={tier} onJoin={join} disabled={isJoining}
+  aria-label={t('friends.joinPillAria', { access, name, world })} />
+
+// Platform and policy
+<PlatformPill platform="chilloutvr" />
+<PolicySpacePill space="public" />
 ```
+
+A pill's color is always mixed from its token, never typed in: the word
+uses the tier's text token, the fill is the tier color at `--pill-tint`, and
+the edge is the tier color at `--pill-edge` (§6.1). A pill with no tier is
+neutral.
 
 ### B.4 Buttons
 
-```ts
-// Quiet button (the default).
-const QUIET =
-  'rounded-control px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold text-[var(--text)] ' +
-  'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] ' +
-  'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors'
+```tsx
+// Quiet (Refresh, See all, Settings)
+"rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] aria-disabled:opacity-50 motion-safe:transition-colors"
 
-// Quieter text button (Hide, Decline, See all).
-const QUIETER =
-  'shrink-0 rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium ' +
-  'text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] ' +
-  'aria-disabled:cursor-default aria-disabled:opacity-50 motion-safe:transition-colors'
+// Neutral confirm (Accept, Add friend): FRIEND_ACTION_BUTTON in utils/friendActions.ts
+"shrink-0 rounded-control border border-[var(--control-active-border)] bg-[var(--control-fill-hover)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)] hover:brightness-110 active:brightness-95 …"
 
-// A row's one filled action: Accept, Add friend (utils/friendActions.ts).
-const FRIEND_ACTION_BUTTON =
-  'shrink-0 rounded-control border border-[var(--control-active-border)] bg-[var(--control-fill-hover)] ' +
-  'px-[var(--space-3)] py-[var(--space-1)] text-xs font-semibold text-[var(--text)] ' +
-  'hover:brightness-110 active:brightness-95 ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] ' +
-  'aria-disabled:cursor-default aria-disabled:opacity-60 motion-safe:transition-[filter]'
+// Join (friend details, sheets, the join confirmation)
+<button
+  className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] …"
+  style={{
+    borderColor: 'color-mix(in srgb, var(--op-public) var(--pill-edge-strong), transparent)',
+    background: 'color-mix(in srgb, var(--op-public) var(--pill-tint-strong), transparent)',
+    color: 'var(--op-public-text)'
+  }}
+>
 
-// The welcome setup's main button, which favors neither platform
-// (PRIMARY_BUTTON in components/setup/SetupWizard.tsx).
-const SETUP_PRIMARY =
-  'rounded-control border border-[var(--text)] bg-[var(--text)] px-[18px] py-[10px] ' +
-  'text-[13px] font-semibold leading-none text-[var(--bg-base)] hover:opacity-90 ' +
-  'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] ' +
-  'focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-base)] ' +
-  'disabled:cursor-not-allowed disabled:opacity-40 motion-safe:transition-opacity cursor-pointer'
+// A platform's own action (Connect, Save): actionClass in utils/accountCard.ts
+"rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 border-[var(--vrc)] bg-[color-mix(in_srgb,var(--vrc)_16%,transparent)] text-[var(--plat-vrc-word)]"
 
-// A platform's own Connect button (LoginScreen.tsx).
-const CONNECT = {
-  vrchat: 'border-[var(--vrc)] bg-[var(--vrc)] text-[var(--text-on-vrc)]',
-  chilloutvr: 'border-[var(--cvr)] bg-[var(--cvr)] text-[var(--text-on-cvr)]'
-}
+// Sign in, on the sign-in screen only
+"rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 border-[var(--vrc)] bg-[var(--vrc)] text-[var(--text-on-vrc)]"
+
+// Destructive (Unfriend, Block): the quiet shape with this style
+style={{
+  borderColor: 'color-mix(in srgb, var(--error) var(--pill-edge-strong), transparent)',
+  background: 'color-mix(in srgb, var(--error) var(--pill-tint), transparent)',
+  color: 'var(--error)'
+}}
+
+// Close
+"absolute top-[var(--space-3)] right-[var(--space-3)] z-10 grid h-[28px] w-[28px] place-items-center rounded-[9px] text-base leading-none text-[var(--text-dim)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
 ```
+
+- Use `aria-disabled` rather than `disabled` on a button that stays on
+  screen while it works. A disabled button loses keyboard focus.
+- A busy button changes its word and keeps its size.
+- Write whole class names. Tailwind does not see a class built from pieces
+  at run time, so a platform's classes are chosen from a map of full strings.
 
 ### B.5 Segmented control and toggle
 
 ```tsx
 <SegmentedControl
-  values={['vrchat', 'platform-native', 'chilloutvr'] as const}
-  active={scheme}
-  labelKeys={{
-    vrchat: 'settings.labelScheme.vrchat',
-    'platform-native': 'settings.labelScheme.platformNative',
-    chilloutvr: 'settings.labelScheme.chilloutvr'
-  }}
-  ariaLabel={t('settings.labelScheme.label')}
-  onChange={setScheme}
+  values={THEMES}
+  active={theme}
+  labelKeys={THEME_LABEL_KEYS}
+  ariaLabel={t('settings.theme.aria')}
+  onChange={(value) => updateSettings({ theme: value })}
 />
+
 <Toggle
-  checked={popularNow}
-  onChange={(on) => updateSettings({ dashboardPopularNow: on })}
-  ariaLabel={t('settings.dashboard.popular.label')}
+  checked={hideEmpty}
+  onChange={(checked) => updateSettings({ dashboardHideEmpty: checked })}
+  ariaLabel={t('settings.dashboard.hideEmpty.label')}
 />
+
+<NumberStepper value={threshold} min={1} max={10} onChange={setThreshold}
+  ariaLabel={t('dashboard.hotThresholdAria')} />
 ```
+
+`labelKeys` maps each value to a translation key (above,
+`THEME_LABEL_KEYS` in `SettingsView.tsx`). Pass `textColors` only for
+platform words (the sign-in tabs). Never draw a second kind of switch.
 
 ### B.6 Section heading and notice
 
 ```tsx
-// Dashboard section heading (VT323 kicker).
-<h2 className="canvas-text font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-dim)]">
-  {t('dashboard.sectionHotInstances')}
-</h2>
+// Dashboard section heading (SectionHeading in DashboardView.tsx)
+<div className="flex items-baseline gap-[10px] mx-[2px] mb-[12px] mt-[var(--space-6)]">
+  <h2 className="canvas-text font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-dim)]">
+    {t('dashboard.sectionHotInstances')}
+  </h2>
+</div>
 
-// One-row notice strip (RecoveryNotices.tsx); a failure leads with a warning glyph.
-<div
-  role="alert"
-  className="glass glass-layer mb-[var(--space-2)] flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-2)] text-xs leading-snug text-[var(--text-dim)]"
->
-  <span aria-hidden="true" className="shrink-0 text-sm text-[var(--error)]">
-    ⚠
-  </span>
-  <span className="min-w-0 flex-1">{t('settings.persistence.error')}</span>
-  <button
-    type="button"
-    aria-disabled={saving || undefined}
-    className="shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--control-fill-hover)] aria-disabled:cursor-default aria-disabled:opacity-50"
-  >
-    {t(saving ? 'settings.persistence.saving' : 'settings.persistence.retry')}
-  </button>
+// Small heading inside a sheet or profile
+<h3 className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]">…</h3>
+
+// Notice line above a page (RecoveryNotices.tsx)
+<div role="status" className="glass glass-layer mb-[var(--space-2)] flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-2)] text-xs leading-snug text-[var(--text-dim)]">
+  <span className="min-w-0 flex-1">{message}</span>
+  <button className="shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs …">{t('settings.accounts.retry')}</button>
 </div>
 ```
+
+A notice that reports a failure starts with a glyph in `--error` ("⚠" or
+"!") and uses `role="alert"`. One that only informs uses `role="status"`.
 
 ### B.7 Empty and not-connected state
 
 ```tsx
-// NotConnectedCard.tsx: a layered card with one line and one quiet action.
-<div className="glass glass-layer flex min-h-[180px] flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center">
+// NotConnectedCard.tsx
+<div className="glass glass-layer flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
   <p className="text-sm font-semibold text-[var(--text-dim)]">{message}</p>
-  <button
-    type="button"
-    onClick={onOpenAccounts}
-    className="rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
-  >
-    {t('dashboard.notConnected.openAccounts')}
+  <button className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors">
+    {t('friends.notConnected.openAccounts')}
   </button>
 </div>
+
+// Empty (HotInstancesEmpty in HotInstancesHeader.tsx)
+<div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
+  <p className="text-[var(--text-dim)] text-sm font-semibold">{t('dashboard.emptyHeading')}</p>
+  <p className="text-[var(--text-dim)] text-xs mt-[var(--space-1)]">{t('dashboard.emptyHint', { threshold })}</p>
+</div>
 ```
+
+An empty state says what will show up here and, when there is one, the
+single next step. It has no illustration.
 
 ### B.8 Theme and glow
 
 ```ts
-// hooks/useApplyTheme.ts: light sets the attribute, dark removes it.
-document.documentElement.setAttribute('data-theme', 'light')
-document.documentElement.removeAttribute('data-theme')
-// hooks/useApplyGlow.ts: Standard removes data-glow; the others set it.
-document.documentElement.setAttribute('data-glow', 'vivid') // 'off' | 'muted' | 'vivid'
+applyTheme('light', false) // sets data-theme="light" on <html>
+applyTheme('dark', false) // removes it: dark is the baseline
+applyTheme('system', prefersLight) // follows the system
+applyGlow('vivid') // sets data-glow on <html>; 'standard' removes it
 ```
+
+- The app calls these through `useApplyTheme` and `useApplyGlow` in
+  `App.tsx`. Components never read the theme; they use tokens.
+- A background picture sets `data-app-background` on `<html>` and the fade
+  through `--app-backdrop-fade` (§4).
+- To check a component in light, set `data-theme="light"` on `<html>`. If it
+  needs a light-only correction, add or override a token under
+  `[data-theme='light']` in `main.css`; do not branch in the component.
 
 ## Appendix C: Rebuilding the look outside VRX
 
-To reproduce the VRX language in another codebase (a mockup, a companion
-site, a prototype):
+To reproduce the VRX look in another codebase (a mockup, a prototype, a
+companion page):
 
-1. Copy the `:root` and `[data-theme='light']` token blocks from Appendix A
-   into your stylesheet as CSS variables. Keep the names.
-2. Self-host Inter (variable) and VT323 and set `--font-sans` and
-   `--font-mono` as in Appendix A.
-3. Paint the canvas: `body { background: var(--bg-base); color: var(--text);
-font-family: var(--font-sans) }`, then the aurora `body::before` and the
-   scanline `body::after` from `main.css` (§4).
-4. Copy the material classes from Appendix B.1 and the `.platform-row` rule
-   from `main.css`, inside a cascade layer below your utilities.
-5. Build pages as layers: sidebar `.glass`, page panel `.glass .glass-panel`,
-   cards `.glass .glass-layer`, pills `.glass-chip` with `PILL_BASE`
-   geometry, dialogs `.glass .glass-frosted-heavy .glass-information`.
-6. Apply the Locked rules: equal platforms, a word beside every color, VRChat
-   blue and ChilloutVR orange, privacy for Ask Me and Do Not Disturb, simple by
-   default.
-7. Check dark and light by toggling `data-theme="light"` on `<html>`.
+1. Copy the `:root` and `[data-theme='light']` token blocks from `main.css`
+   (Appendix A lists every value). Keep the names.
+2. Host Inter (variable, 400 to 800) and VT323 yourself and set
+   `--font-sans` and `--font-mono` as in Appendix A.
+3. Paint the canvas: `--bg-base` on `body` with `--text` and `--font-sans`,
+   then the aurora on `body::before` and the scanlines on `body::after`
+   (§4). `body` does not scroll.
+4. Copy the rules from Appendix B.1 into a cascade layer that sits below
+   your utility classes, with the two tint classes outside it.
+5. Build pages as layers (§3): the sidebar is `.glass`; a page panel is
+   `.glass.glass-panel`; cards are `.glass.glass-layer`; platform rows are
+   `.platform-row`; pills use `.glass-chip` with the `PILL_BASE` geometry;
+   dialogs are `.glass.glass-frosted-heavy.glass-information`.
+6. Keep the Locked rules: both platforms equal, a word or shape beside every
+   color, VRChat blue and ChilloutVR orange, privacy for Ask Me and Do Not
+   Disturb, simple by default.
+7. Check dark and light by setting `data-theme="light"` on `<html>`, each
+   glow level with `data-glow`, and a window of 900 x 670.
+
+Do not use either platform's logo or art. VRX names the platforms in words.
 
 ## Appendix D: Glossary and legacy labels
 
-- **Presence state:** `in-game` (in a world), `active` (online outside the
-  game), `offline`. **Status:** VRChat's own Join Me, Online, Ask Me, Do Not
-  Disturb.
-- **Instance / access tier:** a specific running copy of a world and who may
-  join it (Public, Friends+, Friends, Invite+, Invite, Group Public, Group+,
-  Group; ChilloutVR adds its own names and the Offline Instance).
-- **Hot instance:** one exact instance with at least the threshold number of
-  visible friends in it.
-- **Linked person:** one VRChat friend and one ChilloutVR friend the user
-  joined by hand into one VRX person.
-- **Information surface:** any card, row, panel or overlay that carries
-  meaning, as opposed to decorative chrome.
+- **Presence:** where a friend is: in a game, online outside the game, or
+  offline. Shown by the avatar ring (§5).
+- **Status:** VRChat's own Join Me, Online, Ask Me, Do Not Disturb. Shown by
+  the dot on the avatar and by words.
+- **Instance:** one running copy of a world. **Access** is who may join it
+  (Public, Friends+, Friends, Invite+, Invite, the group kinds, and
+  ChilloutVR's own names; §6.1).
+- **Policy space:** whether an instance counts as a public or a private
+  space for moderation (§6.2).
+- **Hot instance:** one instance with at least the threshold number of
+  friends whose location is visible.
+- **Linked person:** one VRChat friend and one ChilloutVR friend joined by
+  hand into one VRX person (§10).
+- **Pane, layer:** one sheet of glass in the stack (§3).
+- **Information surface:** an opaque pane for reading text: a menu, a
+  dialog, the boot and error screens.
 - **Canvas text:** words set straight on the background, not on a pane.
+- **Platform tab (rail):** the vertical "VRC", "CVR" or "VRX" chip at the
+  left of a friend row.
+- **Sheet:** a panel that rises from the bottom of the content area.
+  **Friend details** (the drawer) slides in from the right.
 
-Code comments from earlier versions use these labels: **R2, R10, R12** mean a
-color always has a non-color cue (label, glyph, or word); **R10** in motion
-comments means motion only under `motion-safe:`; **R6** is the Ask Me and Do
-Not Disturb location privacy rule (§5); **R5** is the updater's indeterminate
-"Updating…" label while it downloads; **§2A, §3A, §4A** are the light-theme
-parts of §2, §3 and §4; **"channel law"** means Locked rules 2–4 and §5.
+Code comments from earlier versions use these labels:
+
+| Label         | Meaning                                                                       |
+| ------------- | ----------------------------------------------------------------------------- |
+| R2, R12       | A color always has a non-color cue: a label, glyph, shape or word             |
+| R10           | The same non-color rule; in motion comments, motion only under `motion-safe:` |
+| R6            | The Ask Me and Do Not Disturb location privacy rule (§5)                      |
+| R5            | The sidebar update button's "Updating…" label while it downloads              |
+| §2A, §3A, §4A | The light-theme parts of §2, §3 and §4                                        |
+| "channel law" | Locked rules 2 to 4 and §5: which signal carries which meaning                |

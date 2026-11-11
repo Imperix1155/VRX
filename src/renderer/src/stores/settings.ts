@@ -27,6 +27,9 @@ interface SettingsState {
   /** True when the settings file came from a newer VRX, so main keeps it
    *  untouched and no save can succeed until VRX is updated. */
   newerFile: boolean
+  /** True when main found a damaged settings file this run and started from
+   *  defaults; cleared when the user hides the notice. */
+  resetNotice: boolean
   saving: boolean
   saveAttempt: number
   retrySave: () => void
@@ -47,6 +50,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   saveError: false,
   loadFallback: false,
   newerFile: false,
+  resetNotice: false,
   saving: false,
   saveAttempt: 0,
   retrySave: () => set((state) => ({ saveAttempt: state.saveAttempt + 1 })),

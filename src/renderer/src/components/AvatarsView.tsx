@@ -61,7 +61,7 @@ const WORN_GRID: React.CSSProperties = {
  * rest fills in below.
  */
 export const UPLOADS_FIRST_STEP = 48
-export const UPLOADS_STEP = 48
+const UPLOADS_STEP = 48
 
 /** How many of `total` cards to draw now; grows by a step after each paint. */
 function useProgressiveCount(total: number): number {

@@ -32,6 +32,7 @@ import InstancePill from './InstancePill'
 import PlatformPill from './PlatformPill'
 import PolicySpacePill from './PolicySpacePill'
 import SheetGrabBar from './SheetGrabBar'
+import { shareLink } from '@shared/shareLinks'
 import { SheetFacts, type SheetFact } from './SheetFacts'
 import { regionLabelKey } from '../utils/exploreFormat'
 
@@ -146,6 +147,12 @@ export default function HotInstanceSheet({
   const userCount = shown.members
     .map((m) => m.instance?.userCount ?? null)
     .find((n): n is number => n !== null)
+  const instanceLink = shareLink({
+    kind: 'instance',
+    platform: shown.platform,
+    worldId: shown.worldId,
+    instanceId: shown.instanceId
+  })
   const moreFacts: SheetFact[] = [
     {
       label: t('hotSheet.more.people'),
@@ -165,7 +172,15 @@ export default function HotInstanceSheet({
       // isGroup says whether a group hosts it; the name can still be unknown.
       value: shown.isGroup ? (shown.groupName ?? notShown) : t('hotSheet.more.noGroup')
     },
-    { label: t('hotSheet.more.instanceId'), value: shown.instanceId, mono: true }
+    {
+      label: t('hotSheet.more.instanceId'),
+      value: shown.instanceId,
+      mono: true,
+      copyLink:
+        instanceLink === null
+          ? undefined
+          : { link: instanceLink, ariaLabel: t('copyLink.instanceAria', { world: worldName }) }
+    }
   ]
 
   function joinSheetTarget(event: React.MouseEvent<HTMLButtonElement>): void {
@@ -311,7 +326,7 @@ export default function HotInstanceSheet({
                       {t('drawer.join')}
                     </button>
                     {/* Its own line under Join, not an overlay on it: failures
-                        stay until the next attempt (as on friend rows). */}
+                        stay for several seconds (as on friend rows). */}
                     <span
                       role="status"
                       className="text-right text-[12px] leading-snug break-words text-[var(--text-dim)] [&:not(:empty)]:mt-[var(--space-1)]"

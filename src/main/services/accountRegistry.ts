@@ -1,3 +1,6 @@
+import { readFileSync, renameSync } from 'node:fs'
+import { join } from 'node:path'
+import { app } from 'electron'
 import Store from 'electron-store'
 import { z } from 'zod'
 import type { Account, Platform } from '@shared/types'
@@ -22,6 +25,11 @@ export interface AccountRegistryFile {
 export interface AccountRegistryStorage {
   read(): unknown
   write(value: AccountRegistryFile): void
+  /**
+   * Move a damaged file aside (renamed, never deleted) so the next write
+   * starts a fresh one. Throws when the file could not be moved.
+   */
+  setAside?(): void
 }
 
 const entrySchema = z.object({
@@ -42,11 +50,30 @@ class ElectronAccountRegistryStorage implements AccountRegistryStorage {
   private store: Store<Record<string, unknown>> | null = null
 
   read(): unknown {
-    return this.getStore().store
+    try {
+      return this.getStore().store
+    } catch (error) {
+      // Not JSON: hand back the text, so the registry can still tell whether a
+      // newer build wrote it before deciding what to do.
+      if (!(error instanceof SyntaxError)) throw error
+      return readFileSync(this.filePath(), 'utf8')
+    }
   }
 
   write(value: AccountRegistryFile): void {
     this.getStore().store = { ...value }
+  }
+
+  setAside(): void {
+    renameSync(
+      this.filePath(),
+      join(app.getPath('userData'), `accounts.corrupt-${Date.now()}.json`)
+    )
+    this.store = null
+  }
+
+  private filePath(): string {
+    return join(app.getPath('userData'), 'accounts.json')
   }
 
   private getStore(): Store<Record<string, unknown>> {
@@ -121,7 +148,24 @@ function parseRegistryFile(raw: unknown): AccountRegistryLoadResult {
   }
 }
 
-/** Durable source of truth for known accounts; only remove() creates tombstones. */
+/** Only a plain system error code is logged; a message could carry a path. */
+function errorCode(error: unknown): string {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+  return typeof code === 'string' && /^E[A-Z0-9_]{1,31}$/.test(code) ? code : 'unknown'
+}
+
+type AccountRegistryLog = (message: string, detail?: string) => void
+
+/**
+ * Durable source of truth for known accounts; only remove() creates tombstones.
+ *
+ * A file this build can't read (damaged JSON or the wrong shape) is moved
+ * aside as `accounts.corrupt-<time>.json` and the registry starts empty, like
+ * social.json; the next sign-in check records the account again. A file from a
+ * newer build, or one that could not be read at all (I/O, permissions), stays
+ * untouched and the registry stays read-only.
+ */
 export class AccountRegistry {
   private readonly storage: AccountRegistryStorage
   private file: AccountRegistryFile
@@ -129,15 +173,34 @@ export class AccountRegistry {
 
   constructor(
     private readonly accountSession: AccountSession,
-    storage?: AccountRegistryStorage
+    storage?: AccountRegistryStorage,
+    log: AccountRegistryLog = () => undefined
   ) {
     this.storage = storage ?? new ElectronAccountRegistryStorage()
+    let loaded: AccountRegistryLoadResult
     try {
-      const loaded = parseRegistryFile(this.storage.read())
+      loaded = parseRegistryFile(this.storage.read())
+    } catch (error) {
+      log('account registry: could not read the file; keeping it', errorCode(error))
+      this.file = emptyRegistryFile()
+      this.loadValid = false
+      return
+    }
+    // A rejected file from a newer build is kept as it is (see assertWritable()).
+    if (loaded.loadValid || loaded.file.storeFormatVersion > ACCOUNT_REGISTRY_FORMAT_VERSION) {
       this.file = loaded.file
       this.loadValid = loaded.loadValid
-    } catch {
+      return
+    }
+    try {
+      if (!this.storage.setAside) throw new Error('no set-aside in this storage')
+      this.storage.setAside()
+      log('account registry: damaged file kept as accounts.corrupt-*.json; starting fresh')
       this.file = emptyRegistryFile()
+      this.loadValid = true
+    } catch (error) {
+      log('account registry: could not move the damaged file aside', errorCode(error))
+      this.file = loaded.file
       this.loadValid = false
     }
   }

@@ -15,7 +15,7 @@ export const COMMUNITY_QUERY_MAX_LENGTH = 64
  * Shortest search text main sends; one letter matches far too much. One kanji
  * (猫, 城) is often a whole word, so it may stand alone (`normalizeCommunityQuery`).
  */
-export const COMMUNITY_QUERY_MIN_LENGTH = 2
+const COMMUNITY_QUERY_MIN_LENGTH = 2
 const ONE_KANJI = /^\p{Script=Han}$/u
 /** Most people and most worlds a search keeps per platform. */
 export const COMMUNITY_SEARCH_MAX_RESULTS = 10

@@ -210,6 +210,28 @@
       "1h": "1h",
       "manual": "Manual only"
     },
+    "startWithComputer": {
+      "label": "Start with your computer",
+      "description": "Opens VRX when you sign in to this computer.",
+      "aria": "Start with your computer",
+      "off": "Off",
+      "window": "On",
+      "tray": "In the tray",
+      "notApplied": "Your computer didn't accept this. Try it again.",
+      "stillOn": "VRX is still in this computer's startup.",
+      "unavailable": "This copy of VRX can't start with your computer."
+    },
+    "export": {
+      "label": "Export your data",
+      "description": "Saves your friends, notes and favorites to a file on this computer.",
+      "button": "Export…",
+      "saved": "Saved. Friends: {{friends}}, notes: {{notes}}, favorites: {{favorites}}.",
+      "noGameFavorites": "Your game favorites couldn't be read just now, so the file has VRX stars only.",
+      "signedOut": "Sign in to an account first.",
+      "notReady": "VRX is still loading your friends. Try again in a moment.",
+      "failed": "Couldn't save the file. Try another folder.",
+      "tooMany": "Too many tries. Wait a minute, then try again."
+    },
     "labelScheme": {
       "label": "Instance labels",
       "description": "Which words the instance labels use.",
@@ -479,7 +501,9 @@
       "retry": "Retry saving settings",
       "saving": "Saving…",
       "loadFallback": "VRX couldn't read your saved settings, so it's showing the defaults for now. Your saved settings are kept.",
-      "newerFile": "Your settings were saved by a newer version of VRX, so changes made here last only until VRX closes. Update VRX to keep them."
+      "newerFile": "Your settings were saved by a newer version of VRX, so changes made here last only until VRX closes. Update VRX to keep them.",
+      "reset": "Your saved settings were damaged, so VRX went back to the defaults. The old file is kept as a backup in VRX's data folder.",
+      "hideReset": "Hide the settings reset notice"
     },
     "bugReport": {
       "label": "Found a bug?",
@@ -617,6 +641,10 @@
       "online": "Online ({{count, number}})",
       "offline": "Offline ({{count, number}})",
       "favorites": "Favorites ({{count, number}})"
+    },
+    "favoriteGroup": {
+      "game": "{{name}} · {{platform}} ({{count, number}})",
+      "vrx": "Starred in VRX ({{count, number}})"
     },
     "instance": {
       "unknownWorld": "Unknown World",
@@ -962,9 +990,14 @@
     },
     "more": {
       "heading": "About this world",
+      "creator": "Creator",
+      "description": "Description",
+      "tags": "Tags",
+      "capacity": "Room size",
       "people": "People now",
       "regions": "Room regions",
-      "checked": "Last checked"
+      "checked": "Last checked",
+      "worldId": "World ID"
     },
     "home": {
       "set": "Set as home world",
@@ -983,6 +1016,29 @@
         "failed": "{{platform}} didn't change your home world. Try again.",
         "not-authenticated": "Sign in to {{platform}} again to change your home world.",
         "unknown-world": "Refresh this world, then try again."
+      }
+    },
+    "rating": {
+      "like": "Like",
+      "dislike": "Dislike",
+      "liked": "Liked",
+      "disliked": "Disliked",
+      "group": "Your rating of this world",
+      "likeAria": "Like {{world}}",
+      "dislikeAria": "Dislike {{world}}",
+      "likedAria": "Liked. Clear your rating of {{world}}",
+      "dislikedAria": "Disliked. Clear your rating of {{world}}",
+      "signedOut": "Sign in to VRChat to rate this world.",
+      "loading": "Loading your rating…",
+      "saving": "Saving your rating…",
+      "failed": {
+        "cooldown": "Wait a moment before changing your rating again.",
+        "rate-limited": "VRChat asked VRX to slow down. Try again in a minute.",
+        "failed": "VRChat didn't save your rating. Try again.",
+        "not-authenticated": "Sign in to VRChat again to rate this world.",
+        "unknown-world": "Refresh this world, then try again.",
+        "stale": "Sign in again to rate this world.",
+        "not-vrchat": "Only VRChat worlds can be rated."
       }
     }
   },
@@ -1198,6 +1254,14 @@
     "inviteNoWorld": "Invited you",
     "inviteRequest": "Asked you for an invite",
     "friendRequest": "Sent you a friend request",
+    "join": {
+      "button": "Join",
+      "aria": "Join the instance {{name}} invited you to",
+      "context": "{{name}} invited you here",
+      "titleNoWorld": "Join {{name}}'s invite?",
+      "gone": "This invite is no longer here.",
+      "failed": "Couldn't join from this invite. Accept it in the game instead."
+    },
     "someone": "Someone",
     "justNow": "Just now",
     "hide": "Hide",
@@ -1212,7 +1276,7 @@
     "emptyHint": "Invites and friend requests that arrive while VRX is open show up here.",
     "help": {
       "label": "About the inbox",
-      "answer": "Accept or Decline answers a friend request on its platform. Invites are only shown here: answer them in the game. Hide takes a row out of VRX and sends nothing.",
+      "answer": "Accept or Decline answers a friend request on its platform. Join on an invite opens the game in that instance, and tells the sender nothing. Other invites are only shown here: answer them in the game. Hide takes a row out of VRX and sends nothing.",
       "live": "The inbox lists what arrives while VRX is open and forgets it when VRX closes."
     },
     "notConnected": {
@@ -1399,5 +1463,13 @@
       "offNote": "Showing your game favorites is off.",
       "settings": "Settings"
     }
+  },
+  "copyLink": {
+    "copy": "Copy link",
+    "copied": "Copied",
+    "failed": "Couldn't copy",
+    "personAria": "Copy a link to {{name}}",
+    "worldAria": "Copy a link to {{world}}",
+    "instanceAria": "Copy a link to this instance in {{world}}"
   }
 }

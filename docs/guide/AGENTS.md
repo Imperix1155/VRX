@@ -20,9 +20,11 @@ Builds the design guide (`docs/design.html`) and isolated scenes
   checks only, no run-time validation) and local SVG illustrations. It is not
   evidence about live platform behavior.
 - `scenarios.ts` is the registry for selectable source, Explore sheet, drawer
-  (including note load and save failure), and Friends failure states;
-  `scene-entry.tsx` adds updater, settings save-error and read-error, and login
-  variants, and `scene-renderer.tsx` the welcome-setup scene (`ready`,
+  (note load and save failure, account-note states), join (game closed, open,
+  or invite) and Friends failure states, and the Dashboard section orders
+  (`hot-first`, `reordered`); `scene-entry.tsx` adds updater, settings
+  save-error and read-error, and login variants, and `scene-renderer.tsx` the
+  welcome-setup scene (`ready`,
   `signed-out`, `save-error`) and the Dashboard `needs-code` state (VRChat
   waiting for a sign-in code). The
   `picked-alerts` settings and drawer variant turns on the picked-friends

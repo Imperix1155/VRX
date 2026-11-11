@@ -7,6 +7,138 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Rate a VRChat world from its sheet. Like and Dislike show your own rating,
+  and pressing the one you already chose clears it. A change that does not
+  go through puts the previous rating back and says so, then the message
+  clears. ChilloutVR worlds have no rating, so those buttons are not on
+  that sheet. There is no public like count.
+
+## [1.4.4-dev.3] - 2026-11-11
+
+### Fixed
+
+- Join no longer answers "Live connection not ready" while the top bar shows
+  the connection as live. After starting VRX with a saved sign-in, joins on
+  VRChat or ChilloutVR could stay refused until the friends list was next
+  read; now the read at launch counts, and if VRX is ever still catching up
+  when you press Join, it reads the list once so the next press works.
+
+### Changed
+
+- The line under a Join that did not go through now clears on its own after
+  10 seconds (or as soon as you press Join again). On a friend's row it
+  lines up under the name with a little space around it instead of sitting
+  on the edge of the card.
+
+## [1.4.4-dev.2] - 2026-11-11
+
+### Added
+
+- Export your data: Settings → Accounts has a new "Export…" button that
+  saves your friends, notes and favorites to a file you pick on your
+  computer. VRChat and ChilloutVR are written the same way and the file holds
+  no sign-in details. It is made from what VRX already has; with "Use my game
+  favorites" on it first waits for the one favorites read VRX makes per
+  sign-in, and tells you if your game favorites could not be included.
+- Start with your computer: Settings → About has a new choice, Off by
+  default. On opens VRX when you sign in to your computer; In the tray does
+  the same but keeps the window closed until you open it from the tray icon.
+  It works on Windows and Linux, and Settings tells you if your computer did
+  not accept it.
+- Join from an invite: an invite in the Inbox that names its instance now
+  has a Join button. It opens the game in that instance through the same
+  join steps as a friend's Join (with the confirmation, when you keep it
+  on), sends nothing to the person who invited you, and leaves the row where
+  it is. It works the same for VRChat and ChilloutVR.
+- Favorites by group: when your in-game favorites sit in more than one of
+  your account's favorite groups, the Favorites section on the Friends page
+  now lists them under each group's name, with friends starred only in VRX
+  last. VRChat groups and ChilloutVR categories work the same way, and it
+  uses the groups VRX already read at sign-in.
+- World details: Show more in a world's sheet now lists its creator,
+  description, tags and room size, the same way for VRChat and ChilloutVR.
+  They come with the read VRX already makes when the sheet opens, so nothing
+  extra is asked of either platform.
+- Copy link: a quiet "Copy link" button now sits beside the ID under Show
+  more in the world sheet and the hot instance sheet, in a person's sheet
+  from Search, and under Show full profile in friend details. It copies a
+  link to that person, world or instance to paste to a friend. VRChat links
+  open its website; ChilloutVR links open the page in the game.
+
+## [1.4.4-dev.1] - 2026-11-11
+
+### Fixed
+
+- Signing out of VRChat now shows its live connection as stopped right away
+  instead of leaving the last state on screen.
+- A burst of VRChat friends changing worlds no longer queues hundreds of
+  lookups ahead of what you press; they run in small batches behind your
+  own actions.
+- A ChilloutVR friend the platform lists twice shows once.
+- After a platform asks VRX to slow down, the friends list waits longer
+  between tries (30 seconds, doubling up to 10 minutes) instead of asking
+  every 30 seconds, and a failed friends read is tried once more, not three
+  times.
+- When VRX pauses a platform after repeated failures, the friends list says
+  to wait instead of "could not refresh", the pause is written to the log,
+  and a sign-out by the platform is still noticed during the pause. Refused
+  VRChat invites no longer cause that pause.
+- Starting VRX with a saved sign-in reads your friends list once instead of
+  twice, so the list is current sooner and VRX asks the platforms for less.
+- The favorite star's groups load sooner after launch instead of waiting
+  behind world-name lookups.
+- Pressing a favorite twice quickly gives the right answer for the second
+  press.
+- If the settings file is damaged, VRX keeps the old file, starts from
+  defaults and now tells you so. Damaged account and linked-profile files
+  are also kept beside a fresh one instead of blocking saves.
+- A failed save of notes and favorites data is written to the log.
+- Small look fixes: the Dashboard's "Popular now" heading matches the other
+  section headings, the welcome summary lists pages in sidebar order, and
+  the light theme's window background matches the app while it loads.
+- Linking dialogs keep keyboard focus when they move to the next step, and
+  screen readers name which account a profile section belongs to when two
+  accounts are shown.
+
+### Security
+
+- Security hardening for links VRX opens in your browser.
+
+## [1.4.3] - 2026-11-10
+
+A polish and bug fix release on top of 1.4.2.
+
+### Fixed
+
+- When VRChat or ChilloutVR signs you out by itself, VRX now says so: a
+  notice names the platform with Go to Accounts, the status dot turns red,
+  and the sign-in screen opens on that platform. A ChilloutVR sign-in that
+  stopped working no longer leaves the live connection retrying forever.
+- Unfriend, Block and Unblock on a VRChat profile work again, and the
+  profile's options stay current when a friendship starts or ends.
+- Friends list: a removed friend stays removed, ChilloutVR friends keep
+  showing where they are after a window reload, the list loads again on its
+  own after a platform slow-down, and frequent refreshes no longer show a
+  false "could not refresh".
+- Profiles: a profile VRX couldn't read offers Try again instead of saying
+  it's gone, a profile opened right after launch no longer gets stuck, and
+  Add friend goes away once you block someone.
+- Join: after a failed Join, focus stays in the world sheet and the message
+  shows; a failed invite is never sent again by itself; long world names
+  wrap in the join dialogs.
+- Dashboard and Explore: Popular now and Wearing now offer a retry when
+  they fail, and Favorites says when your starred worlds couldn't load.
+- Sign-in and settings: mistyped sign-ins on one platform never block the
+  other, a damaged local sign-in key or notes file no longer stops saving,
+  and settings from a newer VRX say so.
+- Looks: no thin seam near the right edge of glass cards on scaled displays,
+  no shift under Hot instance cards on hover, the top bar no longer shows a
+  red "Down" at launch, and several Japanese layout fixes.
+- Many smaller fixes to wording, keyboard focus and accessibility.
+- Security hardening.
+
 ## [1.4.3-dev.5] - 2026-11-10
 
 ### Fixed

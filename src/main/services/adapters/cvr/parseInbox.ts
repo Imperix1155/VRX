@@ -4,7 +4,7 @@
  * 🟡 Shapes follow CVRX and chilloutvr_rs and are not yet confirmed on the live
  * wire, so both casings are read, like ONLINE_FRIENDS (PascalCase was observed
  * there):
- * - `15` INVITES: `[{ Id, User: { Id, Name }, World: { Name }, InstanceName }]`
+ * - `15` INVITES: `[{ Id, User: { Id, Name }, World: { Id, Name }, InstanceId, InstanceName }]`
  * - `20` REQUEST_INVITES: `[{ Id, Sender: { Id, Name } }]`
  * - `25` FRIEND_REQUESTS: `[{ Id, Name }]`, the requesting user
  *
@@ -19,8 +19,10 @@ import {
   boundedInboxText,
   isInboxId,
   type InboxEntry,
-  type InboxKind
+  type InboxKind,
+  type InboxLocation
 } from '@shared/inbox'
+import { CVR_INSTANCE_ID_RE } from './buildCvrJoinUrl'
 import { extractCvrPlatformUserId } from './cvrPlatformUserId'
 
 type WireRecord = Record<string, unknown>
@@ -42,6 +44,8 @@ function userIdOf(value: unknown): string | null {
   const result = extractCvrPlatformUserId(value)
   return result.ok ? result.platformUserId : null
 }
+
+const WORLD_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** `World (#123)` → `World`, matching how instance names show elsewhere. */
 const INSTANCE_SUFFIX = /\s*\(#[^)]*\)\s*$/
@@ -66,8 +70,17 @@ function parseRecord(kind: InboxKind, record: WireRecord): InboxEntry | null {
   if (senderId === null) return null
 
   let worldName: string | null = null
+  let location: InboxLocation | null = null
   if (kind === 'invite') {
     const world = field(record, 'World')
+    const instanceId = field(record, 'InstanceId')
+    if (typeof instanceId === 'string' && CVR_INSTANCE_ID_RE.test(instanceId)) {
+      const worldId = isRecord(world) ? field(world, 'Id') : null
+      location = {
+        worldId: typeof worldId === 'string' && WORLD_ID_RE.test(worldId) ? worldId : '',
+        instanceId
+      }
+    }
     const instanceName = field(record, 'InstanceName')
     worldName =
       boundedInboxText(
@@ -84,7 +97,8 @@ function parseRecord(kind: InboxKind, record: WireRecord): InboxEntry | null {
     kind,
     senderId,
     senderName: boundedInboxText(field(sender, 'Name'), INBOX_NAME_MAX_LENGTH),
-    worldName
+    worldName,
+    ...(kind === 'invite' ? { location } : {})
   }
 }
 

@@ -103,10 +103,13 @@ or launch authority.
 **Join and Explore**
 
 - `useJoinInstance` and `JoinConfirmDialog` own the one join flow for friends,
-  hot instances, and Explore. The renderer sends a friend ID with the reviewed
-  target, or an opaque `selectionRef`; main decides and launches. Failure
-  feedback stays until another attempt or an account boundary. Retries reuse
-  the flow and never run automatically.
+  hot instances, Explore, and invite rows. The renderer sends a friend ID with
+  the reviewed target, an opaque `selectionRef`, or an inbox row key; main
+  decides and launches. An invite's place never reaches the renderer. Failure
+  feedback clears on its own after `JOIN_FAILURE_MS`, or sooner at another
+  attempt or an account boundary. Retries reuse the flow and never run
+  automatically. A Join main refuses as `stale` while the connection shows
+  live reads the friends list once (`STALE_JOIN_REREAD_MIN_MS` apart at most).
 - Explore and the Dashboard preview share ranking, selection, and the
   non-modal sheet; Search and Explore's New and Recently updated tabs open the
   same sheet for main-adopted worlds. `useExploreCoordinator` is the only

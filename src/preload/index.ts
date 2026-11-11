@@ -42,6 +42,8 @@ const vrx = {
   },
   // World references only: main resolves them to the platform's world ID.
   setHomeWorld: (req: IpcInvoke['set-home-world']['req']) => invoke('set-home-world', req),
+  getWorldRating: (req: IpcInvoke['get-world-rating']['req']) => invoke('get-world-rating', req),
+  setWorldRating: (req: IpcInvoke['set-world-rating']['req']) => invoke('set-world-rating', req),
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
   getAvatar: (url: string, rendition?: 'avatar' | 'picture') =>
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
@@ -92,6 +94,7 @@ const vrx = {
   selfInvite: (req: IpcInvoke['self-invite']['req']) => invoke('self-invite', req),
   getJoinHandoff: (req: IpcInvoke['get-join-handoff']['req']) => invoke('get-join-handoff', req),
   getAppStatus: () => invoke('get-app-status', undefined),
+  getLoginItem: () => invoke('get-login-item', undefined),
   getActivity: () => invoke('get-activity', undefined),
   clearActivity: (req: IpcInvoke['clear-activity']['req']) => invoke('clear-activity', req),
   onActivityChanged: (callback: () => void) => {
@@ -106,7 +109,9 @@ const vrx = {
   getAppBackground: () => invoke('get-app-background', undefined),
   chooseAppBackground: () => invoke('choose-app-background', undefined),
   clearAppBackground: () => invoke('clear-app-background', undefined),
+  exportData: () => invoke('export-data', undefined),
   getInbox: () => invoke('get-inbox', undefined),
+  joinInvite: (req: IpcInvoke['join-invite']['req']) => invoke('join-invite', req),
   dismissInboxItem: (req: IpcInvoke['dismiss-inbox-item']['req']) =>
     invoke('dismiss-inbox-item', req),
   clearInbox: (req: IpcInvoke['clear-inbox']['req']) => invoke('clear-inbox', req),

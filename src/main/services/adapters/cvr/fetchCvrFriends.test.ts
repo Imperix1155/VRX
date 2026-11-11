@@ -100,6 +100,20 @@ describe('fetchCvrFriends (VRX-57)', () => {
     expect(result.skippedRecords).toBe(3)
   })
 
+  it('keeps one row per friend when the list repeats an ID, using the later record', async () => {
+    const fetcher = buildFetcher([
+      makeFriend(ALICE_ID, 'Alice'),
+      makeFriend(BOB_ID, 'Bob'),
+      { ...makeFriend(ALICE_ID, 'Alice Renamed'), categories: [] }
+    ])
+
+    const result = await fetchCvrFriends(fetcher)
+
+    expect(result.friends.map((friend) => friend.displayName)).toEqual(['Alice Renamed', 'Bob'])
+    expect(result.skippedRecords).toBe(0)
+    expect([...result.categories.keys()]).toEqual([BOB_ID])
+  })
+
   it('throws on a total fetch failure instead of returning a misleading empty list', async () => {
     const fetcher: CvrFetcher = () => Promise.reject(new Error('network down'))
 

@@ -12,11 +12,15 @@ import { registerAvatarHandlers } from './avatar'
 import { registerAppBackgroundHandlers, type AppBackgroundHandlerOptions } from './app-background'
 import { registerFriendsHandlers } from './friends'
 import { registerInboxHandlers } from './inbox'
+import { registerDataExportHandlers, type DataExportHandlerOptions } from './data-export'
+import { registerLoginItemHandlers } from './login-item'
 import { registerFriendActionHandlers } from './friend-actions'
 import type { FriendActionsService } from '../services/friendActions'
 import type { InboxService } from '../services/inbox'
 import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers, registerHomeWorldHandler } from './explore'
+import { registerWorldRatingHandlers } from './world-rating'
+import type { WorldRatingService } from '../services/worldRatingService'
 import { registerAvatarLibraryHandlers, registerCurrentAvatarHandler } from './avatar-library'
 import { registerCommunityHandlers } from './community'
 import { registerOwnProfileHandlers } from './own-profile'
@@ -50,6 +54,7 @@ import type { AccountSession } from '../services/accountSession'
 import type { SocialStore } from '../services/socialStore'
 import type { AccountNoteService } from '../services/accountNotes'
 import type { AppStatusService } from '../services/appStatus'
+import type { LoginItem } from '../services/loginItem'
 import type { ActivityFeed } from '../services/activityFeed'
 import {
   IPC_RATE_LIMIT_BUDGETS,
@@ -93,16 +98,19 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   gameFavorites: GameFavoritesService
   links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
+  loginItem: Pick<LoginItem, 'status'>
   activity: ActivityFeed
   instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
   homeWorld: HomeWorldService
+  worldRating: WorldRatingService
   avatarLibrary: AvatarLibraryService
   currentAvatar: CurrentAvatarService
   community: CommunityService
   ownProfile: OwnProfileService
   social: SocialActionService
   appBackground: AppBackgroundHandlerOptions
+  dataExport: DataExportHandlerOptions
   inbox: InboxService
   friendActions: FriendActionsService
   vrOverlayAlerts: Pick<VrOverlayAlerts, 'test'>
@@ -195,16 +203,19 @@ export function registerIpcHandlers(
     registerFavoritesHandlers(options.favorites, options.explore)
     registerGameFavoritesHandlers(options.gameFavorites, options.explore)
     registerHomeWorldHandler(options.homeWorld)
+    registerWorldRatingHandlers(options.worldRating)
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerCurrentAvatarHandler(options.currentAvatar)
     registerCommunityHandlers(options.community)
     registerOwnProfileHandlers(options.ownProfile)
     registerSocialHandlers(options.social)
     registerAppStatusHandlers(options.appStatus)
+    registerLoginItemHandlers(options.loginItem)
     registerActivityHandlers(options.activity)
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)
+    registerDataExportHandlers(options.dataExport)
     registerInboxHandlers(options.inbox)
     registerFriendActionHandlers(options.friendActions)
     registerVrAlertHandlers(options.vrOverlayAlerts)

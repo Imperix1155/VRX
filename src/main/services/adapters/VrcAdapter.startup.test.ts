@@ -115,6 +115,29 @@ describe('VRChat synthetic cold-start milestones', () => {
     }
   )
 
+  it('starts from its own probe while the live socket is still connecting', async () => {
+    const { adapter, requests } = setup()
+    await settle(adapter.getAuthStatus())
+    // A socket on its way: an answer saved before it opens is not reused, so a
+    // read that has asked nothing when the socket goes live covers the catch-up.
+    Object.assign(adapter, { pipeline: { stop: () => undefined }, pipelineLive: false })
+    await settle(adapter.getFriends())
+    expect(requests.map((r) => r.path)).toEqual([
+      '/auth/user',
+      '/auth/user',
+      '/auth/user/friends?offset=0&n=100&offline=false',
+      '/auth/user/friends?offset=0&n=100&offline=true'
+    ])
+  })
+
+  it('reuses the saved answer again once the socket is live', async () => {
+    const { adapter, requests } = setup()
+    await settle(adapter.getAuthStatus())
+    Object.assign(adapter, { pipeline: { stop: () => undefined }, pipelineLive: true })
+    await settle(adapter.getFriends())
+    expect(requests.filter((r) => r.path === '/auth/user')).toHaveLength(1)
+  })
+
   it('does not reuse buckets after their five-second freshness window', async () => {
     const { adapter, requests } = setup()
     await settle(adapter.getAuthStatus())

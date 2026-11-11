@@ -76,12 +76,20 @@ vi.mock('./links', () => ({
 vi.mock('./instance', () => ({
   registerInstanceHandlers: () => {
     electron.ipcMain.handle('join-instance', () => ({ ok: true }))
+    electron.ipcMain.handle('join-invite', () => ({ ok: true }))
     electron.ipcMain.handle('self-invite', () => ({ ok: true }))
     electron.ipcMain.handle('get-join-handoff', () => 'launch')
   }
 }))
 vi.mock('./app-status', () => ({
   registerAppStatusHandlers: () => electron.ipcMain.handle('get-app-status', () => ({ ok: true }))
+}))
+vi.mock('./data-export', () => ({
+  registerDataExportHandlers: () =>
+    electron.ipcMain.handle('export-data', () => ({ ok: false, reason: 'cancelled' }))
+}))
+vi.mock('./login-item', () => ({
+  registerLoginItemHandlers: () => electron.ipcMain.handle('get-login-item', () => 'off')
 }))
 vi.mock('./activity', () => ({
   registerActivityHandlers: () => {
@@ -152,6 +160,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'clear-app-background',
   'clear-inbox',
   'dismiss-inbox-item',
+  'export-data',
   'get-accounts',
   'get-activity',
   'get-alert-picks',
@@ -173,6 +182,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-inbox',
   'get-join-handoff',
   'get-linked-profiles',
+  'get-login-item',
   'get-my-groups',
   'get-own-profile',
   'get-players-online',
@@ -182,9 +192,11 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-relationship',
   'get-settings',
   'get-world-list',
+  'get-world-rating',
   'import-session',
   'join-explore-room',
   'join-instance',
+  'join-invite',
   'login',
   'logout',
   'open-bug-report',
@@ -202,6 +214,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'set-friend-note',
   'set-game-favorite',
   'set-home-world',
+  'set-world-rating',
   'social-action',
   'switch-avatar',
   'sync-friend-note',
@@ -232,7 +245,9 @@ function options(): IpcHandlerOptions {
     gameFavorites: {},
     links: { linkGraph: {} },
     appStatus: {},
+    loginItem: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
+    dataExport: {} as IpcHandlerOptions['dataExport'],
     inbox: {} as IpcHandlerOptions['inbox'],
     friendActions: {} as IpcHandlerOptions['friendActions'],
     vrOverlayAlerts: { test: async () => undefined },
@@ -245,6 +260,10 @@ function options(): IpcHandlerOptions {
       joinRoom: vi.fn(() => ({ ok: true }))
     },
     homeWorld: { setHomeWorld: vi.fn() },
+    worldRating: {
+      getWorldRating: vi.fn(async () => ({ ok: true, value: null })),
+      setWorldRating: vi.fn(async () => ({ ok: true, value: 'like' }))
+    },
     avatarLibrary: {
       getLibrary: vi.fn(),
       getDetails: vi.fn(),
@@ -366,6 +385,26 @@ describe('registerIpcHandlers rate limiting', () => {
 
     for (let request = 0; request < 12; request += 1) getFriends(invokeEvent)
     expect(() => getFriends(invokeEvent)).toThrowError('rate_limited')
+  })
+
+  it('counts world-rating reads and writes on their own budgets', () => {
+    registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
+    const read = electron.invokeHandlers.get('get-world-rating')!
+    const write = electron.invokeHandlers.get('set-world-rating')!
+    const req = { platform: 'vrchat' as const, worldRef: 'ref' }
+
+    for (let request = 0; request < 60; request += 1) read(invokeEvent, req)
+    expect(() => read(invokeEvent, req)).toThrowError('rate_limited')
+
+    for (let request = 0; request < 30; request += 1) {
+      write(invokeEvent, { ...req, value: 'like' as const })
+    }
+    expect(write(invokeEvent, { ...req, value: null })).toEqual({
+      ok: false,
+      reason: 'rate-limited'
+    })
+    // A used-up read budget does not spend the write budget, or the reverse.
+    expect(() => read(invokeEvent, req)).toThrowError('rate_limited')
   })
 
   it('counts friends-list reads per platform, so one failing platform never blocks the other', () => {

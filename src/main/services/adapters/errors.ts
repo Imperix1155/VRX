@@ -30,6 +30,17 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * Refused locally: three requests in a row failed, so this platform's requests
+ * pause for a minute. Nothing was sent. The friends read reports it as a
+ * slow-down, so the window waits instead of retrying into the pause.
+ */
+export class CircuitOpenError extends NetworkError {
+  constructor() {
+    super('Circuit open: too many consecutive failures')
+  }
+}
+
 /** The platform answered with an HTTP error status that has no meaning of its own here. */
 export class HttpStatusError extends NetworkError {
   constructor(public readonly status: number) {

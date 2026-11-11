@@ -22,20 +22,25 @@ Pages, top to bottom in the sidebar:
 - **Friends**: one list for both platforms, grouped into Favorites, In-Game,
   Online and Offline, with search and an **Order** control (Name, Recent, World
   or Joinable). Favorites lists the starred friends who are in a game right
-  now. Friend details show where someone is, their notes, and a Join button
-  when you can join them. If VRChat or ChilloutVR is already open, Join takes
-  you there in that game instead of starting it again.
+  now, under the names of your VRChat favorite groups and ChilloutVR
+  categories when you use more than one. Friend details show where someone
+  is, their notes, and a Join button when you can join them. If VRChat or
+  ChilloutVR is already open, Join takes you there in that game instead of
+  starting it again.
 - **Hot Instances**: every instance where at least two of your friends are
   together (you can change the number), most friends first.
 - **Activity**: friends coming online, joining worlds and going offline on
   both platforms, newest first. It comes from the live connection VRX already
   has, so it adds no requests, and it is kept only while VRX is open.
 - **Inbox**: invites, invite requests and friend requests from both platforms
-  that arrive while VRX is open. Accept or decline friend requests right there;
-  invites you answer in the game.
+  that arrive while VRX is open. Accept or decline friend requests right there.
+  An invite that names its instance has a **Join** button, which takes you
+  there the same way a friend's Join does. VRX never answers or declines an
+  invite for you, and the row stays until you hide it.
 - **Explore**: Popular now, New, Recently updated and Favorites worlds from
   both platforms, with room details. Open a world to star it or to press
-  **Set as home world**.
+  **Set as home world**. **Show more** lists its creator, description, tags
+  and room size.
 - **Search**: find people and worlds on both platforms by name. A person opens
   their full profile (bio, pronouns, rank, badges, worlds and groups). Someone
   who isn't your friend yet has an **Add friend** button; every profile ends
@@ -53,6 +58,16 @@ Across the app:
   in Settings → Behavior.
 - **Notes**: a friend's note is saved to your VRChat or ChilloutVR account as
   well as in VRX, so it matches the game. Turn that off in Settings → Behavior.
+- **Copy link**: a quiet button beside the ID under Show more (worlds, hot
+  instances, people from Search) and under Show full profile in friend
+  details. It copies a link to that person, world or instance to paste to a
+  friend. VRChat links open its website; ChilloutVR links open in the game.
+- **Export your data**: Settings → Accounts → **Export…** saves your friends,
+  notes and favorites to a file you pick on your computer. The file holds no
+  sign-in details.
+- **Start with your computer**: Settings → About. Off by default; On opens
+  VRX when you sign in to your computer, and In the tray does the same but
+  keeps the window closed until you open it from the tray icon.
 - **Linked profiles**: link a friend's VRChat and ChilloutVR accounts into one
   person by hand. VRX never guesses links from names.
 - **Your profile**: edit your bio and pronouns on both platforms, and your

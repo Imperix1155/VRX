@@ -8,6 +8,7 @@ import type {
   JoinModePreference,
   LabelScheme,
   ReconcileInterval,
+  StartWithComputer,
   Theme,
   UpdateChannel,
   VrAlertDuration
@@ -19,6 +20,7 @@ import {
   FRIEND_ALERT_SCOPES,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
+  START_WITH_COMPUTER,
   THEMES,
   UPDATE_CHANNELS,
   VR_ALERT_DURATIONS,
@@ -39,7 +41,9 @@ import type { UpdaterFailure } from '@shared/ipc'
 import { BackgroundPictureControls, BackgroundPictureMessage } from './BackgroundPicturePicker'
 import { useBackgroundPicturePicker } from '../hooks/useBackgroundPicturePicker'
 import { useAlertPicks } from '../queries/alertPicks'
+import { useLoginItemProblem, type LoginItemProblem } from '../queries/loginItem'
 import PickedFriendsDialog from './PickedFriendsDialog'
+import ExportDataRow from './ExportDataRow'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -72,6 +76,18 @@ const RECONCILE_LABEL_KEYS: Record<ReconcileInterval, string> = {
   '30m': 'settings.reconcileInterval.30m',
   '1h': 'settings.reconcileInterval.1h',
   manual: 'settings.reconcileInterval.manual'
+}
+
+const START_WITH_COMPUTER_LABEL_KEYS: Record<StartWithComputer, string> = {
+  off: 'settings.startWithComputer.off',
+  window: 'settings.startWithComputer.window',
+  tray: 'settings.startWithComputer.tray'
+}
+
+const LOGIN_ITEM_PROBLEM_KEYS: Record<LoginItemProblem, string> = {
+  'not-applied': 'settings.startWithComputer.notApplied',
+  'still-on': 'settings.startWithComputer.stillOn',
+  unavailable: 'settings.startWithComputer.unavailable'
 }
 
 const OPENER_LABEL_KEYS: Record<DrawerOpener, string> = {
@@ -778,6 +794,8 @@ export default function SettingsView(): React.JSX.Element {
   const reconcileInterval = useSettingsStore((s) => s.settings.reconcileInterval)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const drawerOpener = useSettingsStore((s) => s.settings.drawerOpener)
+  const startWithComputer = useSettingsStore((s) => s.settings.startWithComputer)
+  const loginItemProblem = useLoginItemProblem(startWithComputer)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
@@ -1243,6 +1261,7 @@ export default function SettingsView(): React.JSX.Element {
               <AccountCard platform="vrchat" profileEditing />
               <AccountCard platform="chilloutvr" profileEditing />
             </div>
+            <ExportDataRow />
             <p className="text-xs text-[var(--text-dim)]">{t('shell.unofficialNotice')}</p>
           </section>
         )}
@@ -1256,6 +1275,38 @@ export default function SettingsView(): React.JSX.Element {
             </h2>
             {/* Automatic updates row (VRX-113) */}
             <UpdaterSettingsRow />
+            {/* Start with your computer (owner, 2026-11-11): one row for both
+                choices. It sits here with updates, the other thing VRX does
+                on its own, because Behavior has no room left at 900x670.
+                Main mirrors it to the operating system. When the computer
+                does not match what was picked, that takes the description's
+                place, so the card never grows past two lines. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.startWithComputer.label')}
+                </p>
+                {loginItemProblem === null ? (
+                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                    {t('settings.startWithComputer.description')}
+                  </p>
+                ) : null}
+                <p
+                  role="status"
+                  data-login-item-problem={loginItemProblem ?? ''}
+                  className="mt-[var(--space-0-5)] text-xs text-[var(--error)] empty:hidden"
+                >
+                  {loginItemProblem !== null ? t(LOGIN_ITEM_PROBLEM_KEYS[loginItemProblem]) : null}
+                </p>
+              </div>
+              <SegmentedControl
+                values={START_WITH_COMPUTER}
+                active={startWithComputer}
+                labelKeys={START_WITH_COMPUTER_LABEL_KEYS}
+                ariaLabel={t('settings.startWithComputer.aria')}
+                onChange={(value) => updateSettings({ startWithComputer: value })}
+              />
+            </div>
             {/* Welcome setup again (owner, 2026-10-20; moved here from
                 Appearance): the wizard replaces the shell until it is finished
                 or skipped; nothing else changes. */}

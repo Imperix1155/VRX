@@ -32,8 +32,10 @@ import {
 import { sendFriendRequest, useAnswerFriendRequest } from '../queries/friendActions'
 import { useInbox } from '../queries/inbox'
 import { platformName } from '../utils/community'
+import { personCopyLink } from '../utils/copyLinks'
 import { FRIEND_ACTION_BUTTON, FRIEND_ACTION_ERROR_KEYS } from '../utils/friendActions'
 import { CommunityTile, TileGrid } from './CommunityParts'
+import CopyLinkButton from './CopyLinkButton'
 import GoToAccountsButton from './GoToAccountsButton'
 import ProfileActions from './ProfileActions'
 
@@ -70,6 +72,7 @@ export default function ProfileDetails({
   userId,
   showTrust = true,
   showFriendAction = true,
+  showUserId = false,
   panelOpen = true
 }: {
   platform: Platform
@@ -79,6 +82,9 @@ export default function ProfileDetails({
   showTrust?: boolean
   /** False in friend details, where the person is on the friends list. */
   showFriendAction?: boolean
+  /** True in friend details, which show the ID nowhere else. A sheet lists it
+   *  under Show more instead. */
+  showUserId?: boolean
   /** False while the drawer or sheet holding the profile is closed. */
   panelOpen?: boolean
 }): React.JSX.Element {
@@ -128,6 +134,7 @@ export default function ProfileDetails({
       bodyRef={bodyRef}
       profile={result.profile}
       showTrust={showTrust}
+      showUserId={showUserId}
       showFriendAction={showFriendAction}
       panelOpen={panelOpen}
     />
@@ -238,16 +245,21 @@ function ProfileBody({
   profile,
   showTrust,
   showFriendAction,
+  showUserId,
   panelOpen
 }: {
   bodyRef: React.RefObject<HTMLDivElement | null>
   profile: PersonProfile
   showTrust: boolean
   showFriendAction: boolean
+  showUserId: boolean
   panelOpen: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const facts = profileFacts(profile, showTrust, t)
+  const copyLink = showUserId
+    ? personCopyLink(profile.platform, profile.userId, profile.displayName, t)
+    : undefined
   // Only the saved answer from the options below; this never asks on its own.
   const relationship = useRelationship(profile.platform, profile.userId, false).data
   const blocked = relationship?.ok === true && relationship.relationship.blocked === true
@@ -274,6 +286,22 @@ function ProfileBody({
             </dd>
           </div>
         ))}
+        {showUserId ? (
+          <div className="contents" data-profile-user-id="">
+            <dt className="text-[var(--text-dim)]">{t('profile.userId')}</dt>
+            <dd
+              className="flex min-w-0 select-text flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)] break-all text-[12px] text-[var(--text-dim)]"
+              style={{ fontFamily: 'ui-monospace, monospace' }}
+            >
+              <span className="min-w-0">{profile.userId}</span>
+              {copyLink === undefined ? null : (
+                <span className="select-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                  <CopyLinkButton link={copyLink.link} ariaLabel={copyLink.ariaLabel} />
+                </span>
+              )}
+            </dd>
+          </div>
+        ) : null}
       </dl>
       <div>
         <h3 className={SMALL_HEADING}>{t('profile.bio')}</h3>

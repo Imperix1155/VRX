@@ -33,11 +33,15 @@ through `@shared`.
   hot-membership, and hot-grouping predicates.
 - `backgroundPicture.ts`: which background pictures main refuses and which
   Settings warns about (size and shape against the landscape window).
+- `shareLinks.ts`: the copyable link to a person, world or instance, built
+  from shape-checked IDs. Clipboard text only, never a launch or open input.
 - More vocabularies for user actions, with their limits, pacing values and
   typed results where they have them: `accountNotes.ts` (note sync),
   `favorites.ts` (local stars),
   `gameFavorites.ts` (account favorite groups and categories), `homeWorld.ts`,
-  `ownProfile.ts` and `avatarLibrary.ts` (avatar lists and Wear).
+  `ownProfile.ts` and `avatarLibrary.ts` (avatar lists and Wear),
+  `worldRating.ts` (the signed-in user's own VRChat rating) and
+  `languageTag.ts` (a BCP-47 tag and its display name).
 - `constants.ts`: the single source for API endpoints and app-wide limits
   and TTLs. A feature's own limits live in its module above.
 - Look up symbols in the [internal API catalog](../../docs/INTERNAL-API.md):

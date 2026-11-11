@@ -108,6 +108,16 @@ export default function LinkedDialog({
         : closeButton.current
     target?.focus({ preventScroll: true })
   }, [busy])
+  // A dialog with steps swaps its content under a new title, which removes
+  // the control that was pressed and drops focus to the page. Bring it back to
+  // Close, as on opening, so the new step is announced and Tab starts inside.
+  useEffect(() => {
+    const panel = dialog.current
+    if (panel === null || !panel.open) return
+    const active = document.activeElement
+    if (active !== null && active !== document.body && panel.contains(active)) return
+    closeButton.current?.focus({ preventScroll: true })
+  }, [title])
   const holdsBack = busy || !dismissible
   // The pointer of a middle press that began outside: its release is
   // cancelled wherever it ends, or Linux pastes the selection into the field
