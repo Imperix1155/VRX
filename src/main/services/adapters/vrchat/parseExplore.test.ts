@@ -437,14 +437,14 @@ describe('VRChat Explore parsers', () => {
     })
   })
 
-  it('keeps a room name, description and known spoken language, and drops everything else', () => {
+  it('keeps a room name, description and BCP-47 language, and drops everything else', () => {
     const base = { worldId, instanceId: publicRoom }
     const titled = parseVrcExploreRoom(
       {
         ...base,
         displayName: '  Friday\n lobby \u0000',
         description: 'Bring a chair.',
-        dominantLanguage: 'EN',
+        dominantLanguage: ' pt-BR ',
         categoryId: 'icat_not-a-label',
         vibeIds: ['ivib_not-a-label'],
         ownerId: null,
@@ -456,7 +456,7 @@ describe('VRChat Explore parsers', () => {
     expect(titled).toMatchObject({
       instanceTitle: 'Friday lobby',
       instanceDescription: 'Bring a chair.',
-      spokenLanguage: 'en'
+      spokenLanguage: 'pt-BR'
     })
     const encoded = JSON.stringify(titled)
     expect(encoded).not.toContain('icat_')
@@ -465,7 +465,7 @@ describe('VRChat Explore parsers', () => {
 
     expect(
       parseVrcExploreRoom(
-        { ...base, displayName: '   ', description: 12, dominantLanguage: 'english' },
+        { ...base, displayName: '   ', description: 12, dominantLanguage: 'en_US' },
         worldId,
         publicRoom
       )

@@ -402,6 +402,12 @@ export const worldImages: Record<string, string> = {
   'guide-world-cvr-sand': illustration('#956625', '#2f7181')
 }
 
+/**
+ * The first public room on VRChat carries instance copy so the sheet shows the
+ * current layout: a plain title above the access and count row, a BCP-47
+ * language label (`pt-BR`), and a description long enough to use both lines.
+ * The other rooms, and every ChilloutVR room, leave those fields empty.
+ */
 const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
   {
     platform: world.platform,
@@ -414,8 +420,11 @@ const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
     capacity: 32,
     full: false,
     instanceTitle: world.platform === 'vrchat' ? 'Evening hangout' : null,
-    instanceDescription: world.platform === 'vrchat' ? 'Quiet voices, somewhere to sit.' : null,
-    spokenLanguage: world.platform === 'vrchat' ? 'en' : null,
+    instanceDescription:
+      world.platform === 'vrchat'
+        ? 'Quiet voices, somewhere to sit. Stay as long as you like, and leave the instance the way you found it.'
+        : null,
+    spokenLanguage: world.platform === 'vrchat' ? 'pt-BR' : null,
     action: { state: 'available', selectionRef: `guide-selection-${world.worldRef}-east` }
   },
   {

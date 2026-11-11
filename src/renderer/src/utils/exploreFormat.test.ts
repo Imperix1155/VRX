@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatCount, regionLabelKey, spokenLanguageLabel } from './exploreFormat'
+import { formatCount, regionLabelKey } from './exploreFormat'
 
 describe('formatCount', () => {
   it('groups digits for the UI language', () => {
@@ -30,12 +30,6 @@ describe('regionLabelKey', () => {
       expect(regionLabelKey(platform, '__proto__')).toBeNull()
       expect(regionLabelKey(platform, 'toString')).toBeNull()
     }
-  })
-
-  it('names a known spoken language in the UI language and hides a code it cannot name', () => {
-    expect(spokenLanguageLabel('en', 'en')).toBe('English')
-    expect(spokenLanguageLabel('ja', 'ja')).toBe('日本語')
-    expect(spokenLanguageLabel('en', 'ja')).toBe('英語')
   })
 
   it('names plain ChilloutVR country and continent codes', () => {

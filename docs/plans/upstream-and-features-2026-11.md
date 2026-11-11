@@ -13,8 +13,14 @@ through 2026-11-10, then with the versions locked on `dev` before this branch
 
 - Electron 45.2.3, Vite 8.3.7, typescript-eslint 8.72.2. Patch updates only.
 - Explore room rows show a VRChat instance `displayName`, `description` and a
-  known `dominantLanguage` from the room response VRX already fetches
-  (`GET /worlds/{worldId}/{instanceId}`). ChilloutVR rows stay without them.
+  BCP-47 `dominantLanguage` from the room response VRX already fetches
+  (`GET /worlds/{worldId}/{instanceId}`). The row names the tag with
+  `languageTagLabel`, so `pt-BR` is a language name rather than the raw tag.
+  ChilloutVR rows stay without them.
+- The signed-in user's own world Like and Dislike shipped in #592. There is
+  still no public like count, and that rating does not change Explore
+  ranking. The instance owner is still not a display name in the community
+  spec.
 
 ## Tooling left for later
 
@@ -102,14 +108,17 @@ Community spec checked at `vrchatapi/specification` `main`, last push
 (`getWorldInstance` → `InstanceResponse`). Explore already requests it.
 `parseVrcExploreRoom` now copies:
 
-| Wire field         | VRX field             | Rule                                                                                                                |
-| ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `displayName`      | `instanceTitle`       | Own property, string, clipped to 80 code points. Blank is null.                                                     |
-| `description`      | `instanceDescription` | Own property, string, clipped to 280 code points.                                                                   |
-| `dominantLanguage` | `spokenLanguage`      | Own property. Exact ISO 639-1 code in `EXPLORE_SPOKEN_LANGUAGES` after trim and lowercasing. Anything else is null. |
+| Wire field         | VRX field             | Rule                                                                                                                                             |
+| ------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `displayName`      | `instanceTitle`       | Own property, string, clipped to 80 code points. Blank is null.                                                                                  |
+| `description`      | `instanceDescription` | Own property, string, clipped to 280 code points.                                                                                                |
+| `dominantLanguage` | `spokenLanguage`      | Own property. A trimmed string `isBcp47LanguageTag` accepts, including `pt-BR`. The row names it with `languageTagLabel`. Anything else is null. |
 
 The row shows the title as plain text, the description on two lines, and
-`Language: {name}` from `Intl.DisplayNames`. No new request.
+`Language: {name}` from `languageTagLabel`. No new request. `docs/DESIGN.md`
+§9.4 records that layout, and the design-guide fixtures show a VRChat room
+with a title, `pt-BR` and a two-line description beside ChilloutVR rooms
+that omit all three.
 
 ### Instance owner, separate from the world author
 
@@ -261,48 +270,33 @@ The row shows the title as plain text, the description on two lines, and
   - The catalog requests are not repeated per room.
   - No create or update instance request is added.
 
-### World Like and Dislike, for ranking
+### World Like and Dislike
 
-- **What:** Let a world's likes, and the signed-in user's private dislikes,
-  affect Explore ranking, matching the 2026.4.2 world vote buttons.
-- **Blocked:** As of the spec push on 2026-11-10, `World` and `LimitedWorld`
-  have `favorites`, `heat`, `popularity` and `visits`, and no like, dislike,
-  vote, or "my vote" field. `openapi/components/paths/worlds.yaml` has no vote
-  route. The only "vote" schemas in the repo are the older notification
-  `voteToKick` types. The release notes also say dislikes are not public.
-- **Watch for:** on `World` and `LimitedWorld`, a documented count or the
-  caller's own vote, under whatever name the spec actually adds (`likes`,
-  `dislikes`, `likeCount`, `dislikeCount`, `vote`, `myVote`, `userVote`, or a
-  successor). And, separately, the write route the client uses to cast a vote.
+- **Shipped in #592.** The world sheet on VRChat has Like and Dislike for the
+  signed-in user's own rating. Pressing the choice already shown clears it.
+  A failed change puts the previous rating back. ChilloutVR has no rating
+  control. The implementation is `worldRating.ts`, `WorldRatingControl` and
+  the policy entry that #592 added. There is no public like count, and a
+  dislike stays private, so `rankExploreWorlds` is unchanged: VRChat still
+  sorts by occupants, then popularity.
+- **Still blocked:** using a like count, or the caller's rating, to rank
+  worlds. The community spec checked on 2026-11-10 had no public count on
+  `World` or `LimitedWorld`. #592 did not add one. Do not treat `favorites`,
+  `heat` or `popularity` as likes, and do not show a dislike number.
+- **Watch for:** a documented public count on `World` and `LimitedWorld`
+  (`likes`, `likeCount`, or whatever name the spec adds). Only then may a
+  count break ties after occupants and popularity, inside one platform, and
+  never outrank a busier world.
 - **Sources:** [2026.4.2 notes](https://docs.vrchat.com/docs/vrchat-202642-open-beta),
   [`World.yaml`](https://github.com/vrchatapi/specification/blob/main/openapi/components/schemas/World.yaml),
-  [`worlds.yaml` paths](https://github.com/vrchatapi/specification/blob/main/openapi/components/paths/worlds.yaml).
-- **Plan:**
-  1. Do not treat `favorites`, `heat` or `popularity` as likes.
-  2. When a field is documented on the world objects Explore already fetches,
-     thread it through `parseVrcExploreCandidates` onto `ExploreWorld` as a
-     nullable number or a `'like' | 'dislike' | null` for the caller's own
-     vote. Ranking stays inside one platform.
-  3. `rankExploreWorlds` today sorts VRChat by occupants, then popularity.
-     A like count may break ties after those two. It must not outrank a
-     busier world. A private dislike may move that world down for this user
-     only. Never render a dislike count, a dislike total, or another user's
-     dislike.
-  4. A button that casts a vote is a new platform write. It needs an
-     `api-policy.md` entry and Impy's OK, one press, no retry, and it stays
-     out of the read-only ranking change.
-- **Files:** `src/shared/explore.ts`, `src/shared/exploreRanking.ts`,
-  `src/main/services/adapters/vrchat/parseExplore.ts`, Explore tests, and
-  `docs/api-policy.md` only for the write.
-- **Acceptance:**
-  - Ranking tests: more occupants still win; equal occupants and popularity
-    prefer a higher documented like count; a disliked world sinks only in
-    that user's list.
+  #592.
+- **Acceptance for a later ranking change:**
+  - More occupants still win. Equal occupants and popularity may prefer a
+    higher documented like count.
   - No dislike number appears in the rendered card, the accessible name, or
     a log line.
   - Worlds without the new field rank exactly as they do today.
-  - ChilloutVR ranking is untouched.
-  - No vote request exists unless the policy page lists it.
+  - ChilloutVR ranking stays untouched.
 
 ### Live Now shelves and instance discover
 
@@ -351,14 +345,14 @@ These are in the 2026.4.2 client or the spec and are platform writes. Each
 needs `docs/api-policy.md` and Impy's OK. Do not start them from this plan
 alone.
 
-| Action                                                            | Spec                                            | Why it waits                                |
-| ----------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------- |
-| Create an instance (name, description, language, category, vibes) | `CreateInstanceRequest`                         | New write.                                  |
-| Rename an instance                                                | `UpdateInstanceRequest.displayName`             | New write.                                  |
-| Close an instance                                                 | `closeInstance`                                 | Moderation write.                           |
-| Kick from an instance                                             | `createUserModeration` (2026-11-06, `971d9547`) | Moderation write.                           |
-| Cast a world like or dislike                                      | not in the spec yet                             | New write, and the route is not documented. |
-| Device-code login                                                 | spec 2026-10-25, `c52ffc7f`                     | New auth flow, not an instance feature.     |
+| Action                                                            | Spec                                            | Why it waits                            |
+| ----------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------- |
+| Create an instance (name, description, language, category, vibes) | `CreateInstanceRequest`                         | New write.                              |
+| Rename an instance                                                | `UpdateInstanceRequest.displayName`             | New write.                              |
+| Close an instance                                                 | `closeInstance`                                 | Moderation write.                       |
+| Kick from an instance                                             | `createUserModeration` (2026-11-06, `971d9547`) | Moderation write.                       |
+| Cast a world like or dislike                                      | shipped in #592                                 | The user's own rating. No public count. |
+| Device-code login                                                 | spec 2026-10-25, `c52ffc7f`                     | New auth flow, not an instance feature. |
 
 ## ChilloutVR
 
@@ -384,7 +378,6 @@ alone.
 
 ## Docs left unchanged on purpose
 
-`docs/DESIGN.md` and `docs/api-policy.md` were not edited. The new room text
-uses the existing plain-text title and dim secondary line, and this change
-adds no endpoint and no write. Another branch was already refreshing those
-two docs. `src/main/services/avatarCache.ts` was not touched.
+`docs/api-policy.md` gained no new endpoint in this branch. #592 already
+recorded the world-rating write. `src/main/services/avatarCache.ts` was not
+touched. `docs/DESIGN.md` §9.4 now records the instance-copy row.

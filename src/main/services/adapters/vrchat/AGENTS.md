@@ -3,8 +3,8 @@
 ## Purpose
 
 VRChat-specific parsing, REST roster collection, world and group metadata,
-launch URL building, Explore parsing, and the Pipeline client. These modules
-stay pure and dependency-injected. The rules here also cover
+launch URL building, Explore parsing, and the Pipeline client. The rules
+here also cover
 [`../VrcAdapter.ts`](../VrcAdapter.ts) and
 [`../VrcApiClient.ts`](../VrcApiClient.ts), which own session state, request
 transport, and published adapter events.
@@ -65,8 +65,8 @@ transport, and published adapter events.
   403 denies one world or group on a live session, so it is negative-cached
   like a miss. A 401, rate-limit, cancellation, and queue-overflow errors
   propagate and are never negative-cached. Lookups count only 401 and 403
-  answers toward the shared circuit. Enrichment never fails a roster already returned and
-  emits narrow metadata events only for the current session generation.
+  answers toward the shared circuit. Enrichment never fails a returned roster
+  and emits metadata events only for the current generation.
 - Cancellation, admission overflow, and a tentative session stop later pages
   and batch work. They are not circuit failures. A later request never borrows
   a replacement account's credentials.
@@ -74,10 +74,10 @@ transport, and published adapter events.
   from main-owned instance data and returns `null` for a non-`wrld_` world or
   empty instance. The URI carries no desktop/VR mode. Final
   `isAllowedLaunchUrl` validation and `shell.openExternal` stay in IPC.
-- `parseExplore.ts` accepts only internally consistent public candidates and
-  returns evidence without references, actions, URLs, or raw responses. Room
-  detail may include a clipped `displayName`, `description` and a known
-  `dominantLanguage`. Category ids, vibe ids and owner ids are not copied.
+- `parseExplore.ts` returns public evidence only: no references, actions,
+  URLs or raw responses. A room may keep a clipped `displayName`,
+  `description` and BCP-47 `dominantLanguage`, and drops category, vibe and
+  owner ids.
 - `parseAvatars.ts` reads only the fields the Avatars page shows; a record
   without an `avtr_` ID or a name is skipped, and image URLs must be `https`.
 - `parseBlocked.ts` answers whether a player-moderation list holds a `block`
@@ -106,8 +106,7 @@ transport, and published adapter events.
 - Cover malformed and unknown data, partial pages, presence-axis independence,
   location rejection, cache expiry and generation fencing, and strict URL
   construction when those paths change.
-- Confirm no Electron imports, browser launches, social polling, or raw
-  payloads in events or logs.
+- Confirm no Electron imports, launches, polling or raw payloads.
 
 ## Child DOX Index
 

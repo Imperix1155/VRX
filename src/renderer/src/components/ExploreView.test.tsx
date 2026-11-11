@@ -483,7 +483,7 @@ describe('ExploreView', () => {
       ...room('vrchat', { state: 'available', selectionRef: 'a' }, selected.worldId),
       instanceTitle: 'Friday lobby',
       instanceDescription: 'Bring a chair.',
-      spokenLanguage: 'ja' as const
+      spokenLanguage: 'pt-BR'
     }
     setup({
       worlds: [selected],
@@ -497,8 +497,8 @@ describe('ExploreView', () => {
     const title = screen.getByText('Friday lobby')
     expect(title.className).not.toContain('glass-chip')
     expect(screen.getByText('Bring a chair.')).toBeTruthy()
-    expect(screen.getByText('Language: Japanese')).toBeTruthy()
-    expect(screen.queryByText('ja')).toBeNull()
+    expect(screen.getByText('Language: Brazilian Portuguese')).toBeTruthy()
+    expect(screen.queryByText('pt-BR')).toBeNull()
   })
 
   it('names room access like every other instance and says when a count is unknown', () => {

@@ -1,13 +1,12 @@
+import { isBcp47LanguageTag } from '@shared/languageTag'
 import {
   EXPLORE_INSTANCE_DESCRIPTION_MAX,
   EXPLORE_INSTANCE_TITLE_MAX,
-  exploreSpokenLanguage,
   exploreWorldAbout,
   type ExploreCount,
   type ExploreJoinDenial,
   type ExplorePublicAccess,
   type ExploreRoom,
-  type ExploreSpokenLanguage,
   type ExploreWorld,
   type ExploreWorldAbout
 } from '@shared/explore'
@@ -82,11 +81,12 @@ function instanceCopy(raw: RecordValue, key: string, max: number): string | null
   return `${points.slice(0, max - 1).join('')}…`
 }
 
-/** `dominantLanguage` only, and only when it is one code VRX can name. */
-function spokenLanguage(raw: RecordValue): ExploreSpokenLanguage | null {
+/** `dominantLanguage` only, and only when it is one well-formed BCP-47 tag. */
+function spokenLanguage(raw: RecordValue): string | null {
   if (!Object.hasOwn(raw, 'dominantLanguage') || typeof raw.dominantLanguage !== 'string')
     return null
-  return exploreSpokenLanguage(raw.dominantLanguage)
+  const tag = raw.dominantLanguage.trim()
+  return isBcp47LanguageTag(tag) ? tag : null
 }
 
 function nonNegativeInteger(value: unknown): number | null {

@@ -53,47 +53,9 @@ export type ExplorePublicAccess = 'public' | 'group-public'
 export type ExploreJoinDenial =
   'full' | 'restricted' | 'unavailable' | 'unknown' | 'stale' | 'busy' | 'joining-disabled'
 
-/**
- * ISO 639-1 codes VRX will name for a VRChat instance's `dominantLanguage`.
- * Anything else stays hidden: a raw code is not a label.
- */
-export const EXPLORE_SPOKEN_LANGUAGES = [
-  'ar',
-  'da',
-  'de',
-  'en',
-  'es',
-  'fi',
-  'fr',
-  'id',
-  'it',
-  'ja',
-  'ko',
-  'nl',
-  'no',
-  'pl',
-  'pt',
-  'ru',
-  'sv',
-  'th',
-  'tr',
-  'uk',
-  'vi',
-  'zh'
-] as const
-export type ExploreSpokenLanguage = (typeof EXPLORE_SPOKEN_LANGUAGES)[number]
-
 /** Code-point caps for instance copy that crosses into the renderer. */
 export const EXPLORE_INSTANCE_TITLE_MAX = 80
 export const EXPLORE_INSTANCE_DESCRIPTION_MAX = 280
-
-const SPOKEN_LANGUAGE_SET: ReadonlySet<string> = new Set(EXPLORE_SPOKEN_LANGUAGES)
-
-/** A known spoken-language code, or null. Matching is case-insensitive and exact. */
-export function exploreSpokenLanguage(value: string): ExploreSpokenLanguage | null {
-  const code = value.trim().toLowerCase()
-  return SPOKEN_LANGUAGE_SET.has(code) ? (code as ExploreSpokenLanguage) : null
-}
 
 export type ExploreRoomAction =
   { state: 'available'; selectionRef: string } | { state: 'disabled'; reason: ExploreJoinDenial }
@@ -115,8 +77,11 @@ export interface ExploreRoom {
   instanceTitle: string | null
   /** Instance description, already clipped. Null when omitted. */
   instanceDescription: string | null
-  /** Spoken language the instance named, or null when missing or unrecognized. */
-  spokenLanguage: ExploreSpokenLanguage | null
+  /**
+   * BCP-47 tag from the instance (`en`, `pt-BR`), or null when missing or not
+   * a well-formed tag. The row names it with `languageTagLabel`.
+   */
+  spokenLanguage: string | null
   action: ExploreRoomAction
 }
 

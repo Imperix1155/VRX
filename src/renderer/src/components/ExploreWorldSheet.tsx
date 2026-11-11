@@ -12,12 +12,13 @@ import WorldFavoriteStar from './WorldFavoriteStar'
 import WorldRatingControl from './WorldRatingControl'
 import HomeWorldControl from './HomeWorldControl'
 import SheetGrabBar from './SheetGrabBar'
+import { languageTagLabel } from '@shared/languageTag'
 import { shareLink } from '@shared/shareLinks'
 import { SheetFacts, type SheetFact } from './SheetFacts'
 import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
 import { joinFailureMessageKey, type JoinFeedback } from '../hooks/useJoinInstance'
-import { formatCount, regionLabelKey, spokenLanguageLabel } from '../utils/exploreFormat'
+import { formatCount, regionLabelKey } from '../utils/exploreFormat'
 import { instancePillFor } from '../utils/instancePill'
 import { useSettingsStore } from '../stores/settings'
 
@@ -105,7 +106,7 @@ function RoomRow({
   const pill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
   const region = regionLabelKey(room.platform, room.region)
   const language = room.spokenLanguage
-    ? spokenLanguageLabel(room.spokenLanguage, i18n.language)
+    ? languageTagLabel(room.spokenLanguage, i18n.language || 'en')
     : null
   const details = [
     region === null ? null : t(region),

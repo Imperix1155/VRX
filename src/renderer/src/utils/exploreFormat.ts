@@ -1,7 +1,6 @@
 /**
  * Display helpers for Explore counts and room regions.
  */
-import type { ExploreSpokenLanguage } from '@shared/explore'
 import type { Platform } from '@shared/types'
 
 const numberFormats = new Map<string, Intl.NumberFormat>()
@@ -32,31 +31,6 @@ const CHILLOUTVR_REGION_KEYS: Readonly<Record<string, string>> = {
   us: 'explore.region.us',
   eu: 'explore.region.europe',
   jp: 'explore.region.japan'
-}
-
-const languageNames = new Map<string, Intl.DisplayNames>()
-
-/**
- * A word for a spoken-language code in the UI language, or null when the
- * runtime cannot name it. A code that comes back unchanged stays hidden.
- */
-export function spokenLanguageLabel(
-  code: ExploreSpokenLanguage,
-  language: string | undefined
-): string | null {
-  const locale = language && language.length > 0 ? language : 'en'
-  try {
-    let names = languageNames.get(locale)
-    if (names === undefined) {
-      names = new Intl.DisplayNames([locale], { type: 'language' })
-      languageNames.set(locale, names)
-    }
-    const label = names.of(code)
-    if (!label || label.toLowerCase() === code) return null
-    return label
-  } catch {
-    return null
-  }
 }
 
 /** Translation key for a room's region, or null when the code is unknown. */

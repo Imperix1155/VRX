@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Explore: a VRChat public room shows its instance name, a short description
-  and its language, when VRChat sends them and the language is one VRX can
-  name. A room without those still looks the same. ChilloutVR rooms do not
-  have them.
+  and its language, when VRChat sends them. The language is the tag VRChat
+  sends, including one like pt-BR. A room without those still looks the same.
+  ChilloutVR rooms do not have them.
 - Rate a VRChat world from its sheet. Like and Dislike show your own rating,
   and pressing the one you already chose clears it. A change that does not
   go through puts the previous rating back and says so, then the message
