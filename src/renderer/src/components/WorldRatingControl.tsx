@@ -1,7 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { SetWorldRatingFailure, WorldRating } from '@shared/worldRating'
-import { readWorldRating, useWorldRatingAccount, writeWorldRating } from '../queries/worldRating'
+import {
+  readWorldRating,
+  useWorldRatingAccount,
+  useWorldRatingPending,
+  useWorldRatingValue,
+  writeWorldRating
+} from '../queries/worldRating'
 
 /** A failed press says so, then the line goes away on its own. */
 export const WORLD_RATING_ERROR_MS = 8_000
@@ -53,44 +59,29 @@ export default function WorldRatingControl({
 }: WorldRatingControlProps): React.JSX.Element {
   const { t } = useTranslation()
   const accountId = useWorldRatingAccount()
+  const shown = useWorldRatingValue(accountId, worldRef)
+  const pending = useWorldRatingPending(accountId, worldRef)
   const canRead = typeof window !== 'undefined' && typeof window.vrx?.getWorldRating === 'function'
-  const [shown, setShown] = useState<WorldRating>(null)
-  const [phase, setPhase] = useState<'idle' | 'loading' | 'ready' | 'saving'>(() =>
-    accountId === null || !canRead ? 'idle' : 'loading'
-  )
+  const bridge = typeof window !== 'undefined' && typeof window.vrx?.setWorldRating === 'function'
   const [loadError, setLoadError] = useState<SetWorldRatingFailure | null>(null)
   const [writeError, setWriteError] = useState<SetWorldRatingFailure | null>(null)
   const [tracked, setTracked] = useState({ accountId, worldRef })
-  const generation = useRef(0)
-  const seen = useRef({ accountId, worldRef })
-  const bridge = typeof window !== 'undefined' && typeof window.vrx?.setWorldRating === 'function'
-  const disabled = accountId === null || phase !== 'ready' || !bridge
+  const request = useRef(0)
+  const loading = accountId !== null && canRead && shown === undefined && !pending
+  const disabled = accountId === null || pending || loading || !bridge
   if (tracked.accountId !== accountId || tracked.worldRef !== worldRef) {
     setTracked({ accountId, worldRef })
-    setShown(null)
     setLoadError(null)
     setWriteError(null)
-    setPhase(accountId === null || !canRead ? 'idle' : 'loading')
   }
 
-  useLayoutEffect(() => {
-    if (seen.current.accountId === accountId && seen.current.worldRef === worldRef) return
-    seen.current = { accountId, worldRef }
-    generation.current += 1
-  }, [accountId, worldRef])
-
   useEffect(() => {
+    const token = ++request.current
     if (accountId === null || !canRead) return
-    const token = generation.current
     void readWorldRating(accountId, worldRef).then((result) => {
-      if (generation.current !== token) return
-      if (result.ok) {
-        setShown(result.value)
-        setLoadError(null)
-      } else if (result.reason !== 'stale') {
-        setLoadError(result.reason)
-      }
-      setPhase('ready')
+      if (request.current !== token) return
+      if (result.ok) setLoadError(null)
+      else if (result.reason !== 'stale') setLoadError(result.reason)
     })
   }, [accountId, canRead, worldRef])
 
@@ -101,33 +92,22 @@ export default function WorldRatingControl({
   }, [writeError])
 
   function press(choice: 'like' | 'dislike'): void {
-    if (disabled || accountId === null) return
-    const requestAccount = accountId
-    const token = generation.current
-    const previous = shown
+    if (disabled || accountId === null || shown === undefined) return
+    const token = ++request.current
     const next: WorldRating = shown === choice ? null : choice
-    setShown(next)
-    setPhase('saving')
     setWriteError(null)
-    void writeWorldRating(requestAccount, worldRef, next).then((result) => {
-      if (generation.current !== token) return
-      if (result.ok) {
-        setShown(result.value)
-        setLoadError(null)
-      } else {
-        setShown(previous)
-        setWriteError(result.reason)
-      }
-      setPhase('ready')
+    void writeWorldRating(accountId, worldRef, next).then((result) => {
+      if (request.current !== token || result.ok) return
+      setWriteError(result.reason)
     })
   }
 
   const hint =
     accountId === null
       ? t('explore.rating.signedOut')
-      : phase === 'loading'
+      : loading
         ? t('explore.rating.loading')
-        : phase === 'saving'
+        : pending
           ? t('explore.rating.saving')
           : null
   const alert = writeError ?? loadError

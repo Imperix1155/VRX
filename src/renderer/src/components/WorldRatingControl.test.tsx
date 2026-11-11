@@ -177,6 +177,43 @@ describe('WorldRatingControl', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('keeps a pending choice when the sheet is closed and opened again', async () => {
+    const { unmount } = render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+    await readyLike()
+    let finish: (result: SetWorldRatingResult) => void = () => undefined
+    setWorldRating.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Like Sunset Lounge' }))
+    unmount()
+    render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+
+    const pending = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Liked. Clear your rating of Sunset Lounge'
+    })
+    expect(pending.disabled).toBe(true)
+    expect(screen.getByText('Saving your rating…')).toBeTruthy()
+    expect(setWorldRating).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      finish({ ok: true, value: 'like' })
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(pending.disabled).toBe(false))
+
+    setWorldRating.mockResolvedValue({ ok: true, value: null })
+    fireEvent.click(pending)
+    await waitFor(() =>
+      expect(setWorldRating).toHaveBeenLastCalledWith({
+        platform: 'vrchat',
+        worldRef: 'ref-a',
+        value: null
+      })
+    )
+  })
+
   it('does not ask again while the cached rating is still fresh', async () => {
     const { unmount } = render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
     await readyLike()
