@@ -539,8 +539,8 @@ export const DoneStep = forwardRef<
   const pages = (
     [
       ['shell.nav.dashboard', true],
-      ['shell.nav.hot', s.showHotInstancesPage],
       ['shell.nav.friends', true],
+      ['shell.nav.hot', s.showHotInstancesPage],
       ['shell.nav.activity', s.showActivityPage],
       ['shell.nav.inbox', s.showInboxPage],
       ['shell.nav.explore', s.showExplorePage],

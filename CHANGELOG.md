@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   defaults and now tells you so. Damaged account and linked-profile files
   are also kept beside a fresh one instead of blocking saves.
 - A failed save of notes and favorites data is written to the log.
+- Small look fixes: the Dashboard's "Popular now" heading matches the other
+  section headings, the welcome summary lists pages in sidebar order, and
+  the light theme's window background matches the app while it loads.
 - Linking dialogs keep keyboard focus when they move to the next step, and
   screen readers name which account a profile section belongs to when two
   accounts are shown.

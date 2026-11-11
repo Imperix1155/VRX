@@ -249,8 +249,8 @@ describe('SetupWizard', () => {
       within(summary).getByText(
         [
           msg('shell.nav.dashboard'),
-          msg('shell.nav.hot'),
           msg('shell.nav.friends'),
+          msg('shell.nav.hot'),
           msg('shell.nav.activity'),
           msg('shell.nav.inbox'),
           msg('shell.nav.search'),
