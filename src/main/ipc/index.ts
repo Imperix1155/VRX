@@ -19,6 +19,8 @@ import type { FriendActionsService } from '../services/friendActions'
 import type { InboxService } from '../services/inbox'
 import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers, registerHomeWorldHandler } from './explore'
+import { registerWorldRatingHandlers } from './world-rating'
+import type { WorldRatingService } from '../services/worldRatingService'
 import { registerAvatarLibraryHandlers, registerCurrentAvatarHandler } from './avatar-library'
 import { registerCommunityHandlers } from './community'
 import { registerOwnProfileHandlers } from './own-profile'
@@ -101,6 +103,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
   homeWorld: HomeWorldService
+  worldRating: WorldRatingService
   avatarLibrary: AvatarLibraryService
   currentAvatar: CurrentAvatarService
   community: CommunityService
@@ -200,6 +203,7 @@ export function registerIpcHandlers(
     registerFavoritesHandlers(options.favorites, options.explore)
     registerGameFavoritesHandlers(options.gameFavorites, options.explore)
     registerHomeWorldHandler(options.homeWorld)
+    registerWorldRatingHandlers(options.worldRating)
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerCurrentAvatarHandler(options.currentAvatar)
     registerCommunityHandlers(options.community)

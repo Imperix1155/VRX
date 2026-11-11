@@ -638,6 +638,26 @@ or write has been captured yet.
   `not-authenticated`. A 429 reports `rate-limited`; any other failure,
   including a 403, reports `failed`, and the home world is unchanged.
 
+### World rating: `GET`, `PUT` and `DELETE /worlds/{worldId}/rating`
+
+- **Assumes (Source-derived, community specification `088c09ec`):** the
+  signed-in user's own rating is `{ "value": "like" }`, `{ "value": "dislike" }`
+  or `{ "value": null }` when they have not rated the world. `PUT` sends
+  `{ "value": "like" }` or `{ "value": "dislike" }` and answers the same
+  object. `DELETE` answers `{ "value": null }`. A well-formed world id no
+  world carries still answers `{ "value": null }` on `GET`. There is no
+  public like count.
+- **Parses:** `value` must be exactly `like`, `dislike` or `null`. Anything
+  else is a failed read and is not shown as a rating. The world id must
+  match `^wrld_<GUID>$` and comes from a world reference main issued.
+- **Reachability:** a VRChat world sheet reads it when the sheet opens.
+  Like, Dislike and pressing the active choice again are the only writes,
+  each sent once with no retry. ChilloutVR sends nothing.
+- **When it breaks:** a 401 emits `auth-invalidated` and reports
+  `not-authenticated`. A 429 or a full admission queue reports
+  `rate-limited`. Any other failure reports `failed`, and the rating on
+  screen goes back to what it was. A reply is not logged.
+
 ### Images
 
 - **Hosts:** `api.vrchat.cloud`, `files.vrchat.cloud`, `assets.vrchat.com`.

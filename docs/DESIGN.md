@@ -1466,6 +1466,12 @@ in the shared sheet frame (§9.3):
 - "Set as home world", a small button. It asks in place: "Make this your
   {platform} home world? It replaces the one you have now." with "Make home"
   and "Cancel". Afterwards it reads "Your home world".
+- On VRChat only, **Like** and **Dislike** for the signed-in user's own
+  rating. The sheet reads it when it opens. Pressing the choice already
+  shown clears it. While that request runs, both buttons stay disabled.
+  A failed change puts the previous rating back and shows a short error
+  that clears on its own. ChilloutVR has no world rating, so those buttons
+  are not on a ChilloutVR sheet. There is no public like count.
 - "Visible public rooms", then one bordered row per room (radius 13 px,
   `--control-fill`): the instance pill, the people count ("3 / 30"), the
   region, and a "Join" button. A room that cannot be joined keeps the
@@ -1489,7 +1495,8 @@ Source: [`ExploreRoute.tsx`](../src/renderer/src/components/ExploreRoute.tsx),
 [`ExploreLists.tsx`](../src/renderer/src/components/ExploreLists.tsx),
 [`ExploreFavorites.tsx`](../src/renderer/src/components/ExploreFavorites.tsx),
 [`ExploreSourceState.tsx`](../src/renderer/src/components/ExploreSourceState.tsx),
-[`HomeWorldControl.tsx`](../src/renderer/src/components/HomeWorldControl.tsx).
+[`HomeWorldControl.tsx`](../src/renderer/src/components/HomeWorldControl.tsx),
+[`WorldRatingControl.tsx`](../src/renderer/src/components/WorldRatingControl.tsx).
 
 #### Loading, empty, error and stale
 
