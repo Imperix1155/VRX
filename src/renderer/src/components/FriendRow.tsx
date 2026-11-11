@@ -261,10 +261,13 @@ export const FriendRow = memo(function FriendRow({
           )
           .find((reason) => reason !== null)
       : joinFailureFor(friend)
+  // Its own line under the name and world, starting where they start, with a
+  // little air above and below so it never sits on the card's edge. Empty, it
+  // takes no room.
   const failureStatus = (
     <span
       role="status"
-      className="col-span-full text-[12px] leading-relaxed break-words text-[var(--text-dim)]"
+      className="col-[3/-1] text-[12px] leading-snug break-words text-[var(--text-dim)] [&:not(:empty)]:mt-[var(--space-1)] [&:not(:empty)]:mb-[2px]"
     >
       {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
     </span>

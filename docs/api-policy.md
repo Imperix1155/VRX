@@ -226,7 +226,10 @@ Both pipelines share [`ReconnectingPipeline`](../src/main/services/adapters/Reco
 
 Full REST rosters run on first load, on manual refresh, after a socket
 reconnects, once after a Join that main turned down because the friend's
-place had changed (`target-changed`), and on the background reconcile timer.
+place had changed (`target-changed`), once after a Join that main turned down
+because it has not caught up since the socket connected (`stale`, only while
+the socket shows live, sharing a read already running and at most one per
+platform every 30 seconds), and on the background reconcile timer.
 After a direct Join, that read runs only while the friend list still shows
 the old place (so the next Join sends the current place; when the friend's
 live update has already landed, nothing is read). After Confirm in the Join
@@ -244,7 +247,8 @@ arrive during that run add at most one final read. An event that arrives
 before the run has sent its first request adds nothing, because every answer
 the run gets is newer than the event; this is why a launch with a saved
 sign-in reads the friend list once, not twice, when the socket connects
-before the first page is asked. An event that arrives once
+before the first page is asked. That one read counts as the catch-up for the
+new connection, so joins are allowed as soon as it lands. An event that arrives once
 that final read is out makes the next roster request wait for it and read once
 more, so the change is not missed; a 429 or cooldown during the run skips
 that read. The open window runs the reconnect read. With no window open

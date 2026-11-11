@@ -8,6 +8,7 @@ import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { useSettingsStore } from '../stores/settings'
 import { queryClient } from '../queries/queryClient'
 import { friendsQueryKey } from '../queries/friends'
+import { appStatusQueryKey, type ConnectionHealthByPlatform } from '../queries/appStatus'
 
 export type JoinFailureReason = Exclude<InstanceActionResult, { ok: true }>['reason'] | 'unknown'
 
@@ -17,8 +18,16 @@ export type JoinNotice = 'in-game' | 'invite-sent'
 /** What the line under a Join shows: a typed denial, or a hand-off note. */
 export type JoinFeedback = JoinFailureReason | JoinNotice
 
-/** Hand-off notes clear on their own; failures stay until the next attempt. */
+/** A hand-off note clears on its own after this long. */
 const JOIN_NOTICE_MS = 8_000
+/**
+ * A failure clears on its own too (owner request, 2026-11-11), a little later
+ * than a note: it is a full sentence and says what to do next. The next
+ * attempt or an account boundary still clears it sooner.
+ */
+export const JOIN_FAILURE_MS = 10_000
+/** At most one friends read per platform this often for a Join main called stale. */
+export const STALE_JOIN_REREAD_MIN_MS = 30_000
 
 function noticeFor(result: InstanceActionResult): JoinNotice | null {
   if (!result.ok) return null
@@ -203,6 +212,27 @@ function readRosterAfterMove(platform: Platform): void {
   void queryClient.refetchQueries({ queryKey: friendsQueryKey(platform) }, { cancelRefetch: false })
 }
 
+const lastStaleReread = new Map<Platform, number>()
+
+/**
+ * One roster read after main turned a Join down as `stale` while the live
+ * connection shows connected: main is waiting for the friends read that
+ * follows a reconnect, and this is that read, so the next Join goes through
+ * instead of staying refused until some later refresh. Nothing is read while
+ * the connection is down (a read cannot settle it then), a read already
+ * running is reused, and repeated presses read at most once per
+ * `STALE_JOIN_REREAD_MIN_MS`.
+ */
+function readRosterAfterStale(platform: Platform): void {
+  const health = queryClient.getQueryData<ConnectionHealthByPlatform>(appStatusQueryKey)
+  if (health?.[platform] !== 'live') return
+  const now = Date.now()
+  const last = lastStaleReread.get(platform)
+  if (last !== undefined && now - last < STALE_JOIN_REREAD_MIN_MS) return
+  lastStaleReread.set(platform, now)
+  void queryClient.refetchQueries({ queryKey: friendsQueryKey(platform) }, { cancelRefetch: false })
+}
+
 /** Whether the friends cache still shows `friend` joinable at `target`. */
 function cacheStillShows(friend: Friend, target: JoinTarget): boolean {
   const live = readFriendsCache(friend.platform).friends?.find(
@@ -302,10 +332,23 @@ function createJoinStore(): JoinStore {
     }
   }
 
+  /** Show one line of feedback for `friendKey`, then clear it after `ms`. */
+  function showFeedback(friendKey: string, feedback: JoinFeedback, ms: number): void {
+    if (noticeTimer !== null) clearTimeout(noticeTimer)
+    emit({ failedFriendId: friendKey, failureReason: feedback })
+    noticeTimer = setTimeout(() => {
+      noticeTimer = null
+      if (snapshot.failedFriendId === friendKey && snapshot.failureReason === feedback) {
+        emit({ failedFriendId: null, failureReason: null })
+      }
+    }, ms)
+  }
+
   function showFailureBlip(friendKey: string, reason: JoinFailureReason): void {
-    emit({ failedFriendId: friendKey, failureReason: reason })
-    // Keep feedback readable until the next explicit attempt or session boundary.
-    // Retry still goes through the shared busy/confirmation latch and main admission.
+    // Readable for a while, then gone on its own; the next attempt or a session
+    // boundary clears it sooner. Retry still goes through the shared
+    // busy/confirmation latch and main admission, and never runs by itself.
+    showFeedback(friendKey, reason, JOIN_FAILURE_MS)
   }
 
   /** After a successful Join: say where it went when it used the open game. */
@@ -313,13 +356,7 @@ function createJoinStore(): JoinStore {
     clearFailureBlip()
     const notice = noticeFor(result)
     if (notice === null) return
-    emit({ failedFriendId: friendKey, failureReason: notice })
-    noticeTimer = setTimeout(() => {
-      noticeTimer = null
-      if (snapshot.failedFriendId === friendKey && snapshot.failureReason === notice) {
-        emit({ failedFriendId: null, failureReason: null })
-      }
-    }, JOIN_NOTICE_MS)
+    showFeedback(friendKey, notice, JOIN_NOTICE_MS)
   }
 
   async function performJoin(friend: Friend, mode: JoinMode): Promise<void> {
@@ -360,6 +397,7 @@ function createJoinStore(): JoinStore {
         if (result.reason === 'target-changed' && cacheStillShows(friend, target)) {
           readRosterAfterMove(friend.platform)
         }
+        if (result.reason === 'stale') readRosterAfterStale(friend.platform)
       }
     } catch {
       // Bridge exceptions are user-equivalent to a denial: blip, never an
@@ -640,6 +678,7 @@ function createJoinStore(): JoinStore {
       // Ordinary terminal failure: clear the dialog and show the attributed blip.
       showFailureBlip(friendKey, result.reason)
       emit({ joining: false, pendingConfirm: null })
+      if (result.reason === 'stale') readRosterAfterStale(pc.platform)
       return 'failed'
     } catch {
       if (generationAtStart !== sessionGeneration) return 'failed'
@@ -734,7 +773,8 @@ const sharedJoinStore = createJoinStore()
  * All state is GLOBAL via the shared store above: `isJoining` is true on
  * every surface while any join runs (all Join buttons disable together — no
  * enabled-looking button whose click silently no-ops), and the failure
- * feedback, kept until the next attempt, is ATTRIBUTED to the friend that failed. `joinFailureFor`
+ * feedback, kept for `JOIN_FAILURE_MS` or until the next attempt, is
+ * ATTRIBUTED to the friend that failed. `joinFailureFor`
  * retains the typed denial for honest copy, while `joinFailedFor` remains the
  * boolean convenience API. Both clear at the start of a new attempt and on
  * success, wherever it fires. Callers own event concerns. A Join that reached
