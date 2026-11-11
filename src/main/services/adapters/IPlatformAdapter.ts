@@ -59,7 +59,7 @@ export interface IPlatformAdapter {
    * Subscribe to real-time presence/friend events (the platform's WebSocket). The
    * handler receives normalized `AdapterEvent`s; returns an `Unsubscribe`. This is
    * why the interface is NOT request/response-only: polling friend status is the #1
-   * ban risk (CLAUDE.md), so presence MUST come from this live stream.
+   * ban risk (docs/api-policy.md, No presence polling), so presence MUST come from this live stream.
    */
   subscribe(handler: (event: AdapterEvent) => void): Unsubscribe
 }
