@@ -100,6 +100,45 @@ describe('RosterRefresh', () => {
     expect(read).toHaveBeenCalledTimes(3)
   })
 
+  it('takes the seed revision again when an empty read sends its first request', async () => {
+    const answer = deferred<FriendRoster>()
+    let sent: () => void = () => undefined
+    let clock = 0
+    const read = vi.fn((hooks: RosterReadHooks) => {
+      sent = hooks.startsEmpty()
+      return answer.promise
+    })
+    const refresh = new RosterRefresh(
+      read,
+      () => 0,
+      () => ++clock
+    )
+    const request = refresh.get(lease())
+    // A socket goes live while the read waits its turn: main's fence moves on.
+    const liveAt = ++clock
+    refresh.invalidate()
+    sent()
+    // A later page of the same read reports too; the revision stays put.
+    sent()
+    answer.resolve(roster('Only'))
+    const result = await request
+    expect(result.seeds).toHaveLength(1)
+    expect(result.seeds?.[0]?.revision).toBe(liveAt + 1)
+    expect(clock).toBe(liveAt + 1)
+  })
+
+  it('keeps the first revision for a read that starts from a saved answer', async () => {
+    let clock = 0
+    const refresh = new RosterRefresh(
+      () => Promise.resolve(roster('Saved')),
+      () => 0,
+      () => ++clock
+    )
+    const result = await refresh.get(lease())
+    expect(result.seeds?.[0]?.revision).toBe(1)
+    expect(clock).toBe(1)
+  })
+
   it('returns one final result for an event storm, with at most one follow-up', async () => {
     const first = deferred<FriendRoster>()
     const last = deferred<FriendRoster>()

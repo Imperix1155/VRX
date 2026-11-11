@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Join no longer answers "Live connection not ready" while the top bar shows
+  the connection as live. After starting VRX with a saved sign-in, joins on
+  VRChat or ChilloutVR could stay refused until the friends list was next
+  read; now the read at launch counts, and if VRX is ever still catching up
+  when you press Join, it reads the list once so the next press works.
+
+### Changed
+
+- The line under a Join that did not go through now clears on its own after
+  10 seconds (or as soon as you press Join again). On a friend's row it
+  lines up under the name with a little space around it instead of sitting
+  on the edge of the card.
+
 ## [1.4.4-dev.2] - 2026-11-11
 
 ### Added

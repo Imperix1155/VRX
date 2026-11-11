@@ -192,7 +192,7 @@ export default function HotInstanceCard({
   }
 
   // What the last Join said, on its own full-width line under the world name
-  // and pill (as on friend rows). Failures stay until the next attempt, so an
+  // and pill (as on friend rows). Failures stay for several seconds, so an
   // overlay would cover Join; inside the pill's box the text would stretch the
   // pill and squeeze the world name. Empty, it takes no room.
   function joinStatus(placement: string): React.JSX.Element | null {

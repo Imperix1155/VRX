@@ -326,7 +326,7 @@ export default function HotInstanceSheet({
                       {t('drawer.join')}
                     </button>
                     {/* Its own line under Join, not an overlay on it: failures
-                        stay until the next attempt (as on friend rows). */}
+                        stay for several seconds (as on friend rows). */}
                     <span
                       role="status"
                       className="text-right text-[12px] leading-snug break-words text-[var(--text-dim)] [&:not(:empty)]:mt-[var(--space-1)]"

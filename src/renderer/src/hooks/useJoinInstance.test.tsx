@@ -15,7 +15,13 @@ import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import { queryClient } from '../queries/queryClient'
 import { friendsQueryKey } from '../queries/friends'
-import { joinFailureMessageKey, useJoinInstance } from './useJoinInstance'
+import { appStatusQueryKey } from '../queries/appStatus'
+import {
+  JOIN_FAILURE_MS,
+  STALE_JOIN_REREAD_MIN_MS,
+  joinFailureMessageKey,
+  useJoinInstance
+} from './useJoinInstance'
 
 const publicInstance: InstanceInfo = {
   worldId: 'wrld_fixture',
@@ -69,7 +75,7 @@ afterEach(() => {
 })
 
 describe('useJoinInstance', () => {
-  it('keeps failure readable without auto-retrying, and explicit retry retains busy and cooldown admission', async () => {
+  it('keeps failure readable for a while without auto-retrying, and explicit retry retains busy and cooldown admission', async () => {
     vi.useFakeTimers()
     joinInstance.mockResolvedValueOnce({ ok: false, reason: 'unknown' })
     const { result } = renderHook(() => useJoinInstance())
@@ -77,9 +83,18 @@ describe('useJoinInstance', () => {
       await result.current.join(friend)
     })
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000)
+      await vi.advanceTimersByTimeAsync(JOIN_FAILURE_MS - 1)
     })
     expect(result.current.joinFailureFor(friend)).toBe('unknown')
+    // Then it clears on its own, and nothing was tried again meanwhile.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(result.current.joinFailureFor(friend)).toBeNull()
+    expect(result.current.joinFailedFor(friend)).toBe(false)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
     expect(joinInstance).toHaveBeenCalledTimes(1)
     let finish!: (value: { ok: false; reason: 'cooldown' }) => void
     joinInstance.mockReturnValueOnce(
@@ -327,10 +342,98 @@ describe('useJoinInstance', () => {
     await act(async () => {
       await result.current.join(friend)
     })
+    // Past the note's own 8 seconds, the failure is still on its own clock.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000)
+      await vi.advanceTimersByTimeAsync(JOIN_FAILURE_MS - 1)
     })
     expect(result.current.joinFailureFor(friend)).toBe('cooldown')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(result.current.joinFailureFor(friend)).toBeNull()
+  })
+
+  it('a newer failure is not cleared by an older failure’s timer', async () => {
+    vi.useFakeTimers()
+    joinInstance.mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+    const { result } = renderHook(() => useJoinInstance())
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(JOIN_FAILURE_MS - 1_000)
+    })
+    joinInstance.mockResolvedValueOnce({ ok: false, reason: 'cooldown' })
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    // The first failure's time is up; the second one has only just been shown.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('cooldown')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(JOIN_FAILURE_MS - 1_000)
+    })
+    expect(result.current.joinFailureFor(friend)).toBeNull()
+  })
+
+  it('a Join refused as stale while the connection is live reads the friend list once', async () => {
+    vi.useFakeTimers()
+    const cvrFriend: Friend = {
+      ...friend,
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-alex',
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null
+    }
+    const refetch = vi.spyOn(queryClient, 'refetchQueries').mockResolvedValue(undefined)
+    try {
+      joinInstance.mockResolvedValue({ ok: false, reason: 'stale' })
+      const hook = renderHook(() => useJoinInstance())
+
+      // Connection down or unknown: a read could not settle it, so none runs.
+      await act(async () => {
+        await hook.result.current.join(cvrFriend)
+      })
+      expect(hook.result.current.joinFailureFor(cvrFriend)).toBe('stale')
+      expect(refetch).not.toHaveBeenCalled()
+      queryClient.setQueryData(appStatusQueryKey, { vrchat: 'down', chilloutvr: 'reconnecting' })
+      await act(async () => {
+        await hook.result.current.join(cvrFriend)
+      })
+      expect(refetch).not.toHaveBeenCalled()
+
+      // Live, yet main still calls it stale: this is the read main waits for.
+      queryClient.setQueryData(appStatusQueryKey, { vrchat: 'down', chilloutvr: 'live' })
+      await act(async () => {
+        await hook.result.current.join(cvrFriend)
+      })
+      expect(refetch).toHaveBeenCalledOnce()
+      expect(refetch).toHaveBeenCalledWith(
+        { queryKey: friendsQueryKey('chilloutvr') },
+        { cancelRefetch: false }
+      )
+
+      // Pressing again soon reads nothing more.
+      await act(async () => {
+        await hook.result.current.join(cvrFriend)
+      })
+      expect(refetch).toHaveBeenCalledOnce()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(STALE_JOIN_REREAD_MIN_MS)
+      })
+      await act(async () => {
+        await hook.result.current.join(cvrFriend)
+      })
+      expect(refetch).toHaveBeenCalledTimes(2)
+      // Never joined on its own.
+      expect(joinInstance).toHaveBeenCalledTimes(5)
+    } finally {
+      refetch.mockRestore()
+    }
   })
 
   it('cross-surface latch: while ANY join is in flight, every other surface no-ops', async () => {
