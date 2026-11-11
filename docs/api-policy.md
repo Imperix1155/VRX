@@ -240,7 +240,11 @@ roster page, so a short cadence costs the most for large friend lists. The
 timer skips its read while the window is hidden or minimized; live events and
 the read after a reconnect still arrive.
 Concurrent roster requests in one session share a single run. Events that
-arrive during that run add at most one final read. An event that arrives once
+arrive during that run add at most one final read. An event that arrives
+before the run has sent its first request adds nothing, because every answer
+the run gets is newer than the event; this is why a launch with a saved
+sign-in reads the friend list once, not twice, when the socket connects
+before the first page is asked. An event that arrives once
 that final read is out makes the next roster request wait for it and read once
 more, so the change is not missed; a 429 or cooldown during the run skips
 that read. The open window runs the reconnect read. With no window open

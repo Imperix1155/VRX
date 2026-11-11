@@ -250,7 +250,9 @@ export class GameFavoritesService {
   ): Promise<GameFavoritesGet> {
     const platform = adapter.platform
     try {
-      const read = await adapter.readGameFavorites(lease, pressed ? 'interactive' : 'background')
+      // The first read runs ahead of background name lookups: a star's panel
+      // cannot offer the account's groups until it lands.
+      const read = await adapter.readGameFavorites(lease, pressed ? 'interactive' : 'default')
       if (!lease.isCurrent()) return { state: 'not-authenticated' }
       const loaded: Loaded = {
         accountId: revision.platformAccountId,

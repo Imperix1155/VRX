@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to wait instead of "could not refresh", the pause is written to the log,
   and a sign-out by the platform is still noticed during the pause. Refused
   VRChat invites no longer cause that pause.
+- Starting VRX with a saved sign-in reads your friends list once instead of
+  twice, so the list is current sooner and VRX asks the platforms for less.
+- The favorite star's groups load sooner after launch instead of waiting
+  behind world-name lookups.
 - Pressing a favorite twice quickly gives the right answer for the second
   press.
 - If the settings file is damaged, VRX keeps the old file, starts from

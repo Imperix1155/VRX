@@ -124,7 +124,7 @@ describe('GameFavoritesService', () => {
     })
   })
 
-  it('reads once per sign-in in the background, and answers from memory after', async () => {
+  it('reads once per sign-in, ahead of background lookups, and answers from memory after', async () => {
     const first = await service.get('vrchat')
     expect(first.state).toBe('ready')
     if (first.state !== 'ready') return
@@ -133,7 +133,7 @@ describe('GameFavoritesService', () => {
     await service.get('vrchat')
     await service.get('vrchat')
     expect(adapter.reads).toBe(1)
-    expect(adapter.priorities).toEqual(['background'])
+    expect(adapter.priorities).toEqual(['default'])
   })
 
   it('reads again on a Refresh press only after the cooldown', async () => {

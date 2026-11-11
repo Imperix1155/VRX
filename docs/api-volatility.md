@@ -246,7 +246,9 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 
 - **Bucket probe:** each read first needs the three bucket arrays from
   `GET /auth/user`, unless fresh reused buckets exist. All three must be arrays
-  of strings; explicitly empty arrays are valid.
+  of strings; explicitly empty arrays are valid. While the live socket is
+  still connecting, a read never reuses saved buckets: it asks for its own, so
+  nothing it holds is older than the socket.
 - **Pages:** `?offset=<n>&n=100&offline=false`, then the same with
   `offline=true`. A page must be a JSON array. Records are validated one by one.
 - **Record schema:** `id` and `displayName` are required. Missing, null or

@@ -1,4 +1,4 @@
-import { RosterRefresh } from './RosterRefresh'
+import { RosterRefresh, type RosterReadHooks } from './RosterRefresh'
 import { UserReadShare } from './UserReadShare'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import { z } from 'zod'
@@ -317,7 +317,7 @@ export class VrcAdapter
     FriendActionsAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
-    () => this.readFriends(),
+    (hooks) => this.readFriends(hooks),
     () => this.admission.cooldownRemainingMs,
     () => this.live?.captureRosterRevision?.(),
     () => this.admission.rateLimitRevision
@@ -394,6 +394,8 @@ export class VrcAdapter
 
   // ── Live pipeline state (VRX-146) ──────────────────────────────────────────
   private pipeline: VrcPipeline | null = null
+  /** The current pipeline's socket is open; false while it connects or retries. */
+  private pipelineLive = false
   private readonly subscribers = new Set<(event: AdapterEvent) => void>()
   private authOperationQueue: Promise<void> = Promise.resolve()
   private authOperationSequence = 0
@@ -1764,11 +1766,17 @@ export class VrcAdapter
     return this.rosterRefresh.get(this.captureSessionLease())
   }
 
-  private async readFriends(): Promise<FriendRoster> {
+  private async readFriends(hooks?: RosterReadHooks): Promise<FriendRoster> {
     this.assertDurableSession()
     const generation = this.sessionGeneration
     const rateLimitRevision = this.admission.rateLimitRevision
-    const buckets = this.takeFreshAuthBuckets()
+    // While the socket is still connecting, start from nothing instead of an
+    // answer saved before it opens. A read that has asked nothing when the
+    // socket goes live already covers the catch-up, so launch reads the list
+    // once instead of twice.
+    const buckets =
+      this.pipeline !== null && !this.pipelineLive ? undefined : this.takeFreshAuthBuckets()
+    const firstRequestSent = buckets ? undefined : hooks?.startsEmpty()
     try {
       const result = await fetchFriends((path, schema) => {
         // fetchFriends can issue several pages. Bind every request launch to
@@ -1778,7 +1786,7 @@ export class VrcAdapter
         if (rateLimitRevision !== this.admission.rateLimitRevision) {
           throw new RateLimitError(this.admission.cooldownRemainingMs)
         }
-        return this.get(path, schema, { retry: 'none' })
+        return this.get(path, schema, { retry: 'none', beforeDispatch: firstRequestSent })
       }, buckets)
       const { friends, failedPages, skippedRecords } = result
       if (result.presence === 'degraded') {
@@ -2078,6 +2086,7 @@ export class VrcAdapter
   /** A pipeline object is stamped with the account generation that created it. */
   private createPipeline(): VrcPipeline {
     const generation = this.sessionGeneration
+    this.pipelineLive = false
     return new VrcPipeline({
       onUpgradeRateLimited: (retryAfter) => this.admission.rateLimited(retryAfter),
       cooldownUntil: () => this.admission.cooldownUntil,
@@ -2086,6 +2095,7 @@ export class VrcAdapter
         if (generation !== this.sessionGeneration) return
         this.authBucketRevision += 1
         this.freshAuthBuckets = null
+        if (event.type === 'connection') this.pipelineLive = event.health === 'live'
         if (event.type === 'connection' && event.health === 'live') this.rosterRefresh.invalidate()
         this.emit(this.enrichPipelineEvent(event, generation))
       },

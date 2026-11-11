@@ -1,4 +1,4 @@
-import { RosterRefresh } from './RosterRefresh'
+import { RosterRefresh, type RosterReadHooks } from './RosterRefresh'
 import { UserReadShare } from './UserReadShare'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import type {
@@ -242,7 +242,7 @@ export class CvrAdapter
     FriendActionsAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
-    () => this.readFriends(),
+    (hooks) => this.readFriends(hooks),
     () => this.admission.cooldownRemainingMs,
     () => this.live?.captureRosterRevision?.(),
     () => this.admission.rateLimitRevision
@@ -1284,14 +1284,19 @@ export class CvrAdapter
     return this.rosterRefresh.get(this.captureSessionLease())
   }
 
-  private async readFriends(): Promise<FriendRoster> {
+  private async readFriends(hooks?: RosterReadHooks): Promise<FriendRoster> {
     this.assertDurableSession()
     // Static roster only (VRX-57); live presence arrives via the pipeline below.
+    // The list is one request and rests on nothing saved, so a change that
+    // lands before it is sent needs no second read.
+    const firstRequestSent = hooks?.startsEmpty()
     const generation = this.sessionGeneration
     const requestSequence = ++this.friendNamesRequestSequence
     let result: { friends: Friend[]; skippedRecords: number; categories: Map<string, string[]> }
     try {
-      result = await fetchCvrFriends((path, schema) => this.get(path, schema, { retry: 'none' }))
+      result = await fetchCvrFriends((path, schema) =>
+        this.get(path, schema, { retry: 'none', beforeDispatch: firstRequestSent })
+      )
     } catch (error) {
       // A replacement account needs a fresh caller-owned operation.
       if (generation !== this.sessionGeneration) {
