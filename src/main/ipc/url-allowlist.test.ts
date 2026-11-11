@@ -29,6 +29,19 @@ describe('isAllowedUrl', () => {
     expect(isAllowedUrl('file:///etc/passwd')).toBe(false)
   })
 
+  it('allows only a plain web address on a known host', () => {
+    expect(isAllowedUrl('https://name:word@vrchat.com/home')).toBe(false)
+    expect(isAllowedUrl('https://name@github.com/Imperix1155/VRX')).toBe(false)
+    expect(isAllowedUrl('https://vrchat.com:8443/home')).toBe(false)
+    expect(isAllowedUrl('https://vrchat.com/home\n')).toBe(false)
+    expect(isAllowedUrl('https://vrchat.com/ho me')).toBe(false)
+    expect(isAllowedUrl('')).toBe(false)
+    expect(isAllowedUrl(`https://vrchat.com/${'a'.repeat(2048)}`)).toBe(false)
+    // The default port written out is still the default port.
+    expect(isAllowedUrl('https://vrchat.com:443/home')).toBe(true)
+    expect(isAllowedUrl('https://vrchat.com/world/wrld_1?x=%20y#top')).toBe(true)
+  })
+
   it('denies unknown hosts', () => {
     expect(isAllowedUrl('https://evil.com')).toBe(false)
     expect(isAllowedUrl('https://malicious.xyz')).toBe(false)
