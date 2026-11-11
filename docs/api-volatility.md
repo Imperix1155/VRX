@@ -57,6 +57,11 @@ only note where they differ.
   not count at all. VRChat world and group lookups count only 401 and 403
   answers; a missing, failing or unreadable item never opens the circuit.
   VRChat counts 403s; ChilloutVR does not, because it confirms 403s itself.
+  A VRChat self-invite counts only 401 and 403 answers, so refused invites
+  cannot pause the platform. While the circuit is open, requests fail with
+  `CircuitOpenError` (the friends read reports it as a wait, not a failure),
+  the adapter logs the pause once, and the sign-in status check still goes
+  out, so a session the platform ended is noticed during a pause.
 - Responses are validated with Zod. Lists are validated record by record: a
   malformed record is skipped and counted, and its valid siblings survive.
 - A roster with any skipped record, failed page or cap hit is `partial`. A
@@ -833,7 +838,8 @@ main-only base `https://api.chilloutvr.net`. The WebSocket is
   It carries no presence or instance data.
 - **Parses:** `id` must be a GUID; it is trimmed and lowercased, the same as on
   the WebSocket. `name` is required. A drifted `imageUrl` becomes null.
-  `categories` is ignored. One request per refresh, no retry.
+  `categories` is ignored. One request per refresh, no retry. An id listed
+  twice becomes one friend; the later record wins.
 - **Defaults:** every friend starts offline with no instance, status or trust
   rank. Main keeps the latest names so id-only socket entries can produce
   readable notifications.

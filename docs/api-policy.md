@@ -152,7 +152,21 @@ credentials is not blocked by earlier background failures. Pacing and 429
 cooldowns still apply to it. Lookups whose miss is an ordinary answer (world,
 group and instance metadata, Explore reads) do not open the breaker for a
 missing or unreadable item; [API volatility](api-volatility.md) lists exactly
-what each counts.
+what each counts. The sign-in status check is the one request that still goes
+out while the breaker is open: it runs on demand and at most once a minute,
+and it is how VRX notices a session the platform ended during a pause. The
+renderer reports a paused platform as "wait", not as a failed read.
+
+VRChat world and group metadata lookups run at background priority, so a
+burst of friends changing worlds never delays a press. Live location updates
+start at most 20 world lookups at a time (`MAX_LIVE_WORLD_LOOKUPS`); later
+worlds wait, newest first, and a sign-out drops the waiting ones.
+
+A failed friends read is retried once by the renderer, not three times,
+because one read is already several paged requests. After a friends read is
+refused for a cooldown, the renderer reads again after 30 seconds, doubling
+for each refusal in a row up to 10 minutes; main answers instantly during a
+cooldown, so none of those re-reads reaches the platform before it ends.
 
 ## 429 handling, backoff, and cooldowns
 

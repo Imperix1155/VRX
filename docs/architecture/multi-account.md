@@ -128,6 +128,11 @@ Each entry holds `platform`, `platformAccountId`, `displayName`, and a state of
   An unchanged result writes nothing.
 - Memory changes only after the write succeeds, so a retry after a failed write
   still tries to persist.
+- A damaged file is renamed to `accounts.corrupt-<time>.json`, never deleted,
+  and the registry starts empty; the next sign-in records the account again.
+  A file from a newer VRX, or one that cannot be moved, is kept as it is and
+  nothing is written over it.
+
 - Sign-out, session loss, and two-factor prompts never change the registry.
 - No code creates `removed` entries. The state is still parsed and hidden for
   files written by older builds.
@@ -185,6 +190,9 @@ profiles.
 - Writes go to a temporary file, are synced, and replace the file with one
   rename. A version 1 file is converted once and its original kept as
   `link-graph.v1.backup.json`.
+- At launch a damaged file is renamed to `link-graph.corrupt-<time>.json`,
+  never deleted, and linking starts fresh. A file from a newer VRX, or one
+  that cannot be read at all, is left in place.
 
 ### Credentials
 
