@@ -398,6 +398,7 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       return Promise.resolve()
     },
     getInbox: () => Promise.resolve(structuredClone(inbox)),
+    joinInvite: () => Promise.resolve(denied),
     dismissInboxItem: ({ platform, id }) => {
       inbox = {
         items: inbox.items.filter((item) => !(item.platform === platform && item.id === id))

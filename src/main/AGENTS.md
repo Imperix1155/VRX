@@ -138,7 +138,8 @@ here.
   widen the host.
 - `ActivityFeed` and `InboxService` are memory only and bounded. Neither calls
   a platform. Activity never records a world for a hidden location; Hide in
-  the inbox is local.
+  the inbox is local. Where an invite leads stays beside its row in main
+  (`inviteTarget`); snapshots carry only `canJoin`.
 
 **Platform writes**
 

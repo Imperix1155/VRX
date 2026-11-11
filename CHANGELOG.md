@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Join from an invite: an invite in the Inbox that names its instance now
+  has a Join button. It opens the game in that instance through the same
+  join steps as a friend's Join (with the confirmation, when you keep it
+  on), sends nothing to the person who invited you, and leaves the row where
+  it is. It works the same for VRChat and ChilloutVR.
 - Favorites by group: when your in-game favorites sit in more than one of
   your account's favorite groups, the Favorites section on the Friends page
   now lists them under each group's name, with friends starred only in VRX

@@ -1576,8 +1576,8 @@ is forgotten when VRX closes.
 
 - **Top line.** "3 waiting" at the left; "Hide all" and a round "?" at the
   right. The "?" opens a `.glass.glass-layer` help panel: "Accept or Decline
-  answers a friend request on its platform. Invites are only shown here:
-  answer them in the game…"
+  answers a friend request on its platform. Join on an invite opens the game
+  in that instance, and tells the sender nothing…"
 - **Sections.** "INVITES" and "FRIEND REQUESTS", each a 12 px / 600
   uppercase heading on the canvas.
 - **Row.** A `.platform-row` for its platform, 16 px by 12 px padding, 6 px
@@ -1586,8 +1586,22 @@ is forgotten when VRX closes.
   {world} · Just now", "Asked you for an invite", "Sent you a friend
   request"). Ages update every minute.
 - **Actions**, at the right of the row. A friend request has "Accept" (the
-  neutral confirm button), "Decline" and "Hide". An invite has only "Hide":
-  VRX never answers an invite for the person.
+  neutral confirm button), "Decline" and "Hide". An invite that named its
+  instance has "Join" (the same neutral confirm button) and "Hide"; an invite
+  that named none, and an invite request, have only "Hide". VRX never answers
+  an invite for the person: Join opens the game there through the join flow
+  (§9.4's confirmation, when it is on) and the row stays. It is the same on
+  both platforms.
+- **Join feedback.** What a Join said shows on a third line under the row's
+  action, 12 px `--text-dim`, in a `role="status"`: "This invite is no longer
+  here.", "Joining is disabled in Settings", "Sent to your open game". While
+  any Join runs, every Join is `aria-disabled`.
+- **Invite confirmation.** The join dialog titled with the invite's world
+  ("Join {name}'s invite?" when it named none), the platform pill, and
+  "{name} invited you here". No access pill, space pill or people count: an
+  invite does not say them, so nothing stands in. If the row leaves while the
+  dialog is open, "This invite is no longer here." shows and Join is
+  disabled.
 - **States.** Empty: a card reading "Nothing waiting" and "Invites and
   friend requests that arrive while VRX is open show up here." Errors in
   `--error` ("Could not load your inbox right now", "Couldn't hide that. Try

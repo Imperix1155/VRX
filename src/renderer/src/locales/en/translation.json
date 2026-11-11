@@ -1209,6 +1209,14 @@
     "inviteNoWorld": "Invited you",
     "inviteRequest": "Asked you for an invite",
     "friendRequest": "Sent you a friend request",
+    "join": {
+      "button": "Join",
+      "aria": "Join the instance {{name}} invited you to",
+      "context": "{{name}} invited you here",
+      "titleNoWorld": "Join {{name}}'s invite?",
+      "gone": "This invite is no longer here.",
+      "failed": "Couldn't join from this invite. Accept it in the game instead."
+    },
     "someone": "Someone",
     "justNow": "Just now",
     "hide": "Hide",
@@ -1223,7 +1231,7 @@
     "emptyHint": "Invites and friend requests that arrive while VRX is open show up here.",
     "help": {
       "label": "About the inbox",
-      "answer": "Accept or Decline answers a friend request on its platform. Invites are only shown here: answer them in the game. Hide takes a row out of VRX and sends nothing.",
+      "answer": "Accept or Decline answers a friend request on its platform. Join on an invite opens the game in that instance, and tells the sender nothing. Other invites are only shown here: answer them in the game. Hide takes a row out of VRX and sends nothing.",
       "live": "The inbox lists what arrives while VRX is open and forgets it when VRX closes."
     },
     "notConnected": {

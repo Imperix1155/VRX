@@ -107,6 +107,7 @@ const vrx = {
   chooseAppBackground: () => invoke('choose-app-background', undefined),
   clearAppBackground: () => invoke('clear-app-background', undefined),
   getInbox: () => invoke('get-inbox', undefined),
+  joinInvite: (req: IpcInvoke['join-invite']['req']) => invoke('join-invite', req),
   dismissInboxItem: (req: IpcInvoke['dismiss-inbox-item']['req']) =>
     invoke('dismiss-inbox-item', req),
   clearInbox: (req: IpcInvoke['clear-inbox']['req']) => invoke('clear-inbox', req),

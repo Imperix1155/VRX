@@ -26,7 +26,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `getAlertPicks`, `setAlertPick` | [`queries/alertPicks.ts`](../../src/renderer/src/queries/alertPicks.ts) |
 | `getLinkedProfiles`, `changeLinkedProfile`, `onLinkedProfilesChanged` | [`queries/linkedProfiles.ts`](../../src/renderer/src/queries/linkedProfiles.ts) |
 | `getActivity`, `clearActivity`, `onActivityChanged` | [`queries/activity.ts`](../../src/renderer/src/queries/activity.ts) |
-| `joinInstance`, `joinExploreRoom` | [`hooks/useJoinInstance.ts`](../../src/renderer/src/hooks/useJoinInstance.ts) |
+| `joinInstance`, `joinExploreRoom`, `joinInvite` | [`hooks/useJoinInstance.ts`](../../src/renderer/src/hooks/useJoinInstance.ts) |
 | `selfInvite` | No renderer caller. |
 | `getJoinHandoff` | [`hooks/useJoinHandoff.ts`](../../src/renderer/src/hooks/useJoinHandoff.ts), once per join dialog open |
 | `setExploreActive`, `getExplore`, `getExploreImage`, `getExploreWorld`, `cancelExploreWorld`, `onExploreChanged` | [`hooks/useExploreCoordinator.ts`](../../src/renderer/src/hooks/useExploreCoordinator.ts), [`queries/explore.ts`](../../src/renderer/src/queries/explore.ts), [`hooks/useExploreWorldSelection.ts`](../../src/renderer/src/hooks/useExploreWorldSelection.ts) |

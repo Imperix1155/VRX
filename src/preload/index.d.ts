@@ -121,6 +121,7 @@ type VrxBridge = {
   /** The inbox: rows the sockets delivered while VRX was open. */
   getInbox: () => Promise<IpcInvoke['get-inbox']['res']>
   /** Hide a row in VRX only; nothing reaches the platform. */
+  joinInvite: (req: IpcInvoke['join-invite']['req']) => Promise<IpcInvoke['join-invite']['res']>
   dismissInboxItem: (
     req: IpcInvoke['dismiss-inbox-item']['req']
   ) => Promise<IpcInvoke['dismiss-inbox-item']['res']>

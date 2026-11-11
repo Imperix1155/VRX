@@ -76,6 +76,7 @@ vi.mock('./links', () => ({
 vi.mock('./instance', () => ({
   registerInstanceHandlers: () => {
     electron.ipcMain.handle('join-instance', () => ({ ok: true }))
+    electron.ipcMain.handle('join-invite', () => ({ ok: true }))
     electron.ipcMain.handle('self-invite', () => ({ ok: true }))
     electron.ipcMain.handle('get-join-handoff', () => 'launch')
   }
@@ -185,6 +186,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'import-session',
   'join-explore-room',
   'join-instance',
+  'join-invite',
   'login',
   'logout',
   'open-bug-report',

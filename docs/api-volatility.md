@@ -681,7 +681,14 @@ or write has been captured yet.
   `notification` needs string `id`, `type` and `senderUserId`.
   `senderUsername` is optional. An invite's `details.worldName` is read whether
   `details` is an object (Pipeline) or a JSON string (REST); unreadable details
-  leave the world unnamed. Other notification types (messages, votes to kick,
+  leave the world unnamed. An invite's `details.worldId` is the full location,
+  `wrld_…:<instance>[~tags]` (Source-derived, VRCX parses it the same way).
+  VRX keeps it in main only when both halves have the shape a launch link
+  allows, and uses it for the row's Join: the same `vrchat://launch` link and
+  hand-off as a friend's Join, on a press. If it is missing or malformed the
+  row simply has no Join. With VRChat already open and no URL pipe, that Join
+  sends one self-invite to the location, as VRCX offers for an invite's
+  location; the platform may refuse it, which reads as `invite-failed`. Other notification types (messages, votes to kick,
   responses, group notices) are ignored. `hide-notification` and
   `see-notification` carry a bare, non-JSON ID, so those types skip the second
   JSON parse. VRX answers only friend requests, and only on a press:
@@ -1097,12 +1104,16 @@ response or write has been captured yet.
 | Anything else            | Dropped                                                                         |
 
 - **Inbox frames (🟡 Source-derived from CVRX and chilloutvr_rs, not yet seen
-  live):** `15` is `[{ Id, User: { Id, Name }, World: { Name }, InstanceName }]`,
+  live):** `15` is
+  `[{ Id, User: { Id, Name }, World: { Id, Name }, InstanceId, InstanceName }]`,
   `20` is `[{ Id, Sender: { Id, Name } }]` and `25` is `[{ Id, Name }]` where
   `Id` is the requesting user. Both casings are read, a single object counts as
   a one-item list, and at most 50 records are read per frame. An invite with no
-  world name falls back to `InstanceName` without its ` (#n)` suffix. Bad
-  records are skipped. A frame never removes rows, because it is unconfirmed
+  world name falls back to `InstanceName` without its ` (#n)` suffix. An
+  invite's `InstanceId` (Source-derived from CVRX) is kept in main only in the
+  documented `i+…` shape and gives the row its Join, through the same
+  `chilloutvr://instance/join` link as a friend's Join; without it the row has
+  no Join. Bad records are skipped. A frame never removes rows, because it is unconfirmed
   whether a frame lists everything still open. For the same reason, rows that
   arrive in the first 10 s after a connect show without an alert
   (`INBOX_CONNECT_QUIET_MS`): if the server lists open records on connect, they

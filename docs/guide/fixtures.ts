@@ -619,7 +619,8 @@ export const instanceExamples: ReadonlyArray<{ platform: Platform; instance: Ins
 
 /**
  * Synthetic inbox rows: one of each kind across both platforms, from sample
- * friends so their pictures show, plus a non-friend request. Times are offsets
+ * friends so their pictures show, plus a non-friend request. Both platforms
+ * have an invite with a Join; the guide's bridge turns every Join down. Times are offsets
  * from the moment the scene opens.
  */
 export function inboxSample(now: number): InboxSnapshot {
@@ -634,7 +635,20 @@ export function inboxSample(now: number): InboxSnapshot {
       senderId: vrc.platformUserId,
       senderName: vrc.displayName,
       worldName: 'Moonlit Observatory',
-      receivedAt: now - 4 * 60_000
+      receivedAt: now - 4 * 60_000,
+      canJoin: true
+    })
+  const cvrInviter = friends.chilloutvr[1]
+  if (cvrInviter)
+    items.push({
+      id: 'invite:fixture-inv-1',
+      platform: 'chilloutvr',
+      kind: 'invite',
+      senderId: cvrInviter.platformUserId,
+      senderName: cvrInviter.displayName,
+      worldName: 'Lantern Garden',
+      receivedAt: now - 9 * 60_000,
+      canJoin: true
     })
   if (cvr)
     items.push({

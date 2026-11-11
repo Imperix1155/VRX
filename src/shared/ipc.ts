@@ -270,6 +270,12 @@ export interface IpcInvoke {
   'clear-app-background': { req: void; res: void }
   /** Invites and requests that arrived while VRX was open. */
   'get-inbox': { req: void; res: InboxSnapshot }
+  /** Join the instance an invite row leads to. Main looks the row up itself:
+   *  the renderer names the row, never a world, an instance or a link. */
+  'join-invite': {
+    req: { platform: Platform; id: string; mode: JoinMode }
+    res: InstanceActionResult
+  }
   /** Hide one row in VRX. Never answers or declines anything on the platform. */
   'dismiss-inbox-item': { req: { platform: Platform; id: string }; res: void }
   /** Hide every row for these platforms, in VRX only. */
