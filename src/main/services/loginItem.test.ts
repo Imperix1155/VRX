@@ -178,6 +178,42 @@ describe('LoginItem on Linux', () => {
     expect(r.files.has(ENTRY_FILE)).toBe(false)
   })
 
+  it('removes its own entry on Off even when it starts another copy of VRX', () => {
+    // An update renamed the AppImage; the entry VRX wrote still starts the old file.
+    const files = new Map([[ENTRY_FILE, buildAutostartEntry('/apps/vrx-1.AppImage')!]])
+    const remove = vi.fn((path: string) => void files.delete(path))
+    const r = linux({
+      env: { APPIMAGE: '/apps/vrx-2.AppImage' },
+      files: {
+        read: (path) => files.get(path) ?? null,
+        write: (path, content) => void files.set(path, content),
+        makeFolder: () => undefined,
+        remove
+      }
+    })
+    expect(r.item.status()).toBe('off')
+    expect(r.item.sync(false)).toBe('off')
+    expect(remove).toHaveBeenCalledExactlyOnceWith(ENTRY_FILE)
+    expect(files.has(ENTRY_FILE)).toBe(false)
+    // Nothing left to do on the next launch.
+    r.item.sync(false)
+    expect(remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays off quietly when the file cannot be read', () => {
+    const r = linux({
+      files: {
+        read: () => {
+          throw new Error('EACCES')
+        },
+        write: () => undefined,
+        makeFolder: () => undefined,
+        remove: () => undefined
+      }
+    })
+    expect(r.item.sync(false)).toBe('off')
+  })
+
   it("leaves an entry it did not write, even one with VRX's file name", () => {
     const r = linux()
     r.files.set(ENTRY_FILE, '[Desktop Entry]\nType=Application\nExec=/usr/bin/other\n')

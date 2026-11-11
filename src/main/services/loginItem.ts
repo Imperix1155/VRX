@@ -13,7 +13,7 @@
  *
  * Nothing here talks to a platform, and the only file it writes outside VRX's
  * own storage is that one autostart entry, which it removes again only when
- * the entry is its own. A development run (not packaged) registers nothing:
+ * the entry is its own (also when it was written for another copy of VRX). A development run (not packaged) registers nothing:
  * it would add the bare Electron binary to the user's startup.
  */
 import { join } from 'node:path'
@@ -124,7 +124,10 @@ export class LoginItem {
     const target = this.target()
     if (target === null) return 'unavailable'
     const before = this.status()
-    if (before === (wanted ? 'on' : 'off')) return before
+    // An entry VRX wrote for another copy (an older AppImage name, another
+    // folder) reads as `off` here, yet it would still start that copy.
+    const stale = !wanted && target.kind === 'autostart' && this.hasManagedEntry(target.file)
+    if (before === (wanted ? 'on' : 'off') && !stale) return before
     try {
       if (target.kind === 'autostart') {
         if (wanted) {
@@ -140,6 +143,15 @@ export class LoginItem {
       this.deps.warn('could not change the start-with-computer entry')
     }
     return this.status()
+  }
+
+  /** True when the autostart file is one VRX wrote, whatever it starts. */
+  private hasManagedEntry(file: string): boolean {
+    try {
+      return this.deps.files.read(file)?.includes(MANAGED_MARKER) === true
+    } catch {
+      return false
+    }
   }
 
   /** After a settings save: act only when the choice changed. */
