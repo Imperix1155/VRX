@@ -169,6 +169,21 @@ describe('VrcAdapter unfriend and block', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps sending after three refused self-invites instead of pausing VRChat', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(new Response('{}', { status: 404 })))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = signedIn()
+    for (let press = 0; press < 4; press += 1) {
+      await expect(adapter.selfInvite('wrld_example:12345~private(usr_self)')).rejects.toThrow(
+        'HTTP 404'
+      )
+    }
+    // The fourth press reached VRChat too: a closed instance is not an outage.
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
   it('refuses a malformed person ID before any request', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)

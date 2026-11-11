@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
-import { AuthSessionPendingError } from './errors'
-import { jsonResponse, instantAdmission, ownerBindingHarness } from './__testutils__/adapterTestKit'
+import { AuthSessionPendingError, CircuitOpenError } from './errors'
+import {
+  jsonResponse,
+  instantAdmission,
+  markVrcSessionEstablished,
+  ownerBindingHarness
+} from './__testutils__/adapterTestKit'
 import { fakeStore, creds, lastCall, headerOf } from './__testutils__/vrcAdapterTestKit'
 
 describe('VrcAdapter', () => {
@@ -772,6 +778,33 @@ describe('VrcAdapter', () => {
     it('never says VRChat ended a session it did not hold', async () => {
       const adapter = new VrcAdapter(fakeStore(), instantAdmission())
       expect(await adapter.getAuthStatus()).not.toHaveProperty('endedByPlatform')
+    })
+
+    it('learns that the session ended even while requests are paused after three failures', async () => {
+      // Three failed reads pause VRChat for a minute; then the session is rejected.
+      const fetchMock = vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith('/auth/user')
+            ? jsonResponse({}, { status: 401 })
+            : jsonResponse({}, { status: 500 })
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=expired'), instantAdmission())
+      markVrcSessionEstablished(adapter)
+      const failingRead = (): Promise<unknown> =>
+        (adapter as unknown as { get: (path: string, schema: unknown) => Promise<unknown> }).get(
+          '/visits',
+          z.unknown()
+        )
+      for (let i = 0; i < 3; i++) await expect(failingRead()).rejects.toThrow('HTTP 500')
+      await expect(failingRead()).rejects.toBeInstanceOf(CircuitOpenError)
+
+      // Not "error" (which would show the platform as down with an empty list).
+      expect(await adapter.getAuthStatus()).toMatchObject({
+        state: 'unauthenticated',
+        endedByPlatform: true
+      })
     })
 
     it('keeps automatic 401 deletion best-effort when the credential store is unavailable', async () => {

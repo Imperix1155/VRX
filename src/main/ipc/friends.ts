@@ -2,7 +2,11 @@ import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Friend, Platform } from '@shared/types'
 import type { FriendRoster, IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
-import { RateLimitError, RequestQueueFullError } from '../services/adapters/errors'
+import {
+  CircuitOpenError,
+  RateLimitError,
+  RequestQueueFullError
+} from '../services/adapters/errors'
 import type { AppStatusService } from '../services/appStatus'
 import { createFriendRosterReader, type FriendRosterRead } from '../services/friendRoster'
 import type { LocationAuthority } from '../services/locationAuthority'
@@ -54,7 +58,13 @@ export function registerFriendsHandlers(
     } catch (error) {
       // Error properties do not survive Electron's invoke wrapping. Reuse the
       // preload-normalized marker that the query client never retries.
-      if (error instanceof RateLimitError || error instanceof RequestQueueFullError) {
+      // A paused platform (three failures in a row) is the same kind of local
+      // refusal: retrying inside the pause sends nothing and only spins Retry.
+      if (
+        error instanceof RateLimitError ||
+        error instanceof RequestQueueFullError ||
+        error instanceof CircuitOpenError
+      ) {
         throw new Error('rate_limited', { cause: error })
       }
       throw error

@@ -479,7 +479,9 @@
       "retry": "Retry saving settings",
       "saving": "Saving…",
       "loadFallback": "VRX couldn't read your saved settings, so it's showing the defaults for now. Your saved settings are kept.",
-      "newerFile": "Your settings were saved by a newer version of VRX, so changes made here last only until VRX closes. Update VRX to keep them."
+      "newerFile": "Your settings were saved by a newer version of VRX, so changes made here last only until VRX closes. Update VRX to keep them.",
+      "reset": "Your saved settings were damaged, so VRX went back to the defaults. The old file is kept as a backup in VRX's data folder.",
+      "hideReset": "Hide the settings reset notice"
     },
     "bugReport": {
       "label": "Found a bug?",

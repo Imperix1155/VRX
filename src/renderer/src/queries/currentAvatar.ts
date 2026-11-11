@@ -17,7 +17,7 @@ import {
 } from './avatarLibrary'
 
 /** Account-keyed, so an old account's avatar can never show under a new one. */
-export function currentAvatarQueryKey(
+function currentAvatarQueryKey(
   platform: Platform,
   accountId: string | null
 ): readonly ['current-avatar', Platform, string | null] {

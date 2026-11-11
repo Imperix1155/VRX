@@ -450,7 +450,9 @@ app
     const homeWorldBoundary: { current?: HomeWorldService } = {}
     const friendActionsBoundary: { current?: FriendActionsService } = {}
     const accountSession = new AccountSession()
-    const accountRegistry = new AccountRegistry(accountSession)
+    const accountRegistry = new AccountRegistry(accountSession, undefined, (message, detail) =>
+      log.warn(message, detail)
+    )
     const socialStore = new SocialStore(accountSession, undefined, (message, detail) =>
       log.warn(message, detail)
     )
@@ -458,6 +460,7 @@ app
     // Favorite friends and worlds: local stars, never sent to a platform.
     const favorites = new Favorites(accountSession, socialStore)
     const linkGraph = new LinkGraphStore()
+    linkGraph.recoverDamagedFile((message, detail) => log.warn(message, detail))
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
       log: (level, message, meta) => log[level](message, meta)

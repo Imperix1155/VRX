@@ -297,7 +297,7 @@ export class SocialStore {
   constructor(
     private readonly accountSession: AccountSession,
     storage?: SocialStoreStorage,
-    log: SocialStoreLog = () => undefined
+    private readonly log: SocialStoreLog = () => undefined
   ) {
     this.storage = storage ?? new ElectronSocialStoreStorage()
     let loaded: SocialStoreLoadResult
@@ -391,7 +391,13 @@ export class SocialStore {
       storeFormatVersion: SOCIAL_STORE_FORMAT_VERSION,
       accounts: { ...this.file.accounts, [key]: account }
     }
-    this.storage.write(structuredClone(next))
+    try {
+      this.storage.write(structuredClone(next))
+    } catch (error) {
+      // Callers answer the renderer with a plain failure; the cause lands here.
+      this.log('social store: could not save the file', errorCode(error))
+      throw error
+    }
     this.file = next
     return structuredClone(envelope)
   }

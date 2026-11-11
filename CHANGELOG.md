@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Signing out of VRChat now shows its live connection as stopped right away
+  instead of leaving the last state on screen.
+- A burst of VRChat friends changing worlds no longer queues hundreds of
+  lookups ahead of what you press; they run in small batches behind your
+  own actions.
+- A ChilloutVR friend the platform lists twice shows once.
+- After a platform asks VRX to slow down, the friends list waits longer
+  between tries (30 seconds, doubling up to 10 minutes) instead of asking
+  every 30 seconds, and a failed friends read is tried once more, not three
+  times.
+- When VRX pauses a platform after repeated failures, the friends list says
+  to wait instead of "could not refresh", the pause is written to the log,
+  and a sign-out by the platform is still noticed during the pause. Refused
+  VRChat invites no longer cause that pause.
+- Starting VRX with a saved sign-in reads your friends list once instead of
+  twice, so the list is current sooner and VRX asks the platforms for less.
+- The favorite star's groups load sooner after launch instead of waiting
+  behind world-name lookups.
+- Pressing a favorite twice quickly gives the right answer for the second
+  press.
+- If the settings file is damaged, VRX keeps the old file, starts from
+  defaults and now tells you so. Damaged account and linked-profile files
+  are also kept beside a fresh one instead of blocking saves.
+- A failed save of notes and favorites data is written to the log.
+- Small look fixes: the Dashboard's "Popular now" heading matches the other
+  section headings, the welcome summary lists pages in sidebar order, and
+  the light theme's window background matches the app while it loads.
+- Linking dialogs keep keyboard focus when they move to the next step, and
+  screen readers name which account a profile section belongs to when two
+  accounts are shown.
+
+### Security
+
+- Security hardening for links VRX opens in your browser.
+
 ## [1.4.3] - 2026-11-10
 
 A polish and bug fix release on top of 1.4.2.

@@ -12,6 +12,7 @@ import type {
 import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import {
   AuthError,
+  CircuitOpenError,
   HttpStatusError,
   NetworkError,
   RateLimitError,
@@ -34,6 +35,12 @@ export interface AdapterRequestOptions {
    * lookups where a missing or unreadable item is an expected answer).
    */
   recordCircuitFailure?: boolean | 'auth'
+  /**
+   * Send even while the breaker is open. Only the sign-in status check sets
+   * it: that check runs on demand and at most once a minute, and it is what
+   * tells a session the platform ended from a platform VRX has paused.
+   */
+  ignoreOpenCircuit?: boolean
   signal?: AbortSignal
   lease?: RequestLease
   retry?: 'bounded' | 'none'
@@ -100,10 +107,11 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     const signal = signalsForCaller.length ? AbortSignal.any(signalsForCaller) : undefined
     if (signal?.aborted) throw new RequestCancelledError()
     if (
+      requestOptions.ignoreOpenCircuit !== true &&
       this.consecutiveFailures >= CIRCUIT_OPEN_THRESHOLD &&
       Date.now() - this.lastFailureAt < CIRCUIT_RESET_MS
     ) {
-      throw new NetworkError('Circuit open: too many consecutive failures')
+      throw new CircuitOpenError()
     }
     let notBefore: number | undefined
     const rateLimitRevision = this.admission.rateLimitRevision
@@ -220,6 +228,12 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   private recordFailure(): void {
     this.consecutiveFailures++
     this.lastFailureAt = Date.now()
+    if (this.consecutiveFailures === CIRCUIT_OPEN_THRESHOLD) this.onCircuitOpened()
+  }
+
+  /** Called once each time the breaker opens, so an adapter can log the pause. */
+  protected onCircuitOpened(): void {
+    // Nothing by default; the platform adapters log it.
   }
 
   private assertRequestCurrent(

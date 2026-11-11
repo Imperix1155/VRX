@@ -3,7 +3,7 @@ import type { Theme } from '@shared/types'
 import log from './logger'
 
 /** The renderer's `--bg-base` per theme, painted before and around the page. */
-export const WINDOW_BACKGROUND = { dark: '#08080b', light: '#eef3f8' } as const
+export const WINDOW_BACKGROUND = { dark: '#08080b', light: '#e7ecf3' } as const
 
 /** Window background for the theme Electron currently resolves. */
 export function windowBackgroundColor(): string {

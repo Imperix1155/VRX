@@ -18,13 +18,13 @@
  */
 
 /** Hosts whose pictures go through VRChat's shared request queue in main. */
-export const API_IMAGE_HOSTS: ReadonlySet<string> = new Set(['api.vrchat.cloud'])
+const API_IMAGE_HOSTS: ReadonlySet<string> = new Set(['api.vrchat.cloud'])
 
 /**
  * Downloads handed to main at once. Main starts one API request per second, so
  * two keep that line busy without a gap while the rest stay here.
  */
-export const API_IMAGE_MAX_IN_FLIGHT = 2
+const API_IMAGE_MAX_IN_FLIGHT = 2
 
 export function isApiImageUrl(url: string): boolean {
   try {

@@ -16,6 +16,7 @@ import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { AppStatusService } from '../services/appStatus'
 import { LocationAuthority } from '../services/locationAuthority'
 import {
+  CircuitOpenError,
   RateLimitError,
   CVRRateLimitError,
   RequestQueueFullError
@@ -201,18 +202,21 @@ describe('get-friends location seeding', () => {
     }
   )
 
-  it.each([new RateLimitError(60_000), new CVRRateLimitError(60_000), new RequestQueueFullError()])(
-    'sanitizes admission failures and preserves existing authority',
-    async (error) => {
-      vi.mocked(adapter.getFriends).mockRejectedValue(error)
-      const seed = vi.spyOn(authority, 'seed')
-      await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).rejects.toThrow(
-        /^rate_limited$/
-      )
-      expect(seed).not.toHaveBeenCalled()
-      expect(appStatus.snapshot().lastReconcileAt.vrchat).toBeNull()
-    }
-  )
+  it.each([
+    new RateLimitError(60_000),
+    new CVRRateLimitError(60_000),
+    new RequestQueueFullError(),
+    // A paused platform sends nothing, so the window must wait, not retry.
+    new CircuitOpenError()
+  ])('sanitizes admission failures and preserves existing authority', async (error) => {
+    vi.mocked(adapter.getFriends).mockRejectedValue(error)
+    const seed = vi.spyOn(authority, 'seed')
+    await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).rejects.toThrow(
+      /^rate_limited$/
+    )
+    expect(seed).not.toHaveBeenCalled()
+    expect(appStatus.snapshot().lastReconcileAt.vrchat).toBeNull()
+  })
   it('rejects an untrusted sender before adapter delegation', async () => {
     trusted.value = false
 

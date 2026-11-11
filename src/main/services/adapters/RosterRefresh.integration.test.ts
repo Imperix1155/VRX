@@ -101,6 +101,40 @@ describe.each(['vrchat', 'chilloutvr'] as const)('%s roster event coalescing', (
     expect(snapshots).toBe(4)
   })
 
+  it('reads once when the event lands before the first request is sent', async () => {
+    let snapshots = 0
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (platform === 'chilloutvr')
+        return jsonResponse({
+          message: 'ok',
+          data: [
+            {
+              id: 'a1b2c3d4-0000-0000-0000-000000000001',
+              name: `Read ${++snapshots}`,
+              imageUrl: null,
+              categories: []
+            }
+          ]
+        })
+      if (url.endsWith('/auth/user')) {
+        snapshots++
+        return jsonResponse({ onlineFriends: [], activeFriends: [], offlineFriends: [] })
+      }
+      return jsonResponse(
+        url.includes('offline=true') ? [] : [{ id: 'usr_fixture', displayName: 'Read' }]
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { adapter, event } = fixture(platform)
+    const request = adapter.getFriends()
+    // Nothing has been asked yet, so this read already covers the change.
+    event()
+    expect(adapter.getFriends()).toBe(request)
+    expect((await request).friends).toHaveLength(1)
+    expect(snapshots).toBe(1)
+  })
+
   it('drops pending follow-up when an active roster rate limits', async () => {
     let release!: () => void
     const held = new Promise<void>((resolve) => {

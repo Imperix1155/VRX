@@ -96,7 +96,7 @@ import { ACTIVITY_FILTERS } from './activity'
  *  user's newer choice even though the migration itself is identity-only. */
 export const SETTINGS_VERSION = 27 as const
 
-export const SettingsSchema = z.object({
+const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
   platformFilter: z.enum(['all', 'vrchat', 'chilloutvr']).catch('all'),
   exploreWorldsShown: z.union([z.literal(2), z.literal(4), z.literal(6)]).catch(4),
@@ -243,7 +243,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
-export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
+const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   1: (prev) => ({ ...prev }),
   2: (prev) => ({ ...prev }),
   3: (prev) => ({ ...prev }),

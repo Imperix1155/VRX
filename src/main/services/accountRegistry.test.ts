@@ -164,6 +164,42 @@ describe('AccountRegistry', () => {
     expect(storage.writes).toHaveLength(0)
   })
 
+  it('moves a damaged file aside and starts fresh, so the next sign-in is recorded', () => {
+    const log = vi.fn()
+    const setAside = vi.fn(() => {
+      storage.value = {}
+    })
+    session.setIdentity('vrchat', 'usr_a')
+    for (const damaged of ['][nope', { storeFormatVersion: 1, entries: [] }]) {
+      storage.value = damaged
+      registry = new AccountRegistry(session, Object.assign(storage, { setAside }), log)
+      expect(() => recordCurrent('vrchat', 'Alice')).not.toThrow()
+      expect(registry.listAccounts()).toHaveLength(1)
+    }
+    expect(setAside).toHaveBeenCalledTimes(2)
+    expect(storage.writes).toHaveLength(2)
+    expect(log).toHaveBeenCalledWith(
+      'account registry: damaged file kept as accounts.corrupt-*.json; starting fresh'
+    )
+  })
+
+  it('stays read-only when a damaged file cannot be moved aside', () => {
+    const log = vi.fn()
+    storage.value = '{"storeFormatVersion":1,"entries":'
+    const setAside = vi.fn(() => {
+      throw Object.assign(new Error("EBUSY: resource busy, rename '/srv/vrx-data/accounts.json'"), {
+        code: 'EBUSY'
+      })
+    })
+    registry = new AccountRegistry(session, Object.assign(storage, { setAside }), log)
+    session.setIdentity('vrchat', 'usr_a')
+    expect(() => recordCurrent('vrchat', 'Alice')).toThrow('storage could not be loaded')
+    expect(log).toHaveBeenCalledWith(
+      'account registry: could not move the damaged file aside',
+      'EBUSY'
+    )
+  })
+
   it('preserves a newer marker in malformed serialized content and never overwrites it', () => {
     storage.value = '{"storeFormatVersion":999,"entries":'
     registry = new AccountRegistry(session, storage)

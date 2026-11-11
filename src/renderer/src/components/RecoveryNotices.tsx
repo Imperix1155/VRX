@@ -214,11 +214,43 @@ export function SettingsPersistenceNotice(): React.JSX.Element | null {
   )
 }
 
+/**
+ * A damaged settings file was set aside at launch and VRX started from the
+ * defaults. Without this line every choice (theme, hidden pages, joining
+ * turned off) would just be gone with no reason given. It stays until hidden.
+ */
+function SettingsResetNotice(): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const resetNotice = useSettingsStore((s) => s.resetNotice)
+  if (!resetNotice) return null
+  return (
+    <div className={noticeClass} role="alert">
+      {/* The non-color cue (R2): a warning glyph before the words. */}
+      <span aria-hidden="true" className="shrink-0 text-sm text-[var(--error)]">
+        ⚠
+      </span>
+      <span className="min-w-0 flex-1">{t('settings.persistence.reset')}</span>
+      <button
+        type="button"
+        className={buttonClass}
+        aria-label={t('settings.persistence.hideReset')}
+        onClick={() => {
+          useSettingsStore.setState({ resetNotice: false })
+          focusPage()
+        }}
+      >
+        {t('settings.accounts.hideNotice')}
+      </button>
+    </div>
+  )
+}
+
 /** Persistent recovery controls outside the replaceable panel boundary. */
 export default function RecoveryNotices(): React.JSX.Element {
   return (
     <>
       <SettingsPersistenceNotice />
+      <SettingsResetNotice />
       <AuthNotice platform="vrchat" />
       <AuthNotice platform="chilloutvr" />
       <TwoFactorNotice platform="vrchat" />

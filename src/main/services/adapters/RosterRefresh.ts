@@ -8,7 +8,19 @@ interface RunState {
   finalRead: boolean
   /** A change landed after the final read was sent, so its answer may miss it. */
   stale: boolean
+  /** The read now running has asked the platform nothing yet. */
+  unsent: boolean
   rateLimitRevision?: number
+}
+
+export interface RosterReadHooks {
+  /**
+   * Says this read holds no answer yet, not even one saved from an earlier
+   * request. Call the returned function when its first request is sent. A
+   * change that lands before then needs no extra read: every answer this read
+   * gets is newer than the change.
+   */
+  startsEmpty(): () => void
 }
 
 interface Run {
@@ -25,7 +37,7 @@ export class RosterRefresh {
   private active: Run | null = null
 
   constructor(
-    private readonly read: () => Promise<FriendRoster>,
+    private readonly read: (hooks: RosterReadHooks) => Promise<FriendRoster>,
     private readonly cooldownRemaining: () => number,
     private readonly captureRevision?: () => number | undefined,
     private readonly readRateLimitRevision?: () => number
@@ -34,7 +46,13 @@ export class RosterRefresh {
   get(lease: RequestLease): Promise<FriendRoster> {
     const active = this.active?.state.lease.signal === lease.signal ? this.active : null
     if (active && !active.state.stale) return active.promise
-    const state: RunState = { lease, dirty: false, finalRead: false, stale: false }
+    const state: RunState = {
+      lease,
+      dirty: false,
+      finalRead: false,
+      stale: false,
+      unsent: false
+    }
     const promise = (active ? this.follow(state, active) : this.execute(state)).finally(() => {
       if (this.active?.promise === promise) this.active = null
     })
@@ -44,8 +62,9 @@ export class RosterRefresh {
 
   invalidate(): void {
     const state = this.active?.state
-    if (state?.finalRead) state.stale = true
-    else if (state) state.dirty = true
+    if (!state || state.unsent) return
+    if (state.finalRead) state.stale = true
+    else state.dirty = true
   }
 
   clear(): void {
@@ -69,7 +88,7 @@ export class RosterRefresh {
 
   private async execute(state: RunState): Promise<FriendRoster> {
     state.rateLimitRevision = this.readRateLimitRevision?.()
-    const first = await this.readWithRevision()
+    const first = await this.readWithRevision(state)
     assertRequestLease(state.lease)
     if (
       !state.dirty ||
@@ -80,7 +99,7 @@ export class RosterRefresh {
       return first
     state.finalRead = true
     try {
-      const last = await this.readWithRevision()
+      const last = await this.readWithRevision(state)
       assertRequestLease(state.lease)
       if (last.completeness === 'complete') return last
       const seen = new Set(last.friends.map((friend) => friend.platformUserId))
@@ -108,9 +127,22 @@ export class RosterRefresh {
     }
   }
 
-  private async readWithRevision(): Promise<FriendRoster> {
+  private async readWithRevision(state: RunState): Promise<FriendRoster> {
     const revision = this.captureRevision?.()
-    const roster = await this.read()
+    state.unsent = false
+    let roster: FriendRoster
+    try {
+      roster = await this.read({
+        startsEmpty: () => {
+          state.unsent = true
+          return () => {
+            state.unsent = false
+          }
+        }
+      })
+    } finally {
+      state.unsent = false
+    }
     return revision === undefined
       ? roster
       : {

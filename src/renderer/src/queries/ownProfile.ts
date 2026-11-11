@@ -9,7 +9,7 @@ import type { OwnProfileChanges, OwnProfileResult, SaveOwnProfileResult } from '
 import type { Platform } from '@shared/types'
 import { useAvatarAccount } from './avatarLibrary'
 
-export function ownProfileQueryKey(
+function ownProfileQueryKey(
   platform: Platform,
   accountId: string | null
 ): readonly ['own-profile', Platform, string | null] {

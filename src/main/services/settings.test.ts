@@ -59,7 +59,8 @@ import {
   hasPendingSettingsSave,
   loadSettings,
   isSettingsFallback,
-  saveSettings
+  saveSettings,
+  wasSettingsFileReset
 } from './settings'
 
 /** Current version, missing one field, so loading must normalize and write it. */
@@ -92,8 +93,11 @@ describe('loadSettings (W7 M1)', () => {
     try {
       writeFileSync(join(userData.dir, 'settings.json'), '{"theme": "light",')
       storeState.throwOnRead = true
+      expect(wasSettingsFileReset()).toBe(false)
 
       expect(loadSettings()).toEqual(DEFAULT_SETTINGS)
+      // The shell is told, so the reset is never silent.
+      expect(wasSettingsFileReset()).toBe(true)
 
       const files = readdirSync(userData.dir)
       expect(files).not.toContain('settings.json')

@@ -15,13 +15,13 @@
  * pill COLUMN with `minmax(78px, max-content)`, avoiding the min-width-plus-grid-
  * stretch inflation artifact). Tier map + geometry live in `utils/instancePill`.
  */
-import { PILL_BASE, type OpennessTier } from '../utils/instancePill'
+import { PILL_BASE, type PillTier } from '../utils/instancePill'
 
 interface InstancePillProps {
   /** The already-resolved, i18n'd label to show (scheme resolution stays with the caller). */
   label: string
   /** Openness tier → `--op-*` tokens; `null` = neutral (Private / CVR Offline / Unknown, VRX-244). */
-  tier: OpennessTier | null
+  tier: PillTier | null
   /** Layout extras from the consumer (width floor, grid placement). */
   className?: string
   /** Present only for actionable friend-row pills. */

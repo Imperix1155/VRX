@@ -796,6 +796,19 @@ function DrawerFullProfile({
                 key={section}
                 ref={watchSection}
                 data-profile-section={section}
+                // With two accounts the same buttons appear twice (Show worlds,
+                // Unfriend or block); the group name says which account each
+                // set acts on.
+                role={ordered.length > 1 ? 'group' : undefined}
+                aria-label={
+                  ordered.length > 1
+                    ? t(
+                        account.platform === 'vrchat'
+                          ? 'friends.platform.vrchat'
+                          : 'friends.platform.chilloutvr'
+                      )
+                    : undefined
+                }
                 onFocus={() => {
                   focusedSection.current = section
                 }}

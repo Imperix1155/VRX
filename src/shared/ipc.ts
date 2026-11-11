@@ -280,7 +280,7 @@ export interface IpcInvoke {
   'send-friend-request': { req: SendFriendRequest; res: FriendActionResult }
   'get-settings': {
     req: void
-    res: Settings & { unsaved?: true; fallback?: true; newerFile?: true }
+    res: Settings & { unsaved?: true; fallback?: true; newerFile?: true; reset?: true }
   }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }

@@ -1,4 +1,4 @@
-import { RosterRefresh } from './RosterRefresh'
+import { RosterRefresh, type RosterReadHooks } from './RosterRefresh'
 import { UserReadShare } from './UserReadShare'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import type {
@@ -242,7 +242,7 @@ export class CvrAdapter
     FriendActionsAdapter
 {
   private readonly rosterRefresh = new RosterRefresh(
-    () => this.readFriends(),
+    (hooks) => this.readFriends(hooks),
     () => this.admission.cooldownRemainingMs,
     () => this.live?.captureRosterRevision?.(),
     () => this.admission.rateLimitRevision
@@ -257,7 +257,7 @@ export class CvrAdapter
   private validationInFlight: Promise<AuthStatus> | null = null
   /** One in-flight reauth after a data-path 403 (see handleDataAuthFailure). */
   private forbiddenCheckInFlight: Promise<void> | null = null
-  /** Session generation whose key a 403 reauth already proved alive. */
+  /** Session generation that already spent its one confirming reauth. */
   private forbiddenConfirmedGeneration: number | null = null
   /** The session whose refused live socket already asked /users/auth. A
    *  reconnecting socket asks at most once per session, whatever the answer. */
@@ -541,10 +541,12 @@ export class CvrAdapter
       response = await this.authenticateRaw(1, validated.username, validated.accessKey, {
         priority: 'interactive',
         recordCircuitFailure: false,
+        // As on VRChat: a paused platform must not hide a session that ended.
+        ignoreOpenCircuit: true,
         lease: this.captureSessionLease()
       })
     } catch (error) {
-      // Network trouble or an already-open circuit — the session may still be
+      // Network trouble — the session may still be
       // fine; report error WITHOUT clearing (a flaky boot must not log out).
       // Only no answer at all may be re-checked while the window is hidden; a
       // 429 is a refusal.
@@ -1282,14 +1284,19 @@ export class CvrAdapter
     return this.rosterRefresh.get(this.captureSessionLease())
   }
 
-  private async readFriends(): Promise<FriendRoster> {
+  private async readFriends(hooks?: RosterReadHooks): Promise<FriendRoster> {
     this.assertDurableSession()
     // Static roster only (VRX-57); live presence arrives via the pipeline below.
+    // The list is one request and rests on nothing saved, so a change that
+    // lands before it is sent needs no second read.
+    const firstRequestSent = hooks?.startsEmpty()
     const generation = this.sessionGeneration
     const requestSequence = ++this.friendNamesRequestSequence
     let result: { friends: Friend[]; skippedRecords: number; categories: Map<string, string[]> }
     try {
-      result = await fetchCvrFriends((path, schema) => this.get(path, schema, { retry: 'none' }))
+      result = await fetchCvrFriends((path, schema) =>
+        this.get(path, schema, { retry: 'none', beforeDispatch: firstRequestSent })
+      )
     } catch (error) {
       // A replacement account needs a fresh caller-owned operation.
       if (generation !== this.sessionGeneration) {
@@ -1783,6 +1790,9 @@ export class CvrAdapter
    */
   private confirmSessionOnce(): void {
     if (this.forbiddenConfirmedGeneration === this.sessionGeneration) return
+    // Stamped before the request: once per session whatever the answer, so a
+    // check that got no usable answer cannot repeat on every later 403.
+    this.forbiddenConfirmedGeneration = this.sessionGeneration
     this.forbiddenCheckInFlight ??= this.confirmSessionAfterForbidden().finally(() => {
       this.forbiddenCheckInFlight = null
     })
@@ -1829,10 +1839,7 @@ export class CvrAdapter
       this.invalidateSession(true)
       return
     }
-    if (accessKey === checked.accessKey && username === checked.username) {
-      this.forbiddenConfirmedGeneration = generation
-      return
-    }
+    if (accessKey === checked.accessKey && username === checked.username) return
     // CVR rotated the key on reauth: adopt and persist it exactly as restore
     // validation does, or the old key would die under the running session.
     // The same account keeps its roster, notes and dialogs (identityRetained).
@@ -1878,6 +1885,13 @@ export class CvrAdapter
     void this.getFriends().catch(() => {
       if (generation === this.sessionGeneration) this.rosterWarmStarted = false
     })
+  }
+
+  protected override onCircuitOpened(): void {
+    this.live?.log?.(
+      'warn',
+      'cvr adapter: three requests in a row failed; pausing requests for a minute'
+    )
   }
 
   /** Replace the current loop so newly validated credentials dial immediately

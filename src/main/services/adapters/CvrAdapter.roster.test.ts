@@ -458,6 +458,30 @@ describe('CvrAdapter', () => {
         await new Promise((resolve) => setTimeout(resolve, 0))
         expect(store.deleted).toBe(0)
         expect(events.some((e) => e.type === 'auth-invalidated')).toBe(false)
+
+        // The session's one check is spent: a later 403 does not ask again.
+        // (`routed` throws "unexpected reauth" if it did.)
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(authCalls(fetchMock)).toBe(1)
+      })
+
+      it.each([
+        ['a server error', () => Promise.resolve(jsonResponse({}, { status: 503 }))],
+        ['a reply it cannot read', () => Promise.resolve(jsonResponse({ unexpected: true }))]
+      ])('checks only once per session when the reauth gets %s', async (_label, answer) => {
+        const { adapter, store } = setup()
+        const fetchMock = routed([answer])
+
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await vi.waitFor(() => expect(authCalls(fetchMock)).toBe(1))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        for (let i = 0; i < 3; i++) {
+          await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(authCalls(fetchMock)).toBe(1)
+        expect(store.deleted).toBe(0)
       })
 
       it('adopts and persists a key the reauth rotated', async () => {
