@@ -162,6 +162,11 @@ held only in memory by `GameFavoritesService`. Alert picks live in
 unused. A
 read that fails validation or names a different account returns nothing.
 
+A file this build cannot read (damaged JSON or the wrong shape) is renamed to
+`social.corrupt-<time>.json`, never deleted, and the store starts empty, as
+`settings.json` does. A file written by a newer build, or one that could not
+be read at all, stays untouched and the store refuses writes.
+
 ### Linked profiles
 
 `link-graph.json` (format version 2) is shared by the whole installation, not

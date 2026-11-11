@@ -481,8 +481,9 @@ cached in main for 5 minutes; nothing runs on a timer.
   shared queue, and the group sheet reuses the same copy. Both platforms send
   the banner in the groups list already, so no extra API read is made.
 - **When it breaks:** a non-array reply (or a non-number for `/visits`) is
-  unavailable; a 404 profile is not found. A 401 emits `auth-invalidated`; a
-  429 surfaces as rate-limited.
+  unavailable. Only a 404 means a profile is not found; a profile reply VRX
+  cannot read, or one naming someone else, is a failed load the user can try
+  again. A 401 emits `auth-invalidated`; a 429 surfaces as rate-limited.
 
 ### Friend notes: `GET /users/{userId}` and `POST /userNotes`
 
@@ -999,8 +1000,9 @@ and 5-minute cache rules apply.
   featured badge named `No badge featured` is skipped.
 - **Search text** is one path step, URL-encoded. Text that is only `.` or `..`
   can't be one, so it finds nothing and sends nothing.
-- **When it breaks:** a reply of the wrong shape is unavailable. Auth errors
-  follow the data-path rules above; a 429 surfaces as rate-limited.
+- **When it breaks:** a reply of the wrong shape is unavailable. Only a 404
+  means a profile is not found. Auth errors follow the data-path rules above;
+  a 429 surfaces as rate-limited.
 
 ### Friend notes: `GET /users/{userId}` and `POST /users/{userId}/note`
 
