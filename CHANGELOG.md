@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.4-dev.1] - 2026-11-11
+
 ### Fixed
 
 - Signing out of VRChat now shows its live connection as stopped right away
