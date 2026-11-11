@@ -19,7 +19,7 @@ Rule (rate budgets): `IPC_RATE_LIMIT_BUDGETS` in [`rate-limit.ts`](../../src/mai
 | 24 per minute | `get-app-status`, `switch-avatar`, `set-home-world` |
 | 20 per minute | `join-instance`, `self-invite`, `join-explore-room`, `clear-activity`, `social-action`, `send-friend-request` |
 | 12 per minute | `save-own-profile` |
-| 12 per 30 s | `get-friends` (shared by both platforms), `get-accounts`, `get-auth-status`, `get-settings`, `get-app-background`, `updater:get-state` |
+| 12 per 30 s | `get-friends` (counted per platform), `get-accounts`, `get-auth-status`, `get-settings`, `get-app-background`, `updater:get-state` |
 | 10 per minute | `verify-2fa`, `choose-app-background`, `clear-app-background`, `test-vr-alert` |
 | 6 per minute | `login`, `import-session`, `logout`, `updater:check`, `updater:download`, `updater:install`, `open-logs-folder`, `open-bug-report` |
 | 3 per minute | `renderer-hydrated` (excess is dropped silently) |
