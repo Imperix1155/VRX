@@ -340,6 +340,21 @@ export class LocationAuthority {
     return changed ? rows : friends
   }
 
+  /**
+   * Everyone on the friends list VRX last read, or null before the first list
+   * arrives. Ids and names only; says nothing about location.
+   */
+  roster(platform: Platform): { id: string; name: string }[] | null {
+    const state = this.states[platform]
+    if (!state.seeded) return null
+    const rows: { id: string; name: string }[] = []
+    for (const [id, entry] of state.friends) {
+      const friend = entry.friend ?? entry.pendingProfile
+      if (friend) rows.push({ id, name: friend.displayName })
+    }
+    return rows
+  }
+
   /** Whether the last roster or live update named this friend. Says nothing about location. */
   hasFriend(platform: Platform, friendId: string): boolean {
     const entry = this.states[platform].friends.get(friendId)

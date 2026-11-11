@@ -10,7 +10,8 @@ import {
   FRIEND_SORTS,
   type Friend,
   type FriendListSection,
-  type FriendSort
+  type FriendSort,
+  type Platform
 } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { useFriends, useCombineFriendQueries } from '../queries/friends'
@@ -25,7 +26,7 @@ import {
 } from '../utils/projectLinkedFriends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
 import { isFavoriteAccount, useFavoriteFriendKeys } from '../queries/favorites'
-import { useGameFavoriteFriendKeys } from '../queries/gameFavorites'
+import { useGameFavoriteFriendKeys, useGameFavorites } from '../queries/gameFavorites'
 import { useProfileSelection } from '../stores/profileSelection'
 import { useStableLinkedRows } from '../hooks/useStableLinkedRows'
 import LinkedDestinationChooser from './LinkedDestinationChooser'
@@ -33,6 +34,7 @@ import FriendDrawer from './FriendDrawer'
 import { useJoinInstance } from '../hooks/useJoinInstance'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { readPixelDesignToken, RENDERER_PIXEL_TOKENS } from '../utils/designTokens'
+import { splitFavoritesByGroup } from '../utils/favoriteGroups'
 import { latestActivityByFriend, sortFriendRows } from '../utils/friendSort'
 import { useActivityForFriendsOrder } from '../queries/activity'
 import SegmentedControl from './SegmentedControl'
@@ -41,6 +43,7 @@ import FriendsSectionHeader from './FriendsSectionHeader'
 
 const INITIAL_VIRTUAL_VIEWPORT = { width: 0, height: 720 }
 const SECTION_ROW_ESTIMATE = 32
+const FAVORITE_GROUP_ROW_ESTIMATE = 24
 const DETAIL_FRIEND_ROW_ESTIMATE = 72
 const VIRTUAL_OVERSCAN = 5
 const EMPTY_LINKED_ROWS: LinkedRow[] = []
@@ -93,6 +96,14 @@ type VirtualFriendRow =
       section: FriendListSection
       count: number
       collapsed: boolean
+    }
+  | {
+      /** A sub-heading inside Favorites: one of the account's favorite groups. */
+      kind: 'group'
+      key: `group:${string}`
+      platform: Platform | null
+      name: string | null
+      count: number
     }
   | {
       kind: 'friend'
@@ -309,6 +320,12 @@ export default function FriendsList(): React.JSX.Element {
         : new Set([...localFavoriteKeys, ...gameFavoriteKeys]),
     [localFavoriteKeys, gameFavoriteKeys]
   )
+  const vrcGameFavorites = useGameFavorites('vrchat').favorites
+  const cvrGameFavorites = useGameFavorites('chilloutvr').favorites
+  const gameFavorites = useMemo(
+    () => ({ vrchat: vrcGameFavorites, chilloutvr: cvrGameFavorites }),
+    [vrcGameFavorites, cvrGameFavorites]
+  )
   const sections = useMemo(() => {
     if (filteredFriends === undefined) return undefined
     return FRIEND_LIST_SECTIONS.map((section) => ({
@@ -343,7 +360,7 @@ export default function FriendsList(): React.JSX.Element {
         collapsed
       })
       if (!collapsed) {
-        for (const projection of sectionFriends) {
+        const pushFriend = (projection: LinkedRow): void => {
           // Hand the resolver only this row's profile: a full-array scan per row
           // made preparation O(rows × profiles) on every live update.
           const profile = profileById.get(projection.target.personId ?? '')
@@ -362,10 +379,26 @@ export default function FriendsList(): React.JSX.Element {
             projection
           })
         }
+        // Favorites split by the account's own favorite groups, each under a
+        // small sub-heading. With fewer than two parts there is nothing to
+        // tell apart, so the section stays one plain list.
+        const parts =
+          section === 'favorites' ? splitFavoritesByGroup(sectionFriends, gameFavorites) : []
+        if (parts.length === 0) sectionFriends.forEach(pushFriend)
+        for (const part of parts) {
+          rows.push({
+            kind: 'group',
+            key: `group:${part.key}`,
+            platform: part.platform,
+            name: part.name,
+            count: part.rows.length
+          })
+          part.rows.forEach(pushFriend)
+        }
       }
     }
     return rows
-  }, [sections, searchActive, collapsedSections, profileById, accountIds])
+  }, [sections, searchActive, collapsedSections, profileById, accountIds, gameFavorites])
 
   const friendKeys = useMemo(
     () => virtualRows.flatMap((row) => (row.kind === 'friend' ? [row.key] : [])),
@@ -427,6 +460,7 @@ export default function FriendsList(): React.JSX.Element {
   const estimateSize = useCallback(
     (index: number) => {
       if (virtualRows[index]?.kind === 'section') return SECTION_ROW_ESTIMATE
+      if (virtualRows[index]?.kind === 'group') return FAVORITE_GROUP_ROW_ESTIMATE
       return density === 'compact' ? COMPACT_FRIEND_ROW_ESTIMATE : DETAIL_FRIEND_ROW_ESTIMATE
     },
     [density, virtualRows]
@@ -940,6 +974,40 @@ export default function FriendsList(): React.JSX.Element {
                         onFocus={onSectionFocus}
                         onBlur={onSectionBlur}
                       />
+                    </li>
+                  )
+                }
+
+                if (row.kind === 'group') {
+                  const count = row.count
+                  return (
+                    <li
+                      key={virtualItem.key}
+                      ref={rowVirtualizer.measureElement}
+                      role="presentation"
+                      data-index={virtualItem.index}
+                      data-virtual-kind="group"
+                      style={virtualStyle}
+                      className="list-none"
+                    >
+                      {/* Plain words, never a chip: the name the user gave the
+                          group, the platform it lives on, and how many are here. */}
+                      <p
+                        data-favorite-group={row.key}
+                        className="truncate px-[var(--space-2)] pt-[var(--space-1)] text-[11.5px] font-semibold leading-[18px] text-[var(--text-dim)]"
+                      >
+                        {row.name === null || row.platform === null
+                          ? t('friends.favoriteGroup.vrx', { count })
+                          : t('friends.favoriteGroup.game', {
+                              name: row.name,
+                              platform: t(
+                                row.platform === 'vrchat'
+                                  ? 'friends.platform.vrchatShort'
+                                  : 'friends.platform.chilloutvrShort'
+                              ),
+                              count
+                            })}
+                      </p>
                     </li>
                   )
                 }

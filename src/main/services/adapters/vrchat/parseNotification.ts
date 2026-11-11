@@ -6,6 +6,8 @@
  * else (responses, votes to kick, messages, group notices) is ignored here.
  * `details` arrives as an object on the Pipeline and as a JSON string over
  * REST; both are read, and anything unreadable just leaves the world unnamed.
+ * An invite's `details.worldId` is the full location (`wrld_…:<instance>`);
+ * it is kept only when both halves have the shape a launch link allows.
  */
 import { z } from 'zod'
 import {
@@ -14,7 +16,8 @@ import {
   boundedInboxText,
   isInboxId,
   type InboxEntry,
-  type InboxKind
+  type InboxKind,
+  type InboxLocation
 } from '@shared/inbox'
 
 const KIND_BY_TYPE: Readonly<Record<string, InboxKind>> = {
@@ -31,7 +34,25 @@ const notificationSchema = z.object({
   details: z.unknown().optional()
 })
 
-const inviteDetailsSchema = z.object({ worldName: z.unknown().optional() })
+const inviteDetailsSchema = z.object({
+  worldName: z.unknown().optional(),
+  worldId: z.unknown().optional()
+})
+
+/** The same shapes `isAllowedLaunchUrl` accepts in a VRChat launch link. */
+const WORLD_ID_RE = /^wrld_[A-Za-z0-9_-]{1,128}$/
+const INSTANCE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_~().-]{0,767}$/
+
+/** `wrld_…:<instance>[~tags]` → its two halves, or null for anything else. */
+export function parseVrcInviteLocation(value: unknown): InboxLocation | null {
+  if (typeof value !== 'string') return null
+  const colon = value.indexOf(':')
+  if (colon <= 0) return null
+  const worldId = value.slice(0, colon)
+  const instanceId = value.slice(colon + 1)
+  if (!WORLD_ID_RE.test(worldId) || !INSTANCE_ID_RE.test(instanceId)) return null
+  return { worldId, instanceId }
+}
 
 function readDetails(details: unknown): unknown {
   if (typeof details !== 'string') return details
@@ -49,19 +70,15 @@ export function parseVrcNotification(content: unknown): InboxEntry | null {
   const { id, type, senderUserId, senderUsername, details } = parsed.data
   const kind = Object.hasOwn(KIND_BY_TYPE, type) ? KIND_BY_TYPE[type] : undefined
   if (kind === undefined || !isInboxId(id) || !isInboxId(senderUserId)) return null
-  const worldName =
-    kind === 'invite'
-      ? boundedInboxText(
-          inviteDetailsSchema.safeParse(readDetails(details)).data?.worldName,
-          INBOX_WORLD_NAME_MAX_LENGTH
-        )
-      : null
+  const invite =
+    kind === 'invite' ? inviteDetailsSchema.safeParse(readDetails(details)).data : undefined
   return {
     sourceId: id,
     kind,
     senderId: senderUserId,
     senderName: boundedInboxText(senderUsername, INBOX_NAME_MAX_LENGTH),
-    worldName
+    worldName: boundedInboxText(invite?.worldName, INBOX_WORLD_NAME_MAX_LENGTH),
+    ...(kind === 'invite' ? { location: parseVrcInviteLocation(invite?.worldId) } : {})
   }
 }
 

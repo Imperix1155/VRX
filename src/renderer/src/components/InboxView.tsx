@@ -4,7 +4,9 @@
  *
  * Friend requests can be accepted or declined here (owner, 2026-11-01): one
  * press sends one answer, and the row leaves once the platform took it.
- * Invites stay view-only; Hide only takes a row out of VRX and sends nothing.
+ * An invite that named its instance has a Join (owner, 2026-11-11): it opens
+ * the game there through the shared join flow, sends nothing to the sender,
+ * and the row stays. Hide only takes a row out of VRX and sends nothing.
  * Rows follow the platform filter, carry the platform as a word (PlatformPill)
  * beside its color, and show a known friend's current name and picture. The
  * TopBar owns the heading.
@@ -20,6 +22,7 @@ import { platformName } from '../utils/community'
 import { FRIEND_ACTION_ERROR_KEYS, FRIEND_ACTION_BUTTON } from '../utils/friendActions'
 import { useFriends } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
+import { inviteJoinMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { useAvatar } from '../hooks/useAvatar'
 import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
@@ -93,6 +96,7 @@ export default function InboxView(): React.JSX.Element {
     () => new Map()
   )
   const answerFriendRequest = useAnswerFriendRequest()
+  const { isJoining, joinInvite, joinInviteFailureFor } = useJoinInstance()
   const [notice, setNotice] = useState<{ tone: 'done' | 'error'; text: string } | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const helpId = useId()
@@ -247,6 +251,8 @@ export default function InboxView(): React.JSX.Element {
             const name = nameOf(item)
             const age = relativeInboxTime(item.receivedAt, now, i18n.language) ?? t('inbox.justNow')
             const sending = answering.get(`${item.platform}:${item.id}`)
+            const canJoin = item.kind === 'invite' && item.canJoin === true
+            const joinFeedback = canJoin ? joinInviteFailureFor(item) : null
             return (
               <li
                 // Keyed by sender and kind, which main keeps one row for, so
@@ -270,7 +276,32 @@ export default function InboxView(): React.JSX.Element {
                     <span aria-hidden="true"> · </span>
                     <time dateTime={new Date(item.receivedAt).toISOString()}>{age}</time>
                   </p>
+                  {canJoin ? (
+                    // Stays mounted, so what a Join said is announced.
+                    <p
+                      role="status"
+                      data-inbox-join-feedback=""
+                      className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)] empty:hidden"
+                    >
+                      {joinFeedback !== null ? t(inviteJoinMessageKey(joinFeedback)) : null}
+                    </p>
+                  ) : null}
                 </div>
+                {canJoin ? (
+                  // Not `disabled` while a Join runs, so keyboard focus stays.
+                  <button
+                    type="button"
+                    data-inbox-join=""
+                    onClick={() => {
+                      if (!isJoining) void joinInvite(item, name)
+                    }}
+                    aria-disabled={isJoining}
+                    aria-label={t('inbox.join.aria', { name })}
+                    className={FRIEND_ACTION_BUTTON}
+                  >
+                    {t('inbox.join.button')}
+                  </button>
+                ) : null}
                 {item.kind === 'friend-request' ? (
                   <div className="flex shrink-0 items-center gap-[var(--space-1)]">
                     {/* Not `disabled` while answering: a disabled button

@@ -907,7 +907,7 @@ limits.
 
 | Kind              | Look                                                                                                       | Used for                                             |
 | ----------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Quiet             | `--control-fill` fill, no border, `--text-dim` word, 12 px, radius 12 px                                   | "Refresh", "Avatars", "See all 3", "Settings"        |
+| Quiet             | `--control-fill` fill, no border, `--text-dim` word, 12 px, radius 12 px                                   | "Refresh", "Avatars", "See all 3", "Copy link"       |
 | Bordered          | 1 px `--border`, `--control-fill` or no fill, `--text` word                                                | "Cancel", "Retry", "Sign out", settings actions      |
 | Confirm (neutral) | `--control-fill-hover` fill, `--control-active-border` border, 600                                         | "Accept", "Add friend"                               |
 | Join              | `--op-public` word on a 16% tint with a 45% edge                                                           | "Join" everywhere                                    |
@@ -1002,6 +1002,16 @@ found by another of their names shows that name beside the row name. A
 - **Favorites** lists favorite friends who are in a game right now. They also
   stay in In-Game: Favorites is a shortcut, not a move. With no favorite in a
   game the section is absent.
+- **Favorite groups.** When those favorites sit in more than one place,
+  Favorites splits under small sub-headings: each of the account's own
+  favorite groups that has someone in a game ("Besties · VRC (2)", VRChat's
+  groups first in the account's order, then ChilloutVR's categories), then
+  "Starred in VRX (1)" for friends starred only in VRX. A sub-heading is plain
+  words in 11.5 px / 600 `--text-dim`, never a chip or a button: the group's
+  name, the platform as a word, and the count. A friend shows once, under the
+  first group that holds them. With one place only, Favorites stays one plain
+  list. Sub-headings fold away with the section and do not collapse on their
+  own.
 
 **Row** (`FriendRow`). 60 px tall, 4 px between rows, radius 13 px. A
 four-column grid, `14px 42px 1fr auto` with a 12 px gap, padding 8 px top and
@@ -1216,7 +1226,8 @@ only and takes no clicks. The list behind stays usable.
 7. **Show full profile.** A quiet button. It opens, in place, the profile for
    each account (bio, pronouns, rank, badges, with worlds and groups behind
    their own "Show worlds" and "Show groups" buttons) and the friend actions
-   from §9.7. Nothing here is fetched until the button is pressed.
+   from §9.7. Under the rank it lists the User ID with "Copy link" beside it
+   (§9.3). Nothing here is fetched until the button is pressed.
 8. **Foot row**, pinned at the bottom: "Identities" at the left (§10), then
    the favorite star and the alerts bell at the right, both 32 px round
    `.glass` buttons.
@@ -1391,6 +1402,16 @@ sheet. They share one frame.
   Friends here, Region, Access, Group, Instance ID. A value the platform
   does not give reads "Not shown".
 
+**Copy link.** An ID in a sheet's expanded list has a quiet "Copy link"
+button beside it ([`CopyLinkButton.tsx`](../src/renderer/src/components/CopyLinkButton.tsx)):
+Instance ID in the hot instance sheet, World ID in the world sheet, User ID
+in the person sheet and in friend details under "Show full profile". It puts
+a link to that person, world or instance on the clipboard and VRX opens
+nothing. The button's word says what happened for 2 seconds, "✓ Copied" or
+"Couldn't copy", so the result never depends on color. VRChat links are its
+website pages; ChilloutVR links open the page in the game. An ID with no
+valid link shows without the button.
+
 The world, avatar, and person and group sheets are described with their
 pages in §9.4 and §9.7.
 
@@ -1453,8 +1474,13 @@ in the shared sheet frame (§9.3):
 - Room states: "Loading visible public rooms…", "Visible public rooms could
   not load." (`--error`), "No visible public rooms are available.", "Only
   some visible public rooms are available."
-- Expanded, "ABOUT THIS WORLD" lists People now, Room regions and Last
-  checked.
+- Expanded, "ABOUT THIS WORLD" lists Creator, Description, Tags, Room size,
+  People now, Room regions, Last checked and World ID, with "Copy link"
+  beside the ID (§9.3). The same lines in the same order on both platforms.
+  Tags are plain words joined by the language's list separator, never chips.
+  VRChat lists the creator's own tags only. ChilloutVR sets the size per
+  room, so its Room size comes from the visible rooms when they agree. A
+  line the platform does not give reads "Not shown".
 
 Joining a room goes through the join confirmation (§9.3).
 
@@ -1550,8 +1576,8 @@ is forgotten when VRX closes.
 
 - **Top line.** "3 waiting" at the left; "Hide all" and a round "?" at the
   right. The "?" opens a `.glass.glass-layer` help panel: "Accept or Decline
-  answers a friend request on its platform. Invites are only shown here:
-  answer them in the game…"
+  answers a friend request on its platform. Join on an invite opens the game
+  in that instance, and tells the sender nothing…"
 - **Sections.** "INVITES" and "FRIEND REQUESTS", each a 12 px / 600
   uppercase heading on the canvas.
 - **Row.** A `.platform-row` for its platform, 16 px by 12 px padding, 6 px
@@ -1560,8 +1586,22 @@ is forgotten when VRX closes.
   {world} · Just now", "Asked you for an invite", "Sent you a friend
   request"). Ages update every minute.
 - **Actions**, at the right of the row. A friend request has "Accept" (the
-  neutral confirm button), "Decline" and "Hide". An invite has only "Hide":
-  VRX never answers an invite for the person.
+  neutral confirm button), "Decline" and "Hide". An invite that named its
+  instance has "Join" (the same neutral confirm button) and "Hide"; an invite
+  that named none, and an invite request, have only "Hide". VRX never answers
+  an invite for the person: Join opens the game there through the join flow
+  (§9.4's confirmation, when it is on) and the row stays. It is the same on
+  both platforms.
+- **Join feedback.** What a Join said shows on a third line under the row's
+  action, 12 px `--text-dim`, in a `role="status"`: "This invite is no longer
+  here.", "Joining is disabled in Settings", "Sent to your open game". While
+  any Join runs, every Join is `aria-disabled`.
+- **Invite confirmation.** The join dialog titled with the invite's world
+  ("Join {name}'s invite?" when it named none), the platform pill, and
+  "{name} invited you here". No access pill, space pill or people count: an
+  invite does not say them, so nothing stands in. If the row leaves while the
+  dialog is open, "This invite is no longer here." shows and Join is
+  disabled.
 - **States.** Empty: a card reading "Nothing waiting" and "Invites and
   friend requests that arrive while VRX is open show up here." Errors in
   `--error` ("Could not load your inbox right now", "Couldn't hide that. Try
@@ -1702,8 +1742,8 @@ A change applies at once and is saved; there is no Save button.
 | Dashboard     | **Hide empty sections**. **Player counts**. **Sections**: the four sections in order, each with "↑" and "↓" (24 px round buttons) and On/Off. **Hot instance threshold** (stepper, 1 to 10, default 2)                                                                                                                                                                                                              |
 | Behavior      | **Friend details open from** (Whole card, Avatar only). **Save notes to my accounts**, with **Use my game favorites** under it. **Friends background re-sync** (5m, 10m, 30m, 1h, Manual only; default 1h). **Allow joining friends**, with **Confirm before joining**, **Join in** (VR, Always ask, Desktop) and **When the game is already open** (Go there, Send invite, Off) under it                           |
 | Notifications | **Who alerts you** (Everyone, Picked friends; with Picked friends, a count line and a "Show" link to the Picked friends dialog). **Friend comes online**, **Friend joins a world**, **Friend goes offline**, **Hot instance**, **Invite received**, **Friend request received**: all Off by default. **Alerts in VR**, with **Time on screen** (Short, Medium, Long) and "Send a test" under it                     |
-| Accounts      | Two account cards side by side, then the unofficial-app notice                                                                                                                                                                                                                                                                                                                                                      |
-| About         | **Automatic updates** (channel: Stable, Beta, Dev; On/Off; an action button; "VRX v1.4.3"). **Welcome setup** ("Run setup again"). **Found a bug?** ("Report a bug"). **Logs** ("Open logs folder"). **Legal** ("Show" opens Not an official app, Getting help, Platforms and terms, Privacy, License)                                                                                                              |
+| Accounts      | Two account cards side by side. **Export your data** ("Export…" saves friends, notes and favorites to a file the user picks; the result reads in words under the description). Then the unofficial-app notice                                                                                                                                                                                                       |
+| About         | **Automatic updates** (channel: Stable, Beta, Dev; On/Off; an action button; "VRX v1.4.3"). **Start with your computer** (Off, On, In the tray; default Off). **Welcome setup** ("Run setup again"). **Found a bug?** ("Report a bug"). **Logs** ("Open logs folder"). **Legal** ("Show" opens Not an official app, Getting help, Platforms and terms, Privacy, License)                                            |
 
 A settings action button is 13 px / 500, radius 10 px, 1 px `--border`,
 `--control-fill`, about 30 px tall. Moving a Dashboard section announces

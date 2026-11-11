@@ -51,6 +51,7 @@ describe('settings schema', () => {
       hotInstanceThreshold: 2,
       collapsedFriendSections: ['offline'],
       friendSort: 'name',
+      startWithComputer: 'off',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: false,
@@ -290,6 +291,7 @@ describe('migration runner', () => {
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
+      startWithComputer: 'off',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -351,6 +353,7 @@ describe('migration runner', () => {
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
+      startWithComputer: 'off',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -412,6 +415,7 @@ describe('migration runner', () => {
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
+      startWithComputer: 'off',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -473,6 +477,7 @@ describe('migration runner', () => {
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
+      startWithComputer: 'off',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -534,6 +539,7 @@ describe('migration runner', () => {
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
+      startWithComputer: 'off',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -595,6 +601,7 @@ describe('migration runner', () => {
       hotInstanceThreshold: 7,
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
+      startWithComputer: 'off',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -1357,5 +1364,36 @@ describe('Friends order setting', () => {
     Reflect.deleteProperty(oldNormalized, 'friendSort')
     if (shouldPersistSettings(disk, 26)) disk = oldNormalized
     expect(parseSettings(disk)).toMatchObject({ friendSort: 'world' })
+  })
+})
+
+describe('Start with your computer setting', () => {
+  it('is off by default, reads each choice, and falls back to off', () => {
+    expect(DEFAULT_SETTINGS.startWithComputer).toBe('off')
+    expect(parseSettings({ version: 27 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      startWithComputer: 'off'
+    })
+    expect(parseSettings({ startWithComputer: 'window' })).toMatchObject({
+      startWithComputer: 'window'
+    })
+    expect(parseSettings({ startWithComputer: 'tray' })).toMatchObject({
+      startWithComputer: 'tray'
+    })
+    for (const bad of [true, 'always', 1, null]) {
+      expect(parseSettings({ startWithComputer: bad })).toMatchObject({ startWithComputer: 'off' })
+    }
+  })
+
+  it('keeps the choice across a v27 round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 28,
+      startWithComputer: 'tray'
+    }
+    const oldNormalized = { ...disk, version: 27 }
+    Reflect.deleteProperty(oldNormalized, 'startWithComputer')
+    if (shouldPersistSettings(disk, 27)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ startWithComputer: 'tray' })
   })
 })

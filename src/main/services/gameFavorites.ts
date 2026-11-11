@@ -164,6 +164,25 @@ export class GameFavoritesService {
     }
   }
 
+  /**
+   * The favorites already loaded for the signed-in account, or null. Never
+   * starts a read, so it is safe where nothing may be asked of a platform.
+   */
+  peek(platform: Platform): GameFavoritesView | null {
+    if (!this.options.isEnabled()) return null
+    const revision = this.revision(platform)
+    const adapter = this.options.adapters.get(platform)
+    const loaded = this.loaded.get(platform)
+    if (revision === null || !adapter || !loaded) return null
+    if (loaded.accountId !== revision.platformAccountId) return null
+    try {
+      if (adapter.captureFavoritesLease().generation !== loaded.generation) return null
+    } catch {
+      return null
+    }
+    return this.view(adapter, loaded.read)
+  }
+
   async set(request: GameFavoriteWriteRequest): Promise<GameFavoriteWriteResult> {
     const { platform, kind, id, groupKey, on } = request
     if (!this.options.isEnabled()) return { ok: false, reason: 'off' }

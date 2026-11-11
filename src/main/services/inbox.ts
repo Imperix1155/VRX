@@ -22,6 +22,7 @@ import {
   type InboxEntry,
   type InboxItem,
   type InboxKind,
+  type InboxLocation,
   type InboxSnapshot
 } from '@shared/inbox'
 import type { AdapterEvent, Platform } from '@shared/types'
@@ -51,6 +52,8 @@ export interface InboxServiceOptions {
 interface StoredItem {
   item: InboxItem
   sourceId: string
+  /** Invites only: where the invite leads. Never leaves main. */
+  location: InboxLocation | null
 }
 
 interface PlatformInbox {
@@ -149,6 +152,17 @@ export class InboxService {
     return { sourceId: stored.sourceId, senderId: stored.item.senderId }
   }
 
+  /** Where an invite row leads, or null when the row is gone, is not an
+   *  invite, or named no instance. A copy: callers cannot change the row. */
+  inviteTarget(
+    platform: Platform,
+    id: string
+  ): { location: InboxLocation; senderId: string } | null {
+    const stored = this.platforms[platform].items.get(id)
+    if (!stored || stored.item.kind !== 'invite' || stored.location === null) return null
+    return { location: { ...stored.location }, senderId: stored.item.senderId }
+  }
+
   /** Hide one row in VRX. False when it is already gone. */
   dismiss(platform: Platform, id: string): boolean {
     const inbox = this.platforms[platform]
@@ -201,15 +215,38 @@ export class InboxService {
     for (const entry of entries) {
       const id = itemIdOf(entry)
       if (inbox.dismissed.has(id) || this.justAnswered(inbox, id)) continue
+      const location = entry.kind === 'invite' ? (entry.location ?? null) : null
       const existing = inbox.items.get(id)
       // The same record from someone else is not a replay: the platform reused
       // the ID, so the newer record replaces the row instead of mixing the two.
       if (existing && existing.item.senderId !== entry.senderId) inbox.items.delete(id)
       else if (existing) {
         // A replay of a known record: refresh names, keep its time and place.
+        // A replay may add an instance or drop it, but never swaps one place
+        // for another: the row keeps the place and world name it showed, so a
+        // Join (and a confirmation already open) goes where the row said.
         const { item } = existing
-        if (item.senderName !== entry.senderName || item.worldName !== entry.worldName) {
-          existing.item = { ...item, senderName: entry.senderName, worldName: entry.worldName }
+        const moved =
+          existing.location !== null &&
+          location !== null &&
+          (existing.location.worldId !== location.worldId ||
+            existing.location.instanceId !== location.instanceId)
+        if (!moved) existing.location = location
+        const worldName = moved ? item.worldName : entry.worldName
+        const canJoin = existing.location !== null
+        if (
+          item.senderName !== entry.senderName ||
+          item.worldName !== worldName ||
+          (item.canJoin === true) !== canJoin
+        ) {
+          const next: InboxItem = {
+            ...item,
+            senderName: entry.senderName,
+            worldName
+          }
+          if (canJoin) next.canJoin = true
+          else delete next.canJoin
+          existing.item = next
           changed = true
         }
         continue
@@ -229,9 +266,10 @@ export class InboxService {
         senderId: entry.senderId,
         senderName: entry.senderName,
         worldName: entry.worldName,
-        receivedAt: this.options.now()
+        receivedAt: this.options.now(),
+        ...(location !== null ? { canJoin: true } : {})
       }
-      inbox.items.set(id, { item, sourceId: entry.sourceId })
+      inbox.items.set(id, { item, sourceId: entry.sourceId, location })
       fresh.push(item)
       changed = true
       while (inbox.items.size > MAX_INBOX_ITEMS_PER_PLATFORM) {

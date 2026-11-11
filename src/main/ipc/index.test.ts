@@ -76,12 +76,20 @@ vi.mock('./links', () => ({
 vi.mock('./instance', () => ({
   registerInstanceHandlers: () => {
     electron.ipcMain.handle('join-instance', () => ({ ok: true }))
+    electron.ipcMain.handle('join-invite', () => ({ ok: true }))
     electron.ipcMain.handle('self-invite', () => ({ ok: true }))
     electron.ipcMain.handle('get-join-handoff', () => 'launch')
   }
 }))
 vi.mock('./app-status', () => ({
   registerAppStatusHandlers: () => electron.ipcMain.handle('get-app-status', () => ({ ok: true }))
+}))
+vi.mock('./data-export', () => ({
+  registerDataExportHandlers: () =>
+    electron.ipcMain.handle('export-data', () => ({ ok: false, reason: 'cancelled' }))
+}))
+vi.mock('./login-item', () => ({
+  registerLoginItemHandlers: () => electron.ipcMain.handle('get-login-item', () => 'off')
 }))
 vi.mock('./activity', () => ({
   registerActivityHandlers: () => {
@@ -152,6 +160,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'clear-app-background',
   'clear-inbox',
   'dismiss-inbox-item',
+  'export-data',
   'get-accounts',
   'get-activity',
   'get-alert-picks',
@@ -173,6 +182,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-inbox',
   'get-join-handoff',
   'get-linked-profiles',
+  'get-login-item',
   'get-my-groups',
   'get-own-profile',
   'get-players-online',
@@ -185,6 +195,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'import-session',
   'join-explore-room',
   'join-instance',
+  'join-invite',
   'login',
   'logout',
   'open-bug-report',
@@ -232,7 +243,9 @@ function options(): IpcHandlerOptions {
     gameFavorites: {},
     links: { linkGraph: {} },
     appStatus: {},
+    loginItem: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
+    dataExport: {} as IpcHandlerOptions['dataExport'],
     inbox: {} as IpcHandlerOptions['inbox'],
     friendActions: {} as IpcHandlerOptions['friendActions'],
     vrOverlayAlerts: { test: async () => undefined },

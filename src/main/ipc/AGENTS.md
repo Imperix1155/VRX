@@ -56,7 +56,11 @@ services.
   `GameHandoff.deliver` under `JoinCoordinator`. The Join captures the
   signed-in account first and `deliver` rechecks it after each wait; a changed
   account gets `stale` and nothing launches. `self-invite` is VRChat-only, has
-  its own lock and 3 s cooldown, and refuses a public instance.
+  its own lock and 3 s cooldown, and refuses a public instance. `join-invite`
+  takes an inbox row key and nothing else: main reads where the invite leads
+  from `InboxService.inviteTarget`, then follows the same URL build,
+  allowlist, account fence, coordinator and hand-off. A place or link in the
+  request is never read.
 - **Links.** `open-url` opens only `isAllowedUrl` HTTPS links. Game schemes
   are reachable only from main-built join paths. `open-logs-folder`,
   `open-bug-report`, `test-vr-alert` and the `*-app-background` channels take

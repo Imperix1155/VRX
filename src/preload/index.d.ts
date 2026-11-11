@@ -101,6 +101,7 @@ type VrxBridge = {
     req: IpcInvoke['get-join-handoff']['req']
   ) => Promise<IpcInvoke['get-join-handoff']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
+  getLoginItem: () => Promise<IpcInvoke['get-login-item']['res']>
   /** The in-memory activity list; reading it makes no platform request. */
   getActivity: () => Promise<IpcInvoke['get-activity']['res']>
   /** Forget only what the Activity page shows: its platforms and kind. */
@@ -118,9 +119,11 @@ type VrxBridge = {
   getAppBackground: () => Promise<IpcInvoke['get-app-background']['res']>
   chooseAppBackground: () => Promise<IpcInvoke['choose-app-background']['res']>
   clearAppBackground: () => Promise<IpcInvoke['clear-app-background']['res']>
+  exportData: () => Promise<IpcInvoke['export-data']['res']>
   /** The inbox: rows the sockets delivered while VRX was open. */
   getInbox: () => Promise<IpcInvoke['get-inbox']['res']>
   /** Hide a row in VRX only; nothing reaches the platform. */
+  joinInvite: (req: IpcInvoke['join-invite']['req']) => Promise<IpcInvoke['join-invite']['res']>
   dismissInboxItem: (
     req: IpcInvoke['dismiss-inbox-item']['req']
   ) => Promise<IpcInvoke['dismiss-inbox-item']['res']>

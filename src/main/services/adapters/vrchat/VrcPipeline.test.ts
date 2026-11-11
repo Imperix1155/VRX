@@ -432,7 +432,8 @@ describe('VrcPipeline', () => {
               kind: 'invite',
               senderId: 'usr_a',
               senderName: 'Alice',
-              worldName: 'The Great Pug'
+              worldName: 'The Great Pug',
+              location: { worldId: 'wrld_x', instanceId: '1~private(usr_a)' }
             }
           ]
         }

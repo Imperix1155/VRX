@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Export your data: Settings → Accounts has a new "Export…" button that
+  saves your friends, notes and favorites to a file you pick on your
+  computer. VRChat and ChilloutVR are written the same way and the file holds
+  no sign-in details. It is made from what VRX already has; with "Use my game
+  favorites" on it first waits for the one favorites read VRX makes per
+  sign-in, and tells you if your game favorites could not be included.
+- Start with your computer: Settings → About has a new choice, Off by
+  default. On opens VRX when you sign in to your computer; In the tray does
+  the same but keeps the window closed until you open it from the tray icon.
+  It works on Windows and Linux, and Settings tells you if your computer did
+  not accept it.
+- Join from an invite: an invite in the Inbox that names its instance now
+  has a Join button. It opens the game in that instance through the same
+  join steps as a friend's Join (with the confirmation, when you keep it
+  on), sends nothing to the person who invited you, and leaves the row where
+  it is. It works the same for VRChat and ChilloutVR.
+- Favorites by group: when your in-game favorites sit in more than one of
+  your account's favorite groups, the Favorites section on the Friends page
+  now lists them under each group's name, with friends starred only in VRX
+  last. VRChat groups and ChilloutVR categories work the same way, and it
+  uses the groups VRX already read at sign-in.
+- World details: Show more in a world's sheet now lists its creator,
+  description, tags and room size, the same way for VRChat and ChilloutVR.
+  They come with the read VRX already makes when the sheet opens, so nothing
+  extra is asked of either platform.
+- Copy link: a quiet "Copy link" button now sits beside the ID under Show
+  more in the world sheet and the hot instance sheet, in a person's sheet
+  from Search, and under Show full profile in friend details. It copies a
+  link to that person, world or instance to paste to a friend. VRChat links
+  open its website; ChilloutVR links open the page in the game.
+
 ## [1.4.4-dev.1] - 2026-11-11
 
 ### Fixed

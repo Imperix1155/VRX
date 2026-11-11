@@ -827,6 +827,7 @@ function DrawerFullProfile({
                   userId={account.platformUserId}
                   showTrust={account.trustRank == null}
                   showFriendAction={false}
+                  showUserId
                   panelOpen={drawerOpen}
                 />
               </div>

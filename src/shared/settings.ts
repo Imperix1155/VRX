@@ -83,6 +83,7 @@ import {
   JOIN_MODE_PREFERENCES,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
+  START_WITH_COMPUTER,
   THEMES,
   UPDATE_CHANNELS,
   VR_ALERT_DURATIONS,
@@ -94,7 +95,7 @@ import { ACTIVITY_FILTERS } from './activity'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 27 as const
+export const SETTINGS_VERSION = 28 as const
 
 const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -218,6 +219,10 @@ const SettingsSchema = z.object({
    *  ChilloutVR accounts, as VRCX and CVRX do. Off keeps stars in VRX only
    *  and reads nothing. */
   useGameFavorites: z.boolean().catch(true),
+  /** VRX opens when the user signs in to this computer: with its window, or
+   *  waiting in the tray. Off by default; main mirrors it to the operating
+   *  system's own startup list and nothing else reads it. */
+  startWithComputer: z.enum(START_WITH_COMPUTER).catch('off'),
   /** Opt-in automatic update download (VRX-113). Default OFF — consent-first. */
   autoUpdate: z.boolean().catch(false),
   /**
@@ -312,7 +317,10 @@ const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   25: (prev) => ({ ...prev }),
   // v26 → v27: `friendSort` is additive. The version boundary stops an older
   // build from stripping a user's chosen order.
-  26: (prev) => ({ ...prev })
+  26: (prev) => ({ ...prev }),
+  // v27 → v28: `startWithComputer` is additive. The version boundary stops an
+  // older build from stripping the choice while the computer still starts VRX.
+  27: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { InstanceActionResult } from '@shared/ipc'
 import type { Friend, JoinMode, JoinModePreference, Platform } from '@shared/types'
 import type { ExploreRoom, ExploreWorld } from '@shared/explore'
+import type { InboxItem } from '@shared/inbox'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { useSettingsStore } from '../stores/settings'
@@ -66,6 +67,22 @@ export function joinFailureMessageKey(reason: JoinFeedback): string {
   return 'friends.joinFailed'
 }
 
+/**
+ * The line under an invite's Join. An invite has no live feed to wait for:
+ * when main no longer has the row (hidden, replaced, another account), the
+ * honest answer is that the invite is gone.
+ */
+export function inviteJoinMessageKey(reason: JoinFeedback): string {
+  if (reason === 'stale' || reason === 'not-joinable' || reason === 'unknown-friend')
+    return 'inbox.join.gone'
+  if (reason === 'invalid-url' || reason === 'target-changed') return 'inbox.join.failed'
+  return joinFailureMessageKey(reason)
+}
+
+function inviteJoinKey(item: Pick<InboxItem, 'platform' | 'id'>): string {
+  return `invite:${item.platform}:${item.id}`
+}
+
 /** The composite key both platforms can't collide on (same shape as the
  *  row/list keys — an id alone could collide across platforms). */
 function friendJoinKey(friend: { platform: Platform; platformUserId: string }): string {
@@ -121,7 +138,24 @@ export interface ExplorePendingConfirm {
   awaitingCacheAfter?: undefined
 }
 
-export type PendingConfirm = FriendPendingConfirm | ExplorePendingConfirm
+/**
+ * An invite row's confirmation. The renderer knows the row and what it
+ * showed; where the invite leads stays in main.
+ */
+export interface InvitePendingConfirm {
+  source: 'invite'
+  requestId: number
+  platform: Platform
+  /** The main-issued row key and nothing more. */
+  item: Pick<InboxItem, 'platform' | 'id'>
+  senderName: string
+  worldName: string | null
+  displayName?: undefined
+  reviewedTarget?: undefined
+  awaitingCacheAfter?: undefined
+}
+
+export type PendingConfirm = FriendPendingConfirm | ExplorePendingConfirm | InvitePendingConfirm
 
 type ConfirmPendingResult = 'joined' | 'review-required' | 'unavailable' | 'failed'
 
@@ -144,6 +178,9 @@ interface JoinSnapshot {
 interface JoinActions {
   join: (friend: Friend, options?: JoinOptions) => Promise<void>
   joinExplore: (world: ExploreWorld, room: ExploreRoom) => Promise<void>
+  /** Join the instance an invite row leads to. `senderName` is the name the
+   *  row showed, for the confirmation's copy. */
+  joinInvite: (item: InboxItem, senderName: string) => Promise<void>
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
   acknowledgePendingTarget: (presentedKey?: string) => boolean
   cancelPending: () => void
@@ -448,6 +485,68 @@ function createJoinStore(): JoinStore {
     await performExploreJoin(world, room, resolveWireMode(world, joinMode))
   }
 
+  async function performInviteJoin(
+    item: Pick<InboxItem, 'platform' | 'id'>,
+    mode: JoinMode
+  ): Promise<ConfirmPendingResult> {
+    const generation = ++sessionGeneration
+    directJoinPlatform = item.platform
+    emit({ joining: true })
+    clearFailureBlip()
+    const key = inviteJoinKey(item)
+    try {
+      if (!window.vrx?.joinInvite) {
+        if (generation === sessionGeneration) showFailureBlip(key, 'unknown')
+        return 'failed'
+      }
+      // Main looks the row up and builds the link; nothing here names a place.
+      const result = await window.vrx.joinInvite({ platform: item.platform, id: item.id, mode })
+      if (generation !== sessionGeneration) return 'failed'
+      if (result.ok) {
+        showJoinResult(key, result)
+        return 'joined'
+      }
+      showFailureBlip(key, result.reason)
+      return 'failed'
+    } catch {
+      if (generation === sessionGeneration) showFailureBlip(key, 'unknown')
+      return 'failed'
+    } finally {
+      if (generation === sessionGeneration) {
+        directJoinPlatform = null
+        emit({ joining: false, pendingConfirm: null })
+      }
+    }
+  }
+
+  async function joinInvite(item: InboxItem, senderName: string): Promise<void> {
+    if (snapshot.joining || snapshot.pendingConfirm !== null) return
+    if (item.kind !== 'invite' || item.canJoin !== true) return
+    const { allowJoinInstances, confirmJoin, joinMode } = useSettingsStore.getState().settings
+    if (!allowJoinInstances) {
+      clearFailureBlip()
+      showFailureBlip(inviteJoinKey(item), 'joining-disabled')
+      return
+    }
+    if (confirmJoin) {
+      clearFailureBlip()
+      requestId += 1
+      sessionGeneration += 1
+      emit({
+        pendingConfirm: {
+          source: 'invite',
+          requestId,
+          platform: item.platform,
+          item: { platform: item.platform, id: item.id },
+          senderName,
+          worldName: item.worldName
+        }
+      })
+      return
+    }
+    await performInviteJoin(item, resolveWireMode(item, joinMode))
+  }
+
   async function confirmExplorePending(
     pending: ExplorePendingConfirm,
     mode: JoinMode
@@ -462,6 +561,7 @@ function createJoinStore(): JoinStore {
     // actionable target available.
     if (pc === null || snapshot.joining) return 'unavailable'
     if (pc.source === 'explore') return confirmExplorePending(pc, mode)
+    if (pc.source === 'invite') return performInviteJoin(pc.item, mode)
 
     // Renderer preflight (VRX-239): re-read the TanStack cache synchronously —
     // NEVER the render closure. Fail closed to 'review-required' (drift) or
@@ -552,7 +652,7 @@ function createJoinStore(): JoinStore {
   function acknowledgePendingTarget(presentedKey?: string): boolean {
     const pc = snapshot.pendingConfirm
     if (pc === null || snapshot.joining) return false
-    if (pc.source === 'explore') return false
+    if (pc.source !== 'friend') return false
     // Acknowledgment must also be healthy: a failed query can retain stale data,
     // and accepting it would let the dialog launch a target the cache can no
     // longer vouch for.
@@ -591,7 +691,8 @@ function createJoinStore(): JoinStore {
       snapshot.pendingConfirm?.platform !== platform &&
       directJoinPlatform !== platform &&
       !snapshot.failedFriendId?.startsWith(`${platform}:`) &&
-      !snapshot.failedFriendId?.startsWith(`explore:${platform}:`)
+      !snapshot.failedFriendId?.startsWith(`explore:${platform}:`) &&
+      !snapshot.failedFriendId?.startsWith(`invite:${platform}:`)
     )
       return
     sessionGeneration += 1
@@ -603,7 +704,8 @@ function createJoinStore(): JoinStore {
   }
 
   function invalidateFriendPending(): void {
-    if (snapshot.pendingConfirm?.source === 'explore') return
+    const source = snapshot.pendingConfirm?.source
+    if (source === 'explore' || source === 'invite') return
     invalidatePending()
   }
 
@@ -615,6 +717,7 @@ function createJoinStore(): JoinStore {
     getSnapshot: () => snapshot,
     join,
     joinExplore,
+    joinInvite,
     confirmPending,
     acknowledgePendingTarget,
     cancelPending,
@@ -662,6 +765,7 @@ export function useJoinInstance(): JoinActions & {
   joinFailedFor: (friend: Friend) => boolean
   joinFailureFor: (friend: Pick<Friend, 'platform' | 'platformUserId'>) => JoinFeedback | null
   joinExploreFailureFor: (world: ExploreWorld, room: ExploreRoom) => JoinFeedback | null
+  joinInviteFailureFor: (item: Pick<InboxItem, 'platform' | 'id'>) => JoinFeedback | null
 } {
   const { joining, pendingConfirm, failedFriendId, failureReason } = useSyncExternalStore(
     sharedJoinStore.subscribe,
@@ -679,8 +783,10 @@ export function useJoinInstance(): JoinActions & {
       failedFriendId === `explore:${world.platform}:${world.worldId}:${room.roomId}`
         ? failureReason
         : null,
+    joinInviteFailureFor: (item) => (failedFriendId === inviteJoinKey(item) ? failureReason : null),
     join: sharedJoinStore.join,
     joinExplore: sharedJoinStore.joinExplore,
+    joinInvite: sharedJoinStore.joinInvite,
     confirmPending: sharedJoinStore.confirmPending,
     acknowledgePendingTarget: sharedJoinStore.acknowledgePendingTarget,
     cancelPending: sharedJoinStore.cancelPending,

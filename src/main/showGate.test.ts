@@ -104,3 +104,82 @@ describe('createShowGate', () => {
     expect(onTimeout).not.toHaveBeenCalled()
   })
 })
+
+describe('createShowGate started in the tray', () => {
+  const held = (): {
+    gate: ReturnType<typeof createShowGate>
+    onShow: ReturnType<typeof vi.fn>
+    onTimeout: ReturnType<typeof vi.fn>
+  } => {
+    const onShow = vi.fn()
+    const onTimeout = vi.fn()
+    return {
+      gate: createShowGate({ timeoutMs: 3_000, onShow, onTimeout, startHidden: true }),
+      onShow,
+      onTimeout
+    }
+  }
+
+  it('stays hidden after both signals, and for as long as nobody asks', () => {
+    vi.useFakeTimers()
+    const { gate, onShow, onTimeout } = held()
+    gate.ready()
+    gate.hydrated()
+    vi.advanceTimersByTime(60_000)
+    expect(onShow).not.toHaveBeenCalled()
+    expect(onTimeout).not.toHaveBeenCalled()
+    expect(gate.isShown()).toBe(false)
+  })
+
+  it('shows at once when asked for after it could paint', () => {
+    const { gate, onShow } = held()
+    gate.ready()
+    gate.hydrated()
+    gate.requested()
+    expect(onShow).toHaveBeenCalledTimes(1)
+    expect(gate.isShown()).toBe(true)
+    gate.requested()
+    expect(onShow).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows as soon as it can paint when asked for early', () => {
+    const { gate, onShow } = held()
+    gate.requested()
+    gate.ready()
+    expect(onShow).not.toHaveBeenCalled()
+    gate.hydrated()
+    expect(onShow).toHaveBeenCalledTimes(1)
+  })
+
+  it('still falls back to the timeout once asked for, if it never says it can paint', () => {
+    vi.useFakeTimers()
+    const { gate, onShow, onTimeout } = held()
+    gate.ready()
+    vi.advanceTimersByTime(1_000)
+    gate.requested()
+    expect(onShow).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(2_000)
+    expect(onTimeout).toHaveBeenCalledTimes(1)
+    expect(onShow).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows at once, without a slow-start warning, when asked for after a hidden timeout', () => {
+    vi.useFakeTimers()
+    const { gate, onShow, onTimeout } = held()
+    gate.ready()
+    vi.advanceTimersByTime(10_000)
+    expect(onShow).not.toHaveBeenCalled()
+    gate.requested()
+    expect(onShow).toHaveBeenCalledTimes(1)
+    expect(onTimeout).not.toHaveBeenCalled()
+  })
+
+  it('never shows a window that was disposed while hidden', () => {
+    const { gate, onShow } = held()
+    gate.ready()
+    gate.hydrated()
+    gate.dispose()
+    gate.requested()
+    expect(onShow).not.toHaveBeenCalled()
+  })
+})

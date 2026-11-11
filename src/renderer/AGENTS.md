@@ -103,8 +103,9 @@ or launch authority.
 **Join and Explore**
 
 - `useJoinInstance` and `JoinConfirmDialog` own the one join flow for friends,
-  hot instances, and Explore. The renderer sends a friend ID with the reviewed
-  target, or an opaque `selectionRef`; main decides and launches. Failure
+  hot instances, Explore, and invite rows. The renderer sends a friend ID with
+  the reviewed target, an opaque `selectionRef`, or an inbox row key; main
+  decides and launches. An invite's place never reaches the renderer. Failure
   feedback stays until another attempt or an account boundary. Retries reuse
   the flow and never run automatically.
 - Explore and the Dashboard preview share ranking, selection, and the

@@ -16,6 +16,8 @@ import type { GameFavoritesAdapter } from './services/adapters/GameFavoritesAdap
 import { HomeWorldService } from './services/homeWorldService'
 import type { HomeWorldAdapter } from './services/adapters/HomeWorldAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
+import { LoginItem } from './services/loginItem'
+import { DATA_EXPORT_FAVORITES_WAIT_MS } from './services/dataExport'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
 import type { AvatarLibraryAdapter } from './services/adapters/AvatarLibraryAdapter'
@@ -35,11 +37,18 @@ import {
 } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'node:url'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { writeFile } from 'node:fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { applyUpdaterSettings, initAutoUpdater, STARTUP_CHECK_DELAY_MS } from './updater'
-import { flushPendingSettingsSave, getSettingsSnapshot, loadSettings } from './services/settings'
+import {
+  flushPendingSettingsSave,
+  getSettingsSnapshot,
+  isSettingsFallback,
+  loadSettings
+} from './services/settings'
 import {
   CREDENTIAL_KEYS,
   clearCredential,
@@ -133,6 +142,10 @@ const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
   }
 })
 const rendererHydrationGates = new WeakMap<WebContents, ShowGate>()
+// Start with your computer, In the tray: the first window of a launch the
+// computer made at sign-in stays hidden until the user asks for VRX (tray,
+// starting it again, an alert click). Only that one window is ever held.
+let startInTray = false
 const rendererRecoveries = new WeakMap<WebContents, RendererRecovery>()
 
 const onRendererHydrated = (event: IpcMainEvent): void => {
@@ -182,8 +195,11 @@ function createWindow(): BrowserWindow {
     }
   })
 
+  const startHidden = startInTray
+  startInTray = false
   const showGate = createShowGate({
     timeoutMs: 3_000,
+    startHidden,
     onShow: () => {
       if (!mainWindow.isDestroyed()) mainWindow.show()
     },
@@ -408,6 +424,41 @@ app
     // Set app user model id for windows — must match electron-builder `appId`
     // so Windows groups the taskbar entry and update notifications fire.
     electronApp.setAppUserModelId('com.imperix.vrx')
+
+    // Start with your computer: keep the operating system's startup entry in
+    // step with the setting (it writes only when they differ), and keep the
+    // window in the tray when the computer started VRX and the user chose that.
+    // After the app user model id: Windows names the startup entry by it.
+    const loginItem = new LoginItem({
+      platform: process.platform,
+      isPackaged: app.isPackaged,
+      execPath: process.execPath,
+      env: {
+        APPIMAGE: process.env['APPIMAGE'],
+        PORTABLE_EXECUTABLE_FILE: process.env['PORTABLE_EXECUTABLE_FILE']
+      },
+      argv: process.argv,
+      configPath: () => app.getPath('appData'),
+      getLoginItemSettings: (query) => app.getLoginItemSettings(query),
+      setLoginItemSettings: (next) => app.setLoginItemSettings(next),
+      files: {
+        read: (path) => {
+          try {
+            return readFileSync(path, 'utf8')
+          } catch {
+            return null
+          }
+        },
+        write: (path, content) => writeFileSync(path, content, { mode: 0o644 }),
+        makeFolder: (path) => void mkdirSync(path, { recursive: true }),
+        remove: (path) => rmSync(path, { force: true })
+      },
+      warn: (message) => log.warn(message)
+    })
+    // Defaults standing in for an unreadable settings file say nothing about
+    // what the user chose, so they never remove the entry.
+    if (!isSettingsFallback()) loginItem.sync(settings.startWithComputer !== 'off')
+    startInTray = settings.startWithComputer === 'tray' && loginItem.wasLaunchedAtLogin()
 
     // Default open or close DevTools by F12 in development
     // and ignore CommandOrControl + R in production.
@@ -902,9 +953,61 @@ app
           return picked.canceled ? null : (picked.filePaths[0] ?? null)
         }
       },
+      // Settings → Accounts → Export: built from what VRX already holds.
+      dataExport: {
+        sources: {
+          accountId: (platform) =>
+            'status' in accountSession.resolve(platform)
+              ? null
+              : accountSession.getAccountId(platform),
+          roster: (platform) => locationAuthority.roster(platform),
+          favoriteFriendIds: (platform) => favorites.listFriends(platform).friendIds,
+          favoriteWorlds: (platform) => favorites.listWorlds(platform).worlds,
+          notes: (platform, accountId) =>
+            socialStore.read(platform, accountId, 'notes')?.data ?? {},
+          gameFavorites: (platform) => {
+            if (!getSettingsSnapshot().useGameFavorites) return 'off'
+            const view = gameFavorites.peek(platform)
+            return view === null ? 'unavailable' : { ...view, worldNames: view.worldEvidence }
+          },
+          linkedProfiles: () => linkGraph.list(),
+          now: () => new Date()
+        },
+        // The same once-per-sign-in read the Friends page starts; an answer
+        // already in memory returns at once, and nothing is ever refreshed.
+        prepare: async () => {
+          if (!getSettingsSnapshot().useGameFavorites) return
+          let timer: ReturnType<typeof setTimeout> | undefined
+          const reads = (['vrchat', 'chilloutvr'] as const).map((platform) =>
+            gameFavorites.get(platform).catch(() => undefined)
+          )
+          await Promise.race([
+            Promise.all(reads),
+            new Promise((resolve) => {
+              timer = setTimeout(resolve, DATA_EXPORT_FAVORITES_WAIT_MS)
+            })
+          ])
+          clearTimeout(timer)
+        },
+        saveFile: async (event, suggestedName, content) => {
+          const owner = BrowserWindow.fromWebContents(event.sender)
+          const options: Electron.SaveDialogOptions = {
+            title: mt('dataExport.dialogTitle'),
+            defaultPath: join(app.getPath('documents'), suggestedName),
+            filters: [{ name: mt('dataExport.dialogFilter'), extensions: ['json'] }]
+          }
+          const picked = owner
+            ? await dialog.showSaveDialog(owner, options)
+            : await dialog.showSaveDialog(options)
+          if (picked.canceled || !picked.filePath) return false
+          await writeFile(picked.filePath, content, 'utf8')
+          return true
+        }
+      },
       onSettingsApplied: (saved) => {
         applyWindowTheme(saved.theme)
         applyUpdaterSettings(saved)
+        loginItem.follow(saved.startWithComputer !== 'off')
         // Turning the Activity page off also forgets what it kept.
         if (!saved.showActivityPage) activityFeed.clearAll()
       },
@@ -924,6 +1027,7 @@ app
         }
       },
       appStatus,
+      loginItem,
       activity: activityFeed,
       importSession: createSessionImporter({
         discoverVrchat: importVrcxSession,
@@ -964,6 +1068,7 @@ app
       instance: {
         joinCoordinator,
         gameHandoff,
+        inbox,
         isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
         clock: () => performance.now(),
         log: (_level, message, meta) => log.warn(message, meta)
@@ -1079,6 +1184,13 @@ app
       if (BrowserWindow.getAllWindows().length === 0) {
         currentWindow = createWindow()
         trayHandle?.wireWindow(currentWindow)
+      } else if (
+        currentWindow !== null &&
+        !currentWindow.isDestroyed() &&
+        rendererHydrationGates.get(currentWindow.webContents)?.isShown() === false
+      ) {
+        // Started in the tray: the dock icon is how the user asks for VRX.
+        focusMainWindow()
       }
     })
   })
