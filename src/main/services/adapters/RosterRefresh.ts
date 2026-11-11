@@ -18,7 +18,8 @@ export interface RosterReadHooks {
    * Says this read holds no answer yet, not even one saved from an earlier
    * request. Call the returned function when its first request is sent. A
    * change that lands before then needs no extra read: every answer this read
-   * gets is newer than the change.
+   * gets is newer than the change. The read's seed revision is taken again at
+   * that first request, so it is newer than the change as well.
    */
   startsEmpty(): () => void
 }
@@ -128,7 +129,7 @@ export class RosterRefresh {
   }
 
   private async readWithRevision(state: RunState): Promise<FriendRoster> {
-    const revision = this.captureRevision?.()
+    let revision = this.captureRevision?.()
     state.unsent = false
     let roster: FriendRoster
     try {
@@ -136,7 +137,14 @@ export class RosterRefresh {
         startsEmpty: () => {
           state.unsent = true
           return () => {
+            // Later requests of the same read report here too; only the first counts.
+            if (!state.unsent) return
             state.unsent = false
+            // The read begins now. A change it absorbed while it waited (a
+            // socket going live) moved main's fence past the revision taken
+            // above; a seed carrying that older revision would never count as
+            // the catch-up, and joins would stay refused until another read.
+            revision = this.captureRevision?.()
           }
         }
       })
