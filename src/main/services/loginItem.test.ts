@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   LAUNCHED_AT_LOGIN_ARG,
@@ -52,7 +53,8 @@ function rig(overrides: Partial<LoginItemDeps> = {}): {
   return { item, files, registry, setLoginItemSettings, write, remove, warn }
 }
 
-const ENTRY_FILE = '/config/autostart/vrx.desktop'
+// Joined the way the service joins it, so the tests also hold where the separator differs.
+const ENTRY_FILE = join('/config', 'autostart', 'vrx.desktop')
 
 describe('LoginItem on Windows', () => {
   it('registers this copy with the launch marker, and reads it back as on', () => {
