@@ -189,6 +189,8 @@ const currentUserSchema = z.object({
   offlineFriends: z.array(z.string()).optional().catch(undefined)
 })
 const AUTH_BUCKET_FRESHNESS_MS = 5_000
+/** Live-event world lookups in flight at once, the size of one roster batch. */
+const MAX_LIVE_WORLD_LOOKUPS = 20
 /** The 2FA-required branch of `GET /auth/user`. */
 const twoFactorRequiredSchema = z.object({ requiresTwoFactorAuth: z.array(z.string()).min(1) })
 const authUserResponseSchema = z.union([twoFactorRequiredSchema, currentUserSchema])
@@ -347,7 +349,9 @@ export class VrcAdapter
     (worldId) =>
       this.get(`/worlds/${encodeURIComponent(worldId)}`, z.unknown(), {
         retry: 'none',
-        recordCircuitFailure: 'auth'
+        recordCircuitFailure: 'auth',
+        // Names and pictures only: sign-in, socket and roster reads go first.
+        priority: 'background'
       }),
     undefined,
     undefined,
@@ -364,12 +368,18 @@ export class VrcAdapter
    * negative-cache window (60 s) or at reconcile.
    */
   private readonly pendingWorldResolutions = new Set<string>()
+  /** Live-event world lookups in flight; see `kickLiveWorldResolution`. */
+  private liveWorldLookups = 0
+  /** Worlds waiting for a free live lookup, newest last, at most MAX_LIVE_WORLD_LOOKUPS. */
+  private deferredLiveWorlds: string[] = []
   /** VRChat group metadata resolver (VRX-260). TTL-cached, bounded; circuit as worlds. */
   private readonly groupResolver: GroupResolver = createGroupResolver({
     fetcher: (groupId) =>
       this.get(`/groups/${encodeURIComponent(groupId)}`, z.unknown(), {
         retry: 'none',
-        recordCircuitFailure: 'auth'
+        recordCircuitFailure: 'auth',
+        // Names only, like the world lookups: other reads go first.
+        priority: 'background'
       }),
     onChange: () => this.scheduleMetadataSave()
   })
@@ -803,6 +813,9 @@ export class VrcAdapter
           {
             priority: 'interactive',
             recordCircuitFailure: false,
+            // A 401 on the data path opens the breaker again right after an
+            // earlier pause; this check must still learn the session ended.
+            ignoreOpenCircuit: true,
             lease: this.captureSessionLease()
           }
         )
@@ -2001,7 +2014,10 @@ export class VrcAdapter
       // A write: sent once per press and never resent, even after a 429.
       await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown(), {
         priority: 'interactive',
-        retry: 'none'
+        retry: 'none',
+        // A closed or full instance is an ordinary answer, as for the other
+        // pressed actions: three refused invites must not pause every request.
+        recordCircuitFailure: 'auth'
       })
       // A replacement session landed while the request was in flight; its outcome
       // belongs to the new identity, not to the caller that issued this one.
@@ -2102,39 +2118,7 @@ export class VrcAdapter
     } else if (worldCached === undefined && this.admission.cooldownRemainingMs === 0) {
       // Miss: start at most one resolution for this id through the existing
       // deduped, generation-fenced, rate-limited lane.
-      if (!this.pendingWorldResolutions.has(worldId)) {
-        this.pendingWorldResolutions.add(worldId)
-        void fetchWorldMetadata(
-          [worldId],
-          this.worldResolver,
-          undefined,
-          (resolvedWorldId, meta) => {
-            if (generation !== this.sessionGeneration) return
-            this.emit({
-              type: 'world-metadata',
-              platform: 'vrchat',
-              worldId: resolvedWorldId,
-              worldName: meta.name,
-              thumbnailUrl: meta.thumbnailUrl
-            })
-          }
-        )
-          .catch((error: unknown) => {
-            if (generation !== this.sessionGeneration) return
-            if (error instanceof AuthError && error.status === 401) {
-              this.invalidateDataPathSession()
-              return
-            }
-            this.live?.log?.('warn', 'vrc adapter: live world enrichment failed', {
-              message: error instanceof Error ? error.message : String(error)
-            })
-          })
-          .finally(() => {
-            if (generation === this.sessionGeneration) {
-              this.pendingWorldResolutions.delete(worldId)
-            }
-          })
-      }
+      this.kickLiveWorldResolution(worldId, generation)
     }
     // A negative-cached world failure has no metadata to patch and must not be re-kicked.
 
@@ -2381,9 +2365,11 @@ export class VrcAdapter
    * auth-invalidated restarts it once the session is confirmed.
    */
   private invalidateDataPathSession(): void {
+    const hadPipeline = this.pipeline !== null
     this.bumpSessionGeneration(false, true)
-    // A stopped pipeline emits nothing more; report it down until restarted.
-    this.emit({ type: 'connection', platform: 'vrchat', health: 'down' })
+    // Stopping a running socket already reported it down; say so here too
+    // when none was running, so the status never keeps an older "live".
+    if (!hadPipeline) this.reportPipelineDown()
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
 
@@ -2454,14 +2440,87 @@ export class VrcAdapter
     // paths skip ids already in the set) — drop them with the caches.
     this.pendingGroupResolutions.clear()
     this.pendingWorldResolutions.clear()
+    this.liveWorldLookups = 0
+    this.deferredLiveWorlds = []
     this.live?.onSessionBoundary?.({ identityRetained })
 
     if (restartPipeline) {
       this.restartPipeline()
     } else {
-      this.pipeline?.stop()
-      this.pipeline = null
+      this.stopPipeline()
     }
+  }
+
+  /**
+   * Look up one world a live event named. At most MAX_LIVE_WORLD_LOOKUPS run
+   * at once, so a burst of location changes can never fill the request queue
+   * with lookups for places friends have already left. Beyond that the newest
+   * worlds wait (oldest dropped) and start as lookups finish; a dropped one is
+   * picked up by the next event or roster read.
+   */
+  private kickLiveWorldResolution(worldId: string, generation: number): void {
+    if (this.pendingWorldResolutions.has(worldId)) return
+    if (this.liveWorldLookups >= MAX_LIVE_WORLD_LOOKUPS) {
+      const waiting = this.deferredLiveWorlds.filter((id) => id !== worldId)
+      waiting.push(worldId)
+      this.deferredLiveWorlds = waiting.slice(-MAX_LIVE_WORLD_LOOKUPS)
+      return
+    }
+    this.pendingWorldResolutions.add(worldId)
+    this.liveWorldLookups += 1
+    void fetchWorldMetadata([worldId], this.worldResolver, undefined, (resolvedWorldId, meta) => {
+      if (generation !== this.sessionGeneration) return
+      this.emit({
+        type: 'world-metadata',
+        platform: 'vrchat',
+        worldId: resolvedWorldId,
+        worldName: meta.name,
+        thumbnailUrl: meta.thumbnailUrl
+      })
+    })
+      .catch((error: unknown) => {
+        if (generation !== this.sessionGeneration) return
+        if (error instanceof AuthError && error.status === 401) {
+          this.invalidateDataPathSession()
+          return
+        }
+        this.live?.log?.('warn', 'vrc adapter: live world enrichment failed', {
+          message: error instanceof Error ? error.message : String(error)
+        })
+      })
+      .finally(() => {
+        // A session boundary already reset the counters for the new session.
+        if (generation !== this.sessionGeneration) return
+        this.pendingWorldResolutions.delete(worldId)
+        this.liveWorldLookups -= 1
+        while (this.liveWorldLookups < MAX_LIVE_WORLD_LOOKUPS) {
+          const next = this.deferredLiveWorlds.pop()
+          if (next === undefined) return
+          if (this.admission.cooldownRemainingMs > 0) {
+            this.deferredLiveWorlds = []
+            return
+          }
+          if (this.worldResolver.peek(next) === undefined) {
+            this.kickLiveWorldResolution(next, generation)
+          }
+        }
+      })
+  }
+
+  /**
+   * Stop the socket with no replacement. A stopped pipeline emits nothing
+   * more, so without the report the last "live" would stand after a sign-out
+   * or a rejected session until a new socket opens.
+   */
+  private stopPipeline(): void {
+    if (this.pipeline === null) return
+    this.pipeline.stop()
+    this.pipeline = null
+    this.reportPipelineDown()
+  }
+
+  private reportPipelineDown(): void {
+    this.emit({ type: 'connection', platform: 'vrchat', health: 'down' })
   }
 
   /**
@@ -2482,12 +2541,21 @@ export class VrcAdapter
     this.bumpSessionGeneration(false)
   }
 
+  protected override onCircuitOpened(): void {
+    this.live?.log?.(
+      'warn',
+      'vrc adapter: three requests in a row failed; pausing requests for a minute'
+    )
+  }
+
   /** Start a replacement only after a tentative session is durably persisted. */
   private restartPipeline(): void {
     const wasRunning = this.subscribers.size > 0
+    if (!wasRunning || !this.isSessionConsumerReady()) {
+      this.stopPipeline()
+      return
+    }
     this.pipeline?.stop()
-    this.pipeline = null
-    if (!wasRunning || !this.isSessionConsumerReady()) return
     this.pipeline = this.createPipeline()
     this.pipeline.start()
   }

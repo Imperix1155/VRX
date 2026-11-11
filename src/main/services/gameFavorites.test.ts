@@ -189,6 +189,25 @@ describe('GameFavoritesService', () => {
     expect(adapter.writes).toHaveLength(2)
   })
 
+  it('answers a second press for the same item from what the first one changed', async () => {
+    await service.get('vrchat')
+    // Pressed twice before the first write is back (the menu was reopened).
+    const first = write('friend:group_1', true)
+    const second = write('friend:group_1', true)
+    expect(await first).toEqual({ ok: true, groups: ['friend:group_1'] })
+    expect(await second).toEqual({ ok: true, groups: ['friend:group_1'] })
+    // One request, and the moot press spent no write spacing.
+    expect(adapter.writes).toHaveLength(1)
+    expect(slept).toEqual([])
+
+    // The same for removing: the second press finds it already gone.
+    const remove = write('friend:group_1', false)
+    const removeAgain = write('friend:group_1', false)
+    expect(await remove).toEqual({ ok: true, groups: [] })
+    expect(await removeAgain).toEqual({ ok: true, groups: [] })
+    expect(adapter.writes).toHaveLength(2)
+  })
+
   it('keeps VRChat rules: one group per friend, and a full group refuses', async () => {
     await service.get('vrchat')
     await write('friend:group_1', true)

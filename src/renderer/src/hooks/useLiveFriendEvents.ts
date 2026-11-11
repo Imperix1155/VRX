@@ -47,7 +47,7 @@ import { homeWorldQueryKeyForPlatform } from '../queries/homeWorld'
 import { askAgainForUnknownPeople, communityQueryKeysForPlatform } from '../queries/community'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
-import { coalesce, type Coalesced } from '../utils/coalesce'
+import { coalesce, delayed, type Coalesced, type Delayed } from '../utils/coalesce'
 
 /** A roster re-read waits for "roster changed" triggers to pause this long... */
 export const ROSTER_CHANGED_SETTLE_MS = 400
@@ -55,11 +55,20 @@ export const ROSTER_CHANGED_SETTLE_MS = 400
 export const ROSTER_CHANGED_MAX_WAIT_MS = 3_000
 /**
  * A friends read refused for a slow-down (the platform's cooldown or the local
- * read limit) is read once more this long after, while the refusal lasts. Main
- * answers instantly during a cooldown, so this sends nothing to the platform
- * until the cooldown is over.
+ * read limit) is read once more this long after. Main answers instantly during
+ * a cooldown, so this sends nothing to the platform until the cooldown is over.
  */
 export const ROSTER_SLOW_DOWN_RETRY_MS = 30_000
+/** Each refusal in a row doubles the wait, up to this, until a read lands. */
+export const ROSTER_SLOW_DOWN_RETRY_MAX_MS = 600_000
+
+/** The wait before re-reading after `refusals` slow-downs in a row (0 = the first). */
+export function rosterSlowDownRetryMs(refusals: number): number {
+  return Math.min(
+    ROSTER_SLOW_DOWN_RETRY_MS * 2 ** Math.min(refusals, 16),
+    ROSTER_SLOW_DOWN_RETRY_MAX_MS
+  )
+}
 
 export function useLiveFriendEvents(): void {
   const queryClient = useQueryClient()
@@ -110,21 +119,27 @@ export function useLiveFriendEvents(): void {
     // A friends read refused for a slow-down reads once more after it, as a
     // VRChat reconnect would; without this a 429 at startup left ChilloutVR's
     // list unloaded until the user pressed Retry.
-    const slowDownReads = new Map<Friend['platform'], Coalesced>()
+    // The wait doubles while the platform keeps refusing, so a long slow-down
+    // is asked about less and less often instead of every 30 seconds for good.
+    const slowDownReads = new Map<Friend['platform'], { read: Delayed; refusals: number }>()
     const scheduleSlowDownRead = (platform: Friend['platform']): void => {
-      let read = slowDownReads.get(platform)
-      if (read === undefined) {
-        read = coalesce(
-          () => void queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) }),
-          ROSTER_SLOW_DOWN_RETRY_MS,
-          ROSTER_SLOW_DOWN_RETRY_MS
-        )
-        slowDownReads.set(platform, read)
+      let waiting = slowDownReads.get(platform)
+      if (waiting === undefined) {
+        waiting = {
+          read: delayed(
+            () => void queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) })
+          ),
+          refusals: 0
+        }
+        slowDownReads.set(platform, waiting)
       }
-      read.trigger()
+      // One read waits at a time; a refusal while it waits changes nothing.
+      if (waiting.read.schedule(rosterSlowDownRetryMs(waiting.refusals))) waiting.refusals += 1
     }
+    /** A read landed, or the account changed: nothing waits and the count starts over. */
     const dropSlowDownRead = (platform: Friend['platform']): void => {
-      slowDownReads.get(platform)?.cancel()
+      slowDownReads.get(platform)?.read.cancel()
+      slowDownReads.delete(platform)
     }
     const dropRosterRead = (platform: Friend['platform']): void => {
       rosterReads.get(platform)?.cancel()
@@ -393,7 +408,7 @@ export function useLiveFriendEvents(): void {
       unsubscribeIdentityBoundary()
       unsubscribeCache()
       for (const read of rosterReads.values()) read.cancel()
-      for (const read of slowDownReads.values()) read.cancel()
+      for (const platform of [...slowDownReads.keys()]) dropSlowDownRead(platform)
     }
   }, [queryClient])
 }

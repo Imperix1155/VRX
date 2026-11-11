@@ -5,7 +5,13 @@ import type { AuthStatus, LoginResult, Platform } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { BaseAdapter, type AdapterRequestOptions } from './BaseAdapter'
 import { ApiAdmissionController } from './ApiAdmissionController'
-import { AuthError, NetworkError, RateLimitError, RequestCancelledError } from './errors'
+import {
+  AuthError,
+  CircuitOpenError,
+  NetworkError,
+  RateLimitError,
+  RequestCancelledError
+} from './errors'
 import { noopSleep, instantAdmission } from './__testutils__/adapterTestKit'
 import { AvatarCache } from '../avatarCache'
 
@@ -70,6 +76,11 @@ class TestAdapter extends BaseAdapter {
   }
   subscribe(): Unsubscribe {
     return () => {}
+  }
+
+  circuitOpened = 0
+  protected override onCircuitOpened(): void {
+    this.circuitOpened += 1
   }
 
   getAdmission(): ApiAdmissionController {
@@ -741,7 +752,32 @@ describe('BaseAdapter', () => {
       // 4th attempt must fail fast (circuit open) without calling fetch again.
       const callsBefore = fetchMock.mock.calls.length
       await expect(adapter.fetch('http://api/x', schema)).rejects.toThrow('Circuit open')
+      await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(CircuitOpenError)
       expect(fetchMock.mock.calls.length).toBe(callsBefore)
+      // The pause is announced once, when it starts, not on every refusal.
+      expect(adapter.circuitOpened).toBe(1)
+    })
+
+    it('lets the sign-in status check through an open circuit, without closing it', async () => {
+      fetchMock.mockRejectedValue(new Error('network down'))
+      const adapter = new TestAdapter()
+      for (let i = 0; i < 3; i++) {
+        await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(NetworkError)
+      }
+      await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(CircuitOpenError)
+
+      fetchMock.mockResolvedValue(makeResponse(401, {}))
+      const callsBefore = fetchMock.mock.calls.length
+      const response = await adapter.raw('http://api/status', undefined, {
+        recordCircuitFailure: false,
+        ignoreOpenCircuit: true
+      })
+      expect(response.status).toBe(401)
+      expect(fetchMock.mock.calls.length).toBe(callsBefore + 1)
+
+      // Every other request stays paused.
+      await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(CircuitOpenError)
+      expect(fetchMock.mock.calls.length).toBe(callsBefore + 1)
     })
 
     it('does not count error statuses from requests that opt out of the breaker', async () => {
