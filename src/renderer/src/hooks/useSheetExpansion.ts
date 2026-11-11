@@ -16,7 +16,7 @@
 import { useCallback, useRef, useState } from 'react'
 
 /** The expanded sheet leaves this much of the page visible above it. */
-export const SHEET_EXPANDED_GAP_PX = 64
+const SHEET_EXPANDED_GAP_PX = 64
 export const SHEET_EXPANDED_HEIGHT = `calc(100vh - ${SHEET_EXPANDED_GAP_PX}px)`
 
 /** Below this, a press on the bar is a click, not a drag. */

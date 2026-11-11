@@ -14,7 +14,15 @@ const ALLOWED_HOSTS = [
   'github.com'
 ] as const
 
+const MAX_URL_LENGTH = 2048
+/** Whitespace and control characters, which a URL parser would silently drop. */
+// eslint-disable-next-line no-control-regex -- refusing control characters is the point
+const UNSAFE_URL_CHARACTERS = /[\u0000-\u0020\u007f]/
+
 export function isAllowedUrl(raw: string): boolean {
+  if (raw.length === 0 || raw.length > MAX_URL_LENGTH || UNSAFE_URL_CHARACTERS.test(raw)) {
+    return false
+  }
   let url: URL
   try {
     url = new URL(raw)
@@ -22,11 +30,13 @@ export function isAllowedUrl(raw: string): boolean {
     return false
   }
   if (url.protocol !== 'https:') return false
+  // A plain web address only: no sign-in details in it, and the default port.
+  if (url.username !== '' || url.password !== '' || url.port !== '') return false
   const host = url.hostname.toLowerCase()
   return ALLOWED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
 }
 
-const MAX_LAUNCH_URL_LENGTH = 2048
+const MAX_LAUNCH_URL_LENGTH = MAX_URL_LENGTH
 const VRC_LAUNCH_ID_RE = /^wrld_[A-Za-z0-9_-]{1,128}:[A-Za-z0-9][A-Za-z0-9_~().-]{0,767}$/
 const CVR_START_IN_VR_RE = /^(?:true|false)$/
 

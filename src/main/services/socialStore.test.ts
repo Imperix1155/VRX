@@ -15,6 +15,7 @@ vi.mock('electron-store', () => ({ default: class {} }))
 class MemorySocialStorage implements SocialStoreStorage {
   value: unknown = {}
   readError: Error | null = null
+  writeError: Error | null = null
   writes: SocialStoreFile[] = []
 
   read(): unknown {
@@ -23,6 +24,7 @@ class MemorySocialStorage implements SocialStoreStorage {
   }
 
   write(value: SocialStoreFile): void {
+    if (this.writeError) throw this.writeError
     this.value = structuredClone(value)
     this.writes.push(structuredClone(value))
   }
@@ -243,11 +245,31 @@ describe('SocialStore', () => {
     )
   })
 
+  it('logs why a save failed, by error code only, and keeps the old data', () => {
+    const log = vi.fn()
+    store = new SocialStore(session, storage, log)
+    storage.writeError = Object.assign(
+      new Error("ENOSPC: no space left on device, write '/srv/vrx-data/social.json'"),
+      { code: 'ENOSPC' }
+    )
+    expect(() =>
+      store.write(
+        { platform: 'vrchat', platformAccountId: 'usr_a', epoch: currentEpoch() },
+        'favorites',
+        { friend_a: true }
+      )
+    ).toThrow('ENOSPC')
+    expect(log).toHaveBeenCalledWith('social store: could not save the file', 'ENOSPC')
+    expect(store.read('vrchat', 'usr_a', 'favorites')).toBeNull()
+  })
+
   it('stays read-only when a damaged file cannot be moved aside', () => {
     const log = vi.fn()
     storage.value = '{"storeFormatVersion":1,"accounts":'
     const setAside = vi.fn(() => {
-      throw new Error('EBUSY')
+      throw Object.assign(new Error("EBUSY: resource busy, rename '/srv/vrx-data/social.json'"), {
+        code: 'EBUSY'
+      })
     })
     store = new SocialStore(session, Object.assign(storage, { setAside }), log)
     expect(() =>

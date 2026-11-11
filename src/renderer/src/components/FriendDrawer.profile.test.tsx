@@ -33,17 +33,20 @@ vi.mock('./ProfileDetails', () => ({
     platform,
     showTrust,
     showFriendAction,
+    showUserId,
     panelOpen
   }: {
     platform: Platform
     userId: string
     showTrust?: boolean
     showFriendAction?: boolean
+    showUserId?: boolean
     panelOpen?: boolean
   }) => (
     <p data-testid={`profile-${platform}`}>
       <span data-testid="show-trust">{`showTrust=${String(showTrust)}`}</span>
       <span data-testid="show-friend-action">{`showFriendAction=${String(showFriendAction)}`}</span>
+      <span data-testid="show-user-id">{`showUserId=${String(showUserId)}`}</span>
       <span data-testid="panel-open">{`panelOpen=${String(panelOpen)}`}</span>
     </p>
   )
@@ -153,6 +156,14 @@ describe('friend details full profile', () => {
       expect(within(drawer).getByTestId('show-friend-action').textContent).toBe(
         'showFriendAction=false'
       )
+    }
+  )
+
+  it.each(['Alex', 'Mika'])(
+    'asks %s’s profile for the user ID and its Copy link button',
+    (name) => {
+      const drawer = openFullProfile(name)
+      expect(within(drawer).getByTestId('show-user-id').textContent).toBe('showUserId=true')
     }
   )
 

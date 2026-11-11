@@ -204,6 +204,37 @@ describe('useFollowFriendship', () => {
     expect(saved(client, 'vrchat', VRC_ID)).toEqual([false, false])
   })
 
+  it('keeps a confirmed Unfriend while the list still shows them, until they leave it', () => {
+    const client = newClient()
+    seed(client, 'vrchat', VRC_ID, true)
+    client.setQueryData(friendsQueryKey('vrchat'), [friend('vrchat', VRC_ID)])
+    renderHook(() => useFollowFriendship('vrchat', VRC_ID), { wrapper: wrapper(client) })
+    expect(saved(client, 'vrchat', VRC_ID)).toEqual([true, true])
+
+    // useSocialAction's answer, before the platform's own removal arrives.
+    act(() => {
+      seed(client, 'vrchat', VRC_ID, false)
+    })
+    // Another friend's change updates the list; they are still on it.
+    act(() => {
+      client.setQueryData(friendsQueryKey('vrchat'), [
+        friend('vrchat', VRC_ID),
+        friend('vrchat', 'usr_other')
+      ])
+    })
+    expect(saved(client, 'vrchat', VRC_ID)).toEqual([false, false])
+
+    act(() => {
+      client.setQueryData(friendsQueryKey('vrchat'), [friend('vrchat', 'usr_other')])
+    })
+    expect(saved(client, 'vrchat', VRC_ID)).toEqual([false, false])
+    // Once gone, coming back on the list is a new friendship again.
+    act(() => {
+      client.setQueryData(friendsQueryKey('vrchat'), [friend('vrchat', VRC_ID)])
+    })
+    expect(saved(client, 'vrchat', VRC_ID)).toEqual([true, true])
+  })
+
   it('never calls someone not a friend from a list that is still loading', () => {
     const client = newClient()
     seed(client, 'vrchat', VRC_ID, true)

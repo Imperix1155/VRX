@@ -9,19 +9,19 @@
  */
 
 /** Below this a picture is stretched three times or more on a Full HD screen. */
-export const BACKGROUND_PICTURE_MIN_WIDTH = 640
-export const BACKGROUND_PICTURE_MIN_HEIGHT = 360
+const BACKGROUND_PICTURE_MIN_WIDTH = 640
+const BACKGROUND_PICTURE_MIN_HEIGHT = 360
 /** Below this a picture looks soft on a Full HD screen. */
-export const BACKGROUND_PICTURE_SHARP_WIDTH = 1280
-export const BACKGROUND_PICTURE_SHARP_HEIGHT = 720
+const BACKGROUND_PICTURE_SHARP_WIDTH = 1280
+const BACKGROUND_PICTURE_SHARP_HEIGHT = 720
 /** Width ÷ height. A 9:16 phone screenshot (0.56) shows only a third of itself. */
-export const BACKGROUND_PICTURE_MIN_ASPECT = 0.6
+const BACKGROUND_PICTURE_MIN_ASPECT = 0.6
 /** Width ÷ height. Anything taller than this loses most of its height. */
-export const BACKGROUND_PICTURE_TALL_ASPECT = 0.9
+const BACKGROUND_PICTURE_TALL_ASPECT = 0.9
 /** Width ÷ height. Wider than 3:1 shows half or less of itself at 16:9. */
-export const BACKGROUND_PICTURE_WIDE_ASPECT = 3
+const BACKGROUND_PICTURE_WIDE_ASPECT = 3
 /** Width ÷ height. Wider than 5:1 shows about a third of itself at 16:9. */
-export const BACKGROUND_PICTURE_MAX_ASPECT = 5
+const BACKGROUND_PICTURE_MAX_ASPECT = 5
 
 export type BackgroundPictureRefusal = 'too-small' | 'too-tall' | 'too-wide'
 export type BackgroundPictureWarning = 'tall' | 'wide' | 'low-res'

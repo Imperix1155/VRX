@@ -8,7 +8,7 @@
 import type { Platform } from './types'
 
 /** What happened. Display order, which is also the filter order on the page. */
-export const ACTIVITY_KINDS = ['online', 'world', 'offline'] as const
+const ACTIVITY_KINDS = ['online', 'world', 'offline'] as const
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number]
 
 /** The Activity page's Show filter: everything, or one kind. Display order. */

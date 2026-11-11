@@ -261,8 +261,11 @@ function parseRoot(raw: unknown): SocialStoreLoadResult {
   }
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+/** A bounded reason for the log: the system error code, never a message that may hold a path. */
+function errorCode(error: unknown): string {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+  return typeof code === 'string' && /^E[A-Z0-9_]{1,31}$/.test(code) ? code : 'unknown'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -294,14 +297,14 @@ export class SocialStore {
   constructor(
     private readonly accountSession: AccountSession,
     storage?: SocialStoreStorage,
-    log: SocialStoreLog = () => undefined
+    private readonly log: SocialStoreLog = () => undefined
   ) {
     this.storage = storage ?? new ElectronSocialStoreStorage()
     let loaded: SocialStoreLoadResult
     try {
       loaded = parseRoot(this.storage.read())
     } catch (error) {
-      log('social store: could not read the file; keeping it', errorText(error))
+      log('social store: could not read the file; keeping it', errorCode(error))
       this.file = emptySocialStoreFile()
       this.loadValid = false
       return
@@ -319,7 +322,7 @@ export class SocialStore {
       this.file = emptySocialStoreFile()
       this.loadValid = true
     } catch (error) {
-      log('social store: could not move the damaged file aside', errorText(error))
+      log('social store: could not move the damaged file aside', errorCode(error))
       this.file = loaded.file
       this.loadValid = false
     }
@@ -388,7 +391,13 @@ export class SocialStore {
       storeFormatVersion: SOCIAL_STORE_FORMAT_VERSION,
       accounts: { ...this.file.accounts, [key]: account }
     }
-    this.storage.write(structuredClone(next))
+    try {
+      this.storage.write(structuredClone(next))
+    } catch (error) {
+      // Callers answer the renderer with a plain failure; the cause lands here.
+      this.log('social store: could not save the file', errorCode(error))
+      throw error
+    }
     this.file = next
     return structuredClone(envelope)
   }

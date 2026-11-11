@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { coalesce } from './coalesce'
+import { coalesce, delayed } from './coalesce'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -28,5 +28,29 @@ describe('coalesce', () => {
     read.trigger()
     vi.advanceTimersByTime(100)
     expect(run).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('delayed', () => {
+  it('holds one run at a time with the delay it was given, and drops it on cancel', () => {
+    vi.useFakeTimers()
+    const run = vi.fn()
+    const read = delayed(run)
+
+    expect(read.schedule(100)).toBe(true)
+    // A second request while one waits changes nothing.
+    expect(read.schedule(10)).toBe(false)
+    vi.advanceTimersByTime(99)
+    expect(run).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(run).toHaveBeenCalledTimes(1)
+
+    expect(read.schedule(500)).toBe(true)
+    read.cancel()
+    vi.advanceTimersByTime(1_000)
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(read.schedule(50)).toBe(true)
+    vi.advanceTimersByTime(50)
+    expect(run).toHaveBeenCalledTimes(2)
   })
 })

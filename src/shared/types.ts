@@ -420,6 +420,11 @@ export type JoinModePreference = (typeof JOIN_MODE_PREFERENCES)[number]
 export const VRCHAT_OPEN_GAME_JOINS = ['go', 'invite'] as const
 export type VrchatOpenGameJoin = (typeof VRCHAT_OPEN_GAME_JOINS)[number]
 
+/** Whether VRX opens when the user signs in to the computer: not at all, with
+ *  its window, or waiting in the tray until the user opens it. */
+export const START_WITH_COMPUTER = ['off', 'window', 'tray'] as const
+export type StartWithComputer = (typeof START_WITH_COMPUTER)[number]
+
 /** What a Join did, or would do now: start the game, hand the join to the
  *  game that is already open, or send a VRChat self-invite into it. */
 export const JOIN_HANDOFFS = ['launch', 'in-game', 'invite'] as const

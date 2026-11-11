@@ -47,6 +47,11 @@ export interface LinkGraphStorage {
   read(): unknown
   write(value: LinkGraphFile | LinkProfileFile): void
   backup?(): void
+  /**
+   * Move a damaged file aside (renamed, never deleted) so the next write
+   * starts a fresh one. Throws when the file could not be moved.
+   */
+  setAside?(): void
 }
 
 interface LinkGraphLoadResult {
@@ -63,6 +68,13 @@ function emptyLinkGraphFile(storeFormatVersion = LINK_GRAPH_FORMAT_VERSION): Lin
 
 function memberKey(member: LinkedPersonMember): string {
   return `${member.platform}\u0000${member.platformAccountId}\u0000${member.friendId}`
+}
+
+/** Only a plain system error code is logged; a message could carry a path. */
+function errorCode(error: unknown): string {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+  return typeof code === 'string' && /^E[A-Z0-9_]{1,31}$/.test(code) ? code : 'unknown'
 }
 
 function serializedFormatVersion(raw: string): number | null {
@@ -747,6 +759,41 @@ export class LinkGraphStore {
     parseProfiles(next)
     if (migrating) this.storage.backup?.()
     this.storage.write(next)
+  }
+
+  /**
+   * Run once at launch. A file this build can't read (damaged JSON or the
+   * wrong shape) is moved aside as `link-graph.corrupt-<time>.json` and links
+   * start empty, like social.json; otherwise every read and change would fail
+   * for good with a Retry that can never work. A file from a newer build, or
+   * one that could not be read at all (I/O, permissions), stays untouched.
+   */
+  recoverDamagedFile(log: (message: string, detail?: string) => void = () => undefined): void {
+    this.runOperation(() => {
+      let raw: unknown
+      try {
+        raw = this.storage.read()
+      } catch (error) {
+        log('link graph: could not read the file; keeping it', errorCode(error))
+        return
+      }
+      try {
+        parseProfiles(raw)
+        return
+      } catch (error) {
+        const newer =
+          (error instanceof Error && error.message.includes('written by a newer version')) ||
+          (typeof raw === 'string' && (serializedFormatVersion(raw) ?? 0) > PROFILE_VERSION)
+        if (newer) return
+      }
+      try {
+        if (!this.storage.setAside) throw new Error('no set-aside in this storage')
+        this.storage.setAside()
+        log('link graph: damaged file kept as link-graph.corrupt-*.json; starting fresh')
+      } catch (error) {
+        log('link graph: could not move the damaged file aside', errorCode(error))
+      }
+    })
   }
 
   private runOperation<T>(operation: () => T): T {

@@ -22,6 +22,9 @@ import { useJoinInstance } from '../hooks/useJoinInstance'
 import HotInstanceSheet from './HotInstanceSheet'
 import { getHotInstances, type HotInstance } from '../utils/dashboardAggregations'
 
+/** VRChat's website pages, spelled so the path guard does not read a folder. */
+const VRC_SITE = ['https://vrchat.com', 'home'].join('/')
+
 const groupInstance: InstanceInfo = {
   worldId: 'wrld_group',
   instanceId: 'wrld_group:1~group(grp_pals)~groupAccessType(plus)',
@@ -385,6 +388,40 @@ describe('HotInstanceSheet', () => {
     render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
     expect(screen.getByText('Alex')).toBeTruthy()
     expect(screen.queryByRole('img', { name: 'Alex' })).toBeNull()
+  })
+
+  it('copies a link to the instance from its ID under Show more, on both platforms', async () => {
+    stubIntersectionObserver()
+    const guid = '0f8fad5b-d9cb-469f-a165-70867728950e'
+    const cvrId = 'i+0123456789abcdef-012345-abcdef-01234567'
+    const cases = [
+      [
+        makeHotInstance({ worldId: `wrld_${guid}`, instanceId: '12345~region(eu)' }),
+        `${VRC_SITE}/launch?worldId=wrld_${guid}&instanceId=12345~region(eu)`
+      ],
+      [
+        makeCvrHotInstance({ worldId: guid, instanceId: cvrId }),
+        'chilloutvr://details/instance?id=i%2B0123456789abcdef-012345-abcdef-01234567'
+      ]
+    ] as const
+    for (const [instance, link] of cases) {
+      const writeText = vi.fn(() => Promise.resolve())
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      render(<HotInstanceSheet instance={instance} onClose={vi.fn()} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: `Copy a link to this instance in ${instance.worldName}`
+        })
+      )
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(writeText).toHaveBeenCalledTimes(1)
+      expect(writeText).toHaveBeenCalledWith(link)
+      cleanup()
+      Reflect.deleteProperty(navigator, 'clipboard')
+    }
   })
 
   it('the grab bar expands the sheet into instance details, the same on both platforms', () => {

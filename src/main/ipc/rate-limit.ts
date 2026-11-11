@@ -28,6 +28,10 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'join-explore-room': { max: 20, windowMs: 60_000 },
   // The 5 s per-platform cooldown in main allows at most 24 changes/minute.
   'set-home-world': { max: 24, windowMs: 60_000 },
+  // A world sheet reads its rating when it opens; main reuses an answer for 5 min.
+  'get-world-rating': { max: 60, windowMs: 60_000 },
+  // Like and Dislike presses. Main allows one VRChat change at a time, 1 s apart.
+  'set-world-rating': { max: 30, windowMs: 60_000 },
   // Counted per platform (ipc/index.ts), so one platform's retries never use
   // up the other's reads. A denial reads as a slow-down, and the renderer asks
   // again after it.
@@ -74,12 +78,16 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   logout: { max: 6, windowMs: 60_000 },
   // Existing 3s per-friend cooldown permits at most 20 successful joins/minute.
   'join-instance': { max: 20, windowMs: 60_000 },
+  // Shares the join coordinator's 3 s cooldown with `join-instance`.
+  'join-invite': { max: 20, windowMs: 60_000 },
   // Existing 3s action cooldown permits at most 20 successful invites/minute.
   'self-invite': { max: 20, windowMs: 60_000 },
   // Read once per join dialog open; the answer is a cached local process check.
   'get-join-handoff': { max: 60, windowMs: 60_000 },
   // The 7.5s status poll runs eight times/minute; this is a 3x allowance.
   'get-app-status': { max: 24, windowMs: 60_000 },
+  // Read when Settings opens Behavior and after its startup choice is saved.
+  'get-login-item': { max: 60, windowMs: 60_000 },
   // Read on page open and after each coalesced change push (at most two a
   // second), with headroom for remounts.
   'get-activity': { max: 240, windowMs: 60_000 },
@@ -131,6 +139,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   // Deliberate button presses; choosing opens a native dialog.
   'choose-app-background': { max: 10, windowMs: 60_000 },
   'clear-app-background': { max: 10, windowMs: 60_000 },
+  // A deliberate press that opens a native save dialog.
+  'export-data': { max: 10, windowMs: 60_000 },
   // Re-read after each inbox push; pushes are bounded by what the sockets send.
   'get-inbox': { max: 240, windowMs: 60_000 },
   // Human clicks that only hide rows locally.
@@ -151,6 +161,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
       return { ok: false, needs2fa: false, error: 'rate_limited' }
     case 'join-instance':
     case 'join-explore-room':
+    case 'join-invite':
     case 'self-invite':
     case 'switch-avatar':
     case 'answer-friend-request':
@@ -158,6 +169,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'save-own-profile':
     case 'social-action':
     case 'set-home-world':
+    case 'set-world-rating':
     case 'set-friend-note':
     case 'sync-friend-note':
     case 'set-alert-pick':
@@ -167,6 +179,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'get-linked-profiles':
     case 'change-linked-profile':
     case 'test-vr-alert':
+    case 'export-data':
       return { ok: false, reason: 'rate-limited' }
     case 'get-game-favorites':
       return { state: 'rate-limited' }

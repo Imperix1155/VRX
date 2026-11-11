@@ -202,6 +202,8 @@ export function createFixtureBridge(variant: string): FixtureBridge {
           : { ok: false, reason: 'unknown-world' }
       )
     },
+    getWorldRating: () => Promise.resolve({ ok: true, value: null }),
+    setWorldRating: ({ value }) => Promise.resolve({ ok: true, value }),
     onExploreChanged: unsubscribe,
     getLinkedProfiles: () => Promise.resolve({ ok: true, value: structuredClone(links) }),
     changeLinkedProfile: ({ change }) => {
@@ -398,6 +400,16 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       return Promise.resolve()
     },
     getInbox: () => Promise.resolve(structuredClone(inbox)),
+    joinInvite: () => Promise.resolve(denied),
+    getLoginItem: () => Promise.resolve('off'),
+    exportData: () =>
+      Promise.resolve({
+        ok: true,
+        friends: 212,
+        notes: 14,
+        favorites: 31,
+        gameFavoritesMissing: false
+      }),
     dismissInboxItem: ({ platform, id }) => {
       inbox = {
         items: inbox.items.filter((item) => !(item.platform === platform && item.id === id))

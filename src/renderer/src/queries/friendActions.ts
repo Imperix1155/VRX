@@ -18,7 +18,7 @@ function failed(error: unknown): FriendActionResult {
   }
 }
 
-export async function answerFriendRequest(
+async function answerFriendRequest(
   platform: Platform,
   id: string,
   answer: FriendRequestAnswer

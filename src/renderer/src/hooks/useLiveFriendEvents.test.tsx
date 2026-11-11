@@ -24,7 +24,9 @@ import i18n from '../i18n'
 import {
   ROSTER_CHANGED_MAX_WAIT_MS,
   ROSTER_CHANGED_SETTLE_MS,
+  ROSTER_SLOW_DOWN_RETRY_MAX_MS,
   ROSTER_SLOW_DOWN_RETRY_MS,
+  rosterSlowDownRetryMs,
   useLiveFriendEvents
 } from './useLiveFriendEvents'
 
@@ -548,6 +550,69 @@ describe('useLiveFriendEvents — a friends read refused for a slow-down', () =>
       vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS)
     })
     expect(reads()).toBe(1)
+  })
+
+  it('waits twice as long after each refusal in a row, and starts over once a read lands', async () => {
+    vi.useFakeTimers()
+    stubBridge()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mount(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const reads = (): number =>
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(friendsQueryKey('vrchat'))
+      ).length
+    const refuse = async (): Promise<void> => {
+      await act(async () => {
+        await client
+          .fetchQuery({
+            queryKey: friendsQueryKey('vrchat'),
+            queryFn: () => Promise.reject(new Error('rate_limited'))
+          })
+          .catch(() => undefined)
+      })
+    }
+
+    expect([0, 1, 2, 3, 4, 5, 30].map(rosterSlowDownRetryMs)).toEqual([
+      30_000,
+      60_000,
+      120_000,
+      240_000,
+      480_000,
+      ROSTER_SLOW_DOWN_RETRY_MAX_MS,
+      ROSTER_SLOW_DOWN_RETRY_MAX_MS
+    ])
+
+    await refuse()
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS)
+    })
+    expect(reads()).toBe(1)
+
+    // Refused again: the second wait is twice the first.
+    await refuse()
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS * 2 - 1)
+    })
+    expect(reads()).toBe(1)
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(reads()).toBe(2)
+
+    // A read that lands clears the count, so the next refusal waits 30 s again.
+    await act(async () => {
+      await client.fetchQuery({
+        queryKey: friendsQueryKey('vrchat'),
+        queryFn: () => Promise.resolve([])
+      })
+    })
+    await refuse()
+    act(() => {
+      vi.advanceTimersByTime(ROSTER_SLOW_DOWN_RETRY_MS)
+    })
+    expect(reads()).toBe(3)
   })
 })
 

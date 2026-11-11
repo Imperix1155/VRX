@@ -9,8 +9,10 @@ import type {
 } from '@shared/explore'
 import PlatformPill from './PlatformPill'
 import WorldFavoriteStar from './WorldFavoriteStar'
+import WorldRatingControl from './WorldRatingControl'
 import HomeWorldControl from './HomeWorldControl'
 import SheetGrabBar from './SheetGrabBar'
+import { shareLink } from '@shared/shareLinks'
 import { SheetFacts, type SheetFact } from './SheetFacts'
 import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
 import { useSheetExpansion } from '../hooks/useSheetExpansion'
@@ -296,7 +298,32 @@ export default function ExploreWorldSheet({
         .map((key) => t(key))
     )
   ]
+  const worldLink = shareLink({ kind: 'world', platform: world.platform, worldId: world.worldId })
+  // The world's own details arrive with its rooms; until then, and for a
+  // field the platform doesn't give, the line reads "Not shown".
+  const about = shown.about ?? null
+  // ChilloutVR sets the size per room, so its rooms speak for the world when
+  // they all agree.
+  const roomSizes = new Set(
+    shown.rooms.map((room) => room.capacity).filter((size): size is number => size !== null)
+  )
+  const roomSize = about?.capacity ?? (roomSizes.size === 1 ? ([...roomSizes][0] ?? null) : null)
   const moreFacts: SheetFact[] = [
+    { label: t('explore.more.creator'), value: about?.creator ?? notShown },
+    {
+      label: t('explore.more.description'),
+      value: about?.description ?? notShown,
+      multiline: true
+    },
+    {
+      label: t('explore.more.tags'),
+      value:
+        about !== null && about.tags.length > 0 ? about.tags.join(t('listSeparator')) : notShown
+    },
+    {
+      label: t('explore.more.capacity'),
+      value: roomSize === null ? notShown : formatCount(roomSize, i18n.language)
+    },
     {
       label: t('explore.more.people'),
       value:
@@ -316,6 +343,15 @@ export default function ExploreWorldSheet({
           : new Intl.DateTimeFormat(i18n.language, { timeStyle: 'short' }).format(
               new Date(shown.updatedAt)
             )
+    },
+    {
+      label: t('explore.more.worldId'),
+      value: world.worldId,
+      mono: true,
+      copyLink:
+        worldLink === null
+          ? undefined
+          : { link: worldLink, ariaLabel: t('copyLink.worldAria', { world: world.name }) }
     }
   ]
   return (
@@ -397,6 +433,15 @@ export default function ExploreWorldSheet({
                   leading={<PlatformPill platform={world.platform} />}
                 />
               </div>
+              {isVrc ? (
+                <div className="mt-[var(--space-2)]">
+                  <WorldRatingControl
+                    key={world.worldRef}
+                    worldRef={world.worldRef}
+                    worldName={world.name}
+                  />
+                </div>
+              ) : null}
               {showStaleNote || (isStale && onRefresh) ? (
                 <div className="mt-[var(--space-1)] flex items-center gap-[var(--space-2)]">
                   {showStaleNote ? (

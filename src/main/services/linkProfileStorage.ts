@@ -48,6 +48,11 @@ export class LinkProfileStorage implements LinkGraphStorage {
     }
   }
 
+  setAside(): void {
+    renameSync(this.path, join(this.directory, `link-graph.corrupt-${Date.now()}.json`))
+    this.originalBytes = null
+  }
+
   backup(): void {
     if (!this.originalBytes) throw new Error('link storage: missing migration source')
     const path = join(this.directory, 'link-graph.v1.backup.json')

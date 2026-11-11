@@ -35,3 +35,31 @@ export function coalesce(run: () => void, settleMs: number, maxWaitMs: number): 
     }
   }
 }
+
+/**
+ * One waiting run whose delay the caller picks each time (a backoff).
+ * `schedule` does nothing while a run is already waiting and says whether it
+ * started one; `cancel` drops a run that is waiting.
+ */
+export interface Delayed {
+  schedule: (delayMs: number) => boolean
+  cancel: () => void
+}
+
+export function delayed(run: () => void): Delayed {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  return {
+    schedule: (delayMs) => {
+      if (timer !== null) return false
+      timer = setTimeout(() => {
+        timer = null
+        run()
+      }, delayMs)
+      return true
+    },
+    cancel: () => {
+      if (timer !== null) clearTimeout(timer)
+      timer = null
+    }
+  }
+}

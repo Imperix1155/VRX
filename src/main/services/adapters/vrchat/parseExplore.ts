@@ -2,12 +2,14 @@ import {
   EXPLORE_INSTANCE_DESCRIPTION_MAX,
   EXPLORE_INSTANCE_TITLE_MAX,
   exploreSpokenLanguage,
+  exploreWorldAbout,
   type ExploreCount,
   type ExploreJoinDenial,
   type ExplorePublicAccess,
   type ExploreRoom,
   type ExploreSpokenLanguage,
-  type ExploreWorld
+  type ExploreWorld,
+  type ExploreWorldAbout
 } from '@shared/explore'
 
 export type VrcExploreWorldEvidence = Omit<ExploreWorld, 'worldRef'>
@@ -20,6 +22,16 @@ export interface VrcExploreWorldDetail {
   /** Per-room tuple counts never replace the world's aggregate `occupants` count. */
   roomCounts: Array<{ roomId: string; occupancy: ExploreCount }>
   roomsComplete: boolean
+  about: ExploreWorldAbout
+}
+
+/** The creator's own tags (`author_tag_<word>`), without the prefix; `late_night` reads "late night". */
+const AUTHOR_TAG_PREFIX = 'author_tag_'
+function authorTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((tag): tag is string => typeof tag === 'string' && tag.startsWith(AUTHOR_TAG_PREFIX))
+    .map((tag) => tag.slice(AUTHOR_TAG_PREFIX.length).replace(/_+/g, ' '))
 }
 
 type RecordValue = Record<string, unknown>
@@ -302,7 +314,13 @@ export function parseVrcExploreWorld(
     },
     roomIds,
     roomCounts,
-    roomsComplete: complete
+    roomsComplete: complete,
+    about: exploreWorldAbout({
+      creator: raw.authorName,
+      description: raw.description,
+      tags: authorTags(raw.tags),
+      capacity: raw.capacity
+    })
   }
 }
 

@@ -34,7 +34,7 @@ export function PopularNowSection({
     <section className="mb-[var(--space-6)]" aria-labelledby="dashboard-popular-heading">
       <h2
         id="dashboard-popular-heading"
-        className="canvas-text font-[family-name:var(--font-mono)] text-[20px] font-normal tracking-[0.08em] text-[var(--text-dim)]"
+        className="canvas-text font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-dim)]"
       >
         {t('explore.popularNow')}
       </h2>

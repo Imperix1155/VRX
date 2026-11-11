@@ -42,6 +42,7 @@ import type {
 } from './community'
 import type { OwnProfileChanges, OwnProfileResult, SaveOwnProfileResult } from './ownProfile'
 import type { SetHomeWorldResult } from './homeWorld'
+import type { SetWorldRatingResult, WorldRating, WorldRatingRead } from './worldRating'
 import type { InboxSnapshot } from './inbox'
 import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
@@ -83,6 +84,31 @@ export type AppBackgroundResult =
         | BackgroundPictureRefusal
         | 'unreadable'
         | 'save-failed'
+    }
+
+/**
+ * Whether the operating system will start VRX at sign-in. `unavailable`: this
+ * copy of VRX cannot register itself (a development run, or a system VRX has
+ * no startup entry for). Never carries a path.
+ */
+export type LoginItemStatus = 'on' | 'off' | 'unavailable'
+
+/**
+ * Result of Settings → Accounts → Export. Counts only: the file's place on
+ * the computer never crosses the bridge.
+ */
+export type DataExportResult =
+  | {
+      ok: true
+      friends: number
+      notes: number
+      favorites: number
+      /** The accounts' own favorite groups could not be read, so the file has VRX's stars only. */
+      gameFavoritesMissing: boolean
+    }
+  | {
+      ok: false
+      reason: 'cancelled' | 'signed-out' | 'not-ready' | 'save-failed' | 'rate-limited'
     }
 
 export type InstanceActionResult =
@@ -153,6 +179,19 @@ export interface IpcInvoke {
   'set-home-world': {
     req: { platform: Platform; worldRef: string }
     res: SetHomeWorldResult
+  }
+  /**
+   * The signed-in user's own VRChat rating of a world main already showed.
+   * ChilloutVR answers `not-vrchat` and sends nothing.
+   */
+  'get-world-rating': {
+    req: { platform: Platform; worldRef: string }
+    res: WorldRatingRead
+  }
+  /** Set (`like` or `dislike`) or clear (`null`) that rating. One press, one write. */
+  'set-world-rating': {
+    req: { platform: Platform; worldRef: string; value: WorldRating }
+    res: SetWorldRatingResult
   }
   'get-linked-profiles': { req: void; res: LinkResult<LinkSnapshot> }
   'change-linked-profile': {
@@ -244,6 +283,9 @@ export interface IpcInvoke {
    *  Main decides again when the Join happens. */
   'get-join-handoff': { req: { platform: Platform }; res: JoinHandoff }
   'get-app-status': { req: void; res: AppStatus }
+  /** What the operating system's startup list says now, for Settings to show
+   *  when the Start with your computer choice could not be applied. */
+  'get-login-item': { req: void; res: LoginItemStatus }
   /** The in-memory activity list, newest first. Main records it from the live
    *  sockets; reading it makes no platform request. */
   'get-activity': { req: void; res: ActivityEntry[] }
@@ -268,8 +310,18 @@ export interface IpcInvoke {
   'choose-app-background': { req: void; res: AppBackgroundResult }
   /** Forget the background picture. */
   'clear-app-background': { req: void; res: void }
+  /** Save friends, notes and favorites to a file the user picks in a native
+   *  dialog. Main builds the file from what it already holds; the renderer
+   *  supplies nothing. */
+  'export-data': { req: void; res: DataExportResult }
   /** Invites and requests that arrived while VRX was open. */
   'get-inbox': { req: void; res: InboxSnapshot }
+  /** Join the instance an invite row leads to. Main looks the row up itself:
+   *  the renderer names the row, never a world, an instance or a link. */
+  'join-invite': {
+    req: { platform: Platform; id: string; mode: JoinMode }
+    res: InstanceActionResult
+  }
   /** Hide one row in VRX. Never answers or declines anything on the platform. */
   'dismiss-inbox-item': { req: { platform: Platform; id: string }; res: void }
   /** Hide every row for these platforms, in VRX only. */
@@ -280,7 +332,7 @@ export interface IpcInvoke {
   'send-friend-request': { req: SendFriendRequest; res: FriendActionResult }
   'get-settings': {
     req: void
-    res: Settings & { unsaved?: true; fallback?: true; newerFile?: true }
+    res: Settings & { unsaved?: true; fallback?: true; newerFile?: true; reset?: true }
   }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }

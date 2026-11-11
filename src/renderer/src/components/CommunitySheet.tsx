@@ -18,7 +18,7 @@ import SheetGrabBar from './SheetGrabBar'
 import { SheetFacts, type SheetFact } from './SheetFacts'
 import { PILL_BASE } from '../utils/instancePill'
 
-export interface CommunitySheetHeader {
+interface CommunitySheetHeader {
   platform: Platform
   title: string
   /** The banner picture: a group banner, or the person's picture. */

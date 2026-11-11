@@ -112,9 +112,89 @@ describe('VRChat Explore parsers', () => {
           occupancy: { state: 'complete', value: 3, source: 'vrc-world-tuple' }
         }
       ],
-      roomsComplete: false
+      roomsComplete: false,
+      about: { creator: null, description: null, tags: [], capacity: null }
     })
     expect(JSON.stringify(result)).not.toContain('members must not escape')
+  })
+
+  it('reads the creator, description, own tags and room size from the same world response', () => {
+    const detail = parseVrcExploreWorld(
+      {
+        id: worldId,
+        name: 'Synthetic world',
+        authorName: ' Sample Maker ',
+        description: 'A quiet place.',
+        capacity: 32,
+        recommendedCapacity: 16,
+        tags: ['author_tag_chill', 'system_approved', 'author_tag_Music', 'admin_hidden', 4],
+        instances: []
+      },
+      worldId
+    )!
+    expect(detail.about).toEqual({
+      creator: 'Sample Maker',
+      description: 'A quiet place.',
+      // Only the creator's own tags; system and admin labels stay out.
+      tags: ['chill', 'Music'],
+      capacity: 32
+    })
+  })
+
+  it('bounds long world details and drops odd shapes', () => {
+    const detail = parseVrcExploreWorld(
+      {
+        id: worldId,
+        name: 'Synthetic world',
+        authorName: 'n'.repeat(500),
+        description: 'd'.repeat(5_000),
+        capacity: -3,
+        tags: Array.from({ length: 40 }, (_, index) => `author_tag_${'t'.repeat(60)}${index}`),
+        instances: []
+      },
+      worldId
+    )!
+    expect(detail.about.creator).toHaveLength(64)
+    expect(detail.about.description).toHaveLength(2_048)
+    expect(detail.about.capacity).toBeNull()
+    // A cut value says so with "…", inside the bound.
+    expect(detail.about.creator?.endsWith('…')).toBe(true)
+    expect(detail.about.description?.endsWith('…')).toBe(true)
+    // Forty long tags cut to 32 characters are all the same word: one stays.
+    expect(detail.about.tags).toEqual([`${'t'.repeat(31)}…`])
+    const many = parseVrcExploreWorld(
+      {
+        id: worldId,
+        name: 'Synthetic world',
+        tags: Array.from({ length: 40 }, (_, index) => `author_tag_tag${index}`),
+        instances: []
+      },
+      worldId
+    )!
+    expect(many.about.tags).toHaveLength(12)
+  })
+
+  it('keeps a description readable: line breaks stay, direction marks and controls go', () => {
+    const detail = parseVrcExploreWorld(
+      {
+        id: worldId,
+        name: 'Synthetic world',
+        authorName: ' Bui\u202elder\tOne ',
+        description: 'First line.  \r\nSecond line.\n\n\n\n\u202eThird\u2066 line.\u0007\n',
+        tags: [
+          'author_tag_late_night',
+          'author_tag_\u202ertl',
+          'author_tag_line\nbreak',
+          'author_tag_a__b'
+        ],
+        instances: []
+      },
+      worldId
+    )!
+    expect(detail.about.creator).toBe('Builder One')
+    expect(detail.about.description).toBe('First line.\nSecond line.\n\nThird line.')
+    // Underscores read as spaces, as ChilloutVR's tags do; a tag is one line.
+    expect(detail.about.tags).toEqual(['late night', 'rtl', 'line break', 'a b'])
   })
 
   it('rejects a world identity mismatch', () => {

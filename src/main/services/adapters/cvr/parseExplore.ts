@@ -1,9 +1,11 @@
-import type {
-  ExploreCount,
-  ExploreJoinDenial,
-  ExplorePublicAccess,
-  ExploreRoom,
-  ExploreWorld
+import {
+  exploreWorldAbout,
+  type ExploreCount,
+  type ExploreJoinDenial,
+  type ExplorePublicAccess,
+  type ExploreRoom,
+  type ExploreWorld,
+  type ExploreWorldAbout
 } from '@shared/explore'
 
 export type CvrExploreWorldEvidence = Omit<ExploreWorld, 'worldRef'>
@@ -14,6 +16,7 @@ export interface CvrExploreWorldDetail {
   world: CvrExploreWorldEvidence
   roomIds: string[]
   roomsComplete: boolean
+  about: ExploreWorldAbout
 }
 
 type RecordValue = Record<string, unknown>
@@ -144,7 +147,14 @@ export function parseCvrExploreWorld(
       sourceOrder: 0
     },
     roomIds,
-    roomsComplete: complete
+    roomsComplete: complete,
+    about: exploreWorldAbout({
+      creator: record(raw.author)?.name,
+      description: raw.description,
+      tags: raw.tags,
+      // ChilloutVR sets the size per room; the room rows show it.
+      capacity: null
+    })
   }
 }
 

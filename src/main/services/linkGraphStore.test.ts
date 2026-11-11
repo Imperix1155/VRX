@@ -144,6 +144,67 @@ describe('LinkGraphStore', () => {
     expect(storage.writes).toHaveLength(0)
   })
 
+  describe('recoverDamagedFile', () => {
+    it('moves a file it cannot read aside, so links work again from empty', () => {
+      for (const damaged of ['{"storeFormatVersion":2,"people":{', { storeFormatVersion: 2 }]) {
+        const storage = new MemoryLinkGraphStorage()
+        storage.value = damaged
+        const setAside = vi.fn(() => {
+          storage.value = {}
+        })
+        const log = vi.fn()
+        const store = new LinkGraphStore(Object.assign(storage, { setAside }))
+        expect(() => store.snapshot()).toThrow()
+
+        store.recoverDamagedFile(log)
+
+        expect(setAside).toHaveBeenCalledOnce()
+        expect(log).toHaveBeenCalledWith(
+          'link graph: damaged file kept as link-graph.corrupt-*.json; starting fresh'
+        )
+        expect(store.snapshot().profiles).toEqual([])
+      }
+    })
+
+    it("leaves a readable file, an empty one and a newer version's file alone", () => {
+      for (const kept of [
+        {},
+        { storeFormatVersion: 2, revision: 1, people: {} },
+        { storeFormatVersion: 999, people: {} },
+        '{"storeFormatVersion":999,"people":{'
+      ]) {
+        const storage = new MemoryLinkGraphStorage()
+        storage.value = kept
+        const setAside = vi.fn()
+        new LinkGraphStore(Object.assign(storage, { setAside })).recoverDamagedFile()
+        expect(setAside).not.toHaveBeenCalled()
+        expect(storage.writes).toHaveLength(0)
+      }
+    })
+
+    it('keeps a file it could not read at all, and one it could not move', () => {
+      const log = vi.fn()
+      const unreadable = new MemoryLinkGraphStorage()
+      const setAside = vi.fn()
+      unreadable.read = () => {
+        throw Object.assign(new Error("EACCES: permission denied, open '/srv/link-graph.json'"), {
+          code: 'EACCES'
+        })
+      }
+      new LinkGraphStore(Object.assign(unreadable, { setAside })).recoverDamagedFile(log)
+      expect(setAside).not.toHaveBeenCalled()
+      expect(log).toHaveBeenCalledWith('link graph: could not read the file; keeping it', 'EACCES')
+
+      const stuck = new MemoryLinkGraphStorage()
+      stuck.value = 'not json'
+      const busy = vi.fn(() => {
+        throw Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY' })
+      })
+      new LinkGraphStore(Object.assign(stuck, { setAside: busy })).recoverDamagedFile(log)
+      expect(log).toHaveBeenCalledWith('link graph: could not move the damaged file aside', 'EBUSY')
+    })
+  })
+
   it('creates a complete v2 profile through apply', () => {
     const storage = new MemoryLinkGraphStorage()
     const graph = new LinkGraphStore(storage, () => 'person_v2')

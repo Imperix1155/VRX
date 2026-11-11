@@ -16,6 +16,7 @@ import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import FriendsList from './FriendsList'
+import { JOIN_FAILURE_MS } from '../hooks/useJoinInstance'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
 vi.mock('../queries/friends', async (importOriginal) => ({
@@ -590,12 +591,18 @@ describe('FriendDrawer (VRX-69)', () => {
       'No longer joinable — they may have moved or gone offline'
     )
 
+    // Readable for a while, then it clears on its own; the Join button stays.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(JOIN_FAILURE_MS - 1)
     })
     expect(scoped.getByRole('status').textContent).toBe(
       'No longer joinable — they may have moved or gone offline'
     )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(scoped.getByRole('status').textContent).toBe('')
+    expect(scoped.getByRole('button', { name: 'Join' })).toBeTruthy()
   })
 
   it('keeps the join failure readable after the friend stops being joinable', async () => {

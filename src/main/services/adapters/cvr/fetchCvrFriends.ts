@@ -77,7 +77,10 @@ function normalize(raw: RawCvrFriend, platformUserId: string): CvrFriend {
  */
 export async function fetchCvrFriends(fetcher: CvrFetcher): Promise<FetchCvrFriendsResult> {
   const roster = await fetcher('/friends', cvrRosterSchema)
-  const friends: CvrFriend[] = []
+  // One row per friend: a list that repeats an ID keeps the later record, as
+  // the VRChat reader does. The list is one unpaged read, so a repeat says
+  // nothing about a missing friend and the roster stays complete.
+  const byId = new Map<string, CvrFriend>()
   const categories = new Map<string, string[]>()
   let skippedRecords = 0
 
@@ -94,11 +97,13 @@ export async function fetchCvrFriends(fetcher: CvrFetcher): Promise<FetchCvrFrie
       continue
     }
 
-    friends.push(normalize(parsed.data, id.platformUserId))
+    byId.set(id.platformUserId, normalize(parsed.data, id.platformUserId))
     if (parsed.data.categories.length > 0) {
       categories.set(id.platformUserId, parsed.data.categories.slice(0, 64))
+    } else {
+      categories.delete(id.platformUserId)
     }
   }
 
-  return { friends, skippedRecords, categories }
+  return { friends: [...byId.values()], skippedRecords, categories }
 }
