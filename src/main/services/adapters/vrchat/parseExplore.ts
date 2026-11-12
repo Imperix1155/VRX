@@ -1,4 +1,7 @@
+import { isBcp47LanguageTag } from '@shared/languageTag'
 import {
+  EXPLORE_INSTANCE_DESCRIPTION_MAX,
+  EXPLORE_INSTANCE_TITLE_MAX,
   exploreWorldAbout,
   type ExploreCount,
   type ExploreJoinDenial,
@@ -45,6 +48,45 @@ function record(value: unknown): RecordValue | null {
 /** A string with something to show; blank or spaces-only counts as missing. */
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null
+}
+
+/** True for a control character other than tab, newline and carriage return. */
+function isDroppedControl(code: number): boolean {
+  return (
+    (code >= 0 && code <= 8) ||
+    code === 11 ||
+    code === 12 ||
+    (code >= 14 && code <= 31) ||
+    code === 127
+  )
+}
+
+/**
+ * Instance copy VRX is willing to show. Collapses whitespace, drops other
+ * control characters, and clips by code point. An inherited property is ignored.
+ */
+function instanceCopy(raw: RecordValue, key: string, max: number): string | null {
+  if (!Object.hasOwn(raw, key)) return null
+  const value = raw[key]
+  if (typeof value !== 'string') return null
+  let visible = ''
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0
+    if (!isDroppedControl(code)) visible += char
+  }
+  const cleaned = visible.replace(/\s+/g, ' ').trim()
+  if (cleaned.length === 0) return null
+  const points = Array.from(cleaned)
+  if (points.length <= max) return points.join('')
+  return `${points.slice(0, max - 1).join('')}…`
+}
+
+/** `dominantLanguage` only, and only when it is one well-formed BCP-47 tag. */
+function spokenLanguage(raw: RecordValue): string | null {
+  if (!Object.hasOwn(raw, 'dominantLanguage') || typeof raw.dominantLanguage !== 'string')
+    return null
+  const tag = raw.dominantLanguage.trim()
+  return isBcp47LanguageTag(tag) ? tag : null
 }
 
 function nonNegativeInteger(value: unknown): number | null {
@@ -352,6 +394,9 @@ export function parseVrcExploreRoom(
     access,
     region: text(raw.region),
     groupName: text(raw.groupName),
+    instanceTitle: instanceCopy(raw, 'displayName', EXPLORE_INSTANCE_TITLE_MAX),
+    instanceDescription: instanceCopy(raw, 'description', EXPLORE_INSTANCE_DESCRIPTION_MAX),
+    spokenLanguage: spokenLanguage(raw),
     occupancy,
     capacity,
     full: typeof raw.full === 'boolean' ? raw.full : null,

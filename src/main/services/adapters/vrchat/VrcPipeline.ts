@@ -3,7 +3,7 @@
  *
  * The Pipeline (`wss://pipeline.vrchat.cloud/?authToken=…`) is VRChat's
  * sanctioned real-time source for friend/notification events — presence comes
- * from HERE, never from REST polling (the #1 rate-limit/ban risk, CLAUDE.md).
+ * from HERE, never from REST polling (docs/api-policy.md, No presence polling).
  *
  * Lifecycle (reconnect/backoff/generation discipline) lives in the shared
  * `ReconnectingPipeline` base; this class owns the VRChat wire specifics:
@@ -62,9 +62,10 @@ export interface VrcPipelineDeps extends PipelineReconnectOptions {
 
 /**
  * Outer envelope. `content` is a double-encoded JSON STRING for every known
- * event — but accept an already-decoded object too (defensive: the double-
- * encode is mock-verified, and CLAUDE.md wants unknown drift to degrade, not
- * vanish). A string is JSON-parsed; an object is used as-is.
+ * event — but accept an already-decoded object too. The double-encode is
+ * mock-verified, and unknown drift degrades instead of vanishing
+ * (docs/api-policy.md, No invented data). A string is JSON-parsed; an object
+ * is used as-is.
  */
 const envelopeSchema = z.object({
   type: z.string(),

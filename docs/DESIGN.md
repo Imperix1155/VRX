@@ -378,7 +378,8 @@ chip's lift without the blur.
 
 **Opaque surfaces.** `.glass-information` replaces the see-through fill with
 the solid `--glass-information` backing and turns the blur off. Anything a
-person must read over busy content uses it:
+person must read over busy content uses it. The welcome setup card stays the
+frosted back panel from layer 2.
 
 | Surface                                                              | Classes                                          |
 | -------------------------------------------------------------------- | ------------------------------------------------ |
@@ -974,7 +975,8 @@ inside each group" with "Name", "Recent", "World", "Joinable". Right: a
 people count ("15 people", only when linked friends exist, since linked
 people count once) and a quiet "Refresh" button.
 
-- Order never moves a friend between sections. Name is A to Z. Recent puts
+- Order never moves a friend between sections. Name is A to Z, compared as
+  the names are shown, ignoring spaces at either end. Recent puts
   the friend with the newest Activity entry first. World puts friends who
   share an instance together, the biggest group first. Joinable puts the
   most open joinable instance first, in the order of the access ladder
@@ -1473,10 +1475,25 @@ in the shared sheet frame (§9.3):
   that clears on its own. ChilloutVR has no world rating, so those buttons
   are not on a ChilloutVR sheet. There is no public like count.
 - "Visible public rooms", then one bordered row per room (radius 13 px,
-  `--control-fill`): the instance pill, the people count ("3 / 30"), the
-  region, and a "Join" button. A room that cannot be joined keeps the
-  button's place with a plain word instead: "Full", "Restricted",
-  "Unavailable", "Refresh first", "Disabled", or "Joining…".
+  `--control-fill`). Without instance copy the row is the instance pill,
+  the people count ("3 / 30"), the region, and a "Join" button. When VRChat
+  sends instance copy, the same row adds three pieces, and only those:
+  - The instance name, plain text above the pill and count (14 px / 600,
+    one line, truncated). It is never a chip. The name is already clipped
+    to 80 code points before it reaches the row.
+  - A dim 12 px line under the pill: the region, then "Language: {name}",
+    then the group name, separated by " · ", the whole line truncated.
+    The name comes from `languageTagLabel` for the room's BCP-47 tag, so
+    `pt-BR` reads "Brazilian Portuguese" in English and the Japanese name
+    in Japanese. A tag the runtime cannot name falls back the way that
+    helper does. A missing or ill-formed tag adds no language words.
+  - The description under that, dim 12 px, at most two lines
+    (`line-clamp-2`). It is already clipped to 280 code points.
+    ChilloutVR rooms have no instance name, description or language, so
+    those lines are absent and the row starts at the pill. A room that
+    cannot be joined keeps the button's place with a plain word instead:
+    "Full", "Restricted", "Unavailable", "Refresh first", "Disabled", or
+    "Joining…".
 - Room states: "Loading visible public rooms…", "Visible public rooms could
   not load." (`--error`), "No visible public rooms are available.", "Only
   some visible public rooms are available."
@@ -1497,6 +1514,7 @@ Source: [`ExploreRoute.tsx`](../src/renderer/src/components/ExploreRoute.tsx),
 [`ExploreSourceState.tsx`](../src/renderer/src/components/ExploreSourceState.tsx),
 [`HomeWorldControl.tsx`](../src/renderer/src/components/HomeWorldControl.tsx),
 [`WorldRatingControl.tsx`](../src/renderer/src/components/WorldRatingControl.tsx).
+The language name is [`languageTagLabel`](../src/shared/languageTag.ts).
 
 #### Loading, empty, error and stale
 
@@ -1659,13 +1677,15 @@ A two-column fact list in 13 px (Pronouns, Rank; "Not shown" when the
 platform gives none), "BIO" ("No bio."), "BADGES" as small bordered pills
 with a 16 px picture ("No badges shown."), and two quiet buttons, "Show
 worlds" and "Show groups", that load those lists only when pressed. Loading
-reads "Loading profile…"; a failure reads "Couldn't load this profile." or a
-more exact sentence.
+reads "Loading profile…"; a failure reads "Couldn't load this profile." with
+Try again. "This profile is no longer available." is only when the platform
+says the profile is gone.
 
 **Friend actions** ([`ProfileActions.tsx`](../src/renderer/src/components/ProfileActions.tsx)):
 
 - Not a friend: "Add friend" (the neutral confirm button). It reads
-  "Sending…" and then "Friend request sent."
+  "Sending…" and then "Friend request sent." Someone already blocked gets no
+  Add friend; Unblock stays in the options below.
 - They sent a request: "Sent you a friend request." with "Accept" and
   "Decline".
 - **Unfriend or block** is behind a quiet button of that name ("Block or

@@ -277,7 +277,7 @@ export abstract class ReconnectingPipeline<Prep> {
       } catch (err) {
         // Auth material rides on openSocket (URL token / upgrade headers) and
         // construction errors can ECHO it (e.g. an invalid-URL message) — log
-        // only the error class, never the message (CLAUDE.md: no tokens in logs).
+        // only the error class, never the message (src/main/AGENTS.md: never log tokens).
         this.log('warn', 'pipeline: socket construction failed', {
           errorName: err instanceof Error ? err.name : typeof err
         })

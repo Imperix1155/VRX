@@ -45,15 +45,70 @@ export function anchorsOf(markdown) {
   return anchors
 }
 
-/** Inline link targets outside code fences and code spans. */
-export function linkTargets(markdown) {
-  const targets = []
+const LINK_TITLE = String.raw`(?:"[^"]*"|'[^']*'|\([^)]*\))`
+
+/** Reference definitions in this Markdown, keyed by lowercase label. */
+function referenceDefinitions(markdown) {
+  const definitions = new Map()
   let fenced = false
   for (const line of markdown.split('\n')) {
     if (/^\s*(```|~~~)/.test(line)) fenced = !fenced
     if (fenced) continue
+    const match = line.match(
+      new RegExp(String.raw`^\s{0,3}\[([^\]]+)\]:\s*(\S+)(?:\s+${LINK_TITLE})?\s*$`)
+    )
+    if (!match) continue
+    let target = match[2]
+    if (target.startsWith('<') && target.endsWith('>')) target = target.slice(1, -1)
+    definitions.set(match[1].toLowerCase(), target)
+  }
+  return definitions
+}
+
+/**
+ * Link targets outside code fences and code spans: inline links (double-quoted,
+ * single-quoted or parenthesized titles), reference links whose label is
+ * defined, HTML `<a href>`, and autolinks that are URLs or paths.
+ */
+export function linkTargets(markdown) {
+  const targets = []
+  const definitions = referenceDefinitions(markdown)
+  let fenced = false
+  const inline = new RegExp(String.raw`\]\(([^)\s]+)(?:\s+${LINK_TITLE})?\)`, 'g')
+  const definitionLine = new RegExp(
+    String.raw`^\s{0,3}\[([^\]]+)\]:\s*(\S+)(?:\s+${LINK_TITLE})?\s*$`
+  )
+  for (const line of markdown.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced
+    if (fenced) continue
+    if (definitionLine.test(line)) continue
     const prose = line.replace(/`[^`]*`/g, '``')
-    for (const match of prose.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) targets.push(match[1])
+    for (const match of prose.matchAll(inline)) targets.push(match[1])
+    for (const match of prose.matchAll(/\[([^\]]+)\]\[([^\]]*)\]/g)) {
+      const label = (match[2] || match[1]).toLowerCase()
+      const target = definitions.get(label)
+      if (target) targets.push(target)
+    }
+    for (const match of prose.matchAll(/(?<!\])\[([^\]]+)](?![([])/g)) {
+      const target = definitions.get(match[1].toLowerCase())
+      if (target) targets.push(target)
+    }
+    for (const match of prose.matchAll(/<a\s[^>]*\bhref\s*=\s*(?:"([^"]+)"|'([^']+)')/gi)) {
+      targets.push(match[1] || match[2])
+    }
+    for (const match of prose.matchAll(/<([^>\s]+)>/g)) {
+      const value = match[1]
+      // Closing tags (`</a>`) are not autolinks.
+      if (/^\/[A-Za-z][A-Za-z0-9-]*$/.test(value)) continue
+      if (
+        /^[a-z][a-z0-9+.-]*:/i.test(value) ||
+        value.includes('/') ||
+        value.endsWith('.md') ||
+        value.endsWith('.html')
+      ) {
+        targets.push(value)
+      }
+    }
   }
   return targets
 }
