@@ -24,6 +24,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The desktop shell now uses Electron 45.2.3. The app build uses Vite 8.3.7
   and the TypeScript lint rules from typescript-eslint 8.72.2.
 
+## [1.4.4] - 2026-11-12
+
+Six small new features and a clean-up and bug fix pass on top of 1.4.3.
+
+### Added
+
+- Export your data: Settings → Accounts has an "Export…" button that saves
+  your friends, notes and favorites to a file you pick on your computer. The
+  file holds no sign-in details.
+- Start with your computer: Settings → About can open VRX when you sign in
+  to your computer, in a window or in the tray. It is Off by default.
+- Join from an invite: an invite in the Inbox that names its instance has a
+  Join button, with the same join steps as a friend's Join.
+- Favorites by group: in-game favorites on the Friends page are listed
+  under each of your account's favorite groups.
+- World details: Show more in a world's sheet lists its creator,
+  description, tags and room size.
+- Copy link: people, worlds and instances have a "Copy link" button beside
+  their ID.
+
+### Fixed
+
+- Join no longer answers "Live connection not ready" after starting VRX
+  with a saved sign-in while the top bar shows the connection as live.
+- Starting VRX reads your friends list once instead of twice, and the
+  favorite star's groups load sooner after launch.
+- VRX asks less of the platforms: a burst of friends changing worlds runs in
+  small batches behind your own actions, and after a slow-down the friends
+  list waits longer between tries.
+- When VRX pauses a platform after repeated failures, the friends list says
+  to wait, and a sign-out by the platform is still noticed. Signing out of
+  VRChat shows its live connection as stopped right away.
+- Damaged settings, account or linked-profile files are kept beside a fresh
+  one instead of blocking saves, and Settings tells you when it started
+  from defaults.
+- Smaller fixes: a ChilloutVR friend the platform lists twice shows once, a
+  quick second press on a favorite gives the right answer, linking dialogs
+  keep keyboard focus, and a few look fixes.
+
+### Changed
+
+- The line under a Join that did not go through clears on its own after 10
+  seconds and has more room on a friend's row.
+
+### Security
+
+- Security hardening for links VRX opens in your browser.
+
 ## [1.4.4-dev.3] - 2026-11-11
 
 ### Fixed
