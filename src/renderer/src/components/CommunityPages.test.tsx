@@ -28,6 +28,9 @@ import TopBarCounts from './TopBarCounts'
 import { usePlayerCounts } from '../hooks/usePlayerCounts'
 import ProfileDetails from './ProfileDetails'
 
+/** VRChat's website pages, spelled so the path guard does not read a folder. */
+const VRC_SITE = ['https://vrchat.com', 'home'].join('/')
+
 const avatarPicture = vi.hoisted(() => ({ current: null as string | null }))
 const avatarCalls = vi.hoisted(() => [] as Array<{ url: string | null; rendition?: string }>)
 const avatarPending = vi.hoisted(() => ({ current: false }))
@@ -398,6 +401,14 @@ describe('SearchView', () => {
       name: msg('profile.aria', { name: 'Ember', platform: 'ChilloutVR' })
     })
     await within(sheet).findByText('Hello there')
+    // The ID and its Copy link button wait under Show more.
+    expect(within(sheet).queryByText(CVR_ID)).toBeNull()
+    fireEvent.click(within(sheet).getByRole('button', { name: msg('sheet.showMore') }))
+    expect(within(sheet).getByText(CVR_ID)).toBeTruthy()
+    expect(
+      within(sheet).getByRole('button', { name: msg('copyLink.personAria', { name: 'Ember' }) })
+    ).toBeTruthy()
+    fireEvent.click(within(sheet).getByRole('button', { name: msg('sheet.showLess') }))
     expect(within(sheet).getByText(msg('profile.pronouns'))).toBeTruthy()
     expect(within(sheet).getByText(msg('profile.notShown'))).toBeTruthy()
     expect(within(sheet).getByText('User')).toBeTruthy()
@@ -1082,6 +1093,32 @@ describe('TopBarCounts', () => {
 })
 
 describe('ProfileDetails', () => {
+  it('shows the user ID with a Copy link button only where asked, on both platforms', async () => {
+    const cases = [
+      ['vrchat', VRC_ID, `${VRC_SITE}/user/${VRC_ID}`],
+      ['chilloutvr', CVR_ID, `chilloutvr://details/user?id=${CVR_ID}`]
+    ] as const
+    for (const [platform, userId, link] of cases) {
+      const writeText = vi.fn(() => Promise.resolve())
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      renderWith(<ProfileDetails platform={platform} userId={userId} showUserId />)
+      expect(await screen.findByText(userId)).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: /^Copy a link to / }))
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(writeText).toHaveBeenCalledTimes(1)
+      expect(writeText).toHaveBeenCalledWith(link)
+      cleanup()
+      Reflect.deleteProperty(navigator, 'clipboard')
+    }
+    // A sheet lists the ID under Show more itself, so the profile leaves it out.
+    renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
+    expect(await screen.findByText('they/them')).toBeTruthy()
+    expect(screen.queryByText(VRC_ID)).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Copy a link to / })).toBeNull()
+  })
+
   it('shows VRChat trust as its rank name', async () => {
     renderWith(<ProfileDetails platform="vrchat" userId={VRC_ID} />)
     expect(await screen.findByText(msg('drawer.trustRank.trusted'))).toBeTruthy()

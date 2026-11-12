@@ -33,8 +33,8 @@ export interface TokenGroup {
   readonly rows: readonly TokenRow[]
 }
 
-export const DESIGN_TOKENS_START = '<!-- design-tokens:start -->'
-export const DESIGN_TOKENS_END = '<!-- design-tokens:end -->'
+const DESIGN_TOKENS_START = '<!-- design-tokens:start -->'
+const DESIGN_TOKENS_END = '<!-- design-tokens:end -->'
 
 function stripComments(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, '')

@@ -6,6 +6,7 @@ import type {
   ExploreRefreshReason,
   ExploreRoom,
   ExploreWorld,
+  ExploreWorldAbout,
   ExploreWorldReason,
   ExploreWorldSnapshot
 } from '@shared/explore'
@@ -67,6 +68,7 @@ interface RoomRecord {
   selectionRef: string | null
 }
 interface Detail {
+  about: ExploreWorldAbout | null
   ids: string[]
   enumerationComplete: boolean
   rooms: Map<string, RoomRecord>
@@ -774,6 +776,7 @@ export class ExploreService {
     }
     world.evidence = { ...data.world, sourceOrder: world.evidence.sourceOrder }
     world.detail = {
+      about: data.about ?? null,
       ids,
       enumerationComplete: data.roomsComplete && data.roomIds.length <= 100,
       rooms,
@@ -1040,6 +1043,7 @@ export class ExploreService {
           })
         : [],
       roomsComplete: this.coverage(world),
+      about: detail?.about ?? null,
       status: state.worldJob?.worldRef === world.ref ? 'loading' : world.status,
       problem: world.problem,
       isStale: world.problem !== null || !detail || !this.fresh(detail.fetchedAt),

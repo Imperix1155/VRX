@@ -6,7 +6,7 @@
  * that every selector exists and every component a snippet names is real.
  */
 
-export interface CssSample {
+interface CssSample {
   readonly selector: string
   readonly note: string
 }
@@ -20,7 +20,10 @@ export const CSS_SAMPLES = [
   },
   { selector: '.glass-sheet::after', note: 'Sheets take the heavier frost.' },
   { selector: '.glass-layer', note: 'Layer 3. Cards, rows, headers and fields.' },
-  { selector: '.platform-row', note: 'Layer 3 for one platform: tint, edge and a 3 px bar.' },
+  {
+    selector: '.platform-row',
+    note: 'Layer 3 for one platform: a tinted wash and a soft platform edge.'
+  },
   { selector: '.platform-row--vrx', note: 'A linked person runs blue into orange.' },
   { selector: '.setting-card', note: 'A Settings row on the frosted Settings panel.' },
   { selector: '.glass-chip', note: 'Layer 4. Pills, badges, rails and counts.' },
@@ -52,12 +55,12 @@ export type CssSelector = (typeof CSS_SAMPLES)[number]['selector']
 /** Usage snippets for production components and classes. */
 export const JSX_SAMPLES = {
   layers: `{/* Layer 2: the back panel a page sits on */}
-<section className="glass glass-panel p-[var(--space-4)]">
+<section className="glass-panel rounded-panel border border-[var(--glass-border)] p-[var(--space-4)]">
   {/* Layer 3: a card */}
   <div className="glass glass-layer p-[16px_18px]">…</div>
   {/* Layer 3 for one platform */}
-  <div className="platform-row platform-row--vrchat flex items-center gap-[var(--space-3)] p-[var(--space-2)]">
-    <span className="flex-1 truncate text-[13px] text-[var(--text)]">Amy</span>
+  <div className="platform-row platform-row--vrchat flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)]">
+    <span className="flex-1 truncate text-sm font-semibold text-[var(--text)]">Amy</span>
     {/* Layer 4: chips */}
     <PlatformPill platform="vrchat" />
     <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
@@ -74,7 +77,7 @@ export const JSX_SAMPLES = {
   values={['vrchat', 'platform-native', 'chilloutvr'] as const}
   active={scheme}
   labelKeys={LABEL_KEYS}
-  ariaLabel={t('settings.labelScheme.label')}
+  ariaLabel={t('settings.labelScheme.aria')}
   onChange={setScheme}
 />
 <Toggle checked={on} onChange={setOn} ariaLabel={t('settings.dashboard.popular.label')} />

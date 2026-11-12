@@ -7,6 +7,145 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-11-12
+
+Six small new features and a clean-up and bug fix pass on top of 1.4.3.
+
+### Added
+
+- Export your data: Settings → Accounts has an "Export…" button that saves
+  your friends, notes and favorites to a file you pick on your computer. The
+  file holds no sign-in details.
+- Start with your computer: Settings → About can open VRX when you sign in
+  to your computer, in a window or in the tray. It is Off by default.
+- Join from an invite: an invite in the Inbox that names its instance has a
+  Join button, with the same join steps as a friend's Join.
+- Favorites by group: in-game favorites on the Friends page are listed
+  under each of your account's favorite groups.
+- World details: Show more in a world's sheet lists its creator,
+  description, tags and room size.
+- Copy link: people, worlds and instances have a "Copy link" button beside
+  their ID.
+
+### Fixed
+
+- Join no longer answers "Live connection not ready" after starting VRX
+  with a saved sign-in while the top bar shows the connection as live.
+- Starting VRX reads your friends list once instead of twice, and the
+  favorite star's groups load sooner after launch.
+- VRX asks less of the platforms: a burst of friends changing worlds runs in
+  small batches behind your own actions, and after a slow-down the friends
+  list waits longer between tries.
+- When VRX pauses a platform after repeated failures, the friends list says
+  to wait, and a sign-out by the platform is still noticed. Signing out of
+  VRChat shows its live connection as stopped right away.
+- Damaged settings, account or linked-profile files are kept beside a fresh
+  one instead of blocking saves, and Settings tells you when it started
+  from defaults.
+- Smaller fixes: a ChilloutVR friend the platform lists twice shows once, a
+  quick second press on a favorite gives the right answer, linking dialogs
+  keep keyboard focus, and a few look fixes.
+
+### Changed
+
+- The line under a Join that did not go through clears on its own after 10
+  seconds and has more room on a friend's row.
+
+### Security
+
+- Security hardening for links VRX opens in your browser.
+
+## [1.4.4-dev.3] - 2026-11-11
+
+### Fixed
+
+- Join no longer answers "Live connection not ready" while the top bar shows
+  the connection as live. After starting VRX with a saved sign-in, joins on
+  VRChat or ChilloutVR could stay refused until the friends list was next
+  read; now the read at launch counts, and if VRX is ever still catching up
+  when you press Join, it reads the list once so the next press works.
+
+### Changed
+
+- The line under a Join that did not go through now clears on its own after
+  10 seconds (or as soon as you press Join again). On a friend's row it
+  lines up under the name with a little space around it instead of sitting
+  on the edge of the card.
+
+## [1.4.4-dev.2] - 2026-11-11
+
+### Added
+
+- Export your data: Settings → Accounts has a new "Export…" button that
+  saves your friends, notes and favorites to a file you pick on your
+  computer. VRChat and ChilloutVR are written the same way and the file holds
+  no sign-in details. It is made from what VRX already has; with "Use my game
+  favorites" on it first waits for the one favorites read VRX makes per
+  sign-in, and tells you if your game favorites could not be included.
+- Start with your computer: Settings → About has a new choice, Off by
+  default. On opens VRX when you sign in to your computer; In the tray does
+  the same but keeps the window closed until you open it from the tray icon.
+  It works on Windows and Linux, and Settings tells you if your computer did
+  not accept it.
+- Join from an invite: an invite in the Inbox that names its instance now
+  has a Join button. It opens the game in that instance through the same
+  join steps as a friend's Join (with the confirmation, when you keep it
+  on), sends nothing to the person who invited you, and leaves the row where
+  it is. It works the same for VRChat and ChilloutVR.
+- Favorites by group: when your in-game favorites sit in more than one of
+  your account's favorite groups, the Favorites section on the Friends page
+  now lists them under each group's name, with friends starred only in VRX
+  last. VRChat groups and ChilloutVR categories work the same way, and it
+  uses the groups VRX already read at sign-in.
+- World details: Show more in a world's sheet now lists its creator,
+  description, tags and room size, the same way for VRChat and ChilloutVR.
+  They come with the read VRX already makes when the sheet opens, so nothing
+  extra is asked of either platform.
+- Copy link: a quiet "Copy link" button now sits beside the ID under Show
+  more in the world sheet and the hot instance sheet, in a person's sheet
+  from Search, and under Show full profile in friend details. It copies a
+  link to that person, world or instance to paste to a friend. VRChat links
+  open its website; ChilloutVR links open the page in the game.
+
+## [1.4.4-dev.1] - 2026-11-11
+
+### Fixed
+
+- Signing out of VRChat now shows its live connection as stopped right away
+  instead of leaving the last state on screen.
+- A burst of VRChat friends changing worlds no longer queues hundreds of
+  lookups ahead of what you press; they run in small batches behind your
+  own actions.
+- A ChilloutVR friend the platform lists twice shows once.
+- After a platform asks VRX to slow down, the friends list waits longer
+  between tries (30 seconds, doubling up to 10 minutes) instead of asking
+  every 30 seconds, and a failed friends read is tried once more, not three
+  times.
+- When VRX pauses a platform after repeated failures, the friends list says
+  to wait instead of "could not refresh", the pause is written to the log,
+  and a sign-out by the platform is still noticed during the pause. Refused
+  VRChat invites no longer cause that pause.
+- Starting VRX with a saved sign-in reads your friends list once instead of
+  twice, so the list is current sooner and VRX asks the platforms for less.
+- The favorite star's groups load sooner after launch instead of waiting
+  behind world-name lookups.
+- Pressing a favorite twice quickly gives the right answer for the second
+  press.
+- If the settings file is damaged, VRX keeps the old file, starts from
+  defaults and now tells you so. Damaged account and linked-profile files
+  are also kept beside a fresh one instead of blocking saves.
+- A failed save of notes and favorites data is written to the log.
+- Small look fixes: the Dashboard's "Popular now" heading matches the other
+  section headings, the welcome summary lists pages in sidebar order, and
+  the light theme's window background matches the app while it loads.
+- Linking dialogs keep keyboard focus when they move to the next step, and
+  screen readers name which account a profile section belongs to when two
+  accounts are shown.
+
+### Security
+
+- Security hardening for links VRX opens in your browser.
+
 ## [1.4.3] - 2026-11-10
 
 A polish and bug fix release on top of 1.4.2.

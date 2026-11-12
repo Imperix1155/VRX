@@ -32,6 +32,9 @@ let settingsSnapshot: Settings | undefined
 // read (lock, permissions, I/O). Saving then would replace the user's real file
 // with defaults plus one patch, so saveSettings re-reads the file first.
 let settingsUnloaded = false
+// True for the rest of this run once a damaged settings file was set aside and
+// defaults took its place, so the shell can say why the choices are gone.
+let settingsResetThisRun = false
 const SETTINGS_SAVE_DEBOUNCE_MS = 250
 
 interface SettingsSaveWaiter {
@@ -126,6 +129,7 @@ export function loadSettings(): Settings {
       try {
         moveCorruptSettingsFileAside()
         settingsUnloaded = false
+        settingsResetThisRun = true
         log.warn('settings: corrupt file kept as settings.corrupt-*.json; saves start fresh')
       } catch (moveErr) {
         log.warn(
@@ -173,6 +177,15 @@ export function hasPendingSettingsSave(): boolean {
  */
 export function isSettingsFallback(): boolean {
   return settingsUnloaded
+}
+
+/**
+ * True when this run found a damaged settings file, kept it as
+ * `settings.corrupt-<time>.json` and started from defaults. `get-settings`
+ * reports it so the shell tells the user instead of resetting silently.
+ */
+export function wasSettingsFileReset(): boolean {
+  return settingsResetThisRun
 }
 
 export function getSettingsSnapshot(): Settings {

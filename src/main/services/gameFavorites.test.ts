@@ -124,7 +124,7 @@ describe('GameFavoritesService', () => {
     })
   })
 
-  it('reads once per sign-in in the background, and answers from memory after', async () => {
+  it('reads once per sign-in, ahead of background lookups, and answers from memory after', async () => {
     const first = await service.get('vrchat')
     expect(first.state).toBe('ready')
     if (first.state !== 'ready') return
@@ -133,7 +133,7 @@ describe('GameFavoritesService', () => {
     await service.get('vrchat')
     await service.get('vrchat')
     expect(adapter.reads).toBe(1)
-    expect(adapter.priorities).toEqual(['background'])
+    expect(adapter.priorities).toEqual(['default'])
   })
 
   it('reads again on a Refresh press only after the cooldown', async () => {
@@ -189,6 +189,25 @@ describe('GameFavoritesService', () => {
     expect(adapter.writes).toHaveLength(2)
   })
 
+  it('answers a second press for the same item from what the first one changed', async () => {
+    await service.get('vrchat')
+    // Pressed twice before the first write is back (the menu was reopened).
+    const first = write('friend:group_1', true)
+    const second = write('friend:group_1', true)
+    expect(await first).toEqual({ ok: true, groups: ['friend:group_1'] })
+    expect(await second).toEqual({ ok: true, groups: ['friend:group_1'] })
+    // One request, and the moot press spent no write spacing.
+    expect(adapter.writes).toHaveLength(1)
+    expect(slept).toEqual([])
+
+    // The same for removing: the second press finds it already gone.
+    const remove = write('friend:group_1', false)
+    const removeAgain = write('friend:group_1', false)
+    expect(await remove).toEqual({ ok: true, groups: [] })
+    expect(await removeAgain).toEqual({ ok: true, groups: [] })
+    expect(adapter.writes).toHaveLength(2)
+  })
+
   it('keeps VRChat rules: one group per friend, and a full group refuses', async () => {
     await service.get('vrchat')
     await write('friend:group_1', true)
@@ -232,6 +251,30 @@ describe('GameFavoritesService', () => {
     service.clearPlatform('vrchat')
     expect(await write('friend:group_0', true)).toEqual({ ok: false, reason: 'stale' })
     expect(adapter.writes).toHaveLength(0)
+  })
+
+  it('peeks at what is loaded without ever starting a read', async () => {
+    expect(service.peek('vrchat')).toBeNull()
+    expect(service.peek('chilloutvr')).toBeNull()
+    expect(adapter.reads).toBe(0)
+
+    await service.get('vrchat')
+    expect(service.peek('vrchat')?.friends[OTHER]).toEqual(['friend:group_0'])
+    expect(service.peek('vrchat')?.groups.friend.map((g) => g.name)).toEqual(['Besties', 'Group 2'])
+
+    enabled = false
+    expect(service.peek('vrchat')).toBeNull()
+    enabled = true
+    adapter.generation += 1
+    expect(service.peek('vrchat')).toBeNull()
+    adapter.generation -= 1
+    adapter.signedIn = false
+    expect(service.peek('vrchat')).toBeNull()
+    adapter.signedIn = true
+    expect(service.peek('vrchat')).not.toBeNull()
+    service.clearPlatform('vrchat')
+    expect(service.peek('vrchat')).toBeNull()
+    expect(adapter.reads).toBe(1)
   })
 
   it('reports a failed write without resending it', async () => {

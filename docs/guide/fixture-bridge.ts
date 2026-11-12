@@ -398,6 +398,16 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       return Promise.resolve()
     },
     getInbox: () => Promise.resolve(structuredClone(inbox)),
+    joinInvite: () => Promise.resolve(denied),
+    getLoginItem: () => Promise.resolve('off'),
+    exportData: () =>
+      Promise.resolve({
+        ok: true,
+        friends: 212,
+        notes: 14,
+        favorites: 31,
+        gameFavoritesMissing: false
+      }),
     dismissInboxItem: ({ platform, id }) => {
       inbox = {
         items: inbox.items.filter((item) => !(item.platform === platform && item.id === id))

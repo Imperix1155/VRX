@@ -54,6 +54,42 @@ describe('VrcAdapter', () => {
       unsubB() // double-unsubscribe is safe
     })
 
+    it('signing out reports the live connection down, so the app status drops its "live"', async () => {
+      const sockets: DrivableVrcSocket[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=authcookie_x'), instantAdmission(), {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+      markSessionEstablished(adapter)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({ token: 'authcookie_x' })))
+      )
+      const status = new AppStatusService()
+      const events: AdapterEvent[] = []
+      const unsubscribe = adapter.subscribe((event) => {
+        events.push(event)
+        if (event.type === 'connection') status.recordConnection(event.platform, event.health)
+      })
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0]!.fire('open')
+      expect(status.snapshot().ws.vrchat).toBe('live')
+      events.length = 0
+
+      adapter.clearSession()
+
+      expect(sockets[0]!.closed).toBe(true)
+      expect(events).toEqual([
+        { type: 'connection', platform: 'vrchat', health: 'down' },
+        { type: 'auth-invalidated', platform: 'vrchat' }
+      ])
+      expect(status.snapshot().ws.vrchat).toBe('down')
+      unsubscribe()
+    })
+
     it('pipeline token: prefers the GET /auth exchange, falls back to the raw cookie value (VRX-146)', async () => {
       const dialed: string[] = []
       const adapter = new VrcAdapter(
@@ -540,6 +576,67 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         thumbnailUrl: null
       }
     ])
+    unsubscribe()
+  })
+
+  it('a burst of location changes looks up a bounded number of worlds, newest first', async () => {
+    const requested: string[] = []
+    const releases: Array<() => void> = []
+    const sockets: DrivableVrcSocket[] = []
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tok' }))
+      const world = /\/worlds\/(wrld_burst_\d+)$/.exec(url)?.[1]
+      if (world === undefined) return Promise.reject(new Error(`unexpected: ${url}`))
+      requested.push(world)
+      return new Promise<Response>((resolve) => {
+        releases.push(() =>
+          resolve(
+            jsonResponse({ name: world, thumbnailImageUrl: null, capacity: 8, shortName: null })
+          )
+        )
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const log = vi.fn()
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
+      socketFactory: () => {
+        const socket = new DrivableVrcSocket()
+        sockets.push(socket)
+        return socket
+      },
+      log
+    })
+    markSessionEstablished(adapter)
+    const unsubscribe = adapter.subscribe(() => {})
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0]!.fire('open')
+
+    for (let hop = 0; hop < 500; hop += 1) {
+      sockets[0]!.fire('message', onlineFrame(`wrld_burst_${hop}`, 'a'))
+    }
+    await vi.waitFor(() => expect(requested).toHaveLength(20))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // The first twenty are in flight; the other 480 never reached the queue.
+    expect(requested).toEqual(Array.from({ length: 20 }, (_, hop) => `wrld_burst_${hop}`))
+
+    releases.splice(0).forEach((release) => release())
+    await vi.waitFor(() => expect(requested).toHaveLength(40))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // Next come the places the friend went last, not the ones long left.
+    expect(requested[20]).toBe('wrld_burst_499')
+    expect(new Set(requested.slice(20))).toEqual(
+      new Set(Array.from({ length: 20 }, (_, index) => `wrld_burst_${480 + index}`))
+    )
+
+    releases.splice(0).forEach((release) => release())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(requested).toHaveLength(40)
+    expect(log).not.toHaveBeenCalledWith(
+      'warn',
+      'vrc adapter: live world enrichment failed',
+      expect.anything()
+    )
     unsubscribe()
   })
 

@@ -10,8 +10,10 @@ import { LABEL_KEYS_BY_SCHEME } from './instanceTypeLabels'
  * Openness-ladder tier per InstanceType (DESIGN.md §6) — keys the pill's `--op-*`
  * color tokens. Friend ladder green→orange (open→locked); groups purple (lighter =
  * more open). `null` = neutral pill (CVR Offline Instance — not joinable).
+ * Not the shared `OpennessTier` (`@shared/types`): that one is the data
+ * model's ladder; this one names the pill's color and adds the group tiers.
  */
-export type OpennessTier =
+export type PillTier =
   | 'public'
   | 'friends-plus'
   | 'friends'
@@ -21,7 +23,7 @@ export type OpennessTier =
   | 'group-plus'
   | 'group'
 
-export const OPENNESS_TIER: Record<InstanceType, OpennessTier | null> = {
+export const OPENNESS_TIER: Record<InstanceType, PillTier | null> = {
   // VRChat types
   public: 'public',
   'friends-plus': 'friends-plus',
@@ -67,7 +69,7 @@ export const PILL_BASE =
 export function instancePillFor(
   instance: Pick<InstanceInfo, 'type' | 'opennessUnknown'>,
   labelScheme: LabelScheme
-): { labelKey: string; tier: OpennessTier | null } {
+): { labelKey: string; tier: PillTier | null } {
   if (instance.opennessUnknown === true) {
     return { labelKey: 'friends.instance.type.unknown', tier: null }
   }

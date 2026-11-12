@@ -45,6 +45,9 @@ describe('design guide account isolation', () => {
           expectedTarget: { worldId: 'synthetic', instanceId: 'synthetic' }
         })
       ).toMatchObject({ ok: false })
+      expect(
+        await bridge.joinInvite({ platform: 'vrchat', id: 'invite:synthetic', mode: 'desktop' })
+      ).toMatchObject({ ok: false })
       expect(await bridge.selfInvite({ platform: 'vrchat', friendId: 'synthetic' })).toMatchObject({
         ok: false
       })

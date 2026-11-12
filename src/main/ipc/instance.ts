@@ -3,9 +3,11 @@ import type { InstanceActionResult, IpcInvoke } from '@shared/ipc'
 import type { JoinMode, Platform } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
+import type { InstanceInfo } from '@shared/types'
 import type { AccountSession } from '../services/accountSession'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { GameHandoff } from '../services/gameHandoff'
+import type { InboxService } from '../services/inbox'
 import type { LocationAuthority } from '../services/locationAuthority'
 import { isTrustedIpcSender } from './security'
 import { isAllowedLaunchUrl } from './url-allowlist'
@@ -16,6 +18,9 @@ const VALID_JOIN_MODES = new Set<JoinMode>(['desktop', 'vr'])
 const JOIN_COOLDOWN_MS = 3_000
 const MAX_TARGET_FIELD_LENGTH = 2_048
 const MAX_FRIEND_ID_LENGTH = 128
+/** `invite:<platform record ID>`, as `InboxService` issues it. */
+const MAX_INVITE_ROW_ID_LENGTH = 160
+const INVITE_ROW_ID_PATTERN = /^invite:[A-Za-z0-9_:.-]+$/
 type InstanceAction = 'join' | 'self-invite'
 
 type InstanceLog = (
@@ -33,6 +38,27 @@ export interface InstanceHandlerOptions {
   gameHandoff?: GameHandoff
   /** Fences a Join to the account that started it. Without it, no fence. */
   accountSession?: Pick<AccountSession, 'resolve'>
+  /** Where invite rows lead. Without it, `join-invite` finds no row. */
+  inbox?: Pick<InboxService, 'inviteTarget'>
+}
+
+/** An invite names a place and nothing else; the launch link needs no more. */
+function inviteInstance(location: { worldId: string; instanceId: string }): InstanceInfo {
+  return {
+    worldId: location.worldId,
+    instanceId: location.instanceId,
+    worldName: null,
+    thumbnailUrl: null,
+    type: 'invite',
+    openness: 'invite',
+    opennessUnknown: true,
+    isGroup: false,
+    groupName: null,
+    groupId: null,
+    groupImageUrl: null,
+    region: null,
+    userCount: null
+  }
 }
 
 /** The pre-2026-10-27 behavior: every Join starts the game through its URL. */
@@ -134,6 +160,55 @@ export function registerInstanceHandlers(
       )
       if (!result.ok) {
         // An invite that went out and failed still waits out the cooldown.
+        if (result.reason === 'invite-failed') permit.complete()
+        return denied(req.platform, result.reason)
+      }
+      permit.complete()
+      return { ok: true, handoff: result.handoff }
+    } finally {
+      permit.release()
+    }
+  })
+
+  // Join the instance an invite row leads to. The row's location was read and
+  // shape-checked by the platform pipeline and never left main; the renderer
+  // only names the row. From there it is the same path as a friend's Join.
+  ipcMain.handle('join-invite', async (event, req: IpcInvoke['join-invite']['req']) => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    if (
+      !req ||
+      !VALID_PLATFORMS.has(req.platform) ||
+      typeof req.id !== 'string' ||
+      req.id.length > MAX_INVITE_ROW_ID_LENGTH ||
+      !INVITE_ROW_ID_PATTERN.test(req.id) ||
+      !VALID_JOIN_MODES.has(req.mode)
+    ) {
+      throw new Error('Invalid join-invite request')
+    }
+    if (!options.isJoinAllowed()) return denied(req.platform, 'joining-disabled')
+    const adapter = adapters.get(req.platform)
+    if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
+    // Gone (hidden, replaced, or another account's), or it named no instance.
+    const target = options.inbox?.inviteTarget(req.platform, req.id) ?? null
+    if (target === null) return denied(req.platform, 'stale')
+    const { location } = target
+
+    const url = adapter.buildJoinUrl(inviteInstance(location), req.mode)
+    if (url === null || !isAllowedLaunchUrl(url)) return denied(req.platform, 'invalid-url')
+
+    const stillCurrent = accountFence(req.platform)
+    if (!stillCurrent()) return denied(req.platform, 'stale')
+    const destination = hotInstanceKey(req.platform, location.instanceId, location.worldId)
+    const permit = joins.acquire(req.platform, destination!, target.senderId)
+    if (!permit) return denied(req.platform, 'cooldown')
+    try {
+      const result = await handoff.deliver(
+        req.platform,
+        url,
+        () => adapter.selfInvite(`${location.worldId}:${location.instanceId}`),
+        stillCurrent
+      )
+      if (!result.ok) {
         if (result.reason === 'invite-failed') permit.complete()
         return denied(req.platform, result.reason)
       }

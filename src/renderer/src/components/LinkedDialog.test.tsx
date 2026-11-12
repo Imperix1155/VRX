@@ -28,6 +28,30 @@ it('opens natively, starts at safe Close and restores its opener', () => {
   expect(document.activeElement).toBe(opener)
   opener.remove()
 })
+it('brings focus back to Close when a step replaces the control that was pressed', () => {
+  const view = render(
+    <LinkedDialog title="Identities" onClose={vi.fn()}>
+      <button>Link an account</button>
+    </LinkedDialog>
+  )
+  screen.getByRole('button', { name: 'Link an account' }).focus()
+  // The next step removes that button, which drops focus to the page.
+  view.rerender(
+    <LinkedDialog title="Link an account" onClose={vi.fn()}>
+      <input aria-label="Search" />
+    </LinkedDialog>
+  )
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+
+  // Focus that is still inside the dialog is left where the user put it.
+  screen.getByRole('textbox', { name: 'Search' }).focus()
+  view.rerender(
+    <LinkedDialog title="Link these accounts?" onClose={vi.fn()}>
+      <input aria-label="Search" />
+    </LinkedDialog>
+  )
+  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search' }))
+})
 it('owns Escape and does not let dialog interactions close the drawer beneath it', () => {
   const close = vi.fn()
   const outer = vi.fn()

@@ -4,8 +4,9 @@
  *
  * VRX shows what arrived while it was open. Nothing here can change the
  * user's account: answering a friend request is a separate, pressed action
- * (`friendActions.ts`), and invites are answered in the game. Items live only
- * in main's memory and never persist.
+ * (`friendActions.ts`). An invite that named its instance can be joined with
+ * a press (`join-invite`), which opens the game like any other Join. Items
+ * live only in main's memory and never persist.
  *
  * ⚠️ Pure types and values, bundled into the sandboxed renderer.
  */
@@ -15,6 +16,16 @@ export const INBOX_KINDS = ['invite', 'invite-request', 'friend-request'] as con
 /** `invite`: the sender invited the user. `invite-request`: the sender asked
  *  the user for an invite. `friend-request`: the sender wants to be friends. */
 export type InboxKind = (typeof INBOX_KINDS)[number]
+
+/**
+ * Where an invite leads. Main only: it is kept beside the row and never sent
+ * to the renderer, which gets `InboxItem.canJoin` instead.
+ */
+export interface InboxLocation {
+  /** VRChat `wrld_…`. ChilloutVR's world GUID, or '' when the invite named none. */
+  worldId: string
+  instanceId: string
+}
 
 /** What a pipeline read from one wire record. Bounded and validated there. */
 export interface InboxEntry {
@@ -26,6 +37,9 @@ export interface InboxEntry {
   senderName: string | null
   /** Invites only: the world named in the invite. */
   worldName: string | null
+  /** Invites only: the instance the invite leads to, when it named a
+   *  well-formed one. Absent or null means the row has no Join. */
+  location?: InboxLocation | null
 }
 
 /**
@@ -47,6 +61,9 @@ export interface InboxItem {
   worldName: string | null
   /** Main's wall-clock time (ms) when VRX first received it. */
   receivedAt: number
+  /** True on an invite whose instance main knows, so the row can offer Join.
+   *  The instance itself stays in main. */
+  canJoin?: boolean
 }
 
 /** Newest first across both platforms. */
@@ -59,7 +76,7 @@ export const MAX_INBOX_ITEMS_PER_PLATFORM = 50
 /** Dismissed record IDs remembered per platform, so a socket replay stays hidden. */
 export const MAX_INBOX_DISMISSED_PER_PLATFORM = 200
 /** Upper bounds for wire strings. Longer values are cut (names) or rejected (IDs). */
-export const INBOX_ID_MAX_LENGTH = 128
+const INBOX_ID_MAX_LENGTH = 128
 export const INBOX_NAME_MAX_LENGTH = 64
 export const INBOX_WORLD_NAME_MAX_LENGTH = 128
 /** Records read from one wire frame; the rest of an oversized frame is ignored. */
