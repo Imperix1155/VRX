@@ -412,7 +412,16 @@ are Synthetic.
   the field list follows the community
   [instance schema](https://github.com/vrchatapi/specification/blob/master/openapi/components/schemas/Instance.yaml).
 - **Room evidence:** occupancy prefers `n_users`, then `userCount`. `capacity`,
-  `region` and `groupName` are optional. A room is joinable only when the
+  `region` and `groupName` are optional. `displayName` and `description` are
+  optional instance copy: whitespace is collapsed, other control characters are
+  dropped, and the text is clipped (80 and 280 code points). A missing, blank
+  or non-string value is null. `dominantLanguage` is kept when
+  `isBcp47LanguageTag` accepts it, including a regional tag such as `pt-BR`.
+  The row names that tag with `languageTagLabel`. Anything else is null.
+  `categoryId`, `vibeIds`, `displayVibeId`,
+  `creatorId` and `ownerId` are not shown. The community spec still describes
+  `ownerId` as null for a public instance, and the full `Instance` schema has
+  no owner display name. A room is joinable only when the
   response `type` and `groupAccessType` agree with the id's access, the id is not
   age-gated, and these own fields hold exactly: `active: true`, `full: false`,
   `hasCapacityForYou: true`, `roleRestricted: false`, `ageGate: false`,

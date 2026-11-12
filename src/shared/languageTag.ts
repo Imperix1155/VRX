@@ -1,9 +1,8 @@
 /**
  * Names for VRChat instance language tags, which the platform now sends as
  * BCP-47 (`en`, `pt-BR`) on `dominantLanguage`, `languages` and
- * `creationLanguages`. Instance language display is not wired on this branch.
- * The sheet that shows those fields should call `languageTagLabel` so both
- * platforms' tags go through one helper.
+ * `creationLanguages`. Explore room rows name `dominantLanguage` with
+ * `languageTagLabel`.
  *
  * ⚠️ Pure values — bundled into the sandboxed renderer. No node imports.
  */

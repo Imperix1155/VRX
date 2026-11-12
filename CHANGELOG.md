@@ -9,11 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Explore: a VRChat public room shows its instance name, a short description
+  and its language, when VRChat sends them. The language is the tag VRChat
+  sends, including one like pt-BR. A room without those still looks the same.
+  ChilloutVR rooms do not have them.
 - Rate a VRChat world from its sheet. Like and Dislike show your own rating,
   and pressing the one you already chose clears it. A change that does not
   go through puts the previous rating back and says so, then the message
   clears. ChilloutVR worlds have no rating, so those buttons are not on
   that sheet. There is no public like count.
+
+### Changed
+
+- The desktop shell now uses Electron 45.2.3. The app build uses Vite 8.3.7
+  and the TypeScript lint rules from typescript-eslint 8.72.2.
 
 ## [1.4.4-dev.3] - 2026-11-11
 

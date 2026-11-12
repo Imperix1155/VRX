@@ -53,6 +53,10 @@ export type ExplorePublicAccess = 'public' | 'group-public'
 export type ExploreJoinDenial =
   'full' | 'restricted' | 'unavailable' | 'unknown' | 'stale' | 'busy' | 'joining-disabled'
 
+/** Code-point caps for instance copy that crosses into the renderer. */
+export const EXPLORE_INSTANCE_TITLE_MAX = 80
+export const EXPLORE_INSTANCE_DESCRIPTION_MAX = 280
+
 export type ExploreRoomAction =
   { state: 'available'; selectionRef: string } | { state: 'disabled'; reason: ExploreJoinDenial }
 
@@ -66,6 +70,18 @@ export interface ExploreRoom {
   occupancy: ExploreCount
   capacity: number | null
   full: boolean | null
+  /**
+   * User-chosen instance name from a room response. Plain text, never a chip.
+   * Null when the platform omitted it. ChilloutVR has no equivalent.
+   */
+  instanceTitle: string | null
+  /** Instance description, already clipped. Null when omitted. */
+  instanceDescription: string | null
+  /**
+   * BCP-47 tag from the instance (`en`, `pt-BR`), or null when missing or not
+   * a well-formed tag. The row names it with `languageTagLabel`.
+   */
+  spokenLanguage: string | null
   action: ExploreRoomAction
 }
 

@@ -20,6 +20,8 @@ through `@shared`.
   friend request answers and sends, their pacing values and typed results.
 - `explore.ts`: display-only discovery values, opaque main-issued `worldRef`
   and `selectionRef`, typed refresh reasons, and the 2/4/6 world totals.
+  A VRChat room may also carry an instance title, description and spoken
+  language.
   `exploreRanking.ts`: pure per-platform ranking and balanced cross-platform
   selection.
 - `community.ts`: read-only profile, search, world-list, players-online and
