@@ -1,12 +1,10 @@
 import type { InboxItem } from '@shared/inbox'
 import type { Platform } from '@shared/types'
+import type { Translate } from '../i18n/translate'
 import type { PlatformFilter } from '../stores/friends'
 
 /** The row's second line: what the sender did, in the UI language. */
-export function inboxActionText(
-  item: InboxItem,
-  t: (key: string, vars?: Record<string, unknown>) => string
-): string {
+export function inboxActionText(item: InboxItem, t: Translate): string {
   switch (item.kind) {
     case 'invite':
       return item.worldName === null

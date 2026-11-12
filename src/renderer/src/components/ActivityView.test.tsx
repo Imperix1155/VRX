@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ActivityEntry } from '@shared/activity'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import { activityKey, subscribeActivity } from '../queries/activity'
 import { useSettingsStore } from '../stores/settings'
 import { useFriendsStore } from '../stores/friends'
@@ -43,8 +44,6 @@ vi.stubGlobal(
     disconnect = vi.fn()
   }
 )
-
-const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
 
 const alice = fullFriend('Alice', 'vrchat')
 const kai = fullFriend('Kai', 'chilloutvr')

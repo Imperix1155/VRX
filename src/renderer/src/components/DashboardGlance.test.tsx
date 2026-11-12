@@ -12,7 +12,7 @@ import type { AvatarItem, AvatarLibraryResult, CurrentAvatarResult } from '@shar
 import type { InboxItem } from '@shared/inbox'
 import type { AuthStatus, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
-import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import { avatarLibraryQueryKey } from '../queries/avatarLibrary'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
@@ -37,7 +37,6 @@ vi.mock('../queries/auth', async (importOriginal) => ({
   }
 }))
 
-const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
 const platformName = (platform: Platform): string =>
   msg(platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
 

@@ -19,7 +19,7 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { InboxItem, InboxSnapshot } from '@shared/inbox'
 import { DEFAULT_SETTINGS } from '@shared/settings'
-import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
@@ -42,7 +42,6 @@ vi.mock('../queries/auth', async (importOriginal) => ({
   })
 }))
 
-const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
 const NOW = Date.UTC(2026, 10, 11, 8, 0, 0)
 
 const item = (overrides: Partial<InboxItem> = {}): InboxItem => ({
