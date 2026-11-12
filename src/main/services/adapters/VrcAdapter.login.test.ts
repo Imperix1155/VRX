@@ -1384,7 +1384,8 @@ describe('VrcAdapter', () => {
           location: 'wrld_account_a:1'
         })
       )
-      expect(events).toEqual([])
+      // Only the stopped socket's own "down"; nothing of account A's gets through.
+      expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'down' }])
       expect(alerts).toEqual([])
 
       expect(await adapter.verify2fa('123456')).toEqual({

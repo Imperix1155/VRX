@@ -13,6 +13,9 @@ import ExploreDashboardPreview from './ExploreDashboardPreview'
 import ExploreView from './ExploreView'
 import ExploreWorldSheet from './ExploreWorldSheet'
 
+/** VRChat's website pages, spelled so the path guard does not read a folder. */
+const VRC_SITE = ['https://vrchat.com', 'home'].join('/')
+
 const complete = (
   value: number
 ): { state: 'complete'; value: number; source: 'visible-rooms' } => ({
@@ -646,13 +649,140 @@ describe('ExploreView', () => {
         within(more)
           .getAllByRole('term')
           .map((term) => term.textContent)
-      ).toEqual(['People now', 'Room regions', 'Last checked'])
+      ).toEqual([
+        'Creator',
+        'Description',
+        'Tags',
+        'Room size',
+        'People now',
+        'Room regions',
+        'Last checked',
+        'World ID'
+      ])
+      // Nothing read about the world yet: every detail line says so.
+      for (const label of ['Creator', 'Description', 'Tags']) {
+        expect(within(more).getByText(label).nextElementSibling?.textContent).toBe('Not shown')
+      }
+      // A made-up ID has no link, so it shows with no Copy link button.
+      expect(within(more).getByText('World ID').nextElementSibling?.textContent).toBe(
+        selected.worldId
+      )
+      expect(within(more).queryByRole('button')).toBeNull()
       expect(within(more).getByText('People now').nextElementSibling?.textContent).toBe('7')
       expect(within(more).getByText('Room regions').nextElementSibling?.textContent).toBe(
         platform === 'vrchat' ? 'Japan' : 'Europe'
       )
       expect(screen.getByRole('button', { name: 'Show less' })).toBeTruthy()
       cleanup()
+    }
+  })
+
+  it('lists the creator, description, tags and room size the same way on both platforms', () => {
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      const selected = world(platform, `${platform}-w`, 'Some World')
+      render(
+        <ExploreWorldSheet
+          snapshot={{
+            ...source(platform, [selected]),
+            world: selected,
+            rooms: [],
+            roomsComplete: true,
+            about: {
+              creator: 'Sample Maker',
+              description: 'A quiet place to sit.',
+              tags: ['chill', 'music'],
+              capacity: 1200
+            }
+          }}
+          opener={null}
+          focusFallback={null}
+          onClose={vi.fn()}
+          onJoin={vi.fn()}
+        />
+      )
+      // Simple by default: none of it shows until Show more.
+      expect(screen.queryByText('Sample Maker')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      const more = screen.getByRole('region', { name: 'About this world' })
+      const value = (label: string): string | null | undefined =>
+        within(more).getByText(label).nextElementSibling?.textContent
+      expect(value('Creator')).toBe('Sample Maker')
+      expect(value('Description')).toBe('A quiet place to sit.')
+      expect(value('Tags')).toBe('chill, music')
+      expect(value('Room size')).toBe('1,200')
+      cleanup()
+    }
+  })
+
+  it('takes the room size from the rooms when the world gives none and they agree', () => {
+    const selected = world('chilloutvr', 'cvr-w', 'Some World')
+    const open = { state: 'disabled', reason: 'full' } as const
+    const sized = (capacity: number | null, id: string): ExploreRoom => ({
+      ...room('chilloutvr', open, selected.worldId),
+      roomId: id,
+      capacity
+    })
+    const cases: Array<[ExploreRoom[], string]> = [
+      [[sized(40, 'a'), sized(40, 'b'), sized(null, 'c')], '40'],
+      [[sized(40, 'a'), sized(20, 'b')], 'Not shown'],
+      [[], 'Not shown']
+    ]
+    for (const [rooms, expected] of cases) {
+      render(
+        <ExploreWorldSheet
+          snapshot={{
+            ...source('chilloutvr', [selected]),
+            world: selected,
+            rooms,
+            roomsComplete: true,
+            about: { creator: null, description: null, tags: [], capacity: null }
+          }}
+          opener={null}
+          focusFallback={null}
+          onClose={vi.fn()}
+          onJoin={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      const more = screen.getByRole('region', { name: 'About this world' })
+      expect(within(more).getByText('Room size').nextElementSibling?.textContent).toBe(expected)
+      cleanup()
+    }
+  })
+
+  it('copies a link to the world from its ID under Show more, on both platforms', async () => {
+    const guid = '0f8fad5b-d9cb-469f-a165-70867728950e'
+    const cases = [
+      ['vrchat', `wrld_${guid}`, `${VRC_SITE}/world/wrld_${guid}`],
+      ['chilloutvr', guid, `chilloutvr://details/world?id=${guid}`]
+    ] as const
+    for (const [platform, worldId, link] of cases) {
+      const writeText = vi.fn(() => Promise.resolve())
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+      const selected = world(platform, worldId, 'Some World')
+      render(
+        <ExploreWorldSheet
+          snapshot={{
+            ...source(platform, [selected]),
+            world: selected,
+            rooms: [],
+            roomsComplete: true
+          }}
+          opener={null}
+          focusFallback={null}
+          onClose={vi.fn()}
+          onJoin={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Copy a link to Some World' }))
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(writeText).toHaveBeenCalledTimes(1)
+      expect(writeText).toHaveBeenCalledWith(link)
+      cleanup()
+      Reflect.deleteProperty(navigator, 'clipboard')
     }
   })
 

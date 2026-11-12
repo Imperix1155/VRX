@@ -33,6 +33,29 @@ const members = [
 const OVERSIZED_PROFILE_TEST_TIMEOUT_MS = 30_000
 
 describe('strict link profile storage', () => {
+  it('keeps a damaged file under a new name and lets links start again', () => {
+    const dir = directory()
+    writeFileSync(join(dir, 'link-graph.json'), '{"storeFormatVersion":2,"people":{')
+    const graph = new LinkGraphStore(new LinkProfileStorage(dir), () => 'fresh')
+    expect(() => graph.snapshot()).toThrow()
+
+    graph.recoverDamagedFile()
+
+    const files = readdirSync(dir)
+    const kept = files.find((name) => /^link-graph\.corrupt-\d+\.json$/.test(name))
+    expect(files).not.toContain('link-graph.json')
+    expect(readFileSync(join(dir, kept!), 'utf8')).toBe('{"storeFormatVersion":2,"people":{')
+    expect(graph.snapshot().profiles).toEqual([])
+    graph.apply({
+      kind: 'replace',
+      members: [...members],
+      defaultName: 'Fresh',
+      preferredPlatform: 'vrchat',
+      expectedPeople: []
+    })
+    expect(graph.snapshot().profiles.map((person) => person.id)).toEqual(['fresh'])
+  })
+
   it(
     'rejects oversized valid profiles before replacing a readable file',
     { timeout: OVERSIZED_PROFILE_TEST_TIMEOUT_MS },

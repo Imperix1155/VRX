@@ -10,7 +10,7 @@ import { useContext, useState } from 'react'
 import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query'
 import type { ConnectionHealth, Platform } from '@shared/types'
 
-export const APP_STATUS_POLL_MS = 7_500
+const APP_STATUS_POLL_MS = 7_500
 
 export const appStatusQueryKey = ['app-status'] as const
 
@@ -19,7 +19,7 @@ export type ConnectionHealthByPlatform = Readonly<Record<Platform, ConnectionHea
 /** What the dot shows before main has answered, or when its answer is unreadable. */
 const UNKNOWN_HEALTH: ConnectionHealthByPlatform = { vrchat: 'down', chilloutvr: 'down' }
 
-export function parseConnectionHealth(value: unknown): ConnectionHealth {
+function parseConnectionHealth(value: unknown): ConnectionHealth {
   return value === 'live' || value === 'reconnecting' || value === 'down' ? value : 'down'
 }
 

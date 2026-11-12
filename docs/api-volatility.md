@@ -57,6 +57,11 @@ only note where they differ.
   not count at all. VRChat world and group lookups count only 401 and 403
   answers; a missing, failing or unreadable item never opens the circuit.
   VRChat counts 403s; ChilloutVR does not, because it confirms 403s itself.
+  A VRChat self-invite counts only 401 and 403 answers, so refused invites
+  cannot pause the platform. While the circuit is open, requests fail with
+  `CircuitOpenError` (the friends read reports it as a wait, not a failure),
+  the adapter logs the pause once, and the sign-in status check still goes
+  out, so a session the platform ended is noticed during a pause.
 - Responses are validated with Zod. Lists are validated record by record: a
   malformed record is skipped and counted, and its valid siblings survive.
 - A roster with any skipped record, failed page or cap hit is `partial`. A
@@ -241,7 +246,9 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 
 - **Bucket probe:** each read first needs the three bucket arrays from
   `GET /auth/user`, unless fresh reused buckets exist. All three must be arrays
-  of strings; explicitly empty arrays are valid.
+  of strings; explicitly empty arrays are valid. While the live socket is
+  still connecting, a read never reuses saved buckets: it asks for its own, so
+  nothing it holds is older than the socket.
 - **Pages:** `?offset=<n>&n=100&offline=false`, then the same with
   `offline=true`. A page must be a JSON array. Records are validated one by one.
 - **Record schema:** `id` and `displayName` are required. Missing, null or
@@ -385,6 +392,10 @@ are Synthetic.
   (non-negative integer), `thumbnailImageUrl` and `popularity` are optional.
   Duplicates are dropped. A world detail must echo the requested `id`. More than
   100 tuples makes the visible-room count partial.
+- **World details (Source-derived from VRCX):** the same world response may
+  carry `authorName`, `description`, `capacity` and `tags`. All four are
+  optional and bounded; only `author_tag_<word>` tags are shown, without the
+  prefix. A missing or odd value shows "Not shown".
 - **Strict public grammar for room ids:** the base is `[A-Za-z0-9_-]{1,80}` and
   not a sentinel such as `private`. Each modifier may appear once. Allowed
   modifiers are `region` (`us`, `use`, `usw`, `eu`, `jp`), `nonce` (with a
@@ -481,8 +492,9 @@ cached in main for 5 minutes; nothing runs on a timer.
   shared queue, and the group sheet reuses the same copy. Both platforms send
   the banner in the groups list already, so no extra API read is made.
 - **When it breaks:** a non-array reply (or a non-number for `/visits`) is
-  unavailable; a 404 profile is not found. A 401 emits `auth-invalidated`; a
-  429 surfaces as rate-limited.
+  unavailable. Only a 404 means a profile is not found; a profile reply VRX
+  cannot read, or one naming someone else, is a failed load the user can try
+  again. A 401 emits `auth-invalidated`; a 429 surfaces as rate-limited.
 
 ### Friend notes: `GET /users/{userId}` and `POST /userNotes`
 
@@ -669,7 +681,14 @@ or write has been captured yet.
   `notification` needs string `id`, `type` and `senderUserId`.
   `senderUsername` is optional. An invite's `details.worldName` is read whether
   `details` is an object (Pipeline) or a JSON string (REST); unreadable details
-  leave the world unnamed. Other notification types (messages, votes to kick,
+  leave the world unnamed. An invite's `details.worldId` is the full location,
+  `wrld_…:<instance>[~tags]` (Source-derived, VRCX parses it the same way).
+  VRX keeps it in main only when both halves have the shape a launch link
+  allows, and uses it for the row's Join: the same `vrchat://launch` link and
+  hand-off as a friend's Join, on a press. If it is missing or malformed the
+  row simply has no Join. With VRChat already open and no URL pipe, that Join
+  sends one self-invite to the location, as VRCX offers for an invite's
+  location; the platform may refuse it, which reads as `invite-failed`. Other notification types (messages, votes to kick,
   responses, group notices) are ignored. `hide-notification` and
   `see-notification` carry a bare, non-JSON ID, so those types skip the second
   JSON parse. VRX answers only friend requests, and only on a press:
@@ -771,6 +790,7 @@ main-only base `https://api.chilloutvr.net`. The WebSocket is
 | `/users/ws` WebSocket             | Live presence                            | Live 2026-07-07                       | Friends stay offline          |
 | Image hosts                       | Pictures                                 | Live 2026-07-16                       | Placeholder                   |
 | `chilloutvr://instance/join` link | Join                                     | Documented                            | Join denied before launch     |
+| `chilloutvr://details/…` links    | Copy link (clipboard only)               | Source-derived                        | The pasted link does nothing  |
 | Local session files               | Sign-in from this PC (button)            | Source-derived, checked 2026-08-24    | No import, direct sign-in     |
 
 ### Session values and headers
@@ -832,7 +852,8 @@ main-only base `https://api.chilloutvr.net`. The WebSocket is
   It carries no presence or instance data.
 - **Parses:** `id` must be a GUID; it is trimmed and lowercased, the same as on
   the WebSocket. `name` is required. A drifted `imageUrl` becomes null.
-  `categories` is ignored. One request per refresh, no retry.
+  `categories` is ignored. One request per refresh, no retry. An id listed
+  twice becomes one friend; the later record wins.
 - **Defaults:** every friend starts offline with no instance, status or trust
   rank. Main keeps the latest names so id-only socket entries can produce
   readable notifications.
@@ -918,6 +939,10 @@ path. Each read is one request with no retry. They are Synthetic.
   detail must echo the requested `id`. Room ids must match the
   `i+<16 hex>-<6 hex>-<6 hex>-<8 hex>` grammar; any other entry makes coverage
   incomplete.
+- **World details (Source-derived from CVRX):** the same world response may
+  carry `author.name`, `description` and a `tags` array of words. All are
+  optional and bounded. It carries no room size; a room's `maxPlayer` gives
+  that. A missing or odd value shows "Not shown".
 - **Rooms:** `id` and `world.id` must equal the target. Access comes from
   `instanceSettingPrivacy`, `privacy` or both. Only the exact strings `Public` and
   `GroupPublic` qualify, in any case. When both fields exist they must agree.
@@ -999,8 +1024,9 @@ and 5-minute cache rules apply.
   featured badge named `No badge featured` is skipped.
 - **Search text** is one path step, URL-encoded. Text that is only `.` or `..`
   can't be one, so it finds nothing and sends nothing.
-- **When it breaks:** a reply of the wrong shape is unavailable. Auth errors
-  follow the data-path rules above; a 429 surfaces as rate-limited.
+- **When it breaks:** a reply of the wrong shape is unavailable. Only a 404
+  means a profile is not found. Auth errors follow the data-path rules above;
+  a 429 surfaces as rate-limited.
 
 ### Friend notes: `GET /users/{userId}` and `POST /users/{userId}/note`
 
@@ -1078,12 +1104,16 @@ response or write has been captured yet.
 | Anything else            | Dropped                                                                         |
 
 - **Inbox frames (🟡 Source-derived from CVRX and chilloutvr_rs, not yet seen
-  live):** `15` is `[{ Id, User: { Id, Name }, World: { Name }, InstanceName }]`,
+  live):** `15` is
+  `[{ Id, User: { Id, Name }, World: { Id, Name }, InstanceId, InstanceName }]`,
   `20` is `[{ Id, Sender: { Id, Name } }]` and `25` is `[{ Id, Name }]` where
   `Id` is the requesting user. Both casings are read, a single object counts as
   a one-item list, and at most 50 records are read per frame. An invite with no
-  world name falls back to `InstanceName` without its ` (#n)` suffix. Bad
-  records are skipped. A frame never removes rows, because it is unconfirmed
+  world name falls back to `InstanceName` without its ` (#n)` suffix. An
+  invite's `InstanceId` (Source-derived from CVRX) is kept in main only in the
+  documented `i+…` shape and gives the row its Join, through the same
+  `chilloutvr://instance/join` link as a friend's Join; without it the row has
+  no Join. Bad records are skipped. A frame never removes rows, because it is unconfirmed
   whether a frame lists everything still open. For the same reason, rows that
   arrive in the first 10 s after a connect show without an alert
   (`INBOX_CONNECT_QUIET_MS`): if the server lists open records on connect, they
@@ -1162,6 +1192,18 @@ response or write has been captured yet.
   `startInVR` equal to `true` or `false`.
 - **When it breaks:** the join is denied with `invalid-url` before
   `shell.openExternal`.
+
+### Copy links: `chilloutvr://details/…`
+
+- **Source-derived from CVRX:** its copy buttons write
+  `chilloutvr://details/user?id=<guid>`, `chilloutvr://details/world?id=<guid>`
+  and `chilloutvr://details/instance?id=<i+… id, with + as %2B>`, which the
+  game opens as its own details pages. Not checked against a live game.
+- **Builds** them in [shareLinks.ts](../src/shared/shareLinks.ts) only from IDs
+  with the documented shapes, for the clipboard. VRX never opens one, and they
+  are not part of the launch allowlist.
+- **When it breaks:** a pasted link does nothing in the game. Nothing in VRX
+  depends on it.
 
 ### Local session import files
 

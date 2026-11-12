@@ -24,7 +24,7 @@ export const CVR_WS_URL = 'wss://api.chilloutvr.net/1/users/ws' as const
 /** Friend-list REST reconcile interval (ms) — the slow safety-net cadence
  *  (minutes, not seconds), NOT a live poll: the WS drives live updates
  *  (VRX-146/147). User-configurable (VRX-77). */
-export const FRIENDS_RECONCILE_MS = 300_000
+const FRIENDS_RECONCILE_MS = 300_000
 /** User-selectable friends-list background reconcile cadence (VRX-77). The
  *  default is `1h`, VRCX's own full friend-list cadence: a VRChat reconcile
  *  re-reads every online and offline roster page, so a short default multiplies

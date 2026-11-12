@@ -445,7 +445,7 @@ export default function Guide(): React.JSX.Element {
             name="friends"
             title="Friends"
             note="The list sits on a frosted back panel. Section headers, search and every row are their own glass layer; rails and pills are chips on top. Failure states name the platform that could not refresh."
-            source="FriendsList.tsx · FriendsSourceNotice.tsx · Avatar.tsx"
+            source="FriendsList.tsx · FriendRow.tsx · FriendsSectionHeader.tsx · FriendsSourceNotice.tsx · Avatar.tsx"
             variants={friendsScenarios}
             height="tall"
             paired

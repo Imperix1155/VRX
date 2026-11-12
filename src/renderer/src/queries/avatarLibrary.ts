@@ -23,7 +23,7 @@ export function avatarLibraryQueryKey(
   return ['avatar-library', platform, accountId] as const
 }
 
-export function avatarDetailsQueryKey(
+function avatarDetailsQueryKey(
   platform: Platform,
   accountId: string | null,
   avatarId: string | null
@@ -41,7 +41,7 @@ export const AVATAR_LIBRARY_STALE_MS = 5 * 60_000
  * Keys carry the account, and an identity boundary removes the platform's
  * entries (`useLiveFriendEvents`), so nothing shows under another account.
  */
-export const AVATAR_LIBRARY_GC_MS = Infinity
+const AVATAR_LIBRARY_GC_MS = Infinity
 
 /** Every avatar-library, avatar-details and Dashboard worn-avatar entry of one platform, any account. */
 export function avatarQueryKeysForPlatform(

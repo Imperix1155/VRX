@@ -385,4 +385,93 @@ describe('InboxService friend request lookup', () => {
     expect(r.inbox.dismiss('vrchat', 'friend-request:not_fr')).toBe(true)
     expect(r.inbox.friendRequest('vrchat', 'friend-request:not_fr')).toBeNull()
   })
+
+  describe('where an invite leads', () => {
+    const location = { worldId: 'wrld_1', instanceId: '123~private(usr_a)' }
+
+    it('keeps the instance in main and only tells the row it can be joined', () => {
+      const r = rig()
+      r.inbox.consume(add('vrchat', entry({ location })))
+      const [item] = r.inbox.snapshot().items
+      expect(item?.canJoin).toBe(true)
+      expect(JSON.stringify(item)).not.toContain('wrld_1')
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_1')).toEqual({
+        location,
+        senderId: 'usr_a'
+      })
+    })
+
+    it('has no Join for an invite without an instance, or for other kinds', () => {
+      const r = rig()
+      r.inbox.consume(
+        add(
+          'vrchat',
+          entry(),
+          entry({ sourceId: 'not_2', senderId: 'usr_b', kind: 'invite-request', location }),
+          entry({ sourceId: 'not_3', senderId: 'usr_c', kind: 'friend-request', location })
+        )
+      )
+      expect(r.inbox.snapshot().items.every((item) => item.canJoin === undefined)).toBe(true)
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_1')).toBeNull()
+      expect(r.inbox.inviteTarget('vrchat', 'invite-request:not_2')).toBeNull()
+      expect(r.inbox.inviteTarget('vrchat', 'friend-request:not_3')).toBeNull()
+    })
+
+    it('answers per platform and forgets a hidden or replaced invite', () => {
+      const r = rig()
+      r.inbox.consume(add('vrchat', entry({ location })))
+      expect(r.inbox.inviteTarget('chilloutvr', 'invite:not_1')).toBeNull()
+      const newer = { worldId: 'wrld_2', instanceId: '9' }
+      r.inbox.consume(add('vrchat', entry({ sourceId: 'not_9', location: newer })))
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_1')).toBeNull()
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_9')?.location).toEqual(newer)
+      r.inbox.dismiss('vrchat', 'invite:not_9')
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_9')).toBeNull()
+    })
+
+    it('follows a replay that adds or drops the instance', () => {
+      const r = rig()
+      r.inbox.consume(add('vrchat', entry()))
+      r.inbox.consume(add('vrchat', entry({ location })))
+      expect(r.inbox.snapshot().items[0]?.canJoin).toBe(true)
+      r.inbox.consume(add('vrchat', entry()))
+      expect(r.inbox.snapshot().items[0]?.canJoin).toBeUndefined()
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_1')).toBeNull()
+    })
+
+    it('never swaps one place for another on a replay: the row keeps what it showed', () => {
+      const r = rig()
+      r.inbox.consume(add('vrchat', entry({ location, worldName: 'Safe Lounge' })))
+      const elsewhere = { worldId: 'wrld_9', instanceId: '999' }
+      r.inbox.consume(
+        add('vrchat', entry({ location: elsewhere, worldName: 'Other Place', senderName: 'Ari 2' }))
+      )
+      const [item] = r.inbox.snapshot().items
+      // The person's name may refresh; the place and its name stay together.
+      expect(item?.senderName).toBe('Ari 2')
+      expect(item?.worldName).toBe('Safe Lounge')
+      expect(item?.canJoin).toBe(true)
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_1')?.location).toEqual(location)
+
+      // The same place again may still refresh the world's name.
+      r.inbox.consume(add('vrchat', entry({ location, worldName: 'Safe Lounge 2' })))
+      expect(r.inbox.snapshot().items[0]?.worldName).toBe('Safe Lounge 2')
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_1')?.location).toEqual(location)
+    })
+
+    it('hands out a copy, so a caller cannot change the row', () => {
+      const r = rig()
+      r.inbox.consume(add('vrchat', entry({ location })))
+      const target = r.inbox.inviteTarget('vrchat', 'invite:not_1')
+      if (target) target.location.instanceId = 'changed'
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_1')?.location).toEqual(location)
+    })
+
+    it('drops the instance at an account boundary', () => {
+      const r = rig()
+      r.inbox.consume(add('vrchat', entry({ location })))
+      r.inbox.resetPlatform('vrchat')
+      expect(r.inbox.inviteTarget('vrchat', 'invite:not_1')).toBeNull()
+    })
+  })
 })

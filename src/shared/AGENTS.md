@@ -33,6 +33,8 @@ through `@shared`.
   hot-membership, and hot-grouping predicates.
 - `backgroundPicture.ts`: which background pictures main refuses and which
   Settings warns about (size and shape against the landscape window).
+- `shareLinks.ts`: the copyable link to a person, world or instance, built
+  from shape-checked IDs. Clipboard text only, never a launch or open input.
 - More vocabularies for user actions, with their limits, pacing values and
   typed results where they have them: `accountNotes.ts` (note sync),
   `favorites.ts` (local stars),

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { AvatarItem } from '@shared/avatarLibrary'
 import { useAvatar } from '../hooks/useAvatar'
 
-export interface AvatarCardProps {
+interface AvatarCardProps {
   avatar: AvatarItem
   /** The user wears this avatar now. */
   worn: boolean

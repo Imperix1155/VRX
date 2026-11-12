@@ -9,6 +9,9 @@ import { JoinCoordinator } from '../services/joinCoordinator'
 import { GameHandoff, type GameHandoffSettings } from '../services/gameHandoff'
 import { AccountSession } from '../services/accountSession'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
+import { InboxService } from '../services/inbox'
+import { buildJoinUrl as buildVrcJoinUrl } from '../services/adapters/vrchat/buildJoinUrl'
+import { buildCvrJoinUrl } from '../services/adapters/cvr/buildCvrJoinUrl'
 
 const handlers = new Map<string, (event: unknown, req: unknown) => unknown>()
 const openExternal = vi.hoisted(() => vi.fn())
@@ -743,5 +746,248 @@ describe('self-invite outside a Join', () => {
       call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
     ).resolves.toEqual({ ok: false, reason: 'invite-failed' })
     expect(adapter.selfInvite).not.toHaveBeenCalled()
+  })
+})
+
+describe('join-invite handler', () => {
+  let inbox: InboxService
+  let cvrAdapter: IPlatformAdapter
+  let accountSession: AccountSession
+  let running: Set<Platform>
+  let sendToVrchat: ReturnType<
+    typeof vi.fn<(url: string, stillCurrent: () => boolean) => Promise<boolean>>
+  >
+  let allowed: boolean
+  const vrcLocation = {
+    worldId: 'wrld_example',
+    instanceId: '12345~private(usr_0f8fad5b-d9cb-469f-a165-70867728950e)~region(eu)'
+  }
+  const vrcUrl = `vrchat://launch?ref=vrchat.com&id=${vrcLocation.worldId}:${vrcLocation.instanceId}`
+  const cvrLocation = { worldId: '', instanceId: 'i+0123456789abcdef-012345-6789ab-01234567' }
+  const cvrUrl = (vr: boolean): string =>
+    `chilloutvr://instance/join?instanceId=${encodeURIComponent(cvrLocation.instanceId)}&startInVR=${vr}`
+
+  function invite(
+    platform: Platform,
+    location: typeof vrcLocation | null,
+    sourceId = 'not_1'
+  ): void {
+    inbox.consume({
+      type: 'inbox',
+      platform,
+      change: {
+        op: 'add',
+        entries: [
+          { sourceId, kind: 'invite', senderId: 'usr_a', senderName: 'A', worldName: 'W', location }
+        ]
+      }
+    })
+  }
+  const req = (
+    overrides: Partial<IpcInvoke['join-invite']['req']> = {}
+  ): IpcInvoke['join-invite']['req'] => ({
+    platform: 'vrchat',
+    id: 'invite:not_1',
+    mode: 'vr',
+    ...overrides
+  })
+
+  beforeEach(() => {
+    handlers.clear()
+    allowed = true
+    running = new Set()
+    sendToVrchat = vi
+      .fn<(url: string, stillCurrent: () => boolean) => Promise<boolean>>()
+      .mockResolvedValue(true)
+    inbox = new InboxService({
+      now: () => 1,
+      clock: () => now,
+      onChanged: () => undefined,
+      notify: () => undefined,
+      isAlertEnabled: () => false
+    })
+    // The real link builders: the test follows the invite's own location.
+    vi.mocked(adapter.buildJoinUrl).mockImplementation((instance) =>
+      buildVrcJoinUrl(instance.worldId, instance.instanceId, instance.region ?? undefined)
+    )
+    cvrAdapter = stubPlatformAdapter({ platform: 'chilloutvr' })
+    vi.mocked(cvrAdapter.buildJoinUrl).mockImplementation((instance, mode) =>
+      buildCvrJoinUrl(instance.instanceId, mode)
+    )
+    accountSession = new AccountSession()
+    accountSession.setIdentity('vrchat', 'usr_me')
+    accountSession.setIdentity('chilloutvr', 'cvr_me')
+    registerInstanceHandlers(
+      new Map<Platform, IPlatformAdapter>([
+        ['vrchat', adapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      authority,
+      {
+        clock: () => now,
+        log,
+        isJoinAllowed: () => allowed,
+        accountSession,
+        inbox,
+        gameHandoff: new GameHandoff({
+          hostPlatform: 'win32',
+          isRunning: async (platform) => running.has(platform),
+          settings: () => ({ joinOpenGame: true, vrchatOpenGameJoin: 'go' }),
+          openExternal,
+          sendToVrchat
+        })
+      }
+    )
+  })
+
+  it('guards the sender before validating', async () => {
+    trusted.value = false
+    await expect(call('join-invite', null)).rejects.toThrow('Untrusted IPC sender')
+  })
+
+  it.each([
+    null,
+    {},
+    { platform: 'steam', id: 'invite:not_1', mode: 'vr' },
+    { platform: 'vrchat', id: 'invite:not_1', mode: 'flat' },
+    { platform: 'vrchat', id: 'not_1', mode: 'vr' },
+    { platform: 'vrchat', id: 'friend-request:not_1', mode: 'vr' },
+    { platform: 'vrchat', id: 'invite:', mode: 'vr' },
+    { platform: 'vrchat', id: 'invite:not 1', mode: 'vr' },
+    { platform: 'vrchat', id: 'invite:wrld_x/../y', mode: 'vr' },
+    { platform: 'vrchat', id: `invite:${'a'.repeat(200)}`, mode: 'vr' },
+    { platform: 'vrchat', id: 42, mode: 'vr' }
+  ])('rejects a malformed request: %o', async (bad) => {
+    invite('vrchat', vrcLocation)
+    await expect(call('join-invite', bad)).rejects.toThrow('Invalid join-invite request')
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it("opens the game at the invite's own instance", async () => {
+    invite('vrchat', vrcLocation)
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: true, handoff: 'launch' })
+    expect(openExternal).toHaveBeenCalledExactlyOnceWith(vrcUrl)
+    expect(adapter.selfInvite).not.toHaveBeenCalled()
+  })
+
+  it('opens ChilloutVR in the picked mode', async () => {
+    invite('chilloutvr', cvrLocation)
+    await expect(
+      call('join-invite', req({ platform: 'chilloutvr', mode: 'desktop' }))
+    ).resolves.toEqual({ ok: true, handoff: 'launch' })
+    expect(openExternal).toHaveBeenCalledExactlyOnceWith(cvrUrl(false))
+  })
+
+  it('never takes a place from the request', async () => {
+    invite('vrchat', vrcLocation)
+    await call('join-invite', {
+      ...req(),
+      worldId: 'wrld_other',
+      instanceId: '999',
+      url: 'vrchat://launch?id=wrld_other:999',
+      location: { worldId: 'wrld_other', instanceId: '999' }
+    })
+    expect(openExternal).toHaveBeenCalledExactlyOnceWith(vrcUrl)
+  })
+
+  it('is off with the join setting, before the row is even looked up', async () => {
+    invite('vrchat', vrcLocation)
+    allowed = false
+    const lookup = vi.spyOn(inbox, 'inviteTarget')
+    await expect(call('join-invite', req())).resolves.toEqual({
+      ok: false,
+      reason: 'joining-disabled'
+    })
+    expect(lookup).not.toHaveBeenCalled()
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('reports stale for a row that is gone, hidden, on the other platform, or names no instance', async () => {
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: false, reason: 'stale' })
+    invite('vrchat', vrcLocation)
+    await expect(call('join-invite', req({ platform: 'chilloutvr' }))).resolves.toEqual({
+      ok: false,
+      reason: 'stale'
+    })
+    inbox.dismiss('vrchat', 'invite:not_1')
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: false, reason: 'stale' })
+    invite('vrchat', null, 'not_2')
+    await expect(call('join-invite', req({ id: 'invite:not_2' }))).resolves.toEqual({
+      ok: false,
+      reason: 'stale'
+    })
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('reports stale once the account changed, and for the invite of an account that left', async () => {
+    invite('vrchat', vrcLocation)
+    accountSession.setIdentity('vrchat', null)
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: false, reason: 'stale' })
+    accountSession.setIdentity('vrchat', 'usr_other')
+    inbox.resetPlatform('vrchat')
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: false, reason: 'stale' })
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('refuses a location the launch allowlist would not take', async () => {
+    invite('vrchat', { worldId: 'wrld_example', instanceId: '123&x=1' })
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: false, reason: 'invalid-url' })
+    invite('chilloutvr', { worldId: '', instanceId: 'i+nope' }, 'inv-2')
+    await expect(
+      call('join-invite', req({ platform: 'chilloutvr', id: 'invite:inv-2' }))
+    ).resolves.toEqual({ ok: false, reason: 'invalid-url' })
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('launches once per press and waits out the shared cooldown', async () => {
+    invite('vrchat', vrcLocation)
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: true, handoff: 'launch' })
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: false, reason: 'cooldown' })
+    expect(openExternal).toHaveBeenCalledTimes(1)
+    now += 3_000
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: true, handoff: 'launch' })
+    expect(openExternal).toHaveBeenCalledTimes(2)
+  })
+
+  it('holds the one-launch-per-platform lock while a launch is in flight', async () => {
+    invite('vrchat', vrcLocation)
+    let finish: () => void = () => undefined
+    openExternal.mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)))
+    const first = call('join-invite', req())
+    await vi.waitFor(() => expect(openExternal).toHaveBeenCalledTimes(1))
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: false, reason: 'cooldown' })
+    finish()
+    await expect(first).resolves.toEqual({ ok: true, handoff: 'launch' })
+  })
+
+  it('returns launch-failed without leaking the rejection, and can be tried again', async () => {
+    invite('vrchat', vrcLocation)
+    openExternal.mockRejectedValueOnce(new Error('no handler for vrchat://secret'))
+    await expect(call('join-invite', req())).resolves.toEqual({
+      ok: false,
+      reason: 'launch-failed'
+    })
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: true, handoff: 'launch' })
+  })
+
+  it('hands the join to a VRChat that is already open', async () => {
+    invite('vrchat', vrcLocation)
+    running.add('vrchat')
+    await expect(call('join-invite', req())).resolves.toEqual({ ok: true, handoff: 'in-game' })
+    expect(sendToVrchat).toHaveBeenCalledWith(vrcUrl, expect.any(Function))
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('keeps the row after a Join, and logs only platform and reason', async () => {
+    invite('vrchat', vrcLocation)
+    await call('join-invite', req())
+    expect(inbox.snapshot().items).toHaveLength(1)
+    await call('join-invite', req())
+    expect(log).toHaveBeenCalledWith('warn', 'instance action denied', {
+      platform: 'vrchat',
+      reason: 'cooldown'
+    })
+    expect(JSON.stringify(log.mock.calls)).not.toContain('wrld_example')
+    expect(JSON.stringify(log.mock.calls)).not.toContain('not_1')
   })
 })

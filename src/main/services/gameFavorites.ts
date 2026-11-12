@@ -78,6 +78,11 @@ interface Loaded {
   loadedAt: number
 }
 
+/** What one press comes to: an answer with nothing to send, or the write to send. */
+type PlannedWrite =
+  | { result: GameFavoriteWriteResult }
+  | { loaded: Loaded; send: () => Promise<GameFavoriteMembership[]> }
+
 interface Failed {
   accountId: string
   generation: number
@@ -159,6 +164,25 @@ export class GameFavoritesService {
     }
   }
 
+  /**
+   * The favorites already loaded for the signed-in account, or null. Never
+   * starts a read, so it is safe where nothing may be asked of a platform.
+   */
+  peek(platform: Platform): GameFavoritesView | null {
+    if (!this.options.isEnabled()) return null
+    const revision = this.revision(platform)
+    const adapter = this.options.adapters.get(platform)
+    const loaded = this.loaded.get(platform)
+    if (revision === null || !adapter || !loaded) return null
+    if (loaded.accountId !== revision.platformAccountId) return null
+    try {
+      if (adapter.captureFavoritesLease().generation !== loaded.generation) return null
+    } catch {
+      return null
+    }
+    return this.view(adapter, loaded.read)
+  }
+
   async set(request: GameFavoriteWriteRequest): Promise<GameFavoriteWriteResult> {
     const { platform, kind, id, groupKey, on } = request
     if (!this.options.isEnabled()) return { ok: false, reason: 'off' }
@@ -184,38 +208,50 @@ export class GameFavoritesService {
     } catch {
       return { ok: false, reason: 'not-authenticated' }
     }
-    const loaded = this.loaded.get(platform)
-    if (
-      !loaded ||
-      loaded.generation !== lease.generation ||
-      loaded.accountId !== revision.platformAccountId
-    ) {
-      return { ok: false, reason: 'stale' }
-    }
-    const view = this.view(adapter, loaded.read)
-    const group = view.groups[kind].find((g) => g.key === groupKey)
-    if (!group) return { ok: false, reason: 'invalid' }
-    const current = this.memberships(adapter, loaded.read, kind, itemId)
-    const keys = current.map((m) => m.key)
-    if (on && keys.includes(groupKey)) return { ok: true, groups: keys }
-    if (!on && !keys.includes(groupKey)) return { ok: true, groups: keys }
-    if (on && !canAddToGroup(view, keys, group)) {
+    // Decided from what VRX holds at that moment. It runs once now, for an
+    // instant answer, and again when this press reaches the front of the write
+    // queue: an earlier press for the same item may have changed its groups
+    // meanwhile, and a write planned from the older view would repeat or undo it.
+    const plan = (): PlannedWrite => {
+      const loaded = this.loaded.get(platform)
+      if (
+        !loaded ||
+        loaded.generation !== lease.generation ||
+        loaded.accountId !== revision.platformAccountId
+      ) {
+        return { result: { ok: false, reason: 'stale' } }
+      }
+      const view = this.view(adapter, loaded.read)
+      const group = view.groups[kind].find((g) => g.key === groupKey)
+      if (!group) return { result: { ok: false, reason: 'invalid' } }
+      const current = this.memberships(adapter, loaded.read, kind, itemId)
+      const keys = current.map((m) => m.key)
+      if (on === keys.includes(groupKey)) return { result: { ok: true, groups: keys } }
+      if (on && !canAddToGroup(view, keys, group)) {
+        return {
+          result: {
+            ok: false,
+            reason: view.oneGroupPerItem && keys.length > 0 ? 'other-group' : 'full'
+          }
+        }
+      }
       return {
-        ok: false,
-        reason: view.oneGroupPerItem && keys.length > 0 ? 'other-group' : 'full'
+        loaded,
+        send: () =>
+          adapter.writeGameFavorite(
+            { kind, id: itemId, group, on, current, groups: loaded.read.groups[kind] },
+            lease
+          )
       }
     }
+    const instant = plan()
+    if ('result' in instant) return instant.result
 
-    const written = await this.write(adapter, lease, () =>
-      adapter.writeGameFavorite(
-        { kind, id: itemId, group, on, current, groups: loaded.read.groups[kind] },
-        lease
-      )
-    )
-    if (!Array.isArray(written)) return written
-    if (this.loaded.get(platform) !== loaded) return { ok: false, reason: 'stale' }
-    this.store(loaded.read, kind, itemId, written, on ? request.world : undefined)
-    return { ok: true, groups: written.map((m) => m.key) }
+    return this.write(adapter, lease, plan, (loaded, written) => {
+      if (this.loaded.get(platform) !== loaded) return { ok: false, reason: 'stale' }
+      this.store(loaded.read, kind, itemId, written, on ? request.world : undefined)
+      return { ok: true, groups: written.map((m) => m.key) }
+    })
   }
 
   /** Forget a platform's favorites at a sign-out or account change. */
@@ -233,7 +269,9 @@ export class GameFavoritesService {
   ): Promise<GameFavoritesGet> {
     const platform = adapter.platform
     try {
-      const read = await adapter.readGameFavorites(lease, pressed ? 'interactive' : 'background')
+      // The first read runs ahead of background name lookups: a star's panel
+      // cannot offer the account's groups until it lands.
+      const read = await adapter.readGameFavorites(lease, pressed ? 'interactive' : 'default')
       if (!lease.isCurrent()) return { state: 'not-authenticated' }
       const loaded: Loaded = {
         accountId: revision.platformAccountId,
@@ -349,22 +387,31 @@ export class GameFavoritesService {
     }
   }
 
+  /**
+   * One write at a time per platform, GAME_FAVORITE_WRITE_SPACING_MS apart.
+   * `plan` runs again once the earlier writes have finished; a press they made
+   * moot is answered there, with nothing sent and no spacing spent. `commit`
+   * records the answer before the next queued press plans from it.
+   */
   private async write(
     adapter: GameFavoritesAdapter,
     lease: RequestLease,
-    send: () => Promise<GameFavoriteMembership[]>
-  ): Promise<GameFavoriteMembership[] | { ok: false; reason: GameFavoriteWriteFailure }> {
+    plan: () => PlannedWrite,
+    commit: (loaded: Loaded, written: GameFavoriteMembership[]) => GameFavoriteWriteResult
+  ): Promise<GameFavoriteWriteResult> {
     const platform = adapter.platform
     const previous = this.writes.get(platform) ?? Promise.resolve()
-    const run = previous.then(async () => {
+    const run = previous.then(async (): Promise<GameFavoriteWriteResult> => {
+      const planned = plan()
+      if ('result' in planned) return planned.result
       const last = this.lastWriteAt.get(platform)
       const wait = last === undefined ? 0 : last + GAME_FAVORITE_WRITE_SPACING_MS - this.clock()
       if (wait > 0) await this.sleep(wait)
       if (!lease.isCurrent() || lease.signal.aborted) throw new RequestCancelledError()
       // The user may have turned game favorites off while this write waited.
-      if (!this.options.isEnabled()) return 'off' as const
+      if (!this.options.isEnabled()) return { ok: false, reason: 'off' }
       try {
-        return await send()
+        return commit(planned.loaded, await planned.send())
       } finally {
         this.lastWriteAt.set(platform, this.clock())
       }
@@ -374,8 +421,7 @@ export class GameFavoritesService {
       run.catch(() => undefined)
     )
     try {
-      const result = await run
-      return result === 'off' ? { ok: false, reason: 'off' } : result
+      return await run
     } catch (error) {
       const reason = this.writeReason(error)
       this.log('game favorites request failed', { platform, kind: 'write', reason })

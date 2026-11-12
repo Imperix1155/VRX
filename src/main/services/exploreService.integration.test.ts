@@ -6,7 +6,8 @@ import { ApiAdmissionController } from './adapters/ApiAdmissionController'
 import type {
   ExploreAdapter,
   ExploreRequestContext,
-  ExploreRoomEvidence
+  ExploreRoomEvidence,
+  ExploreWorldDetail
 } from './adapters/ExploreAdapter'
 import { RateLimitError } from './adapters/errors'
 import { JoinCoordinator } from './joinCoordinator'
@@ -66,17 +67,10 @@ class FakeExploreAdapter implements ExploreAdapter {
   readonly physical = { candidates: 0, worlds: 0, rooms: 0 }
   captureCount = 0
   candidates: Omit<ExploreWorld, 'worldRef'>[] = []
-  readonly details = new Map<
-    string,
-    { world: Omit<ExploreWorld, 'worldRef'>; roomIds: string[]; roomsComplete: boolean }
-  >()
+  readonly details = new Map<string, ExploreWorldDetail>()
   readonly rooms = new Map<string, ExploreRoomEvidence | null>()
   nextCandidate: Promise<Omit<ExploreWorld, 'worldRef'>[]> | null = null
-  nextWorld: Promise<{
-    world: Omit<ExploreWorld, 'worldRef'>
-    roomIds: string[]
-    roomsComplete: boolean
-  } | null> | null = null
+  nextWorld: Promise<ExploreWorldDetail | null> | null = null
   nextRoom: Promise<ExploreRoomEvidence | null> | null = null
   readonly lease = { generation: 9, signal: new AbortController().signal, isCurrent: () => true }
 
@@ -97,11 +91,7 @@ class FakeExploreAdapter implements ExploreAdapter {
   async getExploreWorld(
     world: string,
     context: ExploreRequestContext
-  ): Promise<{
-    world: Omit<ExploreWorld, 'worldRef'>
-    roomIds: string[]
-    roomsComplete: boolean
-  } | null> {
+  ): Promise<ExploreWorldDetail | null> {
     this.contexts.push(context)
     context.beforeDispatch()
     this.physical.worlds++
@@ -332,6 +322,47 @@ describe('ExploreService integration bounds', () => {
     await vi.waitFor(async () =>
       expect((await h.service.getSnapshot('chilloutvr', 'snapshot')).status).toBe('error')
     )
+  })
+
+  it('carries the world details from the one world read into the sheet, with no extra request', async () => {
+    const h = harness()
+    const adapter = h.adapters.get('vrchat')!
+    const world = vrcWorld(0)
+    const about = {
+      creator: 'Sample Maker',
+      description: 'A quiet place.',
+      tags: ['chill'],
+      capacity: 32
+    }
+    adapter.candidates = [world]
+    adapter.details.set(world.worldId, { world, roomIds: [], roomsComplete: true, about })
+    await load(h, 'vrchat')
+    const ref = (await h.service.getSnapshot('vrchat', 'snapshot')).worlds[0]!.worldRef
+    const worldReads = adapter.physical.worlds
+    await h.service.getWorld('vrchat', ref, 'manual')
+    await vi.waitFor(async () =>
+      expect((await h.service.getWorld('vrchat', ref, 'snapshot'))!.status).toBe('ready')
+    )
+    expect((await h.service.getWorld('vrchat', ref, 'snapshot'))!.about).toEqual(about)
+    // At most the sheet's own read of the world: details add none.
+    expect(adapter.physical.worlds - worldReads).toBeLessThanOrEqual(1)
+  })
+
+  it('leaves the world details empty when the platform gives none', async () => {
+    const h = harness('chilloutvr')
+    const adapter = h.adapters.get('chilloutvr')!
+    const world = cvrWorld(0)
+    adapter.candidates = [world]
+    adapter.details.set(world.worldId, { world, roomIds: [], roomsComplete: true })
+    const adopted = h.service.adoptWorlds('chilloutvr', [world])
+    const ref = adopted[0]!.worldRef
+    // Nothing read yet: no details to show.
+    expect((await h.service.getWorld('chilloutvr', ref, 'snapshot'))!.about).toBeNull()
+    await h.service.getWorld('chilloutvr', ref, 'manual')
+    await vi.waitFor(async () =>
+      expect((await h.service.getWorld('chilloutvr', ref, 'snapshot'))!.status).toBe('ready')
+    )
+    expect((await h.service.getWorld('chilloutvr', ref, 'snapshot'))!.about).toBeNull()
   })
 
   it('joins a fresh VRC selection without an extra revalidation fetch', async () => {

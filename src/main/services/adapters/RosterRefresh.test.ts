@@ -3,7 +3,7 @@ import { fullFriend } from '../../../renderer/src/test-utils/friendFixture'
 import type { FriendRoster } from './IPlatformAdapter'
 import type { RequestLease } from './RequestLease'
 import { RateLimitError, RequestCancelledError } from './errors'
-import { RosterRefresh } from './RosterRefresh'
+import { RosterRefresh, type RosterReadHooks } from './RosterRefresh'
 
 function deferred<T>(): {
   promise: Promise<T>
@@ -35,6 +35,110 @@ const roster = (name: string): FriendRoster => ({
 })
 
 describe('RosterRefresh', () => {
+  it('reads once when a change lands before the read has asked anything', async () => {
+    const answer = deferred<FriendRoster>()
+    let sent: () => void = () => undefined
+    const read = vi.fn((hooks: RosterReadHooks) => {
+      sent = hooks.startsEmpty()
+      return answer.promise
+    })
+    const refresh = new RosterRefresh(read, () => 0)
+    const owner = lease()
+    const request = refresh.get(owner)
+    refresh.invalidate()
+    expect(refresh.get(owner)).toBe(request)
+    sent()
+    const only = roster('Only')
+    answer.resolve(only)
+    await expect(request).resolves.toBe(only)
+    expect(read).toHaveBeenCalledTimes(1)
+  })
+
+  it('still reads again for a change that lands after the first request went out', async () => {
+    const first = deferred<FriendRoster>()
+    const last = deferred<FriendRoster>()
+    let sent: () => void = () => undefined
+    const read = vi
+      .fn<(hooks: RosterReadHooks) => Promise<FriendRoster>>()
+      .mockImplementationOnce((hooks) => {
+        sent = hooks.startsEmpty()
+        return first.promise
+      })
+      .mockImplementationOnce(() => last.promise)
+    const refresh = new RosterRefresh(read, () => 0)
+    const request = refresh.get(lease())
+    sent()
+    refresh.invalidate()
+    first.resolve(roster('First'))
+    await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2))
+    const final = roster('Last')
+    last.resolve(final)
+    await expect(request).resolves.toBe(final)
+  })
+
+  it('does not carry an unsent mark from one read into the next', async () => {
+    const first = deferred<FriendRoster>()
+    const last = deferred<FriendRoster>()
+    const read = vi
+      .fn<(hooks: RosterReadHooks) => Promise<FriendRoster>>()
+      .mockImplementationOnce((hooks) => {
+        // Never reports its first request; the answer landing ends the mark.
+        hooks.startsEmpty()
+        return first.promise
+      })
+      .mockImplementationOnce(() => last.promise)
+      .mockImplementationOnce(() => Promise.resolve(roster('Follow-up')))
+    const refresh = new RosterRefresh(read, () => 0)
+    const owner = lease()
+    const one = refresh.get(owner)
+    first.resolve(roster('First'))
+    await one
+    const two = refresh.get(owner)
+    refresh.invalidate()
+    last.resolve(roster('Last'))
+    await two
+    expect(read).toHaveBeenCalledTimes(3)
+  })
+
+  it('takes the seed revision again when an empty read sends its first request', async () => {
+    const answer = deferred<FriendRoster>()
+    let sent: () => void = () => undefined
+    let clock = 0
+    const read = vi.fn((hooks: RosterReadHooks) => {
+      sent = hooks.startsEmpty()
+      return answer.promise
+    })
+    const refresh = new RosterRefresh(
+      read,
+      () => 0,
+      () => ++clock
+    )
+    const request = refresh.get(lease())
+    // A socket goes live while the read waits its turn: main's fence moves on.
+    const liveAt = ++clock
+    refresh.invalidate()
+    sent()
+    // A later page of the same read reports too; the revision stays put.
+    sent()
+    answer.resolve(roster('Only'))
+    const result = await request
+    expect(result.seeds).toHaveLength(1)
+    expect(result.seeds?.[0]?.revision).toBe(liveAt + 1)
+    expect(clock).toBe(liveAt + 1)
+  })
+
+  it('keeps the first revision for a read that starts from a saved answer', async () => {
+    let clock = 0
+    const refresh = new RosterRefresh(
+      () => Promise.resolve(roster('Saved')),
+      () => 0,
+      () => ++clock
+    )
+    const result = await refresh.get(lease())
+    expect(result.seeds?.[0]?.revision).toBe(1)
+    expect(clock).toBe(1)
+  })
+
   it('returns one final result for an event storm, with at most one follow-up', async () => {
     const first = deferred<FriendRoster>()
     const last = deferred<FriendRoster>()

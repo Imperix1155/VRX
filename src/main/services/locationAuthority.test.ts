@@ -36,6 +36,32 @@ function friend(platform: Platform, id: string, instanceId = 'instance-old'): Fr
 }
 
 describe('LocationAuthority', () => {
+  it('lists the roster by id and name only once a friends list has arrived', () => {
+    const authority = new LocationAuthority()
+    expect(authority.roster('vrchat')).toBeNull()
+
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_1'), friend('vrchat', 'usr_2')],
+      authority.captureSeedRevision('vrchat')
+    )
+    expect(authority.roster('vrchat')).toEqual([
+      { id: 'usr_1', name: 'usr_1' },
+      { id: 'usr_2', name: 'usr_2' }
+    ])
+    // The other platform has its own list, and it has not arrived.
+    expect(authority.roster('chilloutvr')).toBeNull()
+
+    // A friend the next list no longer names is dropped; an empty list is still a list.
+    authority.seed('vrchat', [friend('vrchat', 'usr_2')], authority.captureSeedRevision('vrchat'))
+    expect(authority.roster('vrchat')).toEqual([{ id: 'usr_2', name: 'usr_2' }])
+    authority.seed('vrchat', [], authority.captureSeedRevision('vrchat'))
+    expect(authority.roster('vrchat')).toEqual([])
+
+    authority.clearPlatform('vrchat')
+    expect(authority.roster('vrchat')).toBeNull()
+  })
+
   it('rejects before the first seed and while the pipeline is stale', () => {
     const authority = new LocationAuthority()
     expect(authority.resolve('vrchat', 'usr_1')).toEqual({ ok: false, reason: 'stale' })

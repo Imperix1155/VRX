@@ -7,7 +7,8 @@ import {
   isSettingsFallback,
   isSettingsFileNewer,
   loadSettings,
-  saveSettings
+  saveSettings,
+  wasSettingsFileReset
 } from '../services/settings'
 import { isTrustedIpcSender } from './security'
 
@@ -29,9 +30,11 @@ export function registerSettingsHandlers(onApplied?: (settings: Settings) => voi
     // Defaults standing in for an unreadable file: the renderer must save only
     // its own edits, or a later save would write these defaults over the file.
     if (isSettingsFallback()) return { ...settings, fallback: true }
-    const answer: IpcInvoke['get-settings']['res'] = hasPendingSettingsSave()
+    let answer: IpcInvoke['get-settings']['res'] = hasPendingSettingsSave()
       ? { ...settings, unsaved: true }
       : settings
+    // A damaged file was set aside this run: these are defaults, and the shell says so.
+    if (wasSettingsFileReset()) answer = { ...answer, reset: true }
     return isSettingsFileNewer() ? { ...answer, newerFile: true } : answer
   })
 

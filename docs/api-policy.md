@@ -152,7 +152,21 @@ credentials is not blocked by earlier background failures. Pacing and 429
 cooldowns still apply to it. Lookups whose miss is an ordinary answer (world,
 group and instance metadata, Explore reads) do not open the breaker for a
 missing or unreadable item; [API volatility](api-volatility.md) lists exactly
-what each counts.
+what each counts. The sign-in status check is the one request that still goes
+out while the breaker is open: it runs on demand and at most once a minute,
+and it is how VRX notices a session the platform ended during a pause. The
+renderer reports a paused platform as "wait", not as a failed read.
+
+VRChat world and group metadata lookups run at background priority, so a
+burst of friends changing worlds never delays a press. Live location updates
+start at most 20 world lookups at a time (`MAX_LIVE_WORLD_LOOKUPS`); later
+worlds wait, newest first, and a sign-out drops the waiting ones.
+
+A failed friends read is retried once by the renderer, not three times,
+because one read is already several paged requests. After a friends read is
+refused for a cooldown, the renderer reads again after 30 seconds, doubling
+for each refusal in a row up to 10 minutes; main answers instantly during a
+cooldown, so none of those re-reads reaches the platform before it ends.
 
 ## 429 handling, backoff, and cooldowns
 
@@ -212,7 +226,10 @@ Both pipelines share [`ReconnectingPipeline`](../src/main/services/adapters/Reco
 
 Full REST rosters run on first load, on manual refresh, after a socket
 reconnects, once after a Join that main turned down because the friend's
-place had changed (`target-changed`), and on the background reconcile timer.
+place had changed (`target-changed`), once after a Join that main turned down
+because it has not caught up since the socket connected (`stale`, only while
+the socket shows live, sharing a read already running and at most one per
+platform every 30 seconds), and on the background reconcile timer.
 After a direct Join, that read runs only while the friend list still shows
 the old place (so the next Join sends the current place; when the friend's
 live update has already landed, nothing is read). After Confirm in the Join
@@ -226,7 +243,12 @@ roster page, so a short cadence costs the most for large friend lists. The
 timer skips its read while the window is hidden or minimized; live events and
 the read after a reconnect still arrive.
 Concurrent roster requests in one session share a single run. Events that
-arrive during that run add at most one final read. An event that arrives once
+arrive during that run add at most one final read. An event that arrives
+before the run has sent its first request adds nothing, because every answer
+the run gets is newer than the event; this is why a launch with a saved
+sign-in reads the friend list once, not twice, when the socket connects
+before the first page is asked. That one read counts as the catch-up for the
+new connection, so joins are allowed as soon as it lands. An event that arrives once
 that final read is out makes the next roster request wait for it and read once
 more, so the change is not missed; a 429 or cooldown during the run skips
 that read. The open window runs the reconnect read. With no window open

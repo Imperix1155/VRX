@@ -20,9 +20,12 @@ Work moves in one direction:
 3. A **stable release** is a release PR from `dev` into `main` that sets
    `X.Y.Z` and turns the dev changelog sections into one `[X.Y.Z]` summary
    (keep the dev sections below it). Merging it publishes the release.
-4. The next dev version PR merges `main` back into `dev`, so `dev` carries the
-   stable version's changelog and commits. Never merge `main` into `dev` on
-   its own: a push to `dev` with a stable version fails the channel check.
+4. Once the stable release is published, **align the other two branches**
+   with it, so `main`, `dev` and `beta` hold the same build: one PR from
+   `main` into `dev` and one from `main` into `beta`. Merge them only after
+   the `vX.Y.Z` tag exists. The release workflow then finds the tag and
+   publishes nothing; before the tag exists, a push to `dev` or `beta` with a
+   stable version fails the channel check.
 
 Dev versions must sort above the latest stable one (for example
 `1.4.0-dev.1` after `1.3.0`), otherwise updaters treat them as older. `beta`

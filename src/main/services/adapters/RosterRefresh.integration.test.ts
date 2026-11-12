@@ -3,13 +3,24 @@ import type { AdapterEvent, Platform } from '@shared/types'
 import type { FriendRoster } from './IPlatformAdapter'
 import { CvrAdapter } from './CvrAdapter'
 import { VrcAdapter } from './VrcAdapter'
+import type { AppStatusService } from '../appStatus'
+import { createFriendRosterReader } from '../friendRoster'
+import { LocationAuthority } from '../locationAuthority'
 import {
   instantAdmission,
   jsonResponse,
   markVrcSessionEstablished
 } from './__testutils__/adapterTestKit'
 
-function fixture(platform: Platform): { adapter: CvrAdapter | VrcAdapter; event(): void } {
+interface Fixture {
+  adapter: CvrAdapter | VrcAdapter
+  event(): void
+  /** The socket opens, as the adapter and its subscribers see it. */
+  goLive(): void
+}
+
+function fixture(platform: Platform, live?: { captureRosterRevision: () => number }): Fixture {
+  const connected: AdapterEvent = { type: 'connection', platform, health: 'live' }
   if (platform === 'chilloutvr') {
     const adapter = new CvrAdapter(
       {
@@ -17,21 +28,30 @@ function fixture(platform: Platform): { adapter: CvrAdapter | VrcAdapter; event(
         save: () => {},
         delete: () => {}
       },
-      instantAdmission()
+      instantAdmission(),
+      live
     )
     Object.assign(adapter, { validated: true })
     const drive = adapter as unknown as { handlePipelineEvent(event: AdapterEvent): void }
-    return { adapter, event: () => drive.handlePipelineEvent({ type: 'roster-changed', platform }) }
+    return {
+      adapter,
+      event: () => drive.handlePipelineEvent({ type: 'roster-changed', platform }),
+      goLive: () => drive.handlePipelineEvent(connected)
+    }
   }
   const adapter = new VrcAdapter(
     { load: () => 'auth=fixture', save: () => {}, delete: () => {} },
-    instantAdmission()
+    instantAdmission(),
+    live
   )
   markVrcSessionEstablished(adapter)
   const pipeline = (
     adapter as unknown as { createPipeline(): { emit(event: AdapterEvent): void } }
   ).createPipeline()
-  return { adapter, event: () => pipeline.emit({ type: 'connection', platform, health: 'live' }) }
+  // A socket on its way, as at launch: the read starts from its own probe.
+  Object.assign(adapter, { pipeline })
+  const goLive = (): void => pipeline.emit(connected)
+  return { adapter, event: goLive, goLive }
 }
 
 afterEach(() => {
@@ -99,6 +119,75 @@ describe.each(['vrchat', 'chilloutvr'] as const)('%s roster event coalescing', (
     expect(fetchMock).toHaveBeenCalledTimes(platform === 'chilloutvr' ? 3 : 9)
     await adapter.getFriends()
     expect(snapshots).toBe(4)
+  })
+
+  it('reads once when the event lands before the first request is sent', async () => {
+    let snapshots = 0
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (platform === 'chilloutvr')
+        return jsonResponse({
+          message: 'ok',
+          data: [
+            {
+              id: 'a1b2c3d4-0000-0000-0000-000000000001',
+              name: `Read ${++snapshots}`,
+              imageUrl: null,
+              categories: []
+            }
+          ]
+        })
+      if (url.endsWith('/auth/user')) {
+        snapshots++
+        return jsonResponse({ onlineFriends: [], activeFriends: [], offlineFriends: [] })
+      }
+      return jsonResponse(
+        url.includes('offline=true') ? [] : [{ id: 'usr_fixture', displayName: 'Read' }]
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { adapter, event } = fixture(platform)
+    const request = adapter.getFriends()
+    // Nothing has been asked yet, so this read already covers the change.
+    event()
+    expect(adapter.getFriends()).toBe(request)
+    expect((await request).friends).toHaveLength(1)
+    expect(snapshots).toBe(1)
+  })
+
+  it('lets joins through after a launch whose socket opens before the first request', async () => {
+    const id = platform === 'chilloutvr' ? 'a1b2c3d4-0000-0000-0000-000000000001' : 'usr_fixture'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url =
+          typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        if (platform === 'chilloutvr')
+          return jsonResponse({
+            message: 'ok',
+            data: [{ id, name: 'Friend', imageUrl: null, categories: [] }]
+          })
+        if (url.endsWith('/auth/user'))
+          return jsonResponse({ onlineFriends: [], activeFriends: [], offlineFriends: [] })
+        return jsonResponse(url.includes('offline=true') ? [] : [{ id, displayName: 'Friend' }])
+      })
+    )
+    const authority = new LocationAuthority()
+    const { adapter, goLive } = fixture(platform, {
+      captureRosterRevision: () => authority.captureSeedRevision(platform)
+    })
+    const read = createFriendRosterReader(new Map([[platform, adapter]]), authority, {
+      recordReconcile: () => undefined
+    } as unknown as AppStatusService)
+    const launch = read(platform)
+    // The socket opens while the read still waits its turn. The window's own
+    // read for the reconnect shares that one run, so nothing reads twice.
+    goLive()
+    authority.consume({ type: 'connection', platform, health: 'live' })
+    const reconnect = read(platform)
+    await Promise.all([launch, reconnect])
+    // The one read counts as the catch-up: main knows where friends are.
+    expect(authority.resolve(platform, id)).toMatchObject({ ok: true })
   })
 
   it('drops pending follow-up when an active roster rate limits', async () => {

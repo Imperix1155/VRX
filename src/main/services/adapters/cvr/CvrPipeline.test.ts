@@ -589,8 +589,8 @@ describe('CvrPipeline', () => {
           {
             Id: 'inv-1',
             User: { Id: G1.toUpperCase(), Name: 'Alice' },
-            World: { Id: 'w-1', Name: 'Pug Lounge' },
-            InstanceId: 'i+abc',
+            World: { Id: G2, Name: 'Pug Lounge' },
+            InstanceId: 'i+0123456789abcdef-012345-abcdef-01234567',
             InstanceName: 'Pug Lounge (#42)'
           },
           // No world object: the instance name stands in, without its number.
@@ -617,14 +617,19 @@ describe('CvrPipeline', () => {
               kind: 'invite',
               senderId: G1,
               senderName: 'Alice',
-              worldName: 'Pug Lounge'
+              worldName: 'Pug Lounge',
+              location: {
+                worldId: G2,
+                instanceId: 'i+0123456789abcdef-012345-abcdef-01234567'
+              }
             },
             {
               sourceId: 'inv-2',
               kind: 'invite',
               senderId: G2,
               senderName: 'Bob',
-              worldName: 'Cafe'
+              worldName: 'Cafe',
+              location: null
             }
           ]
         }

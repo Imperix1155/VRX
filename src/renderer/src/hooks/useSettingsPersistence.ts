@@ -95,7 +95,7 @@ export function useSettingsPersistence(): void {
     let cancelled = false
     const bridge = window.vrx
     void loadSettingsWithRetry(() => bridge.getSettings())
-      .then(({ unsaved, fallback, newerFile, ...persisted }) => {
+      .then(({ unsaved, fallback, newerFile, reset, ...persisted }) => {
         if (cancelled) return
         fallbackBase.current = fallback ? persisted : null
         fallbackSent.current = new Set()
@@ -118,7 +118,8 @@ export function useSettingsPersistence(): void {
         // The shell says so, or defaults would look like forgotten choices.
         useSettingsStore.setState({
           loadFallback: fallback === true,
-          newerFile: newerFile === true
+          newerFile: newerFile === true,
+          resetNotice: reset === true
         })
         setLoaded(true)
         hydrate()
