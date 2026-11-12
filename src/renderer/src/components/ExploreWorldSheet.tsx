@@ -12,6 +12,7 @@ import WorldFavoriteStar from './WorldFavoriteStar'
 import WorldRatingControl from './WorldRatingControl'
 import HomeWorldControl from './HomeWorldControl'
 import SheetGrabBar from './SheetGrabBar'
+import { languageTagLabel } from '@shared/languageTag'
 import { shareLink } from '@shared/shareLinks'
 import { SheetFacts, type SheetFact } from './SheetFacts'
 import { useScrollTopOnShow } from '../hooks/useScrollTopOnShow'
@@ -104,9 +105,14 @@ function RoomRow({
   // anywhere else in the app.
   const pill = instancePillFor({ type: room.access, opennessUnknown: false }, labelScheme)
   const region = regionLabelKey(room.platform, room.region)
-  const details = [region === null ? null : t(region), room.groupName].filter(
-    (part): part is string => part !== null
-  )
+  const language = room.spokenLanguage
+    ? languageTagLabel(room.spokenLanguage, i18n.language || 'en')
+    : null
+  const details = [
+    region === null ? null : t(region),
+    language === null ? null : t('explore.room.language', { language }),
+    room.groupName
+  ].filter((part): part is string => part !== null)
   const disabledLabel = joining
     ? t('explore.joinDenied.busy')
     : enabled
@@ -119,7 +125,12 @@ function RoomRow({
   return (
     <li className="flex min-w-0 items-center justify-between gap-[var(--space-3)] rounded-[13px] border border-[var(--border)] bg-[var(--control-fill)] p-[var(--space-3)]">
       <div id={detailsId} className="min-w-0">
-        <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+        {room.instanceTitle ? (
+          <p className="truncate text-sm font-semibold text-[var(--text)]">{room.instanceTitle}</p>
+        ) : null}
+        <div
+          className={`flex flex-wrap items-center gap-[var(--space-2)] ${room.instanceTitle ? 'mt-[var(--space-1)]' : ''}`}
+        >
           {/* The same tier-colored pill as every other instance surface. */}
           <InstancePill label={t(pill.labelKey)} tier={pill.tier} />
           <span className="text-xs text-[var(--text-dim)]">
@@ -130,6 +141,11 @@ function RoomRow({
         {details.length > 0 ? (
           <p className="mt-[var(--space-1)] truncate text-xs text-[var(--text-dim)]">
             {details.join(' · ')}
+          </p>
+        ) : null}
+        {room.instanceDescription ? (
+          <p className="mt-[var(--space-1)] line-clamp-2 text-xs text-[var(--text-dim)]">
+            {room.instanceDescription}
           </p>
         ) : null}
       </div>
