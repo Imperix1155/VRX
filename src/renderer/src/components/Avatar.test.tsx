@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Friend } from '@shared/types'
 import '../i18n'
+import { specifiedInlineStyle } from '../testutils/specifiedInlineStyle'
 
 const avatarData = vi.hoisted(() => ({ byUrl: new Map<string, string>() }))
 vi.mock('../hooks/useAvatar', () => ({
@@ -182,8 +183,12 @@ describe('Avatar', () => {
       '[data-avatar-platform="chilloutvr"]'
     )
 
-    expect(vrchatHalf?.style.clipPath).toBe('polygon(0 0, 100% 0, 100% 100%)')
-    expect(chilloutvrHalf?.style.clipPath).toBe('polygon(0 0, 0 100%, 100% 100%)')
+    expect(vrchatHalf?.style.clipPath).toBe(
+      specifiedInlineStyle('clipPath', 'polygon(0 0, 100% 0, 100% 100%)')
+    )
+    expect(chilloutvrHalf?.style.clipPath).toBe(
+      specifiedInlineStyle('clipPath', 'polygon(0 0, 0 100%, 100% 100%)')
+    )
     expect(vrchatHalf?.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,VlJD')
     expect(chilloutvrHalf?.querySelector('img')?.getAttribute('src')).toBe(
       'data:image/png;base64,Q1ZS'
