@@ -108,7 +108,8 @@ export type DataExportResult =
     }
   | {
       ok: false
-      reason: 'cancelled' | 'signed-out' | 'not-ready' | 'save-failed' | 'rate-limited'
+      /** `stale`: an account signed in or out while the file was being prepared. */
+      reason: 'cancelled' | 'signed-out' | 'not-ready' | 'stale' | 'save-failed' | 'rate-limited'
     }
 
 export type InstanceActionResult =

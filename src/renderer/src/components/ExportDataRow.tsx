@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 const EXPORT_FAILURE_KEYS = {
   'signed-out': 'settings.export.signedOut',
   'not-ready': 'settings.export.notReady',
+  stale: 'settings.export.accountChanged',
   'save-failed': 'settings.export.failed',
   'rate-limited': 'settings.export.tooMany'
 } as const

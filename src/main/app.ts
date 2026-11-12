@@ -986,6 +986,13 @@ app
           linkedProfiles: () => linkGraph.list(),
           now: () => new Date()
         },
+        sessions: () =>
+          (['vrchat', 'chilloutvr'] as const)
+            .map((platform) => {
+              const session = accountSession.resolve(platform)
+              return 'status' in session ? '-' : String(session.epoch)
+            })
+            .join('/'),
         // The same once-per-sign-in read the Friends page starts; an answer
         // already in memory returns at once, and nothing is ever refreshed.
         prepare: async () => {
