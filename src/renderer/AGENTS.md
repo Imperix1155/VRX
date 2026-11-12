@@ -145,7 +145,9 @@ or launch authority.
   focused row disappears, and keep TanStack Virtual's default `useFlushSync`.
   The scrollport is `clientHeight`; jsdom tests that render rows stub it.
   Row measurement still falls back to `offsetHeight`.
-- All copy goes through i18next with every key in en and ja.
+- All copy goes through i18next with every key in en and ja. Helpers and tests
+  that pass a dynamic key use `Translate` from `i18n/translate.ts`
+  (`asTranslate` adapts `useTranslation().t`).
 - Settings change through `@shared/settings`. A collapsed parent card keeps
   its child values (Allow joining keeps Confirm join and launch mode).
   Stable, Beta, and Dev sit in the Automatic updates card on About, beside

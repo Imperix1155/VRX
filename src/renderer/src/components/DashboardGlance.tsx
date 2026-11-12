@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import type { AvatarItem, AvatarLibraryFailure } from '@shared/avatarLibrary'
 import type { InboxItem } from '@shared/inbox'
 import type { Friend, Platform } from '@shared/types'
+import { asTranslate } from '../i18n/translate'
 import type { GlanceSection } from '../utils/dashboardAggregations'
 import { useWornAvatar, type WornAvatarState } from '../queries/currentAvatar'
 import { useAvatarAccount } from '../queries/avatarLibrary'
@@ -293,6 +294,7 @@ function LatestInvites({
   total: number
 }): React.JSX.Element {
   const { t, i18n } = useTranslation()
+  const translate = asTranslate(t)
   const headingId = useId()
   const vrcFriends = useFriends('vrchat')
   const cvrFriends = useFriends('chilloutvr')
@@ -337,7 +339,7 @@ function LatestInvites({
           latest.map((item) => {
             const friend = friendsById[item.platform].get(item.senderId)
             const name = friend?.displayName ?? item.senderName ?? t('inbox.someone')
-            const action = inboxActionText(item, t)
+            const action = inboxActionText(item, translate)
             const age = relativeInboxTime(item.receivedAt, now, i18n.language) ?? t('inbox.justNow')
             const body = (
               <>

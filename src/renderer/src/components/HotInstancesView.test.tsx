@@ -8,7 +8,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import type { Friend, VrcFriend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
-import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import { useSettingsStore } from '../stores/settings'
 import { useFriendsStore } from '../stores/friends'
 import HotInstancesView from './HotInstancesView'
@@ -25,8 +25,6 @@ vi.mock('../queries/auth', async (importOriginal) => ({
     data: { platform, state: 'authenticated', accountId: `${platform}-test`, displayName: 'Test' }
   })
 }))
-
-const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
 
 function crowd(world: string, count: number): Friend[] {
   return Array.from({ length: count }, (_, i): VrcFriend => ({
