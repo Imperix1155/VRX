@@ -64,39 +64,51 @@ export default function WorldRatingControl({
   const canRead = typeof window !== 'undefined' && typeof window.vrx?.getWorldRating === 'function'
   const bridge = typeof window !== 'undefined' && typeof window.vrx?.setWorldRating === 'function'
   const [loadError, setLoadError] = useState<SetWorldRatingFailure | null>(null)
+  // True once the read for this account and world has answered, either way.
+  const [readOver, setReadOver] = useState(false)
   const [writeError, setWriteError] = useState<SetWorldRatingFailure | null>(null)
   const [tracked, setTracked] = useState({ accountId, worldRef })
   // Bumped by "Try again", so the read below runs once more.
   const [attempt, setAttempt] = useState(0)
+  const reads = useRef(0)
   const request = useRef(0)
   const group = useRef<HTMLDivElement>(null)
-  // A read that failed is over: the line under the buttons says so and
-  // offers "Try again". Only a read that is still out counts as loading.
-  const readFailed = shown === undefined && !pending && loadError !== null
+  // "Loading" is only ever a read that is still out. A read that is over
+  // with no rating to show has failed, whatever the cause: the line under
+  // the buttons says so and offers "Try again". Never infer "loading" from a
+  // missing rating alone, or the buttons can stay off with nothing on its way.
+  const readProblem: SetWorldRatingFailure | null =
+    shown === undefined && !pending && readOver ? (loadError ?? 'failed') : null
   // Reading again can only help when the platform did not answer or asked
   // for a pause. Signing in again or refreshing the world is another step.
   const canRetryRead =
-    readFailed && accountId !== null && (loadError === 'failed' || loadError === 'rate-limited')
-  const loading =
-    accountId !== null && canRead && shown === undefined && !pending && loadError === null
+    accountId !== null && (readProblem === 'failed' || readProblem === 'rate-limited')
+  const loading = accountId !== null && canRead && shown === undefined && !pending && !readOver
   const disabled = accountId === null || pending || loading || shown === undefined || !bridge
   if (tracked.accountId !== accountId || tracked.worldRef !== worldRef) {
     setTracked({ accountId, worldRef })
     setLoadError(null)
+    setReadOver(false)
     setWriteError(null)
   }
 
   useEffect(() => {
-    const token = ++request.current
+    const token = ++reads.current
     if (accountId === null || !canRead) return
     void readWorldRating(accountId, worldRef).then((result) => {
-      if (request.current !== token) return
-      if (result.ok) setLoadError(null)
+      if (reads.current !== token) return
+      setReadOver(true)
       // `stale` (the request was dropped on the way) ends the read like any
       // other failure. A real account change resets this line above.
-      else setLoadError(result.reason === 'stale' ? 'failed' : result.reason)
+      setLoadError(result.ok ? null : result.reason === 'stale' ? 'failed' : result.reason)
     })
   }, [accountId, canRead, worldRef, attempt])
+
+  // A press still on its way belongs to the account and world it was made
+  // for. After either changes, its answer no longer shows a line here.
+  useEffect(() => {
+    request.current += 1
+  }, [accountId, worldRef])
 
   useEffect(() => {
     if (writeError === null) return
@@ -118,6 +130,7 @@ export default function WorldRatingControl({
   /** One press, one new read. The button leaves the line while it runs. */
   function retryRead(): void {
     setLoadError(null)
+    setReadOver(false)
     setAttempt((count) => count + 1)
     // "Try again" leaves the screen while the read runs. Keyboard focus moves
     // to the two choices, so it is not dropped to the page behind the sheet.
@@ -134,14 +147,13 @@ export default function WorldRatingControl({
           : null
   // A rating that did arrive (another open sheet read it) outdates the
   // failed read, so its line goes away.
-  const readAlert = readFailed ? loadError : null
   const alertText =
     writeError !== null
       ? t(FAILURE_KEYS[writeError])
-      : readAlert === 'failed'
+      : readProblem === 'failed'
         ? t('explore.rating.loadFailed')
-        : readAlert !== null
-          ? t(FAILURE_KEYS[readAlert])
+        : readProblem !== null
+          ? t(FAILURE_KEYS[readProblem])
           : null
 
   return (
