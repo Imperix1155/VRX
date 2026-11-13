@@ -197,6 +197,20 @@ describe.each(['vrchat', 'chilloutvr'] as const)('%s reconnect admission', (plat
     expect(r.sockets).toHaveLength(1)
   })
 
+  it('says it is connecting the moment it starts, before the session material is ready', () => {
+    const r = rig(platform)
+    // The token or header read is still pending: nothing was dialed yet.
+    r.provider.mockImplementation(() => new Promise(() => {}))
+    r.pipeline.start()
+    expect(r.sockets).toHaveLength(0)
+    expect(r.onEvent).toHaveBeenCalledExactlyOnceWith({
+      type: 'connection',
+      platform,
+      health: 'reconnecting'
+    })
+    r.pipeline.stop()
+  })
+
   it('reconnectNow drops an open socket at once and redials after the normal backoff', async () => {
     const r = rig(platform)
     r.pipeline.start()

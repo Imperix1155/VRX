@@ -248,7 +248,7 @@ describe('TopBar connection health (VRX-223)', () => {
         <TopBar />
       </QueryClientProvider>
     )
-    await findIndicator('VRChat: Down; ChilloutVR: Reconnecting')
+    await findIndicator('VRChat: Down; ChilloutVR: Connecting')
 
     // useLiveFriendEvents writes each pushed socket change here.
     act(() => setConnectionHealth(client, 'vrchat', 'live'))
@@ -264,7 +264,7 @@ describe('TopBar connection health (VRX-223)', () => {
     stubAppStatus('live', 'reconnecting')
     const { unmount } = render(<TopBar />)
 
-    const reconnecting = await findIndicator('VRChat: Live; ChilloutVR: Reconnecting')
+    const reconnecting = await findIndicator('VRChat: Live; ChilloutVR: Connecting')
     expect(reconnecting.getAttribute('style')).toContain('var(--warning)')
     // Non-color cue: a hollow ring, not the live dot.
     expect(reconnecting.getAttribute('style')).toContain('border')

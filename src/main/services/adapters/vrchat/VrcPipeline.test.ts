@@ -584,10 +584,12 @@ describe('VrcPipeline', () => {
     await tick()
 
     expect(r.urls).toHaveLength(0) // never dialed
-    expect(r.events.length).toBeGreaterThan(0)
-    expect(r.events.every((event) => event.type === 'connection' && event.health === 'down')).toBe(
-      true
-    )
+    // It says "connecting" once when it starts, then "down": there is no session.
+    expect(r.events[0]).toMatchObject({ type: 'connection', health: 'reconnecting' })
+    expect(r.events.length).toBeGreaterThan(1)
+    expect(
+      r.events.slice(1).every((event) => event.type === 'connection' && event.health === 'down')
+    ).toBe(true)
     r.pipeline.stop()
   })
 
@@ -619,14 +621,16 @@ describe('VrcPipeline', () => {
     pipeline.start()
     await tick()
 
+    // Each start says "connecting" once. The stopped first loop adds nothing more.
+    const connecting = { type: 'connection', platform: 'vrchat', health: 'reconnecting' }
     expect(sockets).toHaveLength(1)
-    expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
+    expect(events).toEqual([connecting, connecting])
 
     releaseFirst('stale-token')
     await tick()
 
     expect(sockets).toHaveLength(1)
-    expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
+    expect(events).toEqual([connecting, connecting])
     pipeline.stop()
   })
 

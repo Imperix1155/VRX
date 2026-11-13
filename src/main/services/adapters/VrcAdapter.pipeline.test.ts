@@ -192,7 +192,7 @@ describe('VrcAdapter', () => {
       // status check decides what happens next.
       expect(dialed).toEqual([])
       expect(fetchMock).toHaveBeenCalledTimes(1)
-      expect(events).toEqual(['connection:down', 'auth-invalidated'])
+      expect(events).toEqual(['connection:reconnecting', 'connection:down', 'auth-invalidated'])
 
       // The status check still accepts the cookie: the pipeline restarts, and a
       // repeat exchange 401 falls back to the raw cookie instead of looping.
