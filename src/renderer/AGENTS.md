@@ -26,6 +26,8 @@ or launch authority.
 - Use `window.vrx` and `@shared/ipc` types. Do not duplicate channel types,
   bypass the bridge, treat opaque references as IDs or URLs, or expect
   main-only cooldown, session, or error detail.
+- ESLint enforces the boundary: no `electron`, `node:*`, main or preload
+  imports here (tests excepted), and no `console` in app code.
 - The CSP is `style-src 'self'` with no `unsafe-inline`. React `style={}` is
   allowed; `<style>` elements, `setAttribute('style', …)`, `cssText`,
   `dangerouslySetInnerHTML`, and `innerHTML` are not

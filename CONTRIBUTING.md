@@ -28,19 +28,24 @@ gate for every change to the app, build or CI is:
 npm run verify   # lint, format:check, test, build
 ```
 
-`npm ci` also installs a pre-commit hook that scans staged changes with
-[gitleaks](https://github.com/gitleaks/gitleaks#installing) when it is
-installed. CI always scans, with or without the local tool.
+`npm ci` also installs a pre-commit hook that scans staged changes for
+credentials and personal paths. It needs nothing installed; with
+[gitleaks](https://github.com/gitleaks/gitleaks#installing) present it runs
+that too. CI always scans.
+
+Changes that can affect the running app also run `npm run test:e2e` after the
+gate. [Maintaining](docs/MAINTAINING.md) has step-by-step recipes for the
+common changes and a list of which check catches which mistake.
 
 ## Branches
 
 VRX has three long-lived branches, one per update channel:
 
-| Branch | Holds                                  | Takes pull requests from               |
-| ------ | -------------------------------------- | -------------------------------------- |
-| `dev`  | Everything merged since the last build | Feature and fix branches               |
-| `beta` | Beta test builds (rarely used)         | Version PRs, dependency PRs            |
-| `main` | Released stable code                   | Release PRs from `dev`, dependency PRs |
+| Branch | Holds                                  | Takes pull requests from                |
+| ------ | -------------------------------------- | --------------------------------------- |
+| `dev`  | Everything merged since the last build | Feature, fix and dependency branches    |
+| `beta` | Beta test builds (rarely used)         | Version PRs, and `main` after a release |
+| `main` | Released stable code                   | Release PRs from `dev`                  |
 
 Start new work from the latest `dev` and open the pull request into `dev`:
 
@@ -82,14 +87,16 @@ merges only with the owner's permission and after the final-head checks in
 ## Dependencies and security
 
 Dependabot opens grouped minor and patch updates and separate major updates
-for npm packages and GitHub Actions each week, against each of `main`,
-`beta` and `dev`. Check
+for npm packages and GitHub Actions each week, against `dev` only. They reach
+`beta` and `main` with the next release, so the three branches never drift
+apart. Check
 compatibility and upstream changes before accepting one, and explain why when
 an update doesn't fit. [Development](docs/DEVELOPMENT.md#dependency-and-security-changes)
 covers advisories. Never relax a security gate to clear the queue.
 
-CI runs on every push and every pull request: build and tests on Windows and
-Ubuntu, a dependency audit and a secret scan. CodeQL runs on `main` and
+CI runs on every push and every pull request: build, tests and an end-to-end
+run of the built app on Windows and Ubuntu, a dependency audit and a secret
+scan. CodeQL runs on `main` and
 weekly. Never commit or log real credentials, tokens or personal data.
 
 ## Releases

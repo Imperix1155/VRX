@@ -180,6 +180,7 @@ code. Packaging, the design guide and every other command are in
 | [`AGENTS.md`](AGENTS.md) and each nearer `AGENTS.md`                       | The rules every change follows. Read them before editing.          |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md)                                       | How to propose a change.                                           |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)                               | Setup, commands, tests, packaging, the design guide.               |
+| [`docs/MAINTAINING.md`](docs/MAINTAINING.md)                               | Where to look by symptom, step-by-step recipes, what guards what.  |
 | [`docs/REVIEW.md`](docs/REVIEW.md)                                         | What a pull request needs before it is merged.                     |
 | [`docs/RELEASING.md`](docs/RELEASING.md)                                   | Versions, dev and stable builds, publishing.                       |
 | [`docs/DESIGN.md`](docs/DESIGN.md)                                         | The full design language: rules, tokens, materials, recipes.       |
