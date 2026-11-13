@@ -117,6 +117,12 @@ function cvrTenantOf(req) {
   return m ? m[1] : null
 }
 
+/** The host a request names, without its port, for an exact comparison. */
+const hostOf = (req) =>
+  String(req.headers.host ?? '')
+    .toLowerCase()
+    .replace(/:\d+$/, '')
+
 const json = (res, status, body, headers = {}) => {
   const text = JSON.stringify(body)
   res.writeHead(status, { 'Content-Type': 'application/json', ...headers })
@@ -499,11 +505,11 @@ function cvrUserFull(S, f) {
   return data
 }
 async function cvr(req, res, url) {
-  const host = req.headers.host
+  const host = hostOf(req)
   let p = url.pathname
   const m = req.method
   const ct = cvrTenantOf(req)
-  if (host.startsWith('api.chilloutvr.net')) {
+  if (host === 'api.chilloutvr.net') {
     if (
       ct !== null &&
       (await runExt(ct, {
@@ -690,25 +696,24 @@ export async function startFakePlatforms() {
     }
     log(req.method, req.headers.host, url.pathname + url.search)
     try {
-      if (req.headers.host?.startsWith('api.vrchat.cloud')) return await vrchat(req, res, url)
-      if (
-        req.headers.host?.startsWith('api.abinteractive.net') ||
-        req.headers.host?.startsWith('api.chilloutvr.net')
-      )
+      const host = hostOf(req)
+      if (host === 'api.vrchat.cloud') return await vrchat(req, res, url)
+      if (host === 'api.abinteractive.net' || host === 'api.chilloutvr.net')
         return await cvr(req, res, url)
       // Picture hosts: no picture. VRX shows its neutral fallback.
       res.writeHead(404)
       res.end()
     } catch (e) {
+      // The details go to `log()`, where a failing test can read them.
       log('ERROR', e.stack)
-      json(res, 500, { error: String(e) })
+      json(res, 500, { error: 'the fake platform failed; see fake.log()' })
     }
   })
   const wss = new WebSocketServer({ noServer: true })
   server.on('upgrade', (req, socket, head) => {
-    const host = req.headers.host ?? ''
+    const host = hostOf(req)
     log('UPGRADE', host, req.url)
-    if (host.startsWith('pipeline.vrchat.cloud')) {
+    if (host === 'pipeline.vrchat.cloud') {
       const u = new URL(req.url, 'https://x')
       const tm = String(u.searchParams.get('authToken') ?? '').match(
         /^authcookie_fake_([a-z0-9]+)$/
@@ -725,7 +730,7 @@ export async function startFakePlatforms() {
       })
       return
     }
-    if (host.startsWith('api.chilloutvr.net')) {
+    if (host === 'api.chilloutvr.net') {
       const ct = cvrTenantOf(req)
       if (ct === null || tenant(ct).S.cvr.signedOut) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
