@@ -118,6 +118,66 @@ describe('VRX smoke test', () => {
     expect(fake.state().writes).toEqual([])
   })
 
+  it('shows room details and rates a world: one request to like, one to clear', async () => {
+    const { page } = vrx
+    const sheet = page.getByRole('dialog')
+    const close = sheet.getByRole('button', { name: 'Close', exact: true })
+    // A retry may find the sheet still open from the first try.
+    if (await sheet.count()) await close.click()
+    await openPage('Explore')
+    await page.getByRole('button', { name: 'Sunset Lounge on VRChat. View rooms' }).click()
+    // The world's rooms load into the sheet, with what a room says about itself.
+    await sheet.getByRole('button', { name: 'Join', exact: true }).first().waitFor()
+    await sheet.getByText('Friday Hangout').waitFor()
+    await sheet.getByText('Everyone is welcome.').waitFor()
+    await sheet.getByText(/Language: .*Portuguese/).waitFor() // the fake sends pt-BR
+
+    const like = sheet.getByRole('button', { name: 'Like Sunset Lounge', exact: true })
+    const liked = sheet.getByRole('button', { name: /^Liked\. Clear your rating/ })
+    // A rating button is switched off until VRX has the platform's answer.
+    const answered = (button) => expect.poll(() => button.isEnabled()).toBe(true)
+    // VRX refuses a second rating change within a second of the first
+    // (WORLD_RATING_WRITE_SPACING_MS), and nothing on screen says when that
+    // second is over. So this waits for the answer, then a little over a
+    // second. It is the one fixed wait in this file.
+    const readyForNextChange = async (button) => {
+      await answered(button)
+      await page.waitForTimeout(1_100)
+    }
+
+    // A retry may find the world still liked by the first try: clear it.
+    await like.or(liked).waitFor()
+    if (await liked.count()) {
+      await readyForNextChange(liked)
+      await liked.click()
+      await like.waitFor()
+      await readyForNextChange(like)
+    }
+    await answered(like)
+    const before = fake.state().writes.length
+    const sent = () =>
+      fake
+        .state()
+        .writes.slice(before)
+        .map((write) => `${write.kind} ${write.value ?? ''}`.trim())
+
+    await like.click()
+    await liked.waitFor()
+    expect(await liked.getAttribute('aria-pressed')).toBe('true')
+    // The button shows the choice at once. The request follows.
+    await expect.poll(sent).toEqual(['world-rating like'])
+
+    // Pressing the active choice clears it.
+    await readyForNextChange(liked)
+    await liked.click()
+    await like.waitFor()
+    expect(await like.getAttribute('aria-pressed')).toBe('false')
+    await expect.poll(sent).toEqual(['world-rating like', 'world-rating-clear'])
+
+    await close.click()
+    await sheet.waitFor({ state: 'detached' })
+  })
+
   it('reported no error in the window', () => {
     expect(vrx.rendererErrors).toEqual([])
   })

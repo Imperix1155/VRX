@@ -1,9 +1,9 @@
 # End-to-end tests
 
 These tests start the real, built VRX app and use it the way a person would:
-sign in, look at friends, open every page, restart. They catch what unit tests
-cannot: a blank window, a page that throws when it opens, a bridge method
-nobody registered, a sign-in that is forgotten after a restart.
+sign in, look at friends, open every page, rate a world, restart. They catch
+what unit tests cannot: a blank window, a page that throws when it opens, a
+bridge method nobody registered, a sign-in that is forgotten after a restart.
 
 They never touch a real account. The app talks to a fake VRChat and ChilloutVR
 that run on your own computer, and every other connection is refused.
@@ -36,6 +36,8 @@ The sample accounts: VRChat `tester` / `password`, ChilloutVR
 `tester@example.com` / `password`. VRChat friends are Aria Vale (in a public
 world), Brick Lane (on the website), Cass Nova (offline), Dex Both (private) and
 Echo Hush. ChilloutVR friends are Gale Wind, Dex Both CVR and Hollow Pine.
+The VRChat worlds are Fake World, Sunset Lounge and Quiet Library. Every
+VRChat room is titled "Friday Hangout".
 
 ## Add a test
 
@@ -45,12 +47,15 @@ it still passes when it is retried on its own.
 
 - Find things the way a user does: `page.getByRole('button', { name: 'Join' })`,
   `page.getByText('Aria Vale')`. Wait with `.waitFor()` or `expect.poll(...)`,
-  never with a fixed sleep.
+  never with a fixed sleep. The world rating step holds the only exception;
+  its comment says why.
 - Change what the platforms say with the fake's helpers, for example
   `fake.setVrcFriend({ id, state: 'offline' })`, then wait for the window to
   show it.
 - Check what VRX asked a platform to change with `fake.state().writes`. A
-  test that only looks around must leave it empty.
+  test that only looks around must leave it empty. A test that presses
+  something must find exactly the requests that press should send, as the
+  world rating step does.
 - When VRX calls a route the fake does not have, the fake answers 404 and
   writes a line with `UNHANDLED` to `fake.log()`. Add the route to
   `fake-platforms.mjs` (or `fake-data.mjs`), shaped the way VRX's parser for it

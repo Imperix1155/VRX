@@ -25,6 +25,13 @@ const cvrWorlds = {
   [CW2]: { name: 'Neon Arcade' }
 }
 
+/** What a VRChat room may say about itself. The Explore sheet shows all three. */
+const ROOM_DETAILS = {
+  displayName: 'Friday Hangout',
+  description: 'Everyone is welcome.',
+  dominantLanguage: 'pt-BR'
+}
+
 function st(S) {
   if (!S.t5) {
     S.t5 = {
@@ -129,6 +136,20 @@ export async function handle(ctx) {
       if (q.get('userId')) list = []
       return (json(res, 200, list), true)
     }
+    // The signed-in user's own rating of a world: read, set, clear.
+    if ((mm = p.match(/^\/worlds\/(wrld_[\w-]+)\/rating$/))) {
+      s.vrcRatings ??= {}
+      const id = mm[1]
+      if (m === 'PUT') {
+        const body = JSON.parse((await readBody(req)) || '{}')
+        S.writes.push({ platform: 'vrchat', kind: 'world-rating', id, value: body.value })
+        s.vrcRatings[id] = body.value
+      } else if (m === 'DELETE') {
+        S.writes.push({ platform: 'vrchat', kind: 'world-rating-clear', id })
+        delete s.vrcRatings[id]
+      }
+      return (json(res, 200, { value: s.vrcRatings[id] ?? null }), true)
+    }
     if ((mm = p.match(/^\/worlds\/(wrld_[\w-]+)$/)) && m === 'GET') {
       const id = mm[1]
       const inst =
@@ -155,7 +176,8 @@ export async function handle(ctx) {
           ageGate: false,
           closedAt: null,
           hardClose: null,
-          groupAccessType: null
+          groupAccessType: null,
+          ...ROOM_DETAILS
         }),
         true
       )
