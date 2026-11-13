@@ -7,46 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.4.5] - 2026-11-13
-
-Two small additions and a polish pass on top of 1.4.4.
-
-### Added
-
-- Explore: a VRChat public room shows its instance name, a short description
-  and its language by name, when VRChat sends them. A room without those
-  still looks the same. ChilloutVR rooms do not have them.
-- Rate a VRChat world from its sheet. Like and Dislike show your own rating,
-  and pressing the one you already chose clears it. A change that does not
-  go through puts the previous rating back and says so, then the message
-  clears. If your rating cannot be read, the sheet says so and "Try again"
-  reads it once more. ChilloutVR worlds have no rating, so those buttons are
-  not on that sheet. There is no public like count.
-
-### Changed
-
-- The desktop shell now uses Electron 45.2.3. The app build uses Vite 8.3.7
-  and the TypeScript lint rules from typescript-eslint 8.72.2.
-- The top bar says "Connecting" while VRX is setting up its live connection,
-  in place of "Reconnecting".
-- Friends: while you type in Search, groups with no match are hidden, so you
-  no longer see "ONLINE (0)" above the one person you looked for.
-- Alerts: a friend who comes online straight into a world now gives one
-  alert ("joined …"), not two. "Came online" still shows when the joined
-  alert is off.
-- Alerts: VRChat and ChilloutVR each have their own limit of three alerts of
-  a kind in ten seconds, so a busy moment on one no longer silences the other.
-
-### Fixed
-
-- Export your data: if an account signs in or out while VRX is getting the
-  file ready, the export stops and asks you to press Export again, so the
-  file always matches the accounts you pressed it for.
-- The top bar no longer says "Down" for the first seconds after VRX opens
-  while it is still connecting. "Down" now only means there is no connection.
-- Keyboard: every button and control now shows the same thin line when you
-  reach it with Tab. A few looked different from the rest.
-
 ## [1.4.5-dev.2] - 2026-11-13
 
 One fix for the new world rating buttons.
