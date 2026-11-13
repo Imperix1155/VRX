@@ -223,4 +223,88 @@ describe('WorldRatingControl', () => {
     await readyLike()
     expect(getWorldRating).toHaveBeenCalledTimes(1)
   })
+
+  it('ends a failed read with a line and Try again, and one press reads once more', async () => {
+    getWorldRating.mockResolvedValueOnce({ ok: false, reason: 'failed' })
+    render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+
+    // The read is over: no "Loading" line, a line about reading (not saving).
+    expect((await screen.findByRole('alert')).textContent).toBe("Couldn't load your rating.")
+    expect(screen.queryByText('Loading your rating…')).toBeNull()
+    const like = screen.getByRole<HTMLButtonElement>('button', { name: 'Like Sunset Lounge' })
+    expect(like.disabled).toBe(true)
+    // Nothing is retried on its own.
+    expect(getWorldRating).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    // The button is leaving; focus goes to the choices, not to the page.
+    expect(document.activeElement).toBe(
+      screen.getByRole('group', { name: 'Your rating of this world' })
+    )
+    await waitFor(() => expect(like.disabled).toBe(false))
+    expect(getWorldRating).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+  })
+
+  it('shows the loading line during Try again, and comes back the same when it fails again', async () => {
+    let answer: (result: WorldRatingRead) => void = () => undefined
+    getWorldRating
+      .mockResolvedValueOnce({ ok: false, reason: 'failed' })
+      .mockImplementationOnce(() => new Promise<WorldRatingRead>((resolve) => (answer = resolve)))
+    render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+
+    // While the second read is out: the loading line, no error, no button.
+    expect(screen.getByRole('status').textContent).toBe('Loading your rating…')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+
+    await act(async () => answer({ ok: false, reason: 'failed' }))
+    expect((await screen.findByRole('alert')).textContent).toBe("Couldn't load your rating.")
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(getWorldRating).toHaveBeenCalledTimes(2)
+  })
+
+  it('ends the read when the request was dropped or the bridge call throws', async () => {
+    getWorldRating.mockResolvedValueOnce({ ok: false, reason: 'stale' })
+    const first = render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+    expect((await screen.findByRole('alert')).textContent).toBe("Couldn't load your rating.")
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+    first.unmount()
+
+    getWorldRating.mockRejectedValueOnce(new Error('boom'))
+    render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+    expect((await screen.findByRole('alert')).textContent).toBe("Couldn't load your rating.")
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+  })
+
+  it('offers no Try again when reading again cannot help, and forgets a failure on another world', async () => {
+    getWorldRating.mockResolvedValueOnce({ ok: false, reason: 'unknown-world' })
+    const view = render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Refresh this world, then try again.'
+    )
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+
+    view.rerender(<WorldRatingControl worldRef="ref-b" worldName="Quiet Library" />)
+    const like = await screen.findByRole<HTMLButtonElement>('button', {
+      name: 'Like Quiet Library'
+    })
+    await waitFor(() => expect(like.disabled).toBe(false))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it("keeps the platform's own reason on a failed read and offers no Try again when signed out", async () => {
+    getWorldRating.mockResolvedValueOnce({ ok: false, reason: 'rate-limited' })
+    render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'VRChat asked VRX to slow down. Try again in a minute.'
+    )
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+
+    act(() => signIn(null))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull())
+    expect(screen.getByText('Sign in to VRChat to rate this world.')).toBeTruthy()
+  })
 })

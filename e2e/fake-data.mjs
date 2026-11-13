@@ -140,6 +140,11 @@ export async function handle(ctx) {
     if ((mm = p.match(/^\/worlds\/(wrld_[\w-]+)\/rating$/))) {
       s.vrcRatings ??= {}
       const id = mm[1]
+      // A test makes the next read fail with `state().mode.vrcRatingReadFails = 1`.
+      if (m === 'GET' && (S.mode.vrcRatingReadFails ?? 0) > 0) {
+        S.mode.vrcRatingReadFails -= 1
+        return (json(res, 500, { error: { message: 'fake fail', status_code: 500 } }), true)
+      }
       if (m === 'PUT') {
         const body = JSON.parse((await readBody(req)) || '{}')
         S.writes.push({ platform: 'vrchat', kind: 'world-rating', id, value: body.value })

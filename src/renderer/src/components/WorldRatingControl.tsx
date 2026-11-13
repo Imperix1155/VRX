@@ -66,9 +66,20 @@ export default function WorldRatingControl({
   const [loadError, setLoadError] = useState<SetWorldRatingFailure | null>(null)
   const [writeError, setWriteError] = useState<SetWorldRatingFailure | null>(null)
   const [tracked, setTracked] = useState({ accountId, worldRef })
+  // Bumped by "Try again", so the read below runs once more.
+  const [attempt, setAttempt] = useState(0)
   const request = useRef(0)
-  const loading = accountId !== null && canRead && shown === undefined && !pending
-  const disabled = accountId === null || pending || loading || !bridge
+  const group = useRef<HTMLDivElement>(null)
+  // A read that failed is over: the line under the buttons says so and
+  // offers "Try again". Only a read that is still out counts as loading.
+  const readFailed = shown === undefined && !pending && loadError !== null
+  // Reading again can only help when the platform did not answer or asked
+  // for a pause. Signing in again or refreshing the world is another step.
+  const canRetryRead =
+    readFailed && accountId !== null && (loadError === 'failed' || loadError === 'rate-limited')
+  const loading =
+    accountId !== null && canRead && shown === undefined && !pending && loadError === null
+  const disabled = accountId === null || pending || loading || shown === undefined || !bridge
   if (tracked.accountId !== accountId || tracked.worldRef !== worldRef) {
     setTracked({ accountId, worldRef })
     setLoadError(null)
@@ -81,9 +92,11 @@ export default function WorldRatingControl({
     void readWorldRating(accountId, worldRef).then((result) => {
       if (request.current !== token) return
       if (result.ok) setLoadError(null)
-      else if (result.reason !== 'stale') setLoadError(result.reason)
+      // `stale` (the request was dropped on the way) ends the read like any
+      // other failure. A real account change resets this line above.
+      else setLoadError(result.reason === 'stale' ? 'failed' : result.reason)
     })
-  }, [accountId, canRead, worldRef])
+  }, [accountId, canRead, worldRef, attempt])
 
   useEffect(() => {
     if (writeError === null) return
@@ -102,6 +115,15 @@ export default function WorldRatingControl({
     })
   }
 
+  /** One press, one new read. The button leaves the line while it runs. */
+  function retryRead(): void {
+    setLoadError(null)
+    setAttempt((count) => count + 1)
+    // "Try again" leaves the screen while the read runs. Keyboard focus moves
+    // to the two choices, so it is not dropped to the page behind the sheet.
+    group.current?.focus({ preventScroll: true })
+  }
+
   const hint =
     accountId === null
       ? t('explore.rating.signedOut')
@@ -110,14 +132,26 @@ export default function WorldRatingControl({
         : pending
           ? t('explore.rating.saving')
           : null
-  const alert = writeError ?? loadError
+  // A rating that did arrive (another open sheet read it) outdates the
+  // failed read, so its line goes away.
+  const readAlert = readFailed ? loadError : null
+  const alertText =
+    writeError !== null
+      ? t(FAILURE_KEYS[writeError])
+      : readAlert === 'failed'
+        ? t('explore.rating.loadFailed')
+        : readAlert !== null
+          ? t(FAILURE_KEYS[readAlert])
+          : null
 
   return (
     <div>
       <div
+        ref={group}
+        tabIndex={-1}
         role="group"
         aria-label={t('explore.rating.group')}
-        className="flex flex-wrap gap-[var(--space-2)]"
+        className="flex flex-wrap gap-[var(--space-2)] focus:outline-none"
       >
         <RateButton
           label={shown === 'like' ? t('explore.rating.liked') : t('explore.rating.like')}
@@ -146,11 +180,32 @@ export default function WorldRatingControl({
           <Thumb down />
         </RateButton>
       </div>
-      {hint ? <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">{hint}</p> : null}
-      {alert ? (
-        <p role="alert" className="mt-[var(--space-1)] text-xs text-[var(--error)]">
-          {t(FAILURE_KEYS[alert])}
+      {hint ? (
+        // "Loading" and "Saving" are announced. The signed-out line is plain
+        // text: it does not change while the sheet is open.
+        <p
+          role={accountId === null ? undefined : 'status'}
+          className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]"
+        >
+          {hint}
         </p>
+      ) : null}
+      {alertText ? (
+        // The error and its "Try again" share one line and wrap when narrow.
+        <div className="mt-[var(--space-1)] flex flex-wrap items-center gap-x-[var(--space-1)]">
+          <p role="alert" className="text-xs text-[var(--error)]">
+            {alertText}
+          </p>
+          {canRetryRead ? (
+            <button
+              type="button"
+              onClick={retryRead}
+              className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+            >
+              {t('explore.rating.retry')}
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

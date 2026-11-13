@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- World rating: when VRX could not read your rating of a world, Like and
+  Dislike stayed switched off under "Loading your rating…" until the sheet
+  was closed and opened again. The line now says the rating could not be
+  loaded, and "Try again" reads it once more.
+
 ## [1.4.5-dev.1] - 2026-11-13
 
 Two small additions and a polish pass on top of 1.4.4.

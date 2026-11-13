@@ -134,7 +134,7 @@ import tests read a SQLite file).
 - `verify` does not start the app. After it passes, run `npm run test:e2e`
   for any change that can affect the running app (on Linux without a screen:
   `xvfb-run -a npm run test:e2e`). It signs in to a fake VRChat and ChilloutVR
-  on your own computer, opens every page and restarts the app, in about 20
+  on your own computer, opens every page and restarts the app, in about 30
   seconds, and never reaches a real platform. [`e2e/README.md`](../e2e/README.md)
   explains how to read a failure and add a step.
 - While working, run only the tests you need, for example

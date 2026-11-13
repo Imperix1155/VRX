@@ -1035,6 +1035,8 @@
       "signedOut": "Sign in to VRChat to rate this world.",
       "loading": "Loading your rating…",
       "saving": "Saving your rating…",
+      "loadFailed": "Couldn't load your rating.",
+      "retry": "Try again",
       "failed": {
         "cooldown": "Wait a moment before changing your rating again.",
         "rate-limited": "VRChat asked VRX to slow down. Try again in a minute.",
