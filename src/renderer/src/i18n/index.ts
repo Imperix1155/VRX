@@ -12,6 +12,11 @@
  * `supportedLngs` keeps `i18n.language` itself on English or Japanese. Times and
  * numbers are formatted with it, so an OS language VRX doesn't ship (German,
  * Korean, …) must not reach `Intl` while the words fall back to English.
+ * `fallbackLng` is `'en'` on purpose: i18next 27 otherwise defaults it to
+ * `false`, and an unsupported language would then have no catalog. No catalog
+ * value is empty, so the v27 `returnEmptyString: false` default (an empty
+ * value falls back like a missing key) changes no string. Interpolated values
+ * stay unescaped (`escapeValue: false`); React escapes them.
  */
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'

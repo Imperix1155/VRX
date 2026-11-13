@@ -9,7 +9,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { AvatarItem, AvatarLibraryResult } from '@shared/avatarLibrary'
 import type { AuthStatus, Platform } from '@shared/types'
-import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
 import AvatarsView, { UPLOADS_FIRST_STEP } from './AvatarsView'
@@ -33,8 +33,6 @@ vi.mock('../queries/auth', async (importOriginal) => ({
     return { data, isSuccess: true, isFetching: false, isPending: false }
   }
 }))
-
-const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
 
 function avatar(platform: Platform, index: number, name: string): AvatarItem {
   const guid = `5a3c1e2d-0000-4000-8000-${String(index).padStart(12, '0')}`

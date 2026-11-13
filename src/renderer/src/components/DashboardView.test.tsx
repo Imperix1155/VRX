@@ -25,6 +25,7 @@ import { dashboardSectionsFromOrder, type Friend, type VrcFriend } from '@shared
 import type { ExplorePlatformSnapshot, ExploreWorld, ExploreWorldSnapshot } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import { useSettingsStore } from '../stores/settings'
 import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
@@ -69,8 +70,7 @@ vi.mock('../queries/auth', async (importOriginal) => ({
   })
 }))
 
-// Assertions go through i18n.t so a copy tweak doesn't break behavior tests.
-const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
+// Assertions go through the shared catalog, so a copy tweak doesn't break behavior tests.
 
 type QueryStub = {
   data: Friend[] | undefined

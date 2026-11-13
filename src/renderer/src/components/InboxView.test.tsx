@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { InboxItem, InboxSnapshot } from '@shared/inbox'
 import type { Friend } from '@shared/types'
 import { fullFriend } from '../test-utils/friendFixture'
-import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
 import { inboxKey } from '../queries/inbox'
@@ -32,7 +32,6 @@ vi.mock('../queries/auth', async (importOriginal) => ({
   })
 }))
 
-const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
 const NOW = Date.UTC(2026, 9, 27, 8, 0, 0)
 
 const item = (overrides: Partial<InboxItem>): InboxItem => ({

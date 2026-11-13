@@ -8,6 +8,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import '../i18n'
 import SheetGrabBar from '../components/SheetGrabBar'
+import { specifiedInlineStyle } from '../testutils/specifiedInlineStyle'
 import { SHEET_EXPANDED_HEIGHT, useSheetExpansion } from './useSheetExpansion'
 
 const COLLAPSED_HEIGHT = 360
@@ -79,7 +80,9 @@ describe('useSheetExpansion', () => {
     fireEvent.click(bar())
     expect(bar().getAttribute('aria-expanded')).toBe('true')
     expect(bar().getAttribute('aria-label')).toBe('Show less')
-    expect(screen.getByTestId('panel').style.minHeight).toBe(SHEET_EXPANDED_HEIGHT)
+    expect(screen.getByTestId('panel').style.minHeight).toBe(
+      specifiedInlineStyle('minHeight', SHEET_EXPANDED_HEIGHT)
+    )
     fireEvent.click(bar())
     expect(bar().getAttribute('aria-expanded')).toBe('false')
     fireEvent.keyDown(bar(), { key: 'ArrowUp' })
@@ -148,7 +151,7 @@ describe('useSheetExpansion', () => {
     // Below the collapsed height the sheet slides instead of shrinking.
     const panel = screen.getByTestId('panel')
     expect(panel.style.minHeight).toBe(`${COLLAPSED_HEIGHT}px`)
-    expect(panel.style.translate).toBe('0 100px')
+    expect(panel.style.translate).toBe(specifiedInlineStyle('translate', '0 100px'))
     fireEvent.pointerUp(bar(), { pointerId: 1, clientY: 400 })
     expect(onClose).toHaveBeenCalledTimes(1)
   })

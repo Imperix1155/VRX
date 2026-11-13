@@ -15,7 +15,7 @@ import type {
   SocialActionResult
 } from '@shared/socialActions'
 import type { AuthStatus, Platform } from '@shared/types'
-import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import ProfileActions from './ProfileActions'
 
 vi.mock('../queries/auth', async (importOriginal) => ({
@@ -31,7 +31,6 @@ vi.mock('../queries/auth', async (importOriginal) => ({
   }
 }))
 
-const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
 const IDS: Record<Platform, string> = {
   vrchat: 'usr_5a3c1e2d-0000-4000-8000-000000000001',
   chilloutvr: '5a3c1e2d-0000-4000-8000-000000000002'

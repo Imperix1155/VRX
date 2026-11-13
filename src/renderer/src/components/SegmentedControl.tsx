@@ -70,6 +70,9 @@ export default function SegmentedControl<T extends string>({
         // A colored word carries its hue in BOTH states (like the TopBar filter);
         // uncolored options keep the active=full / inactive=dim text treatment.
         const wordColor = textColors?.[value]
+        // `Record<T, string>[T]` stays generic, so it misses i18next 27's
+        // string-key overload. A `string` binding selects that overload.
+        const labelKey: string = labelKeys[value]
         return (
           <button
             key={value}
@@ -102,7 +105,7 @@ export default function SegmentedControl<T extends string>({
             ].join(' ')}
             style={wordColor != null ? { color: wordColor } : undefined}
           >
-            {t(labelKeys[value])}
+            {t(labelKey)}
           </button>
         )
       })}
