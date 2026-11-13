@@ -14,14 +14,43 @@
 //
 // A hit on a made-up test value: build that value at run time in the test
 // (`'authcookie_' + id`) so the file never holds a complete match, or use an
-// obviously fake short value such as `authcookie_test`. Do not add a file to
-// SKIPPED_FILES to silence a hit.
+// obviously fake short value such as `authcookie_test`.
+//
+// A hit on a path (`home-folder-path`): the line names a folder inside
+// someone's home folder. Write the path with a stand-in name instead:
+// `/home/user/...`, `/Users/name/...`, `C:\Users\name\...`, or `<you>`.
+// PLACEHOLDER_NAMES below is the full list.
+//
+// Do not add a file to SKIPPED_FILES to silence a hit.
 import { execFileSync } from 'node:child_process'
 import { readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+
+/** Stand-in account names a path may use. Anything else reads as a real person's folder. */
+const PLACEHOLDER_NAMES = [
+  'name',
+  'user',
+  'username',
+  'yourname',
+  'YourName',
+  'you',
+  'me',
+  'dev',
+  'example',
+  // Accounts that belong to a system or a CI runner, not to a person.
+  'runner',
+  'runneradmin',
+  'linuxbrew',
+  'Public',
+  'Shared',
+  'Default',
+  // `vrchat://launch` and world links look like paths to the pattern.
+  'world',
+  'launch'
+]
 
 /**
  * What a real credential looks like. Each pattern needs the full shape of a
@@ -45,10 +74,16 @@ export const SECRET_RULES = [
   { id: 'chat-token', pattern: /\bxox[abprs]-[A-Za-z0-9-]{20,}/ },
   { id: 'model-api-key', pattern: /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{32,}/ },
   {
-    // A pasted path that names a person's account on their own computer.
+    // A pasted path that names a person's account on their own computer: a
+    // home folder root, an account name, then something inside it. A web
+    // address or a route such as `example.com/home/page` or `/Users/list` is
+    // not one (nothing may sit right before the root, and a folder must follow).
     id: 'home-folder-path',
-    pattern:
-      /(?:[A-Za-z]:\\{1,2}Users\\{1,2}|\/Users\/|\/home\/)(?!(?:name|user|you|me|dev|runner|world|launch|example|\.\.\.|<)(?![A-Za-z0-9]))[A-Za-z0-9._-]+/
+    pattern: new RegExp(
+      String.raw`(?:[A-Za-z]:\\{1,2}Users\\{1,2}|(?<![A-Za-z0-9._-])/Users/|(?<![A-Za-z0-9._-])/home/)` +
+        String.raw`(?!(?:${PLACEHOLDER_NAMES.join('|')}|\.\.\.|<)(?![A-Za-z0-9]))` +
+        String.raw`[A-Za-z0-9._-]+[\\/]`
+    )
   }
 ]
 
@@ -98,18 +133,43 @@ export function scanStagedChanges(root) {
   const hits = []
   let file = ''
   let line = 0
-  const diff = git(['diff', '--cached', '--no-color', '--no-ext-diff', '-U0'], root)
+  // The `-c` settings pin the output shape, whatever the developer's own git
+  // configuration says: `a/` and `b/` prefixes and plain (unquoted) file names.
+  const diff = git(
+    [
+      '-c',
+      'diff.mnemonicPrefix=false',
+      '-c',
+      'diff.noprefix=false',
+      '-c',
+      'core.quotePath=false',
+      'diff',
+      '--cached',
+      '--no-color',
+      '--no-ext-diff',
+      '-U0'
+    ],
+    root
+  )
+  // A file's header ends at its first `@@`. After that, a row starting with
+  // `+++ ` is an added line of text (one that began with `++ `), not a header.
+  let inHunk = false
   for (const row of diff.split('\n')) {
-    if (row.startsWith('+++ ')) {
+    if (row.startsWith('diff --git ')) {
+      inHunk = false
+      continue
+    }
+    if (!inHunk && row.startsWith('+++ ')) {
       file = row.slice(4).replace(/^b\//, '')
       continue
     }
     const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(row)
     if (hunk) {
+      inHunk = true
       line = Number(hunk[1])
       continue
     }
-    if (!row.startsWith('+') || SKIPPED_FILES.test(file)) continue
+    if (!inHunk || !row.startsWith('+') || SKIPPED_FILES.test(file)) continue
     for (const rule of findSecretsInLine(row.slice(1))) hits.push({ file, line, rule })
     line++
   }
@@ -126,6 +186,9 @@ function main() {
   }
   console.error('check-secrets: these lines look like a real credential or a personal path:')
   for (const hit of hits) console.error(`  ${hit.file}:${hit.line}  ${hit.rule}`)
+  console.error(
+    'For home-folder-path, write the path with a stand-in name such as /home/user/ or C:\\Users\\name\\.'
+  )
   console.error(
     'Remove the value. If it is a real credential, it is already compromised: sign out of that\n' +
       'account or revoke the token, and tell the owner. See scripts/check-secrets.mjs for fixtures.'

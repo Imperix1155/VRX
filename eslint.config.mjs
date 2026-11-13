@@ -6,6 +6,57 @@ import eslintReact from '@eslint-react/eslint-plugin'
 import eslintPluginReactHooks from 'eslint-plugin-react-hooks'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
+/**
+ * Electron subpaths and the Node builtins, bare and `node:`-prefixed. Shared
+ * by the two blocks below that keep them out of sandboxed code. `electron`
+ * itself is named in each block's `paths`.
+ */
+const ELECTRON_AND_NODE_MODULES = [
+  'electron/*',
+  'node:*',
+  'node:*/*',
+  'fs',
+  'path',
+  'os',
+  'crypto',
+  'child_process',
+  'http',
+  'https',
+  'net',
+  'events',
+  'util',
+  'stream',
+  'buffer',
+  'url',
+  'assert',
+  'zlib',
+  'worker_threads',
+  'process',
+  'tls',
+  'dns',
+  'timers',
+  'fs/*',
+  'path/*',
+  'os/*',
+  'crypto/*',
+  'child_process/*',
+  'http/*',
+  'https/*',
+  'net/*',
+  'events/*',
+  'util/*',
+  'stream/*',
+  'buffer/*',
+  'url/*',
+  'assert/*',
+  'zlib/*',
+  'worker_threads/*',
+  'process/*',
+  'tls/*',
+  'dns/*',
+  'timers/*'
+]
+
 export default defineConfig(
   // '**/.claude': agent worktrees live under .claude/worktrees — flat config
   // ignores .gitignore, so without this a live agent checkout breaks main-tree lint.
@@ -113,56 +164,20 @@ export default defineConfig(
             {
               // electron subpaths + node builtins, both bare and node:-prefixed
               // (bare-name gaps found by the W7 adversarial review probe).
-              group: [
-                'electron/*',
-                'node:*',
-                'node:*/*',
-                'fs',
-                'path',
-                'os',
-                'crypto',
-                'child_process',
-                'http',
-                'https',
-                'net',
-                'events',
-                'util',
-                'stream',
-                'buffer',
-                'url',
-                'assert',
-                'zlib',
-                'worker_threads',
-                'process',
-                'tls',
-                'dns',
-                'timers',
-                'fs/*',
-                'path/*',
-                'os/*',
-                'crypto/*',
-                'child_process/*',
-                'http/*',
-                'https/*',
-                'net/*',
-                'events/*',
-                'util/*',
-                'stream/*',
-                'buffer/*',
-                'url/*',
-                'assert/*',
-                'zlib/*',
-                'worker_threads/*',
-                'process/*',
-                'tls/*',
-                'dns/*',
-                'timers/*'
-              ],
+              group: ELECTRON_AND_NODE_MODULES,
               message:
                 'src/shared is PURE (bundles into the sandboxed renderer) — no node builtins. See src/shared/AGENTS.md.'
             },
             {
-              group: ['**/main/**', '**/preload/**', '**/renderer/**', '@renderer/*'],
+              group: [
+                '**/main',
+                '**/main/**',
+                '**/preload',
+                '**/preload/**',
+                '**/renderer',
+                '**/renderer/**',
+                '@renderer/*'
+              ],
               message:
                 'src/shared is imported by every process and imports none of them. Move the shared part into src/shared. See src/shared/AGENTS.md.'
             }
@@ -192,12 +207,12 @@ export default defineConfig(
           ],
           patterns: [
             {
-              group: ['electron/*', 'node:*'],
+              group: ELECTRON_AND_NODE_MODULES,
               message:
                 'The renderer is sandboxed and has no Electron or Node modules. See src/renderer/AGENTS.md.'
             },
             {
-              group: ['**/main/**', '**/preload/**'],
+              group: ['**/main', '**/main/**', '**/preload', '**/preload/**'],
               message:
                 'The renderer never imports main-process or preload code. Share types and pure helpers through src/shared (@shared). See src/renderer/AGENTS.md.'
             }
@@ -218,7 +233,7 @@ export default defineConfig(
         {
           patterns: [
             {
-              group: ['**/renderer/**', '@renderer/*'],
+              group: ['**/renderer', '**/renderer/**', '@renderer/*'],
               message:
                 'Main and preload never import renderer code. Share types and pure helpers through src/shared (@shared). See src/main/AGENTS.md.'
             }

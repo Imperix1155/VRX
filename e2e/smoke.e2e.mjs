@@ -64,15 +64,15 @@ describe('VRX smoke test', () => {
     await page.getByRole('button', { name: 'Connect' }).last().click()
     await page.getByText(/Both connected/).waitFor()
 
-    // Pages, Dashboard, Alerts, Look, then the summary's "Open VRX".
-    for (let step = 0; step < 6; step++) {
-      const open = page.getByRole('button', { name: 'Open VRX' })
-      if ((await open.count()) > 0) {
-        await open.click()
-        break
-      }
+    // Pages, Dashboard, Alerts, Look, then the summary's "Open VRX". The
+    // loop presses Continue until that button shows, however many steps the
+    // setup has, and says so plainly if it never does.
+    const open = page.getByRole('button', { name: 'Open VRX' })
+    for (let step = 0; (await open.count()) === 0; step++) {
+      if (step === 12) throw new Error('the welcome setup never reached "Open VRX"')
       await page.getByRole('button', { name: 'Continue' }).click()
     }
+    await open.click()
     await page.getByRole('heading', { name: 'Dashboard' }).waitFor()
   })
 

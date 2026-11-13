@@ -114,8 +114,8 @@ when it fits.
 8. `docs/internal-api/1-renderer-bridge.md` and `2-ipc-channels.md`: add the
    rows.
 
-The window never sends a URL, a file path, an account or a world ID to act
-on. It sends a platform and an ID main already knows, and main looks the
+The window never sends a launch URL, a file path, an account or a world ID
+to act on. It sends a platform and an ID main already knows, and main looks the
 rest up. Read [`src/main/ipc/AGENTS.md`](../src/main/ipc/AGENTS.md) before
 adding a channel that changes anything.
 

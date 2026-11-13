@@ -11,6 +11,9 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 120_000,
     hookTimeout: 120_000,
+    // `expect.poll` waits this long for the window to catch up. The default
+    // of one second is too short for a busy CI runner.
+    expect: { poll: { timeout: 15_000 } },
     // A slow machine can miss a step once; a real break fails twice.
     retry: 1
   }

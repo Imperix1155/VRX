@@ -1,12 +1,15 @@
 // Loaded into the VRX main process by the end-to-end tests, before any app
 // code runs (`electron -r e2e/redirect.cjs .`). It is never part of a build.
 //
-// It does two things, and together they make the tests safe to run anywhere:
+// It does three things, and together they make the tests safe to run anywhere:
 //
 // 1. A connection to VRChat or ChilloutVR goes to the fake server on this
 //    computer instead (plain HTTP on 127.0.0.1, port VRX_E2E_FAKE_PORT).
 // 2. A connection to anywhere else is refused. A test run can never reach a
 //    real service or a real account, even by mistake.
+// 3. The app's data folder is moved into the test's throwaway profile
+//    (VRX_E2E_APP_DATA), so a run never writes into the log or data of a VRX
+//    installed on the same computer.
 //
 // The app itself has no setting for this and must never get one: where VRX
 // sends a sign-in is decided by its source, not by anything a user or another
@@ -17,6 +20,7 @@
 
 const net = require('node:net')
 const tls = require('node:tls')
+const { app } = require('electron')
 
 const FAKE_HOSTS = new Set([
   'api.vrchat.cloud',
@@ -31,6 +35,13 @@ const port = Number(process.env.VRX_E2E_FAKE_PORT)
 if (!Number.isInteger(port) || port <= 0) {
   throw new Error('e2e/redirect.cjs: VRX_E2E_FAKE_PORT is not set; refusing to start the app')
 }
+
+const appData = process.env.VRX_E2E_APP_DATA
+if (!appData) {
+  throw new Error('e2e/redirect.cjs: VRX_E2E_APP_DATA is not set; refusing to start the app')
+}
+// The log goes to <appData>/VRX/logs, which `--user-data-dir` does not move.
+app.setPath('appData', appData)
 
 /** A socket that fails at once, for every host the tests do not fake. */
 function refused(host) {

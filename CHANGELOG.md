@@ -40,8 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file always matches the accounts you pressed it for.
 - The top bar no longer says "Down" for the first seconds after VRX opens
   while it is still connecting. "Down" now only means there is no connection.
-- Keyboard: every button and control now shows a thin line when you reach it
-  with Tab. A few had none.
+- Keyboard: every button and control now shows the same thin line when you
+  reach it with Tab. A few looked different from the rest.
 
 ## [1.4.4] - 2026-11-12
 

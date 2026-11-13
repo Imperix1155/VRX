@@ -55,6 +55,8 @@ describe('check-secrets', () => {
       "accessKey: 'key-1'",
       'Bearer abc.def.ghi',
       'see /home/user/vrx and C:\\Users\\name\\AppData and /Users/dev/vrx',
+      'https://example.com/home/dashboard/today and the route /Users/list',
+      'C:\\Users\\Public\\Desktop and /home/linuxbrew/.linuxbrew/bin',
       'npm_config_cache and sk-something-short'
     ]) {
       expect(findSecretsInLine(line), line).toEqual([])
@@ -87,6 +89,29 @@ describe('check-secrets', () => {
     expect(scanStagedChanges(dir)).toEqual([])
     git('add', '.')
     expect(scanStagedChanges(dir)).toEqual([{ file: 'notes.txt', line: 3, rule: 'private-key' }])
+  })
+
+  it('finds a home folder path in each spelling', () => {
+    const person = 'some' + 'body'
+    for (const line of [
+      `at /home/${person}/vrx/src/main/index.ts:3`,
+      `open /Users/${person}/Library/Logs`,
+      `C:\\Users\\${person}\\AppData`,
+      `"C:\\\\Users\\\\${person}\\\\AppData"`
+    ]) {
+      expect(findSecretsInLine(line), line).toEqual(['home-folder-path'])
+    }
+  })
+
+  it('scans an added line that starts with "++" and survives personal git settings', () => {
+    const { dir, git } = repo()
+    writeFileSync(join(dir, 'notes.txt'), 'one\n')
+    git('add', '.')
+    git('commit', '-q', '-m', 'start')
+    git('config', 'diff.mnemonicPrefix', 'true')
+    writeFileSync(join(dir, 'notes.txt'), `one\n++ ${SAMPLES['private-key']}\n`)
+    git('add', '.')
+    expect(scanStagedChanges(dir)).toEqual([{ file: 'notes.txt', line: 2, rule: 'private-key' }])
   })
 
   it('finds nothing in this repository', () => {

@@ -696,7 +696,7 @@ export async function startFakePlatforms() {
         req.headers.host?.startsWith('api.chilloutvr.net')
       )
         return await cvr(req, res, url)
-      // Picture hosts: a tiny PNG.
+      // Picture hosts: no picture. VRX shows its neutral fallback.
       res.writeHead(404)
       res.end()
     } catch (e) {

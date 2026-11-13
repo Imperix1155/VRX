@@ -831,11 +831,11 @@ One row at the top of `<main>`, 22 px above the page (8 px on Settings):
 
 **Connection dot** (8 px). The shape repeats the color:
 
-| Worst state among signed-in platforms | Shape                       | Color       | Word           |
-| ------------------------------------- | --------------------------- | ----------- | -------------- |
-| Live                                  | Filled circle, soft glow    | `--ingame`  | "Live"         |
-| Reconnecting                          | Hollow ring (2 px border)   | `--warning` | "Reconnecting" |
-| Down, or nothing signed in            | Filled square (1 px radius) | `--error`   | "Down"         |
+| Worst state among signed-in platforms | Shape                       | Color       | Word         |
+| ------------------------------------- | --------------------------- | ----------- | ------------ |
+| Live                                  | Filled circle, soft glow    | `--ingame`  | "Live"       |
+| Connecting or reconnecting            | Hollow ring (2 px border)   | `--warning` | "Connecting" |
+| Down, or nothing signed in            | Filled square (1 px radius) | `--error`   | "Down"       |
 
 The live dot pulses only while the window has focus and motion is allowed,
 and never on Linux. A platform that is not signed in reads "Signed out" or

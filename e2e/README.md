@@ -23,14 +23,14 @@ A test that fails once is retried once. A real break fails both times.
 
 ## What is in this folder
 
-| File                 | What it does                                                                                                                                        |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `smoke.e2e.mjs`      | The test itself. Start here.                                                                                                                        |
-| `app.mjs`            | `launchVrx()` starts the app with a fresh, empty profile and returns Playwright's `page` (the window) and `app` (the main process).                 |
-| `fake-platforms.mjs` | `startFakePlatforms()` starts the fake VRChat and ChilloutVR and returns helpers: `state()`, `setVrcFriend()`, `vrcEvent()`, `cvrEvent()`, `log()`. |
-| `fake-data.mjs`      | The fuller sample data: worlds, favorites, avatars, groups, profiles.                                                                               |
-| `redirect.cjs`       | Loaded into the app before its own code. Sends platform requests to the fake and refuses everything else.                                           |
-| `vitest.config.mjs`  | Test runner settings: one app at a time, long timeouts, one retry.                                                                                  |
+| File                 | What it does                                                                                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `smoke.e2e.mjs`      | The test itself. Start here.                                                                                                                                     |
+| `app.mjs`            | `launchVrx()` starts the app with a fresh, empty profile (its log included) and returns Playwright's `page` (the window) and `app` (the main process).           |
+| `fake-platforms.mjs` | `startFakePlatforms()` starts the fake VRChat and ChilloutVR and returns helpers: `state()`, `sockets()`, `setVrcFriend()`, `vrcEvent()`, `cvrEvent()`, `log()`. |
+| `fake-data.mjs`      | The fuller sample data: worlds, favorites, avatars, groups, profiles.                                                                                            |
+| `redirect.cjs`       | Loaded into the app before its own code. Sends platform requests to the fake and refuses everything else.                                                        |
+| `vitest.config.mjs`  | Test runner settings: one app at a time, long timeouts, one retry.                                                                                               |
 
 The sample accounts: VRChat `tester` / `password`, ChilloutVR
 `tester@example.com` / `password`. VRChat friends are Aria Vale (in a public
@@ -72,6 +72,13 @@ The step failed because something a user does stopped working.
 
 ## Rules
 
+- A run leaves nothing behind and touches nothing of a VRX installed on the
+  same computer: settings, sign-ins, cache and the log all live in a temporary
+  folder that is deleted when the app closes.
+- `launchVrx()` checks that the redirect is in force before it hands the app
+  to a test, and stops the run when it is not. If an Electron update ever
+  breaks the redirect, that message is what you see; fix `redirect.cjs`, never
+  remove the check.
 - The app has no setting that points it at another server and must never get
   one. The redirect only works because the tests start Electron themselves
   with `redirect.cjs` preloaded.

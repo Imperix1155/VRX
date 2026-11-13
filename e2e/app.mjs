@@ -1,7 +1,7 @@
 // Starts the built VRX app for an end-to-end test and hands back Playwright's
 // handles for it. Run `npm run build` first: the tests drive `out/`, the same
 // files a release packages.
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -16,8 +16,8 @@ const PROXY_VARIABLES = /^(?:https?|all|no)_proxy$/i
 /**
  * Launch VRX against the fake platforms on `fakePort`.
  *
- * Every launch gets a fresh, empty profile folder (settings, sign-ins, cache),
- * deleted again by `close()`. Pass the `userData` of an earlier launch to start
+ * Every launch gets a fresh, empty profile folder (settings, sign-ins, cache,
+ * and the app's log under `app-data/`), deleted again by `close()`. Pass the `userData` of an earlier launch to start
  * the app a second time with what that run saved, and `keepUserData: true` on
  * the first launch so its `close()` leaves the folder in place.
  */
@@ -34,6 +34,10 @@ export async function launchVrx({
     Object.entries(process.env).filter(([name]) => !PROXY_VARIABLES.test(name))
   )
   env.VRX_E2E_FAKE_PORT = String(fakePort)
+  // Where the app keeps its log. Inside the profile, so nothing is written to
+  // the folders of a VRX installed on this computer.
+  env.VRX_E2E_APP_DATA = join(userData, 'app-data')
+  mkdirSync(env.VRX_E2E_APP_DATA, { recursive: true })
   env.ELECTRON_DISABLE_SECURITY_WARNINGS = '1'
 
   const app = await _electron.launch({
@@ -54,6 +58,23 @@ export async function launchVrx({
     env,
     timeout: 60_000
   })
+
+  // Prove the redirect is in force before any test signs in. A made-up host
+  // must be refused by redirect.cjs itself. Any other outcome (for example a
+  // name-lookup error) means requests no longer pass through it, and the
+  // tests must not run: a sign-in would go to a real platform.
+  const probe = await app.evaluate(async () => {
+    try {
+      await fetch('https://vrx-e2e.invalid/')
+      return 'answered'
+    } catch (error) {
+      return String(error?.cause?.message ?? error?.message ?? error)
+    }
+  })
+  if (!probe.includes('is blocked')) {
+    await app.close()
+    throw new Error(`e2e: the network redirect is not in force (${probe}). No test was run.`)
+  }
 
   /** Problems the renderer reported: uncaught errors and `console.error`. */
   const rendererErrors = []
