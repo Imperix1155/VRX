@@ -668,7 +668,7 @@ describe('VrcAdapter', () => {
         vi.fn(() =>
           Promise.resolve(
             jsonResponse(
-              { id: 'usr_2f8698e3-4bd6-4a30-8c3f-0d2c1a94f60e', displayName: 'Neo' },
+              { id: 'usr_00000000-0000-4000-8000-00000000abcd', displayName: 'Neo' },
               { setCookies: ['auth=abc123'] }
             )
           )
@@ -677,7 +677,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore(), instantAdmission())
       expect(await adapter.login(creds)).toEqual({ ok: true })
       expect((await adapter.getAuthStatus()).accountId).toBe(
-        'usr_2f8698e3-4bd6-4a30-8c3f-0d2c1a94f60e'
+        'usr_00000000-0000-4000-8000-00000000abcd'
       )
     })
 
