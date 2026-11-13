@@ -129,7 +129,7 @@ Turning off a Dashboard section keeps its child preferences, such as the thresho
 | `VRCHAT_OPEN_GAME_JOINS` / `VrchatOpenGameJoin` | [`types.ts`](../../src/shared/types.ts) | `go`, `invite`. How a VRChat Join reaches a game that is already open. |
 | `START_WITH_COMPUTER` / `StartWithComputer` | [`types.ts`](../../src/shared/types.ts) | `off`, `window`, `tray`. Whether VRX opens at sign-in, and whether its window shows. |
 | `JOIN_HANDOFFS` / `JoinHandoff` | [`types.ts`](../../src/shared/types.ts) | `launch`, `in-game`, `invite`: what a Join did, or would do now (start the game, hand off to the open game, or send a VRChat self-invite). |
-| `DataExportResult` | [`ipc.ts`](../../src/shared/ipc.ts) | Answer of `export-data`: counts of friends, notes and favorites saved plus `gameFavoritesMissing` (the accounts' own favorite groups could not be read), or a typed reason (`cancelled`, `signed-out`, `not-ready`, `save-failed`, `rate-limited`). Never a path. |
+| `DataExportResult` | [`ipc.ts`](../../src/shared/ipc.ts) | Answer of `export-data`: counts of friends, notes and favorites saved plus `gameFavoritesMissing` (the accounts' own favorite groups could not be read), or a typed reason (`cancelled`, `signed-out`, `not-ready`, `stale` when an account signed in or out while the file was being prepared, `save-failed`, `rate-limited`). Never a path. |
 | `LoginItemStatus` | [`ipc.ts`](../../src/shared/ipc.ts) | `on`, `off`, `unavailable`: what the operating system's startup list says. `unavailable` means this copy cannot register (a development run, or an unsupported system). |
 | `UPDATE_CHANNELS` / `UpdateChannel` | [`types.ts`](../../src/shared/types.ts) | `stable`, `beta`, `dev`. Settings label for the updater feed. Stable publishes as `latest`. |
 

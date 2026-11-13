@@ -229,6 +229,7 @@
       "noGameFavorites": "Your game favorites couldn't be read just now, so the file has VRX stars only.",
       "signedOut": "Sign in to an account first.",
       "notReady": "VRX is still loading your friends. Try again in a moment.",
+      "accountChanged": "An account signed in or out while the file was being prepared. Press Export again.",
       "failed": "Couldn't save the file. Try another folder.",
       "tooMany": "Too many tries. Wait a minute, then try again."
     },

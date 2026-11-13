@@ -117,6 +117,7 @@ describe('Export your data', () => {
   it.each([
     ['signed-out', 'settings.export.signedOut'],
     ['not-ready', 'settings.export.notReady'],
+    ['stale', 'settings.export.accountChanged'],
     ['save-failed', 'settings.export.failed'],
     ['rate-limited', 'settings.export.tooMany']
   ] as const)('explains %s in a sentence', async (reason, key) => {

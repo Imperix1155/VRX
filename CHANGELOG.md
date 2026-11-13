@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The desktop shell now uses Electron 45.2.3. The app build uses Vite 8.3.7
   and the TypeScript lint rules from typescript-eslint 8.72.2.
 
+### Fixed
+
+- Export your data: if an account signs in or out while VRX is getting the
+  file ready, the export stops and asks you to press Export again, so the
+  file always matches the accounts you pressed it for.
+
 ## [1.4.4] - 2026-11-12
 
 Six small new features and a clean-up and bug fix pass on top of 1.4.3.
