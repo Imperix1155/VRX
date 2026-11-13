@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.5-dev.3] - 2026-11-13
+
+One more fix for the new world rating buttons.
+
 ### Fixed
 
 - World rating: on a world sheet left open for about half an hour, Like and
