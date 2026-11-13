@@ -777,7 +777,7 @@ gap, 13.5 px / 600 label, 9 px by 11 px padding, radius 12 px.
 | Idle    | `--text-dim` label, no fill, transparent 1 px border                                                                           |
 | Hover   | `--surface-hover` fill, `--text` label                                                                                         |
 | Current | `--control-active-bg` fill, `--control-active-border` border, `--control-active-shadow`, `--text` label, `aria-current="page"` |
-| Focus   | The browser's own focus outline (§11)                                                                                          |
+| Focus   | The default 1 px `--text-dim` focus line (§8, Focus, keyboard and motion)                                                      |
 
 The current page also has a 3 x 20 px rounded spine at the sidebar's left
 edge. Its color repeats the platform filter: `--vrc`, `--cvr`, or a
@@ -934,8 +934,11 @@ panel in the page. It is never a tour and never opens by itself.
 
 - Focus is always visible. Cards, rows, tiles, round buttons and the counts
   block draw a 2 px `--text-dim` ring; small buttons, fields and close
-  buttons a 1 px ring. Sidebar items, segmented options and the stepper value
-  keep the browser's own outline (§11).
+  buttons a 1 px ring. Every other control (sidebar items, segmented options,
+  the stepper value and anything new) gets the same 1 px `--text-dim` line
+  from one default rule in `main.css` (`@layer base`, `:focus-visible`), so a
+  new control never ships without a focus mark. Add ring classes to a control
+  only when it needs the 2 px ring or an inset one.
 - `/` moves focus to the Friends search field, unless focus is in a text
   field or the join confirmation is open.
 - Escape closes the open sheet, friend details, menu or dialog and returns
@@ -1976,23 +1979,15 @@ Source: [`FriendRow.tsx`](../src/renderer/src/components/FriendRow.tsx),
 
 ## §11 Known open findings
 
-These were reproduced in version 1.4.3 while this document was written. They
+These were reproduced in version 1.4.3 while this document was written, and
+checked again for 1.4.5 (two were fixed and removed). They
 are defects or loose ends, not rules. Do not copy them into new work, and
 remove an entry when it is fixed.
 
-1. **Keyboard focus looks different on three controls.** Sidebar items,
-   segmented options (the platform filter included) and the number stepper's
-   value show the browser's default outline, while every other control draws
-   a `--text-dim` ring. Source:
-   [`Sidebar.tsx`](../src/renderer/src/components/Sidebar.tsx),
-   [`SegmentedControl.tsx`](../src/renderer/src/components/SegmentedControl.tsx),
-   [`NumberStepper.tsx`](../src/renderer/src/components/NumberStepper.tsx).
-2. **Three tokens are defined and never used:** `--aurora-vrc`,
-   `--aurora-cvr` and `--friend-status-description-width`.
-3. **The stored `density` setting has no control.** Settings offers no way
+1. **The stored `density` setting has no control.** Settings offers no way
    to change it, and in the renderer it only sets a 60 px minimum height on
    friend rows, which rows already have.
-4. **Friend names in the hot instance sheet sit in capsules.** Each friend
+2. **Friend names in the hot instance sheet sit in capsules.** Each friend
    under "FRIENDS HERE" is an avatar and a name inside a bordered capsule.
    Everywhere else a name is plain text, and the design contract says names
    never become chips. This one is for the owner to decide. Source:
@@ -2117,7 +2112,6 @@ active theme.
 | `--space-6` | `24px` | (same as dark) |
 | `--space-8` | `32px` | (same as dark) |
 | `--space-10` | `40px` | (same as dark) |
-| `--friend-status-description-width` | `160px` | (same as dark) |
 | `--sidebar-width` | `248px` | (same as dark) |
 | `--content-inset-left` | `calc(var(--space-4) + var(--sidebar-width) + var(--space-4))` | (same as dark) |
 | `--content-inset-right` | `var(--space-4)` | (same as dark) |
@@ -2257,8 +2251,6 @@ active theme.
 
 | Token | Dark (`:root`) | Light (`[data-theme='light']`) |
 | --- | --- | --- |
-| `--aurora-vrc` | `rgba(43, 124, 232, 0.26)` | `rgba(23, 105, 232, 0.26)` |
-| `--aurora-cvr` | `rgba(243, 113, 30, 0.2)` | `rgba(236, 98, 16, 0.22)` |
 | `--aurora-gradient` | `var(--bg-base)` | `linear-gradient(180deg, #f3f6fa 0%, var(--bg-base) 50%, #dfe5ee 100%)` |
 | `--glow-size-x` | `95%` | (same as dark) |
 | `--glow-size-y` | `78%` | (same as dark) |
