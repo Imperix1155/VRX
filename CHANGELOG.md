@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.5-dev.1] - 2026-11-13
+
+Two small additions and a polish pass on top of 1.4.4.
+
 ### Added
 
 - Explore: a VRChat public room shows its instance name, a short description
