@@ -94,6 +94,23 @@ describe('WorldRatingService', () => {
     expect(adapter.getWorldRating).toHaveBeenCalledTimes(2)
   })
 
+  it('does not keep a failed read: the next read asks the platform again', async () => {
+    const { adapter, service } = setup()
+    adapter.getError = new NetworkError('down')
+    await expect(service.getWorldRating('vrchat', 'ref-a')).resolves.toEqual({
+      ok: false,
+      reason: 'failed'
+    })
+    // The world sheet's "Try again" depends on this.
+    adapter.getError = null
+    adapter.getWorldRating.mockResolvedValueOnce('like')
+    await expect(service.getWorldRating('vrchat', 'ref-a')).resolves.toEqual({
+      ok: true,
+      value: 'like'
+    })
+    expect(adapter.getWorldRating).toHaveBeenCalledTimes(2)
+  })
+
   it('shares one read while the first is still out', async () => {
     const { adapter, service } = setup()
     let release: () => void = () => undefined

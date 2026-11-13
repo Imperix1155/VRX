@@ -12,7 +12,7 @@ that run on your own computer, and every other connection is refused.
 
 ```bash
 npm run build       # the tests drive out/, the same files a release packages
-npm run test:e2e    # about 20 seconds
+npm run test:e2e    # about 30 seconds
 ```
 
 On Linux without a screen (a server, a container, CI) put `xvfb-run -a` in

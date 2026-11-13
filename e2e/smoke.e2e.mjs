@@ -178,6 +178,34 @@ describe('VRX smoke test', () => {
     await sheet.waitFor({ state: 'detached' })
   })
 
+  it('offers Try again when a rating cannot be read, and one press reads it', async () => {
+    const { page } = vrx
+    const sheet = page.getByRole('dialog')
+    const close = sheet.getByRole('button', { name: 'Close', exact: true })
+    if (await sheet.count()) await close.click()
+    await openPage('Explore')
+    const writes = fake.state().writes.length
+    // The fake platform fails the next rating read, once.
+    fake.state().mode.vrcRatingReadFails = 1
+    await page.getByRole('button', { name: 'Quiet Library on VRChat. View rooms' }).click()
+
+    await sheet.getByText("Couldn't load your rating.").waitFor()
+    const like = sheet.getByRole('button', { name: 'Like Quiet Library', exact: true })
+    expect(await like.isDisabled()).toBe(true)
+    // One read used up the one failure. Had VRX read again on its own, that
+    // second read would have worked and the line above would never show.
+    expect(fake.state().mode.vrcRatingReadFails).toBe(0)
+
+    await sheet.getByRole('button', { name: 'Try again', exact: true }).click()
+    await expect.poll(() => like.isEnabled()).toBe(true)
+    expect(await sheet.getByText("Couldn't load your rating.").count()).toBe(0)
+    // Reading is not a change: nothing was asked of the platform.
+    expect(fake.state().writes.length).toBe(writes)
+
+    await close.click()
+    await sheet.waitFor({ state: 'detached' })
+  })
+
   it('reported no error in the window', () => {
     expect(vrx.rendererErrors).toEqual([])
   })

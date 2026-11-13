@@ -407,14 +407,14 @@ rating, so the buttons are not on a ChilloutVR sheet. Approved by Impy on
 Nov 11, 2026. There is no public like count, and a dislike stays private to
 that user, so VRX never ranks worlds by likes.
 
-| Limit       | Value                                                                                                                                                        |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Read        | `GET /worlds/{worldId}/rating` when a VRChat world sheet opens. Reused for 5 minutes (`WORLD_RATING_CACHE_MS`). One shared read while the first is still out |
-| Set         | `PUT /worlds/{worldId}/rating` with `{ "value": "like" }` or `{ "value": "dislike" }`, only on that button press                                             |
-| Clear       | `DELETE /worlds/{worldId}/rating`, only when the user presses the rating they already gave                                                                   |
-| Pacing      | One change at a time, 1 s after any attempt (`WORLD_RATING_WRITE_SPACING_MS`). Each request waits in the shared VRChat admission line. Never retried         |
-| Which world | Only one main issued a reference for, for the current account. The renderer never names a world ID                                                           |
-| Signed out  | The buttons stay disabled and nothing is sent                                                                                                                |
+| Limit       | Value                                                                                                                                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Read        | `GET /worlds/{worldId}/rating` when a VRChat world sheet opens. Reused for 5 minutes (`WORLD_RATING_CACHE_MS`). One shared read while the first is still out. After a failed read, one more read for each press of "Try again", never on a timer |
+| Set         | `PUT /worlds/{worldId}/rating` with `{ "value": "like" }` or `{ "value": "dislike" }`, only on that button press                                                                                                                                 |
+| Clear       | `DELETE /worlds/{worldId}/rating`, only when the user presses the rating they already gave                                                                                                                                                       |
+| Pacing      | One change at a time, 1 s after any attempt (`WORLD_RATING_WRITE_SPACING_MS`). Each request waits in the shared VRChat admission line. Never retried                                                                                             |
+| Which world | Only one main issued a reference for, for the current account. The renderer never names a world ID                                                                                                                                               |
+| Signed out  | The buttons stay disabled and nothing is sent                                                                                                                                                                                                    |
 
 ## Friend note limits
 

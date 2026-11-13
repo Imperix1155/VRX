@@ -1475,8 +1475,10 @@ in the shared sheet frame (§9.3):
   rating. The sheet reads it when it opens. Pressing the choice already
   shown clears it. While that request runs, both buttons stay disabled.
   A failed change puts the previous rating back and shows a short error
-  that clears on its own. ChilloutVR has no world rating, so those buttons
-  are not on a ChilloutVR sheet. There is no public like count.
+  that clears on its own. If the rating could not be read, the buttons stay
+  disabled, a line says so, and "Try again" under it reads once more.
+  ChilloutVR has no world rating, so those buttons are not on a ChilloutVR
+  sheet. There is no public like count.
 - "Visible public rooms", then one bordered row per room (radius 13 px,
   `--control-fill`). Without instance copy the row is the instance pill,
   the people count ("3 / 30"), the region, and a "Join" button. When VRChat
