@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- World rating: on a world sheet left open for about half an hour, Like and
+  Dislike could switch off under "Loading your rating…" and stay that way.
+  The sheet now keeps the rating it shows. If a rating is ever missing with
+  nothing on its way, the line says so and offers "Try again".
+
 ## [1.4.5-dev.2] - 2026-11-13
 
 One fix for the new world rating buttons.

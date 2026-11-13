@@ -1,11 +1,12 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
+import { QueryObserver } from '@tanstack/react-query'
 import type { SetWorldRatingResult, WorldRating, WorldRatingRead } from '@shared/worldRating'
 import { WORLD_RATING_CACHE_MS } from '@shared/worldRating'
 import type { AuthStatus } from '@shared/types'
 import { authStatusQueryKey } from './auth'
 import { queryClient } from './queryClient'
 
-/** How long the sheet keeps a rating it already read. Main keeps its own copy too. */
+/** One cached rating: one account's own rating of one world. */
 export const worldRatingQueryKey = (
   accountId: string,
   worldRef: string
@@ -19,7 +20,10 @@ export function worldRatingQueryKeyForPlatform(
   return ['world-rating', platform] as const
 }
 
-queryClient.setQueryDefaults(['world-rating'], { gcTime: 30 * 60 * 1000 })
+/** How long a rating no open sheet shows stays in memory. */
+export const WORLD_RATING_KEEP_MS = 30 * 60 * 1000
+
+queryClient.setQueryDefaults(['world-rating'], { gcTime: WORLD_RATING_KEEP_MS })
 
 interface InflightRating {
   optimistic: WorldRating
@@ -56,11 +60,29 @@ function storedRating(accountId: string, worldRef: string): WorldRating | undefi
   return queryClient.getQueryData<WorldRating>(worldRatingQueryKey(accountId, worldRef))
 }
 
+/**
+ * A rating an open sheet shows is in use. The cache lets go of an entry
+ * nobody observes after WORLD_RATING_KEEP_MS, and the sheet would then sit
+ * at "Loading" with both buttons off. This observer holds the entry while
+ * the sheet is open. `enabled: false`: it only holds, it never reads.
+ */
+function useHeldWorldRating(accountId: string | null, worldRef: string): void {
+  useEffect(() => {
+    if (accountId === null) return
+    const observer = new QueryObserver<WorldRating>(queryClient, {
+      queryKey: worldRatingQueryKey(accountId, worldRef),
+      enabled: false
+    })
+    return observer.subscribe(() => undefined)
+  }, [accountId, worldRef])
+}
+
 /** The rating on screen: the choice in flight, otherwise the cached answer. */
 export function useWorldRatingValue(
   accountId: string | null,
   worldRef: string
 ): WorldRating | undefined {
+  useHeldWorldRating(accountId, worldRef)
   return useSyncExternalStore(
     subscribeWorldRating,
     () => {

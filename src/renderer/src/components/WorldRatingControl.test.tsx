@@ -5,7 +5,7 @@ import type { ExploreWorldSnapshot } from '@shared/explore'
 import type { SetWorldRatingResult, WorldRatingRead } from '@shared/worldRating'
 import '../i18n'
 import { queryClient } from '../queries/queryClient'
-import { worldRatingQueryKeyForPlatform } from '../queries/worldRating'
+import { WORLD_RATING_KEEP_MS, worldRatingQueryKeyForPlatform } from '../queries/worldRating'
 import ExploreWorldSheet from './ExploreWorldSheet'
 import WorldRatingControl, { WORLD_RATING_ERROR_MS } from './WorldRatingControl'
 
@@ -222,6 +222,59 @@ describe('WorldRatingControl', () => {
     render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
     await readyLike()
     expect(getWorldRating).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the rating it shows for as long as the sheet stays open', async () => {
+    vi.useFakeTimers()
+    getWorldRating.mockResolvedValue({ ok: true, value: 'like' })
+    const { unmount } = render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    const liked = { name: 'Liked. Clear your rating of Sunset Lounge' }
+    expect(screen.getByRole<HTMLButtonElement>('button', liked).disabled).toBe(false)
+
+    // Long past the time an unused rating is kept for.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(WORLD_RATING_KEEP_MS * 3)
+    })
+    expect(screen.getByRole<HTMLButtonElement>('button', liked).disabled).toBe(false)
+    expect(screen.queryByText('Loading your rating…')).toBeNull()
+    expect(getWorldRating).toHaveBeenCalledTimes(1)
+
+    // Once no sheet shows it, the rating is let go after that time.
+    unmount()
+    const key = ['world-rating', 'vrchat', 'usr_me', 'ref-a']
+    expect(queryClient.getQueryData(key)).toBe('like')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(WORLD_RATING_KEEP_MS + 1)
+    })
+    expect(queryClient.getQueryData(key)).toBeUndefined()
+  })
+
+  it('never sits at Loading with no read out: a rating that goes missing offers Try again', async () => {
+    getWorldRating.mockResolvedValue({ ok: true, value: 'like' })
+    render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+    const liked = { name: 'Liked. Clear your rating of Sunset Lounge' }
+    await screen.findByRole('button', liked)
+
+    // The rating is dropped under the open sheet and nothing is on its way.
+    act(() => {
+      queryClient.removeQueries({ queryKey: worldRatingQueryKeyForPlatform('vrchat') })
+    })
+    expect(screen.queryByText('Loading your rating…')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe("Couldn't load your rating.")
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Like Sunset Lounge' }).disabled
+    ).toBe(true)
+    expect(getWorldRating).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() =>
+      expect(screen.getByRole<HTMLButtonElement>('button', liked).disabled).toBe(false)
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(getWorldRating).toHaveBeenCalledTimes(2)
   })
 
   it('ends a failed read with a line and Try again, and one press reads once more', async () => {
