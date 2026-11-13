@@ -90,12 +90,9 @@ export class FriendAlerts {
    *  a missed alert at pathological roster scale is safer than a fabricated one. */
   private readonly unreliableInstanceCounts = new Set<Platform>()
   private readonly snapshotBaselined = new Map<Platform, boolean>()
-  private readonly emittedAt: Record<FriendAlertType, number[]> = {
-    online: [],
-    'in-game': [],
-    offline: [],
-    'hot-instance': []
-  }
+  /** Send times by platform and alert type. Each platform has its own
+   *  allowance, so a burst on one never silences the other. */
+  private readonly emittedAt = new Map<string, number[]>()
   private readonly dropped: Record<FriendAlertType, number> = {
     online: 0,
     'in-game': 0,
@@ -339,10 +336,6 @@ export class FriendAlerts {
     const wasOnline = before.state === 'active' || before.state === 'in-game'
     const isOnline = next.state === 'active' || next.state === 'in-game'
 
-    if (!wasOnline && isOnline) {
-      this.fireFriend('online', platform, platformUserId, next.worldName)
-    }
-
     const reference =
       before.instanceId === null && before.lastInstance !== undefined
         ? { ...before, ...before.lastInstance }
@@ -353,8 +346,24 @@ export class FriendAlerts {
       (before.state !== 'in-game' ||
         reference.instanceId === null ||
         !this.isSameInstance(platform, reference, next))
-    if (enteredDifferentInstance) {
-      this.fireFriend('in-game', platform, platformUserId, next.worldName)
+    const cameOnline = !wasOnline && isOnline
+    if (this.options.rateLimited === false) {
+      // The activity list records every step, in the order it happened.
+      if (cameOnline) this.fireFriend('online', platform, platformUserId, next.worldName)
+      if (enteredDifferentInstance) {
+        this.fireFriend('in-game', platform, platformUserId, next.worldName)
+      }
+    } else {
+      // One change can bring a friend online straight into a world. A toast
+      // for each says the same thing twice, so a "joined" toast that was
+      // shown speaks for both. "Came online" still shows when "joined" is
+      // off, or was held back by its limit.
+      const joinedShown =
+        enteredDifferentInstance &&
+        this.fireFriend('in-game', platform, platformUserId, next.worldName)
+      if (cameOnline && !joinedShown) {
+        this.fireFriend('online', platform, platformUserId, next.worldName)
+      }
     }
 
     if (wasOnline && next.state === 'offline') {
@@ -362,16 +371,17 @@ export class FriendAlerts {
     }
   }
 
+  /** True when the alert was handed to `notify`. */
   private fireFriend(
     type: FriendTransitionAlert['type'],
     platform: Platform,
     platformUserId: string,
     worldName: string | null
-  ): void {
+  ): boolean {
     // Read at the exact decision point so a just-saved setting applies to the
     // very next event; the engine never caches toggle values.
-    if (!this.options.isEnabled(type)) return
-    if (this.options.isFriendIncluded?.(platform, platformUserId) === false) return
+    if (!this.options.isEnabled(type)) return false
+    if (this.options.isFriendIncluded?.(platform, platformUserId) === false) return false
 
     const displayName =
       this.platformNames(platform).get(platformUserId) ??
@@ -380,10 +390,11 @@ export class FriendAlerts {
     // The CVR adapter warms its roster on first live connection to narrow this
     // window; a transition that still arrives before a readable name is known is
     // intentionally not replayed later because presence has already advanced.
-    if (displayName == null || displayName.trim() === '') return
+    if (displayName == null || displayName.trim() === '') return false
 
-    if (!this.withinRateLimit(type)) return
+    if (!this.withinRateLimit(platform, type)) return false
     this.options.notify({ type, platform, platformUserId, displayName, worldName })
+    return true
   }
 
   private fireHotInstance(
@@ -395,7 +406,7 @@ export class FriendAlerts {
     // Like the friend toggles, both policy reads happen at the crossing decision
     // rather than being cached in the engine.
     if (!this.options.isEnabled('hot-instance')) return
-    if (!this.withinRateLimit('hot-instance')) return
+    if (!this.withinRateLimit(platform, 'hot-instance')) return
     this.options.notify({
       type: 'hot-instance',
       platform,
@@ -405,16 +416,16 @@ export class FriendAlerts {
     })
   }
 
-  private withinRateLimit(type: FriendAlertType): boolean {
+  private withinRateLimit(platform: Platform, type: FriendAlertType): boolean {
     if (this.options.rateLimited === false || !RATE_LIMITED_TYPES.has(type)) return true
 
-    const limitedType = type
+    const bucket = `${platform}:${type}`
     const now = this.options.clock()
     const cutoff = now - RATE_LIMIT_WINDOW_MS
-    const recent = this.emittedAt[limitedType].filter((timestamp) => timestamp > cutoff)
-    this.emittedAt[limitedType] = recent
+    const recent = (this.emittedAt.get(bucket) ?? []).filter((timestamp) => timestamp > cutoff)
+    this.emittedAt.set(bucket, recent)
     if (recent.length >= RATE_LIMIT_COUNT) {
-      this.dropped[limitedType] += 1
+      this.dropped[type] += 1
       return false
     }
     recent.push(now)
