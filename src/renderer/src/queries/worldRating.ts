@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react'
-import { QueryObserver } from '@tanstack/react-query'
+import { hashKey, QueryObserver } from '@tanstack/react-query'
 import type { SetWorldRatingResult, WorldRating, WorldRatingRead } from '@shared/worldRating'
 import { WORLD_RATING_CACHE_MS } from '@shared/worldRating'
 import type { AuthStatus } from '@shared/types'
@@ -69,11 +69,19 @@ function storedRating(accountId: string, worldRef: string): WorldRating | undefi
 function useHeldWorldRating(accountId: string | null, worldRef: string): void {
   useEffect(() => {
     if (accountId === null) return
-    const observer = new QueryObserver<WorldRating>(queryClient, {
-      queryKey: worldRatingQueryKey(accountId, worldRef),
-      enabled: false
+    const options = { queryKey: worldRatingQueryKey(accountId, worldRef), enabled: false }
+    const observer = new QueryObserver<WorldRating>(queryClient, options)
+    const release = observer.subscribe(() => undefined)
+    // `removeQueries` leaves the observer on the entry it removed. Move it to
+    // the entry that takes its place, so the next rating read is held too.
+    const hash = hashKey(options.queryKey)
+    const unwatch = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === 'removed' && event.query.queryHash === hash) observer.setOptions(options)
     })
-    return observer.subscribe(() => undefined)
+    return () => {
+      unwatch()
+      release()
+    }
   }, [accountId, worldRef])
 }
 

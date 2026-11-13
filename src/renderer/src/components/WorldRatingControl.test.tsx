@@ -275,6 +275,30 @@ describe('WorldRatingControl', () => {
     )
     expect(screen.queryByRole('alert')).toBeNull()
     expect(getWorldRating).toHaveBeenCalledTimes(2)
+    // The rating read again is held by the open sheet like the first one.
+    const entry = queryClient
+      .getQueryCache()
+      .find({ queryKey: ['world-rating', 'vrchat', 'usr_me', 'ref-a'] })
+    expect(entry?.getObserversCount()).toBe(1)
+  })
+
+  it('does not show a failed press from the previous account after an account change', async () => {
+    render(<WorldRatingControl worldRef="ref-a" worldName="Sunset Lounge" />)
+    await readyLike()
+    let finish: (result: SetWorldRatingResult) => void = () => undefined
+    setWorldRating.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Like Sunset Lounge' }))
+    act(() => signIn('usr_other'))
+    await act(async () => {
+      finish({ ok: false, reason: 'stale' })
+      await Promise.resolve()
+    })
+    await readyLike()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('ends a failed read with a line and Try again, and one press reads once more', async () => {

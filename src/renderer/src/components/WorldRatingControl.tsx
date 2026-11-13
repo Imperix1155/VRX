@@ -104,6 +104,12 @@ export default function WorldRatingControl({
     })
   }, [accountId, canRead, worldRef, attempt])
 
+  // A press still on its way belongs to the account and world it was made
+  // for. After either changes, its answer no longer shows a line here.
+  useEffect(() => {
+    request.current += 1
+  }, [accountId, worldRef])
+
   useEffect(() => {
     if (writeError === null) return
     const timer = window.setTimeout(() => setWriteError(null), WORLD_RATING_ERROR_MS)
