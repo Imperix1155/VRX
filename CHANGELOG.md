@@ -23,12 +23,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The desktop shell now uses Electron 45.2.3. The app build uses Vite 8.3.7
   and the TypeScript lint rules from typescript-eslint 8.72.2.
+- The top bar says "Connecting" while VRX is setting up its live connection,
+  in place of "Reconnecting".
+- Friends: while you type in Search, groups with no match are hidden, so you
+  no longer see "ONLINE (0)" above the one person you looked for.
+- Alerts: a friend who comes online straight into a world now gives one
+  alert ("joined …"), not two. "Came online" still shows when the joined
+  alert is off.
+- Alerts: VRChat and ChilloutVR each have their own limit of three alerts of
+  a kind in ten seconds, so a busy moment on one no longer silences the other.
 
 ### Fixed
 
 - Export your data: if an account signs in or out while VRX is getting the
   file ready, the export stops and asks you to press Export again, so the
   file always matches the accounts you pressed it for.
+- The top bar no longer says "Down" for the first seconds after VRX opens
+  while it is still connecting. "Down" now only means there is no connection.
+- Keyboard: every button and control now shows the same thin line when you
+  reach it with Tab. A few looked different from the rest.
 
 ## [1.4.4] - 2026-11-12
 

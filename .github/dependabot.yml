@@ -1,33 +1,18 @@
 version: 2
 updates:
-  # npm dependencies — weekly, with minor + patch bumps grouped into one PR to
-  # cut review noise. Majors come as their own PRs for a deliberate look.
-  # The same policy is repeated for beta and dev. Dependabot opens those PRs
-  # only after the branch exists.
-  - package-ecosystem: npm
-    directory: '/'
-    target-branch: main
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
-    groups:
-      npm-minor-patch:
-        update-types:
-          - minor
-          - patch
-
-  - package-ecosystem: npm
-    directory: '/'
-    target-branch: beta
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
-    groups:
-      npm-minor-patch:
-        update-types:
-          - minor
-          - patch
-
+  # Dependency updates go to `dev` only. `dev` is where every change lands
+  # first; `main` and `beta` receive the updates with the next release and the
+  # branch alignment that follows it (docs/RELEASING.md, "Branch flow").
+  #
+  # Do not add `main` or `beta` here. Until 2026-11 the same policy was repeated
+  # for all three branches, which opened every update three times and let the
+  # branches drift apart between releases.
+  #
+  # Dependabot reads this file from the default branch (`main`), so a change
+  # here takes effect once it has reached `main`.
+  #
+  # npm: weekly, minor and patch bumps grouped into one PR to cut review noise.
+  # Majors come as their own PRs for a deliberate look.
   - package-ecosystem: npm
     directory: '/'
     target-branch: dev
@@ -40,30 +25,8 @@ updates:
           - minor
           - patch
 
-  # GitHub Actions versions — weekly, grouped. Covers the Dependabot half of
-  # VRX-149 by keeping policy-required SHA-pinned action refs current.
-  - package-ecosystem: github-actions
-    directory: '/'
-    target-branch: main
-    schedule:
-      interval: weekly
-    groups:
-      actions-minor-patch:
-        update-types:
-          - minor
-          - patch
-
-  - package-ecosystem: github-actions
-    directory: '/'
-    target-branch: beta
-    schedule:
-      interval: weekly
-    groups:
-      actions-minor-patch:
-        update-types:
-          - minor
-          - patch
-
+  # GitHub Actions: weekly, grouped. Keeps the SHA-pinned action references
+  # the root contract requires current (VRX-149).
   - package-ecosystem: github-actions
     directory: '/'
     target-branch: dev

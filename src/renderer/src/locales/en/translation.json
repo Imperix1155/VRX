@@ -141,7 +141,7 @@
     "connection": {
       "label": "VRChat: {{vrchat}}; ChilloutVR: {{chilloutvr}}",
       "live": "Live",
-      "reconnecting": "Reconnecting",
+      "reconnecting": "Connecting",
       "down": "Down",
       "signedOut": "Signed out",
       "needsCode": "Needs code"

@@ -50,6 +50,21 @@ describe('locale parity (en ↔ ja)', () => {
   })
 })
 
+describe('words that are the only written cue', () => {
+  // The top bar's dot shows connection state by shape and color; these words
+  // are what tells the states apart in text. Two states sharing one word
+  // (Japanese once had the same word for "live" and "connecting") hides the
+  // difference from anyone who reads the label.
+  it.each([
+    ['en', en],
+    ['ja', ja]
+  ])('%s has a different word for each connection state', (_name, locale) => {
+    const { live, reconnecting, down, signedOut, needsCode } = locale.shell.connection
+    const words = [live, reconnecting, down, signedOut, needsCode]
+    expect(new Set(words).size).toBe(words.length)
+  })
+})
+
 describe('key-existence scan (renderer source → en locale)', () => {
   const SRC_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
   const NAMESPACES = new Set(Object.keys(en))

@@ -25,6 +25,7 @@ files:
   - '!*.md'
   - '!docs/**'
   - '!scripts/**'
+  - '!e2e/**'
   - '!{.coderabbit.yaml,.fallowrc.json,.gitleaks.toml,.nvmrc,vitest.config.ts}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'

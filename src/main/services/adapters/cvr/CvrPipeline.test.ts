@@ -723,10 +723,12 @@ describe('CvrPipeline', () => {
     await tick()
 
     expect(r.dials).toHaveLength(0)
-    expect(r.events.length).toBeGreaterThan(0)
-    expect(r.events.every((event) => event.type === 'connection' && event.health === 'down')).toBe(
-      true
-    )
+    // It says "connecting" once when it starts, then "down": there is no session.
+    expect(r.events[0]).toMatchObject({ type: 'connection', health: 'reconnecting' })
+    expect(r.events.length).toBeGreaterThan(1)
+    expect(
+      r.events.slice(1).every((event) => event.type === 'connection' && event.health === 'down')
+    ).toBe(true)
     r.pipeline.stop()
   })
 

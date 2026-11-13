@@ -65,16 +65,17 @@ describe('release tag/channel contract', () => {
     expect(workflow).toContain('main:latest|beta:beta|dev:dev')
   })
 
-  it('runs CI on every branch and asks Dependabot to cover beta and dev', () => {
+  it('runs CI on every branch and points Dependabot at dev only', () => {
     const ci = readFileSync('.github/workflows/ci.yml', 'utf8')
     expect(ci).toContain("branches:\n      - '**'")
     expect(ci).not.toMatch(/pull_request:\n\s+branches:/)
     expect(ci).toContain("github.ref != 'refs/heads/beta'")
     expect(ci).toContain("github.ref != 'refs/heads/dev'")
     const dependabot = readFileSync('.github/dependabot.yml', 'utf8')
-    expect(dependabot.match(/target-branch: main/g)).toHaveLength(2)
-    expect(dependabot.match(/target-branch: beta/g)).toHaveLength(2)
+    // One stream of updates, into dev, for npm and for GitHub Actions. They
+    // reach beta and main with the next release, so the branches never drift.
     expect(dependabot.match(/target-branch: dev/g)).toHaveLength(2)
+    expect(dependabot).not.toMatch(/target-branch: (?:main|beta)/)
   })
 })
 
