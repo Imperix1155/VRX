@@ -221,6 +221,7 @@ if (process.contextIsolated) {
     // preload can't load electron-log's node transport, and if the contextBridge
     // itself failed there is no working bridge to route a log over — the devtools
     // console is the only surface that still works in this bootstrap-failure case.
+    // eslint-disable-next-line no-console -- the one allowed use; see above
     console.error('[preload] contextBridge failed:', error)
   }
 } else {

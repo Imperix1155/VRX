@@ -160,11 +160,80 @@ export default defineConfig(
               ],
               message:
                 'src/shared is PURE (bundles into the sandboxed renderer) — no node builtins. See src/shared/AGENTS.md.'
+            },
+            {
+              group: ['**/main/**', '**/preload/**', '**/renderer/**', '@renderer/*'],
+              message:
+                'src/shared is imported by every process and imports none of them. Move the shared part into src/shared. See src/shared/AGENTS.md.'
             }
           ]
         }
       ]
     }
+  },
+  {
+    // Process boundary, renderer side. The renderer is sandboxed: Electron and
+    // Node modules do not exist there, and main-process code must never be
+    // bundled into it. TypeScript alone lets such an import compile, so lint
+    // makes the boundary mechanical. Data crosses through `window.vrx` and the
+    // types in `@shared/ipc`.
+    files: ['src/renderer/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'electron',
+              message:
+                'The renderer is sandboxed and has no Electron. Call main through window.vrx (src/preload) instead. See src/renderer/AGENTS.md.'
+            }
+          ],
+          patterns: [
+            {
+              group: ['electron/*', 'node:*'],
+              message:
+                'The renderer is sandboxed and has no Electron or Node modules. See src/renderer/AGENTS.md.'
+            },
+            {
+              group: ['**/main/**', '**/preload/**'],
+              message:
+                'The renderer never imports main-process or preload code. Share types and pure helpers through src/shared (@shared). See src/renderer/AGENTS.md.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // Process boundary, main side: main and preload never import renderer
+    // code. Tests may borrow a renderer fixture or reducer to check both ends
+    // of a contract together.
+    files: ['src/main/**/*.ts', 'src/preload/**/*.ts'],
+    ignores: ['**/*.test.ts', '**/__testutils__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/renderer/**', '@renderer/*'],
+              message:
+                'Main and preload never import renderer code. Share types and pure helpers through src/shared (@shared). See src/main/AGENTS.md.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    // App code logs through the redacting logger (src/main/logger.ts), which
+    // strips credentials and personal data; `console` skips it. The renderer
+    // has no log sink at all: show the user a message instead.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}', '**/__testutils__/**'],
+    rules: { 'no-console': 'error' }
   },
   eslintConfigPrettier
 )
