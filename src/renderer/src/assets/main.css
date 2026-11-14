@@ -298,7 +298,6 @@
   --space-6: 24px;
   --space-8: 32px;
   --space-10: 40px;
-  --friend-status-description-width: 160px;
 
   /* SHELL GEOMETRY (§8): sidebar width + main-pane offsets. Shared between
      AppShell and HotInstanceSheet so the sheet never covers the sidebar. */
@@ -515,8 +514,6 @@
   --sidebar-foot-border: rgba(255, 255, 255, 0.07);
 
   /* AURORA (§4) — raw stops inside :root so body::before/::after can reference vars */
-  --aurora-vrc: rgba(43, 124, 232, 0.26);
-  --aurora-cvr: rgba(243, 113, 30, 0.2);
   --aurora-gradient: var(--bg-base);
 
   /* GLOW (owner-ratified 2026-07-17). Standard is the DEFAULT and leaves the
@@ -725,8 +722,6 @@
   --sidebar-foot-border: rgba(36, 44, 64, 0.1);
 
   /* AURORA (§4A) — light overrides */
-  --aurora-vrc: rgba(23, 105, 232, 0.26);
-  --aurora-cvr: rgba(236, 98, 16, 0.22);
   --aurora-gradient: linear-gradient(180deg, #f3f6fa 0%, var(--bg-base) 50%, #dfe5ee 100%);
 
   /* GLOW — light standard. Strong enough that the brand corners read as
@@ -1009,6 +1004,21 @@ body::after {
   background: repeating-linear-gradient(0deg, var(--scanline-color) 0 1px, transparent 1px 3px);
   mix-blend-mode: var(--scanline-blend);
   opacity: var(--scanline-opacity);
+}
+
+/* ── Keyboard focus: the default for every control ─────────────────────────── */
+/* One rule, so a new control cannot ship without a visible focus mark and
+   controls agree without each repeating the same classes. It draws the same
+   1 px `--text-dim` line the per-control `focus:ring-1` classes draw. A control
+   that asks for its own ring (`focus:outline-none` with a `ring-*` utility)
+   keeps it: utilities outrank the base layer. Spots that take focus only from
+   code (tabindex -1: the main region, notice lines, dialog panels) stay
+   unmarked. The High Contrast rule further up replaces this with system colors. */
+@layer base {
+  :focus-visible:not([tabindex='-1']) {
+    outline: 1px solid var(--text-dim);
+    outline-offset: 0;
+  }
 }
 
 /* ── Glass material (DESIGN.md §3 / §3A) ──────────────────────────────────── */

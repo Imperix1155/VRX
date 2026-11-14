@@ -62,6 +62,9 @@ function room(
     occupancy: complete(20),
     capacity: 20,
     full: true,
+    instanceTitle: null,
+    instanceDescription: null,
+    spokenLanguage: null,
     action
   }
 }
@@ -472,6 +475,30 @@ describe('ExploreView', () => {
     const description = document.getElementById(first!.getAttribute('aria-describedby')!)
     expect(description?.textContent).toContain('Public')
     expect(description?.textContent).toContain('1,200 / 2,400')
+  })
+
+  it('shows a room name, description and spoken language as plain text', () => {
+    const selected = world('vrchat', 'vrc', 'VRC World')
+    const named = {
+      ...room('vrchat', { state: 'available', selectionRef: 'a' }, selected.worldId),
+      instanceTitle: 'Friday lobby',
+      instanceDescription: 'Bring a chair.',
+      spokenLanguage: 'pt-BR'
+    }
+    setup({
+      worlds: [selected],
+      sheet: {
+        ...source('vrchat', [selected]),
+        world: selected,
+        rooms: [named],
+        roomsComplete: true
+      }
+    })
+    const title = screen.getByText('Friday lobby')
+    expect(title.className).not.toContain('glass-chip')
+    expect(screen.getByText('Bring a chair.')).toBeTruthy()
+    expect(screen.getByText('Language: Brazilian Portuguese')).toBeTruthy()
+    expect(screen.queryByText('pt-BR')).toBeNull()
   })
 
   it('names room access like every other instance and says when a count is unknown', () => {

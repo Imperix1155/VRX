@@ -284,6 +284,9 @@ describe('ExploreService guard rails', () => {
       occupancy: unknown(),
       capacity: null,
       full: false,
+      instanceTitle: null,
+      instanceDescription: null,
+      spokenLanguage: null,
       joinEligibility: 'eligible'
     }
     h.adapter.candidates = [entry]
@@ -542,6 +545,9 @@ describe('ExploreService guard rails', () => {
           occupancy: { state: 'complete', value: 1, source: 'cvr-room-current-player-count' },
           capacity: null,
           full: null,
+          instanceTitle: null,
+          instanceDescription: null,
+          spokenLanguage: null,
           joinEligibility: 'eligible'
         })
     }
@@ -585,6 +591,9 @@ describe('ExploreService guard rails', () => {
         occupancy: unknown(),
         capacity: null,
         full: false,
+        instanceTitle: null,
+        instanceDescription: null,
+        spokenLanguage: null,
         joinEligibility: 'eligible'
       }
       h.adapter.rooms.set(`${entry.worldId}/${roomId}`, evidence)

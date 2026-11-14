@@ -336,8 +336,12 @@ export default function FriendsList(): React.JSX.Element {
               (row) => row.section === 'in-game' && isFavoriteAccount(favoriteKeys, row.accounts)
             )
           : stableRows.filter((row) => row.section === section)
-    })).filter(({ section, friends }) => section !== 'favorites' || friends.length > 0)
-  }, [filteredFriends, stableRows, favoriteKeys])
+    })).filter(
+      // Favorites shows only when it has someone. While a search is typed, so
+      // does every other section: "ONLINE (0)" above one match is only noise.
+      ({ section, friends }) => (section !== 'favorites' && !searchActive) || friends.length > 0
+    )
+  }, [filteredFriends, stableRows, favoriteKeys, searchActive])
 
   // One flattened stream lets a single virtualizer own headers and friend rows.
   // Keeping headers in the same index space is what makes a section-aware sticky

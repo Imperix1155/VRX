@@ -22,6 +22,14 @@ type VrxBridge = {
   setHomeWorld: (
     req: IpcInvoke['set-home-world']['req']
   ) => Promise<IpcInvoke['set-home-world']['res']>
+  /** The signed-in user's own rating of a world main already showed. */
+  getWorldRating: (
+    req: IpcInvoke['get-world-rating']['req']
+  ) => Promise<IpcInvoke['get-world-rating']['res']>
+  /** Set or clear that rating. `value: null` clears it. */
+  setWorldRating: (
+    req: IpcInvoke['set-world-rating']['req']
+  ) => Promise<IpcInvoke['set-world-rating']['res']>
   getLinkedProfiles: () => Promise<IpcInvoke['get-linked-profiles']['res']>
   changeLinkedProfile: (
     req: IpcInvoke['change-linked-profile']['req']

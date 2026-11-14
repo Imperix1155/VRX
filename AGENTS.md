@@ -11,8 +11,8 @@ This repository uses the [DOX framework](https://github.com/agent0ai/dox).
 Read this contract and every nearer `AGENTS.md` on the path to each file you
 edit. The closest contract owns local details; no child weakens DOX or the
 security rules below. The code is the source of truth: read current source
-instead of trusting another session's memory, an old plan or chat. Git
-history holds past plans; they never override a current contract.
+instead of trusting another session's memory, an old plan or chat. A past
+plan never overrides a current contract.
 
 A fresh clone holds everything a contributor, human or agent, needs. Personal
 skills, model choices, device permissions, trackers and orchestration are
@@ -21,7 +21,7 @@ access to a device or external account.
 
 | Read                                                                                  | For                                                           |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| [Development](docs/DEVELOPMENT.md)                                                    | Install, commands, tests, design guide, CI failures.          |
+| [Development](docs/DEVELOPMENT.md), [Maintaining](docs/MAINTAINING.md)                | Setup, commands, tests; recipes and where to look.            |
 | [Contributing](CONTRIBUTING.md)                                                       | Branches, commits, PRs.                                       |
 | [Review](docs/REVIEW.md)                                                              | Review coverage and merge readiness.                          |
 | [Releasing](docs/RELEASING.md)                                                        | Branch flow, versions, publishing.                            |
@@ -94,8 +94,8 @@ never a design rule.
 - Keep the packaged-app Electron fuses in `electron-builder.yml`, and keep
   repository docs, tooling and tests out of the package
   (`scripts/package-files.test.mjs` checks both).
-- Never commit secrets. Keep the gitleaks and dependency CI gates; allowlist
-  only confirmed fake fixture values, never whole paths.
+- Never commit secrets. Keep the gitleaks, `check-secrets` and dependency
+  gates; allowlist only confirmed fake fixture values, never whole paths.
 - Describe security work in generic words ("security hardening") in commits,
   PRs, changelog, comments and docs. Never explain how a weakness could be
   used.
@@ -128,8 +128,7 @@ state material assumptions. Whoever integrates parallel work owns the result.
 Branch from `dev` and open PRs into `dev` ([branch flow](docs/RELEASING.md#branch-flow)).
 Never push to `main`, `beta` or `dev` directly. Name branches
 `imperix/vrx-XX-slug` (with an issue) or `imperix/<slug>`; a tool's own prefix
-is fine. Write Conventional Commits. A tracker is optional; missing tracker
-access never blocks work.
+is fine. Write Conventional Commits.
 
 An authorized implementation task includes branch commits, pushes, PRs and
 review fixes unless it was limited to local work. Merging, publishing and
@@ -152,7 +151,8 @@ past about 2,000 lines, split it into topic files
 npm run verify   # lint, format:check, test, build; stops at the first failure
 ```
 
-`build` includes both TypeScript checks and the entry-chunk assertion. Add
+`build` includes both TypeScript checks and the entry-chunk assertion. App
+changes also pass `npm run test:e2e` (the built app, fake platforms). Add
 focused behavioral and runtime or UI evidence for the change; for a fix, show
 the regression test failing without it when practical. Read exit codes; a
 worker's claim is not proof. Documentation-only work uses the focused checks

@@ -26,6 +26,8 @@ or launch authority.
 - Use `window.vrx` and `@shared/ipc` types. Do not duplicate channel types,
   bypass the bridge, treat opaque references as IDs or URLs, or expect
   main-only cooldown, session, or error detail.
+- ESLint enforces the boundary: no `electron`, `node:*`, main or preload
+  imports here (tests excepted), and no `console` in app code.
 - The CSP is `style-src 'self'` with no `unsafe-inline`. React `style={}` is
   allowed; `<style>` elements, `setAttribute('style', …)`, `cssText`,
   `dangerouslySetInnerHTML`, and `innerHTML` are not
@@ -55,7 +57,7 @@ or launch authority.
 
 - TanStack Query owns server and cache state. Zustand holds view state and the
   hydrated settings snapshot; stores never import each other. Do not add server
-  data to a store (the accounts store is an existing exception).
+  data to a store.
 - App-wide pushes reach the cache only through the hooks `App` mounts. A
   component may subscribe only to clean up its own local state.
 - Only the `friends` namespace persists (`queries/cache.ts`): validated, 24 h
@@ -145,7 +147,9 @@ or launch authority.
   focused row disappears, and keep TanStack Virtual's default `useFlushSync`.
   The scrollport is `clientHeight`; jsdom tests that render rows stub it.
   Row measurement still falls back to `offsetHeight`.
-- All copy goes through i18next with every key in en and ja.
+- All copy goes through i18next with every key in en and ja. Helpers and tests
+  that pass a dynamic key use `Translate` from `i18n/translate.ts`
+  (`asTranslate` adapts `useTranslation().t`).
 - Settings change through `@shared/settings`. A collapsed parent card keeps
   its child values (Allow joining keeps Confirm join and launch mode).
   Stable, Beta, and Dev sit in the Automatic updates card on About, beside

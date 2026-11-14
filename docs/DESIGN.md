@@ -378,7 +378,8 @@ chip's lift without the blur.
 
 **Opaque surfaces.** `.glass-information` replaces the see-through fill with
 the solid `--glass-information` backing and turns the blur off. Anything a
-person must read over busy content uses it:
+person must read over busy content uses it. The welcome setup card stays the
+frosted back panel from layer 2.
 
 | Surface                                                              | Classes                                          |
 | -------------------------------------------------------------------- | ------------------------------------------------ |
@@ -776,7 +777,7 @@ gap, 13.5 px / 600 label, 9 px by 11 px padding, radius 12 px.
 | Idle    | `--text-dim` label, no fill, transparent 1 px border                                                                           |
 | Hover   | `--surface-hover` fill, `--text` label                                                                                         |
 | Current | `--control-active-bg` fill, `--control-active-border` border, `--control-active-shadow`, `--text` label, `aria-current="page"` |
-| Focus   | The browser's own focus outline (§11)                                                                                          |
+| Focus   | The default 1 px `--text-dim` focus line (§8, Focus, keyboard and motion)                                                      |
 
 The current page also has a 3 x 20 px rounded spine at the sidebar's left
 edge. Its color repeats the platform filter: `--vrc`, `--cvr`, or a
@@ -830,11 +831,11 @@ One row at the top of `<main>`, 22 px above the page (8 px on Settings):
 
 **Connection dot** (8 px). The shape repeats the color:
 
-| Worst state among signed-in platforms | Shape                       | Color       | Word           |
-| ------------------------------------- | --------------------------- | ----------- | -------------- |
-| Live                                  | Filled circle, soft glow    | `--ingame`  | "Live"         |
-| Reconnecting                          | Hollow ring (2 px border)   | `--warning` | "Reconnecting" |
-| Down, or nothing signed in            | Filled square (1 px radius) | `--error`   | "Down"         |
+| Worst state among signed-in platforms | Shape                       | Color       | Word         |
+| ------------------------------------- | --------------------------- | ----------- | ------------ |
+| Live                                  | Filled circle, soft glow    | `--ingame`  | "Live"       |
+| Connecting or reconnecting            | Hollow ring (2 px border)   | `--warning` | "Connecting" |
+| Down, or nothing signed in            | Filled square (1 px radius) | `--error`   | "Down"       |
 
 The live dot pulses only while the window has focus and motion is allowed,
 and never on Linux. A platform that is not signed in reads "Signed out" or
@@ -933,8 +934,11 @@ panel in the page. It is never a tour and never opens by itself.
 
 - Focus is always visible. Cards, rows, tiles, round buttons and the counts
   block draw a 2 px `--text-dim` ring; small buttons, fields and close
-  buttons a 1 px ring. Sidebar items, segmented options and the stepper value
-  keep the browser's own outline (§11).
+  buttons a 1 px ring. Every other control (sidebar items, segmented options,
+  the stepper value and anything new) gets the same 1 px `--text-dim` line
+  from one default rule in `main.css` (`@layer base`, `:focus-visible`), so a
+  new control never ships without a focus mark. Add ring classes to a control
+  only when it needs the 2 px ring or an inset one.
 - `/` moves focus to the Friends search field, unless focus is in a text
   field or the join confirmation is open.
 - Escape closes the open sheet, friend details, menu or dialog and returns
@@ -974,7 +978,8 @@ inside each group" with "Name", "Recent", "World", "Joinable". Right: a
 people count ("15 people", only when linked friends exist, since linked
 people count once) and a quiet "Refresh" button.
 
-- Order never moves a friend between sections. Name is A to Z. Recent puts
+- Order never moves a friend between sections. Name is A to Z, compared as
+  the names are shown, ignoring spaces at either end. Recent puts
   the friend with the newest Activity entry first. World puts friends who
   share an instance together, the biggest group first. Joinable puts the
   most open joinable instance first, in the order of the access ladder
@@ -1466,11 +1471,34 @@ in the shared sheet frame (§9.3):
 - "Set as home world", a small button. It asks in place: "Make this your
   {platform} home world? It replaces the one you have now." with "Make home"
   and "Cancel". Afterwards it reads "Your home world".
+- On VRChat only, **Like** and **Dislike** for the signed-in user's own
+  rating. The sheet reads it when it opens. Pressing the choice already
+  shown clears it. While that request runs, both buttons stay disabled.
+  A failed change puts the previous rating back and shows a short error
+  that clears on its own. If the rating could not be read, the buttons stay
+  disabled, a line says so, and "Try again" under it reads once more.
+  ChilloutVR has no world rating, so those buttons are not on a ChilloutVR
+  sheet. There is no public like count.
 - "Visible public rooms", then one bordered row per room (radius 13 px,
-  `--control-fill`): the instance pill, the people count ("3 / 30"), the
-  region, and a "Join" button. A room that cannot be joined keeps the
-  button's place with a plain word instead: "Full", "Restricted",
-  "Unavailable", "Refresh first", "Disabled", or "Joining…".
+  `--control-fill`). Without instance copy the row is the instance pill,
+  the people count ("3 / 30"), the region, and a "Join" button. When VRChat
+  sends instance copy, the same row adds three pieces, and only those:
+  - The instance name, plain text above the pill and count (14 px / 600,
+    one line, truncated). It is never a chip. The name is already clipped
+    to 80 code points before it reaches the row.
+  - A dim 12 px line under the pill: the region, then "Language: {name}",
+    then the group name, separated by " · ", the whole line truncated.
+    The name comes from `languageTagLabel` for the room's BCP-47 tag, so
+    `pt-BR` reads "Brazilian Portuguese" in English and the Japanese name
+    in Japanese. A tag the runtime cannot name falls back the way that
+    helper does. A missing or ill-formed tag adds no language words.
+  - The description under that, dim 12 px, at most two lines
+    (`line-clamp-2`). It is already clipped to 280 code points.
+    ChilloutVR rooms have no instance name, description or language, so
+    those lines are absent and the row starts at the pill. A room that
+    cannot be joined keeps the button's place with a plain word instead:
+    "Full", "Restricted", "Unavailable", "Refresh first", "Disabled", or
+    "Joining…".
 - Room states: "Loading visible public rooms…", "Visible public rooms could
   not load." (`--error`), "No visible public rooms are available.", "Only
   some visible public rooms are available."
@@ -1489,7 +1517,9 @@ Source: [`ExploreRoute.tsx`](../src/renderer/src/components/ExploreRoute.tsx),
 [`ExploreLists.tsx`](../src/renderer/src/components/ExploreLists.tsx),
 [`ExploreFavorites.tsx`](../src/renderer/src/components/ExploreFavorites.tsx),
 [`ExploreSourceState.tsx`](../src/renderer/src/components/ExploreSourceState.tsx),
-[`HomeWorldControl.tsx`](../src/renderer/src/components/HomeWorldControl.tsx).
+[`HomeWorldControl.tsx`](../src/renderer/src/components/HomeWorldControl.tsx),
+[`WorldRatingControl.tsx`](../src/renderer/src/components/WorldRatingControl.tsx).
+The language name is [`languageTagLabel`](../src/shared/languageTag.ts).
 
 #### Loading, empty, error and stale
 
@@ -1652,13 +1682,15 @@ A two-column fact list in 13 px (Pronouns, Rank; "Not shown" when the
 platform gives none), "BIO" ("No bio."), "BADGES" as small bordered pills
 with a 16 px picture ("No badges shown."), and two quiet buttons, "Show
 worlds" and "Show groups", that load those lists only when pressed. Loading
-reads "Loading profile…"; a failure reads "Couldn't load this profile." or a
-more exact sentence.
+reads "Loading profile…"; a failure reads "Couldn't load this profile." with
+Try again. "This profile is no longer available." is only when the platform
+says the profile is gone.
 
 **Friend actions** ([`ProfileActions.tsx`](../src/renderer/src/components/ProfileActions.tsx)):
 
 - Not a friend: "Add friend" (the neutral confirm button). It reads
-  "Sending…" and then "Friend request sent."
+  "Sending…" and then "Friend request sent." Someone already blocked gets no
+  Add friend; Unblock stays in the options below.
 - They sent a request: "Sent you a friend request." with "Accept" and
   "Decline".
 - **Unfriend or block** is behind a quiet button of that name ("Block or
@@ -1949,23 +1981,15 @@ Source: [`FriendRow.tsx`](../src/renderer/src/components/FriendRow.tsx),
 
 ## §11 Known open findings
 
-These were reproduced in version 1.4.3 while this document was written. They
+These were reproduced in version 1.4.3 while this document was written, and
+checked again for 1.4.5 (two were fixed and removed). They
 are defects or loose ends, not rules. Do not copy them into new work, and
 remove an entry when it is fixed.
 
-1. **Keyboard focus looks different on three controls.** Sidebar items,
-   segmented options (the platform filter included) and the number stepper's
-   value show the browser's default outline, while every other control draws
-   a `--text-dim` ring. Source:
-   [`Sidebar.tsx`](../src/renderer/src/components/Sidebar.tsx),
-   [`SegmentedControl.tsx`](../src/renderer/src/components/SegmentedControl.tsx),
-   [`NumberStepper.tsx`](../src/renderer/src/components/NumberStepper.tsx).
-2. **Three tokens are defined and never used:** `--aurora-vrc`,
-   `--aurora-cvr` and `--friend-status-description-width`.
-3. **The stored `density` setting has no control.** Settings offers no way
+1. **The stored `density` setting has no control.** Settings offers no way
    to change it, and in the renderer it only sets a 60 px minimum height on
    friend rows, which rows already have.
-4. **Friend names in the hot instance sheet sit in capsules.** Each friend
+2. **Friend names in the hot instance sheet sit in capsules.** Each friend
    under "FRIENDS HERE" is an avatar and a name inside a bordered capsule.
    Everywhere else a name is plain text, and the design contract says names
    never become chips. This one is for the owner to decide. Source:
@@ -2090,7 +2114,6 @@ active theme.
 | `--space-6` | `24px` | (same as dark) |
 | `--space-8` | `32px` | (same as dark) |
 | `--space-10` | `40px` | (same as dark) |
-| `--friend-status-description-width` | `160px` | (same as dark) |
 | `--sidebar-width` | `248px` | (same as dark) |
 | `--content-inset-left` | `calc(var(--space-4) + var(--sidebar-width) + var(--space-4))` | (same as dark) |
 | `--content-inset-right` | `var(--space-4)` | (same as dark) |
@@ -2230,8 +2253,6 @@ active theme.
 
 | Token | Dark (`:root`) | Light (`[data-theme='light']`) |
 | --- | --- | --- |
-| `--aurora-vrc` | `rgba(43, 124, 232, 0.26)` | `rgba(23, 105, 232, 0.26)` |
-| `--aurora-cvr` | `rgba(243, 113, 30, 0.2)` | `rgba(236, 98, 16, 0.22)` |
 | `--aurora-gradient` | `var(--bg-base)` | `linear-gradient(180deg, #f3f6fa 0%, var(--bg-base) 50%, #dfe5ee 100%)` |
 | `--glow-size-x` | `95%` | (same as dark) |
 | `--glow-size-y` | `78%` | (same as dark) |

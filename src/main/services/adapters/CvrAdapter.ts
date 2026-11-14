@@ -1463,7 +1463,7 @@ export class CvrAdapter
     return new CvrPipeline({
       onUpgradeRateLimited: (retryAfter) => this.admission.rateLimited(retryAfter),
       // A refused socket alone doesn't prove the key is dead; one sign-in check
-      // decides, so VRX doesn't sit on "Reconnecting" with a revoked key.
+      // decides, so VRX doesn't sit on "Connecting" with a revoked key.
       onUpgradeRefused: () => {
         if (generation !== this.sessionGeneration) return
         if (this.socketRefusalCheckedGeneration === generation) return

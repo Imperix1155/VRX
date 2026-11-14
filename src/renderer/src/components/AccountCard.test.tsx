@@ -14,7 +14,7 @@ import { authStatusQueryKey } from '../queries/auth'
 import { deserializePersistedQueryCache, QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
 
 import { fullFriend } from '../test-utils/friendFixture'
-import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import AccountCard from './AccountCard'
 
 type TestBridge = {
@@ -24,8 +24,6 @@ type TestBridge = {
   logout: ReturnType<typeof vi.fn>
   importSession?: ReturnType<typeof vi.fn>
 }
-
-const msg = (key: string, options?: Record<string, string>): string => i18n.t(key, options)
 
 function setBridge(bridge: TestBridge | undefined): void {
   ;(window as unknown as { vrx?: TestBridge }).vrx = bridge

@@ -11,6 +11,13 @@ import { isTrustedIpcSender } from './security'
 export interface DataExportHandlerOptions {
   sources: DataExportSources
   /**
+   * Main's own mark for the sessions signed in right now: one session epoch
+   * per platform, never an account id. Read when Export is pressed and again
+   * after `prepare`, so a file is only ever built for the accounts it was
+   * pressed under.
+   */
+  sessions: () => string
+  /**
    * Show the native save dialog over the sender's window and write `content`
    * to the file the user picks. False when the dialog was cancelled; throws
    * when the file could not be written.
@@ -28,7 +35,8 @@ export interface DataExportHandlerOptions {
  * Export friends, notes and favorites. No renderer input: main builds the
  * file from what it already holds, owns the dialog and the path, and answers
  * with counts only. The one thing it may wait for is the favorites read VRX
- * makes once per sign-in anyway (`prepare`).
+ * makes once per sign-in anyway (`prepare`); a session that changes during
+ * that wait gets `stale` and no dialog.
  */
 export function registerDataExportHandlers(options: DataExportHandlerOptions): void {
   // One dialog at a time: a second press while it is open joins the first.
@@ -39,10 +47,15 @@ export function registerDataExportHandlers(options: DataExportHandlerOptions): v
     if (saving) return saving
     const run = (async (): Promise<DataExportResult> => {
       try {
+        const pressedUnder = options.sessions()
         // Refuse first, so a signed-out or still-loading app starts no read.
         const ready = buildDataExport(options.sources)
         if (!ready.ok) return ready
         await options.prepare?.().catch(() => undefined)
+        // A sign-in or sign-out during the wait ends this export: the next
+        // press starts over. Nothing waits between this check and the build,
+        // and the dialog saves the text built here.
+        if (options.sessions() !== pressedUnder) return { ok: false, reason: 'stale' }
         const built = buildDataExport(options.sources)
         if (!built.ok) return built
         const name = dataExportFileName(options.sources.now())

@@ -16,8 +16,17 @@ export const appStatusQueryKey = ['app-status'] as const
 
 export type ConnectionHealthByPlatform = Readonly<Record<Platform, ConnectionHealth>>
 
-/** What the dot shows before main has answered, or when its answer is unreadable. */
+/** What the dot shows when main's answer is missing or unreadable. */
 const UNKNOWN_HEALTH: ConnectionHealthByPlatform = { vrchat: 'down', chilloutvr: 'down' }
+
+/**
+ * What the dot shows for the instant before main's first answer. Nothing is
+ * known to be down yet, so it reads as connecting, not as a failure.
+ */
+const NOT_ASKED_YET: ConnectionHealthByPlatform = {
+  vrchat: 'reconnecting',
+  chilloutvr: 'reconnecting'
+}
 
 function parseConnectionHealth(value: unknown): ConnectionHealth {
   return value === 'live' || value === 'reconnecting' || value === 'down' ? value : 'down'
@@ -57,7 +66,7 @@ export function useConnectionHealth(): ConnectionHealthByPlatform {
     },
     provided ?? fallback
   )
-  return data ?? UNKNOWN_HEALTH
+  return data ?? NOT_ASKED_YET
 }
 
 /** A pushed socket change; keeps the same object when nothing changed. */

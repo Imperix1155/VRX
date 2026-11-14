@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
-import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { friendsQueryKey } from '../queries/friends'
@@ -39,8 +39,6 @@ vi.mock('../hooks/useUpdater', () => ({
     install: vi.fn()
   })
 }))
-
-const msg = (key: string, options?: Record<string, unknown>): string => i18n.t(key, options)
 
 function friend(platform: Platform, platformUserId: string, displayName: string): Friend {
   return {

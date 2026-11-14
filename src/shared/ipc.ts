@@ -42,6 +42,7 @@ import type {
 } from './community'
 import type { OwnProfileChanges, OwnProfileResult, SaveOwnProfileResult } from './ownProfile'
 import type { SetHomeWorldResult } from './homeWorld'
+import type { SetWorldRatingResult, WorldRating, WorldRatingRead } from './worldRating'
 import type { InboxSnapshot } from './inbox'
 import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
@@ -107,7 +108,8 @@ export type DataExportResult =
     }
   | {
       ok: false
-      reason: 'cancelled' | 'signed-out' | 'not-ready' | 'save-failed' | 'rate-limited'
+      /** `stale`: an account signed in or out while the file was being prepared. */
+      reason: 'cancelled' | 'signed-out' | 'not-ready' | 'stale' | 'save-failed' | 'rate-limited'
     }
 
 export type InstanceActionResult =
@@ -178,6 +180,19 @@ export interface IpcInvoke {
   'set-home-world': {
     req: { platform: Platform; worldRef: string }
     res: SetHomeWorldResult
+  }
+  /**
+   * The signed-in user's own VRChat rating of a world main already showed.
+   * ChilloutVR answers `not-vrchat` and sends nothing.
+   */
+  'get-world-rating': {
+    req: { platform: Platform; worldRef: string }
+    res: WorldRatingRead
+  }
+  /** Set (`like` or `dislike`) or clear (`null`) that rating. One press, one write. */
+  'set-world-rating': {
+    req: { platform: Platform; worldRef: string; value: WorldRating }
+    res: SetWorldRatingResult
   }
   'get-linked-profiles': { req: void; res: LinkResult<LinkSnapshot> }
   'change-linked-profile': {
@@ -440,7 +455,7 @@ export interface IpcInvoke {
 /**
  * Push channels — main → renderer: `webContents.send(channel, payload)` ↔
  * `ipcRenderer.on(channel, …)`. This is the LIVE path: WS events pushed to the UI,
- * never polled (CLAUDE.md).
+ * never polled (docs/api-policy.md, Live presence and recovery).
  */
 export interface IpcEvents {
   'explore-changed': { platform: Platform }

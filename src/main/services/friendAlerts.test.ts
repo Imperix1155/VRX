@@ -187,7 +187,7 @@ describe('FriendAlerts transitions', () => {
     engine.consume(presenceEvent(friend('in-game', null)))
     engine.consume(presenceEvent(friend('in-game', null)))
     engine.consume(presenceEvent(friend('in-game', instance('a', 'World A'))))
-    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
+    expect(alerts.map((alert) => alert.type)).toEqual(['in-game'])
   })
 
   it('alerts when a friend who was offline in the roster comes online first time seen live', () => {
@@ -195,7 +195,7 @@ describe('FriendAlerts transitions', () => {
     engine.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
     engine.seedRoster('vrchat', [friend('offline')])
     engine.consume(presenceEvent(friend('in-game', instance('one'))))
-    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
+    expect(alerts.map((alert) => alert.type)).toEqual(['in-game'])
   })
 
   it('keeps live state over an older roster row', () => {
@@ -307,7 +307,7 @@ describe('FriendAlerts CVR snapshot diffing', () => {
     engine.consume(
       snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('b') }])
     )
-    expect(alerts.map((alert) => alert.type)).toEqual(['offline', 'online', 'in-game'])
+    expect(alerts.map((alert) => alert.type)).toEqual(['offline', 'in-game'])
   })
 
   it('alerts for a roster friend who was absent from the first CVR snapshot', () => {
@@ -326,7 +326,7 @@ describe('FriendAlerts CVR snapshot diffing', () => {
     engine.consume(
       snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('b') }])
     )
-    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
+    expect(alerts.map((alert) => alert.type)).toEqual(['in-game'])
   })
 
   it('re-baselines the first snapshot after connection live', () => {
@@ -338,13 +338,13 @@ describe('FriendAlerts CVR snapshot diffing', () => {
     engine.consume(
       snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('a') }])
     )
-    expect(alerts).toHaveLength(2)
+    expect(alerts).toHaveLength(1)
 
     engine.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
     engine.consume(
       snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('b') }])
     )
-    expect(alerts).toHaveLength(2)
+    expect(alerts).toHaveLength(1)
   })
 
   it('does not treat asynchronous CVR world enrichment as a movement transition', () => {
@@ -362,7 +362,7 @@ describe('FriendAlerts CVR snapshot diffing', () => {
         }
       ])
     )
-    expect(alerts).toHaveLength(2)
+    expect(alerts).toHaveLength(1)
     expect(alerts.find((alert) => alert.type === 'in-game')).toMatchObject({ worldName: null })
 
     engine.consume(
@@ -374,7 +374,7 @@ describe('FriendAlerts CVR snapshot diffing', () => {
         }
       ])
     )
-    expect(alerts).toHaveLength(2)
+    expect(alerts).toHaveLength(1)
   })
 
   it('silently baselines every never-seen id in a multi-add snapshot', () => {
@@ -399,7 +399,7 @@ describe('FriendAlerts CVR snapshot diffing', () => {
         { platformUserId: secondId, state: 'in-game', instance: instance('also-returned') }
       ])
     )
-    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game', 'online', 'in-game'])
+    expect(alerts.map((alert) => alert.type)).toEqual(['in-game', 'in-game'])
   })
 
   it('replaying an identical 2049-entry live snapshot produces zero alerts', () => {
@@ -440,6 +440,7 @@ describe('FriendAlerts policy injection', () => {
     for (let index = 0; index < 4; index++) {
       const id = `usr_${index}`
       engine.consume(presenceEvent(friend('offline', null, id, `Friend ${index}`)))
+      engine.consume(presenceEvent(friend('active', null, id, `Friend ${index}`)))
       engine.consume(
         presenceEvent(friend('in-game', instance(`world_${index}`), id, `Friend ${index}`))
       )
@@ -454,6 +455,62 @@ describe('FriendAlerts policy injection', () => {
     engine.consume(presenceEvent(friend('offline', null, 'usr_4', 'Friend 4')))
     engine.consume(presenceEvent(friend('active', null, 'usr_4', 'Friend 4')))
     expect(alerts.filter((alert) => alert.type === 'online')).toHaveLength(4)
+  })
+
+  it('shows one toast, not two, when a friend comes online straight into a world', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline')))
+    engine.consume(presenceEvent(friend('in-game', instance('a', 'World A'))))
+    expect(alerts).toEqual([expect.objectContaining({ type: 'in-game', worldName: 'World A' })])
+  })
+
+  it('still says "came online" for that arrival when the joined alert is off', () => {
+    const { engine, alerts } = harness({ enabled: { 'in-game': false } })
+    engine.consume(presenceEvent(friend('offline')))
+    engine.consume(presenceEvent(friend('in-game', instance('a', 'World A'))))
+    expect(alerts.map((alert) => alert.type)).toEqual(['online'])
+  })
+
+  it('still says "came online" for that arrival when the joined alert hit its limit', () => {
+    const { engine, alerts } = harness()
+    for (let index = 0; index < 4; index++) {
+      const id = `usr_${index}`
+      engine.consume(presenceEvent(friend('offline', null, id, `Friend ${index}`)))
+      engine.consume(
+        presenceEvent(friend('in-game', instance(`world_${index}`), id, `Friend ${index}`))
+      )
+    }
+    expect(alerts.map((alert) => alert.type)).toEqual(['in-game', 'in-game', 'in-game', 'online'])
+  })
+
+  it('records both steps of that arrival, in order, when it is not rate limited', () => {
+    const alerts: FriendAlert[] = []
+    const engine = new FriendAlerts({
+      notify: (alert) => alerts.push(alert),
+      clock: () => 0,
+      isEnabled: () => true,
+      resolveName: () => null,
+      rateLimited: false
+    })
+    engine.consume(presenceEvent(friend('offline')))
+    engine.consume(presenceEvent(friend('in-game', instance('a', 'World A'))))
+    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
+  })
+
+  it('gives each platform its own allowance, so one busy platform never silences the other', () => {
+    const { engine, alerts } = harness({ enabled: { 'in-game': false } })
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      for (let index = 0; index < 4; index++) {
+        const id = `${platform}_${index}`
+        const row = (state: PresenceState): Friend =>
+          ({ ...friend(state, null, id, `Friend ${index}`), platform }) as Friend
+        engine.consume(presenceEvent(row('offline')))
+        engine.consume(presenceEvent(row('active')))
+      }
+    }
+    expect(alerts.filter((alert) => alert.platform === 'vrchat')).toHaveLength(3)
+    expect(alerts.filter((alert) => alert.platform === 'chilloutvr')).toHaveLength(3)
+    expect(engine.getDroppedCount('online')).toBe(2)
   })
 
   it('rate-limits enabled offline alerts to 3 per 10 seconds and counts drops', () => {
@@ -814,10 +871,8 @@ describe('FriendAlerts picked-friends scope', () => {
         'platformUserId' in alert ? alert.platformUserId : null
       ])
     ).toEqual([
-      ['vrchat', 'online', 'usr_1'],
       ['vrchat', 'in-game', 'usr_1'],
       ['vrchat', 'offline', 'usr_1'],
-      ['chilloutvr', 'online', 'cvr_1'],
       ['chilloutvr', 'in-game', 'cvr_1'],
       ['chilloutvr', 'offline', 'cvr_1']
     ])

@@ -42,6 +42,8 @@ const vrx = {
   },
   // World references only: main resolves them to the platform's world ID.
   setHomeWorld: (req: IpcInvoke['set-home-world']['req']) => invoke('set-home-world', req),
+  getWorldRating: (req: IpcInvoke['get-world-rating']['req']) => invoke('get-world-rating', req),
+  setWorldRating: (req: IpcInvoke['set-world-rating']['req']) => invoke('set-world-rating', req),
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
   getAvatar: (url: string, rendition?: 'avatar' | 'picture') =>
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
@@ -219,6 +221,7 @@ if (process.contextIsolated) {
     // preload can't load electron-log's node transport, and if the contextBridge
     // itself failed there is no working bridge to route a log over — the devtools
     // console is the only surface that still works in this bootstrap-failure case.
+    // eslint-disable-next-line no-console -- the one allowed use; see above
     console.error('[preload] contextBridge failed:', error)
   }
 } else {

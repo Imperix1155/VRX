@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { ACTIVITY_FILTERS, type ActivityEntry, type ActivityFilter } from '@shared/activity'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
 import type { Friend } from '@shared/types'
+import { asTranslate, type Translate } from '../i18n/translate'
 import { clearActivity, useActivity } from '../queries/activity'
 import { useFriends } from '../queries/friends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
@@ -46,10 +47,7 @@ function friendKey(platform: Friend['platform'], platformUserId: string): string
 }
 
 /** What happened, in words. World names drop ChilloutVR's "(#…)" instance tag. */
-function describe(
-  entry: ActivityEntry,
-  t: (key: string, options?: Record<string, string>) => string
-): string {
+function describe(entry: ActivityEntry, t: Translate): string {
   const world = entry.worldName === null ? '' : stripInstanceSuffix(entry.worldName).trim()
   switch (entry.kind) {
     case 'online':
@@ -97,7 +95,7 @@ function ActivityRow({
   onOpen: (entry: ActivityEntry) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const description = describe(entry, t)
+  const description = describe(entry, asTranslate(t))
   const name = friend?.displayName ?? entry.displayName
   const body = (
     <>

@@ -237,6 +237,20 @@ jobs:
       - name: Type-check and build
         run: npm run build
 
+      # Start the app that was just built, sign in to the fake platforms and
+      # open every page (e2e/README.md). Unit tests prove the pieces; this
+      # proves the built app works as a whole. It reaches no real service:
+      # e2e/redirect.cjs refuses every connection that is not the local fake.
+      - name: End-to-end smoke test (Linux)
+        if: matrix.os == 'ubuntu-24.04'
+        timeout-minutes: 10
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" npm run test:e2e
+
+      - name: End-to-end smoke test (Windows)
+        if: matrix.os == 'windows-latest'
+        timeout-minutes: 10
+        run: npm run test:e2e
+
   # Dependency vulnerability gate — fails the build on high/critical advisories
   # (VRX-123). OS-agnostic, so it runs once rather than per matrix leg. `npm audit`
   # reads package-lock.json, so no install is needed.
