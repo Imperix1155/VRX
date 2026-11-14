@@ -210,6 +210,13 @@ export abstract class ReconnectingPipeline<Prep> {
   }
 
   private async runLoop(generation: number): Promise<void> {
+    // A loop that was just started is trying to connect. Saying so at once keeps
+    // the top bar from reading "Down" for the seconds the first attempt takes
+    // (the VRChat token read waits its turn behind the launch friends read).
+    // `down` below is kept for "there is no session to connect with".
+    this.emit({ type: 'connection', platform: this.platform, health: 'reconnecting' })
+    // True until something else is emitted, so the first dial does not say it twice.
+    let saidConnecting = true
     while (!this.stopped && generation === this.generation) {
       await this.waitForCooldown(generation)
       if (this.stopped || generation !== this.generation) return
@@ -224,6 +231,7 @@ export abstract class ReconnectingPipeline<Prep> {
       if (prep === null) {
         // No session yet (or re-auth in progress). Local wait — no network hit.
         this.emit({ type: 'connection', platform: this.platform, health: 'down' })
+        saidConnecting = false
         const delay = this.backoffDelay()
         this.consecutiveFailures++
         await this.sleep(delay)
@@ -233,7 +241,10 @@ export abstract class ReconnectingPipeline<Prep> {
       // A REST/image response may extend cooldown while credentials are prepared.
       await this.waitForCooldown(generation)
       if (this.stopped || generation !== this.generation) return
-      this.emit({ type: 'connection', platform: this.platform, health: 'reconnecting' })
+      if (!saidConnecting) {
+        this.emit({ type: 'connection', platform: this.platform, health: 'reconnecting' })
+      }
+      saidConnecting = false
       const closed = await this.connectOnce(prep, generation)
       if (this.stopped || generation !== this.generation) return
 
@@ -277,7 +288,7 @@ export abstract class ReconnectingPipeline<Prep> {
       } catch (err) {
         // Auth material rides on openSocket (URL token / upgrade headers) and
         // construction errors can ECHO it (e.g. an invalid-URL message) — log
-        // only the error class, never the message (CLAUDE.md: no tokens in logs).
+        // only the error class, never the message (src/main/AGENTS.md: never log tokens).
         this.log('warn', 'pipeline: socket construction failed', {
           errorName: err instanceof Error ? err.name : typeof err
         })

@@ -2,7 +2,9 @@
 
 How to set up, run and check VRX from a fresh clone on Windows, Linux or
 macOS. Read the root [contract](../AGENTS.md) first. No personal agent skills,
-model subscription or tracker access is needed.
+model subscription or tracker access is needed. For step-by-step recipes
+(add a setting, a channel, a page), where to look by symptom, and which check
+catches which mistake, see [Maintaining](MAINTAINING.md).
 
 ## Prerequisites
 
@@ -11,7 +13,8 @@ model subscription or tracker access is needed.
   file. With nvm, run `nvm install` and `nvm use`. Node 20 doesn't work (the
   locked jsdom needs 22.22.2+). Electron bundles its own Node for the app.
 - Optional: [gitleaks](https://github.com/gitleaks/gitleaks#installing) for
-  the local pre-commit secret scan. CI scans either way.
+  a fuller local pre-commit secret scan. Without it the hook still runs the
+  built-in scan (`scripts/check-secrets.mjs`), and CI runs gitleaks either way.
 - GitHub access only for pushing, PRs and releases. Never put credentials in
   files or logs.
 
@@ -37,22 +40,24 @@ UI, use the [design guide](#design-guide) and its sample data instead.
 
 ## Commands
 
-| Command                                                            | What it does                                                                 |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `npm run dev`                                                      | Runs the app with hot reload.                                                |
-| `npm run verify`                                                   | The full gate: lint, format check, tests, build. Stops at the first failure. |
-| `npm start`                                                        | Runs the last `npm run build` without a dev server.                          |
-| `npm run lint`                                                     | ESLint, zero warnings allowed.                                               |
-| `npm run format` / `format:check`                                  | Prettier: fix, or check only.                                                |
-| `npm test` / `test:watch` / `test:coverage`                        | Vitest: once, watching, or with coverage.                                    |
-| `npm run typecheck`                                                | Both TypeScript 7 projects (main and renderer).                              |
-| `npm run build`                                                    | Typecheck, bundle, then assert the renderer entry chunk.                     |
-| `npm run build:win` / `build:linux` / `build:mac` / `build:unpack` | Package for one OS, or an unpacked folder.                                   |
-| `npm run guide:dev` / `guide:build` / `guide:preview`              | The [design guide](#design-guide).                                           |
-| `npm run docs:links`                                               | Checks every relative link and `#heading` in the committed Markdown.         |
-| `npm run design:tokens` / `design:tokens:check`                    | Regenerate, or check, the token tables in `DESIGN.md` from `main.css`.       |
-| `npm run icons:generate` / `icons:check`                           | Regenerate, or check, the app and tray icons ([App icon](APP-ICON.md)).      |
-| `npm run test:credential-persistence-*`                            | CI's saved-session probes. Never run them against real user data.            |
+| Command                                                            | What it does                                                                  |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `npm run dev`                                                      | Runs the app with hot reload.                                                 |
+| `npm run verify`                                                   | The full gate: lint, format check, tests, build. Stops at the first failure.  |
+| `npm start`                                                        | Runs the last `npm run build` without a dev server.                           |
+| `npm run lint`                                                     | ESLint, zero warnings allowed.                                                |
+| `npm run format` / `format:check`                                  | Prettier: fix, or check only.                                                 |
+| `npm test` / `test:watch` / `test:coverage`                        | Vitest: once, watching, or with coverage.                                     |
+| `npm run test:e2e`                                                 | Starts the built app against fake platforms and uses it. Needs a build.       |
+| `npm run typecheck`                                                | Both TypeScript 7 projects (main and renderer).                               |
+| `npm run build`                                                    | Typecheck, bundle, then assert the renderer entry chunk.                      |
+| `npm run build:win` / `build:linux` / `build:mac` / `build:unpack` | Package for one OS, or an unpacked folder.                                    |
+| `npm run guide:dev` / `guide:build` / `guide:preview`              | The [design guide](#design-guide).                                            |
+| `npm run docs:links`                                               | Checks every relative link and `#heading` in the committed Markdown.          |
+| `npm run secrets:check`                                            | Scans tracked files for credentials and personal paths (`npm test` does too). |
+| `npm run design:tokens` / `design:tokens:check`                    | Regenerate, or check, the token tables in `DESIGN.md` from `main.css`.        |
+| `npm run icons:generate` / `icons:check`                           | Regenerate, or check, the app and tray icons ([App icon](APP-ICON.md)).       |
+| `npm run test:credential-persistence-*`                            | CI's saved-session probes. Never run them against real user data.             |
 
 TypeScript: `npm run typecheck` uses the TypeScript 7 compiler (`tsc` from
 `@typescript/native`). ESLint and the design-token scanner use the TypeScript
@@ -68,6 +73,7 @@ ship that API.
 | `src/shared`   | Plain types and constants shared by every process             | [AGENTS](../src/shared/AGENTS.md)   |
 | `src/renderer` | React views, stores, queries, translations and styles         | [AGENTS](../src/renderer/AGENTS.md) |
 | `docs/guide`   | The design guide: real components with sample data            | [AGENTS](guide/AGENTS.md)           |
+| `e2e`          | End-to-end tests that drive the built app with fake platforms | [README](../e2e/README.md)          |
 | `scripts`      | Build, release, audit and icon tooling                        | Root contract                       |
 | `build`        | Icon sources and packaging resources                          | [AGENTS](../build/AGENTS.md)        |
 
@@ -75,7 +81,8 @@ Before adding a channel, event, hook, store, parser, service or constant, look
 it up in the [internal API catalog](INTERNAL-API.md) and read the code it
 points to. The catalog is one file per area in [`internal-api/`](internal-api/);
 search it with `rg -n 'name' docs/internal-api`. Before adding a platform
-request, read the [API policy](api-policy.md).
+request, read the [API policy](api-policy.md). Dated prep notes live in
+[`plans/`](plans/). A plan never overrides a contract or the current source.
 
 ## Design guide
 
@@ -124,6 +131,12 @@ harmless: Vite's note that `vitest.config.ts` isn't ready for its future
 `configLoader: 'native'`, and Node's SQLite `ExperimentalWarning` (the VRCX
 import tests read a SQLite file).
 
+- `verify` does not start the app. After it passes, run `npm run test:e2e`
+  for any change that can affect the running app (on Linux without a screen:
+  `xvfb-run -a npm run test:e2e`). It signs in to a fake VRChat and ChilloutVR
+  on your own computer, opens every page and restarts the app, in about 30
+  seconds, and never reaches a real platform. [`e2e/README.md`](../e2e/README.md)
+  explains how to read a failure and add a step.
 - While working, run only the tests you need, for example
   `npx vitest run src/renderer/src/components/BootSplash.test.tsx`. Run the
   full gate before you deliver. For a bug fix, show a test that fails without
@@ -149,7 +162,8 @@ against the actual results.
 ### CI and failures
 
 [CI](../.github/workflows/ci.yml) builds and tests on Windows and Ubuntu,
-audits dependencies and scans for secrets, on every push and pull request.
+runs the end-to-end test on both after the build, audits dependencies and
+scans for secrets, on every push and pull request.
 The `ci-success` job sums them up. Pushes to `main`, `beta` and `dev` are
 keyed by commit and never cancelled, because a release waits on `ci-success`
 for that commit; other pushes and PRs cancel a superseded run.
@@ -168,9 +182,16 @@ unrelated failure your regression, or an unexplained one a harmless flake.
 
 ## Dependency and security changes
 
-Read upstream changes and check compatibility with the locked peer ranges.
-Fix an update that works, or explain why it doesn't fit. Merging still needs
-the owner's permission.
+Dependabot opens its weekly pull requests against `dev` only
+([`dependabot.yml`](../.github/dependabot.yml)); updates reach `beta` and
+`main` with the next release. Read upstream changes and check compatibility
+with the locked peer ranges. Fix an update that works, or explain why it
+doesn't fit. Merging still needs the owner's permission.
+
+After `npm install <package>`, read `git diff package-lock.json`. npm on Linux
+can delete the `"libc"` lines of packages you did not touch;
+`scripts/lockfile.test.mjs` fails when they are gone.
+[Maintaining](MAINTAINING.md#accept-a-dependency-update) has the fix.
 
 The audit job blocks high and critical advisories, and there is no current
 exception. An exception is allowed only for a development-only advisory with
@@ -183,6 +204,8 @@ prove non-excepted, production and malformed cases still fail.
 
 Credentials belong only in main-process credential storage, OS encryption
 first and the documented local fallback second. Never store them in plain text
-or let them reach the renderer. Allowlist a confirmed fake test value in
-`.gitleaks.toml` by its exact value, never by path. A real committed secret is
-a security incident: remove it and report it.
+or let them reach the renderer. Build a fake test value at run time
+(`'authcookie_' + id`) or keep it obviously fake and short, so neither
+scanner matches it; when that isn't possible, allowlist the confirmed fake
+value in `.gitleaks.toml` by its exact value, never by path. A real committed
+secret is a security incident: remove it and report it.

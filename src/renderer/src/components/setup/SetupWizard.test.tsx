@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { AuthState, Platform } from '@shared/types'
-import i18n from '../../i18n'
+import { translate as msg } from '../../i18n/translate'
 import { useSettingsStore } from '../../stores/settings'
 import { useUiStore } from '../../stores/ui'
 import SetupWizard from './SetupWizard'
@@ -18,8 +18,6 @@ vi.stubGlobal(
     disconnect = vi.fn()
   }
 )
-
-const msg = (key: string, options?: Record<string, unknown>): string => i18n.t(key, options)
 
 function setBridge(states: Record<Platform, AuthState>, extra: Record<string, unknown> = {}): void {
   ;(window as unknown as { vrx?: unknown }).vrx = {

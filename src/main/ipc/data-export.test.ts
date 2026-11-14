@@ -21,6 +21,8 @@ const event = { senderFrame: {} } as unknown as IpcMainInvokeEvent
 type SaveFile = (event: IpcMainInvokeEvent, name: string, content: string) => Promise<boolean>
 let saveFile: ReturnType<typeof vi.fn<SaveFile>>
 let signedIn: boolean
+let accountId: string
+let session: number
 let rosterLoaded: boolean
 let reads: number
 let favoritesLoaded: boolean
@@ -36,16 +38,32 @@ function sources(): DataExportSources {
   return {
     accountId: (platform) => {
       reads += 1
-      return signedIn && platform === 'vrchat' ? 'usr_me' : null
+      return signedIn && platform === 'vrchat' ? accountId : null
     },
-    roster: () => (rosterLoaded ? [{ id: 'usr_a', name: 'Ari' }] : null),
-    favoriteFriendIds: () => ['usr_a'],
+    roster: () =>
+      rosterLoaded
+        ? accountId === 'usr_me'
+          ? [{ id: 'usr_a', name: 'Ari' }]
+          : [{ id: 'usr_b', name: 'Bo' }]
+        : null,
+    favoriteFriendIds: () => (accountId === 'usr_me' ? ['usr_a'] : []),
     favoriteWorlds: () => [],
-    notes: () => ({ usr_a: 'hello' }),
+    notes: (_platform, account): Record<string, string> =>
+      account === 'usr_me' ? { usr_a: 'hello' } : { usr_b: 'other' },
     gameFavorites: () => (favoritesLoaded ? emptyFavorites : 'unavailable'),
     linkedProfiles: () => [],
     now: () => new Date(2026, 10, 11, 9, 30)
   }
+}
+
+/** Main's mark for the signed-in sessions, as `app.ts` builds it: epochs, no ids. */
+const sessions = (): string => `${signedIn ? session : '-'}/-`
+
+/** What `setIdentity` does on a sign-in, a sign-out or a replacement. */
+function changeAccount(next: string | null): void {
+  session += 1
+  signedIn = next !== null
+  if (next !== null) accountId = next
 }
 
 const run = (req?: unknown): Promise<DataExportResult> =>
@@ -55,6 +73,8 @@ beforeEach(() => {
   handlers.clear()
   trusted.value = true
   signedIn = true
+  accountId = 'usr_me'
+  session = 1
   rosterLoaded = true
   reads = 0
   favoritesLoaded = false
@@ -63,7 +83,7 @@ beforeEach(() => {
     favoritesLoaded = true
   })
   saveFile = vi.fn<SaveFile>(async () => true)
-  registerDataExportHandlers({ sources: sources(), saveFile, prepare })
+  registerDataExportHandlers({ sources: sources(), sessions, saveFile, prepare })
 })
 
 describe('export-data handler', () => {
@@ -137,8 +157,63 @@ describe('export-data handler', () => {
 
   it('works without a prepare step', async () => {
     handlers.clear()
-    registerDataExportHandlers({ sources: sources(), saveFile })
+    registerDataExportHandlers({ sources: sources(), sessions, saveFile })
     expect((await run()).ok).toBe(true)
+  })
+
+  it('answers stale and opens no dialog when the sign-in is replaced during the wait', async () => {
+    prepare.mockImplementation(async () => {
+      favoritesLoaded = true
+      changeAccount('usr_other')
+    })
+    expect(await run()).toEqual({ ok: false, reason: 'stale' })
+    expect(saveFile).not.toHaveBeenCalled()
+  })
+
+  it('answers stale when the same account signs out and back in during the wait', async () => {
+    prepare.mockImplementation(async () => {
+      changeAccount(null)
+      changeAccount('usr_me')
+    })
+    expect(await run()).toEqual({ ok: false, reason: 'stale' })
+    expect(saveFile).not.toHaveBeenCalled()
+  })
+
+  it('answers stale when the account signs out during the wait', async () => {
+    prepare.mockImplementation(async () => changeAccount(null))
+    expect(await run()).toEqual({ ok: false, reason: 'stale' })
+    expect(saveFile).not.toHaveBeenCalled()
+  })
+
+  it('checks the sessions even when the favorites read failed', async () => {
+    prepare.mockImplementation(async () => {
+      changeAccount('usr_other')
+      throw new Error('read failed')
+    })
+    expect(await run()).toEqual({ ok: false, reason: 'stale' })
+    expect(saveFile).not.toHaveBeenCalled()
+  })
+
+  it('exports the new account on the next press after a stale answer', async () => {
+    prepare.mockImplementationOnce(async () => changeAccount('usr_other'))
+    expect(await run()).toEqual({ ok: false, reason: 'stale' })
+    expect((await run()).ok).toBe(true)
+    expect(saveFile).toHaveBeenCalledTimes(1)
+    const file = JSON.parse(saveFile.mock.calls[0]![2]) as {
+      vrchat: { friends: { id: string }[] }
+    }
+    expect(file.vrchat.friends.map((friend) => friend.id)).toEqual(['usr_b'])
+  })
+
+  it('saves the file it built when the sign-in changes while the dialog is open', async () => {
+    saveFile.mockImplementation(async () => {
+      changeAccount('usr_other')
+      return true
+    })
+    expect((await run()).ok).toBe(true)
+    const content = saveFile.mock.calls[0]![2]
+    expect(content).toContain('"usr_a"')
+    expect(content).not.toContain('"usr_b"')
   })
 
   it('reports a cancelled dialog as cancelled', async () => {

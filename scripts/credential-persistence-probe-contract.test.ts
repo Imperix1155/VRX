@@ -117,7 +117,8 @@ describe('Linux credential persistence probe contract', () => {
     if (!credentialProbeStep) throw new Error('missing Linux credential persistence CI step')
 
     expect(ciWorkflow).toContain('os: [ubuntu-24.04, windows-latest]')
-    expect(ciWorkflow.match(/matrix\.os == 'ubuntu-24\.04'/g)).toHaveLength(2)
+    // The two credential probe steps and the Linux end-to-end step.
+    expect(ciWorkflow.match(/matrix\.os == 'ubuntu-24\.04'/g)).toHaveLength(3)
     expect(ciWorkflow).not.toContain("matrix.os == 'ubuntu-latest'")
     expect(credentialProbeStep).toContain(
       'diagnostic_file=$(mktemp "${RUNNER_TEMP}/vrx-credential-probe-diagnostic.XXXXXX")'

@@ -15,6 +15,8 @@ import { GameFavoritesService } from './services/gameFavorites'
 import type { GameFavoritesAdapter } from './services/adapters/GameFavoritesAdapter'
 import { HomeWorldService } from './services/homeWorldService'
 import type { HomeWorldAdapter } from './services/adapters/HomeWorldAdapter'
+import { WorldRatingService } from './services/worldRatingService'
+import type { WorldRatingAdapter } from './services/adapters/WorldRatingAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { LoginItem } from './services/loginItem'
 import { DATA_EXPORT_FAVORITES_WAIT_MS } from './services/dataExport'
@@ -499,6 +501,7 @@ app
     const accountNotesBoundary: { current?: AccountNoteService } = {}
     const gameFavoritesBoundary: { current?: GameFavoritesService } = {}
     const homeWorldBoundary: { current?: HomeWorldService } = {}
+    const worldRatingBoundary: { current?: WorldRatingService } = {}
     const friendActionsBoundary: { current?: FriendActionsService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession, undefined, (message, detail) =>
@@ -548,6 +551,7 @@ app
         accountNotesBoundary.current?.clearPlatform('vrchat')
         gameFavoritesBoundary.current?.clearPlatform('vrchat')
         homeWorldBoundary.current?.clearPlatform('vrchat')
+        worldRatingBoundary.current?.clearPlatform('vrchat')
         friendActionsBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
@@ -631,6 +635,7 @@ app
         accountNotesBoundary.current?.clearPlatform('chilloutvr')
         gameFavoritesBoundary.current?.clearPlatform('chilloutvr')
         homeWorldBoundary.current?.clearPlatform('chilloutvr')
+        worldRatingBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -866,6 +871,13 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     homeWorldBoundary.current = homeWorld
+    // The signed-in user's own VRChat world rating, by the same Explore reference.
+    const worldRating = new WorldRatingService({
+      adapters: new Map<Platform, WorldRatingAdapter>([['vrchat', vrcAdapter]]),
+      resolveWorld: (platform, worldRef) => explore.worldIdFor(platform, worldRef),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    worldRatingBoundary.current = worldRating
 
     // The profile's Unfriend, Block and Unblock: confirmed, one person at a time.
     const social = new SocialActionService({
@@ -922,6 +934,7 @@ app
     registerIpcHandlers(adapters, {
       explore,
       homeWorld,
+      worldRating,
       inbox,
       friendActions,
       vrOverlayAlerts,
@@ -973,6 +986,13 @@ app
           linkedProfiles: () => linkGraph.list(),
           now: () => new Date()
         },
+        sessions: () =>
+          (['vrchat', 'chilloutvr'] as const)
+            .map((platform) => {
+              const session = accountSession.resolve(platform)
+              return 'status' in session ? '-' : String(session.epoch)
+            })
+            .join('/'),
         // The same once-per-sign-in read the Friends page starts; an answer
         // already in memory returns at once, and nothing is ever refreshed.
         prepare: async () => {
@@ -1077,7 +1097,8 @@ app
 
     // Broadcast live adapter events to every window over the typed push
     // channel ('friend-event', @shared/ipc). The renderer applies them to the
-    // TanStack cache — presence is PUSHED, never polled (CLAUDE.md). Both
+    // TanStack cache — presence is PUSHED, never polled
+    // (docs/api-policy.md, Live presence and recovery). Both
     // platforms share one broadcaster; the renderer keys events by platform.
     const broadcast = (event: BroadcastAdapterEvent): void => {
       if (event.type === 'auth-invalidated') {
@@ -1089,6 +1110,7 @@ app
         accountNotes.clearPlatform(event.platform)
         gameFavorites.clearPlatform(event.platform)
         homeWorld.clearPlatform(event.platform)
+        worldRating.clearPlatform(event.platform)
         friendActions.clearPlatform(event.platform)
       }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }

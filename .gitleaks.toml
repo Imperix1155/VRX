@@ -29,3 +29,24 @@ regexes = [
   '''^jwt\.body\.sig$''',
   '''^Bearer abc\.def\.ghi$''',
 ]
+
+# Platform credentials the default ruleset does not know. The same shapes are
+# checked without gitleaks by scripts/check-secrets.mjs (`npm run secrets:check`,
+# and inside `npm test`); keep the two lists in step.
+[[rules]]
+id = "vrchat-auth-cookie"
+description = "VRChat sign-in cookie"
+regex = '''(?i)authcookie_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'''
+keywords = ["authcookie_"]
+
+[[rules]]
+id = "vrchat-two-factor-cookie"
+description = "VRChat two-step sign-in cookie"
+regex = '''twoFactorAuth=[A-Za-z0-9._-]{24,}'''
+keywords = ["twofactorauth="]
+
+[[rules]]
+id = "chilloutvr-access-key"
+description = "ChilloutVR access key"
+regex = '''(?i)access[_-]?key["']?\s*[:=]\s*["'`][A-Za-z0-9+/=_-]{32,}["'`]'''
+keywords = ["accesskey", "access_key", "access-key"]

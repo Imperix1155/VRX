@@ -4,11 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OwnProfile } from '@shared/ownProfile'
 import type { Platform } from '@shared/types'
-import i18n from '../i18n'
+import { translate as msg } from '../i18n/translate'
 import { authStatusQueryKey } from '../queries/auth'
 import AccountCard from './AccountCard'
-
-const msg = (key: string, options?: Record<string, string | number>): string => i18n.t(key, options)
 
 function stored(platform: Platform): OwnProfile {
   return platform === 'vrchat'

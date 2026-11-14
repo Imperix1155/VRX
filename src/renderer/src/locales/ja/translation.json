@@ -138,7 +138,7 @@
     "connection": {
       "label": "VRChat: {{vrchat}}、ChilloutVR: {{chilloutvr}}",
       "live": "接続中",
-      "reconnecting": "再接続中",
+      "reconnecting": "接続を確立中",
       "down": "切断",
       "signedOut": "サインアウト",
       "needsCode": "コードが必要"
@@ -226,6 +226,7 @@
       "noGameFavorites": "ゲームのお気に入りを読み込めなかったため、VRX の星だけが入っています。",
       "signedOut": "先にアカウントにサインインしてください。",
       "notReady": "フレンドを読み込み中です。少し待ってからもう一度お試しください。",
+      "accountChanged": "ファイルの準備中にアカウントのサインイン状態が変わりました。もう一度「書き出す…」を押してください。",
       "failed": "ファイルを保存できませんでした。別のフォルダーをお試しください。",
       "tooMany": "回数が多すぎます。1分ほど待ってからもう一度お試しください。"
     },
@@ -956,6 +957,9 @@
       "joining-disabled": "無効"
     },
     "peopleCount": "人数: <value>{{count}}</value>",
+    "room": {
+      "language": "言語: {{language}}"
+    },
     "region": {
       "usWest": "米国西部",
       "usEast": "米国東部",
@@ -1009,6 +1013,31 @@
         "failed": "{{platform}} でホームワールドを変更できませんでした。もう一度お試しください。",
         "not-authenticated": "ホームワールドを変更するには {{platform}} にもう一度サインインしてください。",
         "unknown-world": "このワールドを更新してから、もう一度お試しください。"
+      }
+    },
+    "rating": {
+      "like": "いいね",
+      "dislike": "よくない",
+      "liked": "いいね済み",
+      "disliked": "よくない済み",
+      "group": "このワールドへのあなたの評価",
+      "likeAria": "{{world}} にいいね",
+      "dislikeAria": "{{world}} をよくない",
+      "likedAria": "いいね済み。{{world}} の評価を消す",
+      "dislikedAria": "よくない済み。{{world}} の評価を消す",
+      "signedOut": "このワールドを評価するには VRChat にサインインしてください。",
+      "loading": "あなたの評価を読み込み中…",
+      "saving": "評価を保存しています…",
+      "loadFailed": "評価を読み込めませんでした。",
+      "retry": "再試行",
+      "failed": {
+        "cooldown": "少し待ってからもう一度評価を変更してください。",
+        "rate-limited": "VRChat から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+        "failed": "VRChat で評価を保存できませんでした。もう一度お試しください。",
+        "not-authenticated": "このワールドを評価するには VRChat にもう一度サインインしてください。",
+        "unknown-world": "このワールドを更新してから、もう一度お試しください。",
+        "stale": "評価するにはもう一度サインインしてください。",
+        "not-vrchat": "評価できるのは VRChat のワールドだけです。"
       }
     }
   },

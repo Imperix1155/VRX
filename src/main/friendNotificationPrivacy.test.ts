@@ -32,7 +32,7 @@ afterEach(() => {
 
 describe('live pipeline notification privacy', () => {
   it.each(['ask me', 'busy', 'active'])(
-    'masks hidden cached world metadata while preserving online alerts (%s)',
+    'masks hidden cached world metadata in the arrival alert (%s)',
     async (status) => {
       const alerts: FriendAlert[] = []
       const settings = { ...DEFAULT_SETTINGS, notifyFriendOnline: true, notifyFriendInGame: true }
@@ -70,10 +70,10 @@ describe('live pipeline notification privacy', () => {
           socket.fire('message', JSON.stringify({ type, content: JSON.stringify(content) }))
         send('friend-offline', { userId: user.id })
         send('friend-online', { userId: user.id, user, location: 'wrld_synthetic:12345' })
-        expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
+        // One arrival, one toast: "joined" speaks for "came online" too.
+        expect(alerts.map((alert) => alert.type)).toEqual(['in-game'])
         const presented = alerts.map(notificationPresenter)
-        expect(presented[0]?.body).toBe('Synthetic Friend came online')
-        expect(presented[1]?.body).toBe(
+        expect(presented[0]?.body).toBe(
           status === 'active'
             ? 'Synthetic Friend joined Hidden cached world'
             : 'Synthetic Friend joined a world'

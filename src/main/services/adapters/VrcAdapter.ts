@@ -83,6 +83,7 @@ import {
   type WorldList
 } from '@shared/community'
 import { isHomeWorldId } from '@shared/homeWorld'
+import { isVrchatWorldId, type WorldRating, type WorldRatingValue } from '@shared/worldRating'
 import {
   FriendActionRefusedError,
   type FriendActionsAdapter,
@@ -98,6 +99,12 @@ import {
 } from './CommunityAdapter'
 import { parseAccountNoteReply, type AccountNoteAdapter } from './AccountNoteAdapter'
 import { HomeWorldIdError, type HomeWorldAdapter } from './HomeWorldAdapter'
+import {
+  WorldRatingDataError,
+  WorldRatingIdError,
+  type WorldRatingAdapter
+} from './WorldRatingAdapter'
+import { parseWorldRatingBody } from './vrchat/parseWorldRating'
 import {
   buildVrcGroups,
   GameFavoritesDataError,
@@ -313,6 +320,7 @@ export class VrcAdapter
     SocialActionAdapter,
     AccountNoteAdapter,
     HomeWorldAdapter,
+    WorldRatingAdapter,
     GameFavoritesAdapter,
     FriendActionsAdapter
 {
@@ -1251,6 +1259,49 @@ export class VrcAdapter
         }
       )
     )
+  }
+
+  // ── World rating (the signed-in user's own like or dislike) ───────────────
+  // A read follows a world sheet opening. A write follows one button press
+  // and is never sent twice on its own.
+
+  captureWorldRatingLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  getWorldRating(worldId: string, lease: RequestLease): Promise<WorldRating> {
+    return this.worldRating(worldId, lease, 'GET')
+  }
+
+  setWorldRating(
+    worldId: string,
+    value: WorldRatingValue,
+    lease: RequestLease
+  ): Promise<WorldRating> {
+    return this.worldRating(worldId, lease, 'PUT', value)
+  }
+
+  deleteWorldRating(worldId: string, lease: RequestLease): Promise<WorldRating> {
+    return this.worldRating(worldId, lease, 'DELETE')
+  }
+
+  private async worldRating(
+    worldId: string,
+    lease: RequestLease,
+    method: 'GET' | 'PUT' | 'DELETE',
+    value?: WorldRatingValue
+  ): Promise<WorldRating> {
+    if (!isVrchatWorldId(worldId)) throw new WorldRatingIdError('Invalid VRChat world id')
+    const path = `/worlds/${encodeURIComponent(worldId)}/rating`
+    const options = { ...this.communityOptions(lease), retry: 'none' as const }
+    const raw = await this.runCommunityRequest(lease, () => {
+      if (method === 'GET') return this.get(path, z.unknown(), options)
+      if (method === 'PUT') return this.putJson(path, { value }, z.unknown(), options)
+      return this.delete(path, z.unknown(), options)
+    })
+    const parsed = parseWorldRatingBody(raw)
+    if (!parsed.ok) throw new WorldRatingDataError('Malformed world rating')
+    return parsed.value
   }
 
   // ── Community reads (profiles, search, lists, players online, groups) ───────

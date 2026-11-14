@@ -202,6 +202,8 @@ export function createFixtureBridge(variant: string): FixtureBridge {
           : { ok: false, reason: 'unknown-world' }
       )
     },
+    getWorldRating: () => Promise.resolve({ ok: true, value: null }),
+    setWorldRating: ({ value }) => Promise.resolve({ ok: true, value }),
     onExploreChanged: unsubscribe,
     getLinkedProfiles: () => Promise.resolve({ ok: true, value: structuredClone(links) }),
     changeLinkedProfile: ({ change }) => {

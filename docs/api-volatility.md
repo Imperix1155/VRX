@@ -412,7 +412,16 @@ are Synthetic.
   the field list follows the community
   [instance schema](https://github.com/vrchatapi/specification/blob/master/openapi/components/schemas/Instance.yaml).
 - **Room evidence:** occupancy prefers `n_users`, then `userCount`. `capacity`,
-  `region` and `groupName` are optional. A room is joinable only when the
+  `region` and `groupName` are optional. `displayName` and `description` are
+  optional instance copy: whitespace is collapsed, other control characters are
+  dropped, and the text is clipped (80 and 280 code points). A missing, blank
+  or non-string value is null. `dominantLanguage` is kept when
+  `isBcp47LanguageTag` accepts it, including a regional tag such as `pt-BR`.
+  The row names that tag with `languageTagLabel`. Anything else is null.
+  `categoryId`, `vibeIds`, `displayVibeId`,
+  `creatorId` and `ownerId` are not shown. The community spec still describes
+  `ownerId` as null for a public instance, and the full `Instance` schema has
+  no owner display name. A room is joinable only when the
   response `type` and `groupAccessType` agree with the id's access, the id is not
   age-gated, and these own fields hold exactly: `active: true`, `full: false`,
   `hasCapacityForYou: true`, `roleRestricted: false`, `ageGate: false`,
@@ -637,6 +646,26 @@ or write has been captured yet.
 - **When it breaks:** a 401 emits `auth-invalidated` and reports
   `not-authenticated`. A 429 reports `rate-limited`; any other failure,
   including a 403, reports `failed`, and the home world is unchanged.
+
+### World rating: `GET`, `PUT` and `DELETE /worlds/{worldId}/rating`
+
+- **Assumes (Source-derived, community specification `088c09ec`):** the
+  signed-in user's own rating is `{ "value": "like" }`, `{ "value": "dislike" }`
+  or `{ "value": null }` when they have not rated the world. `PUT` sends
+  `{ "value": "like" }` or `{ "value": "dislike" }` and answers the same
+  object. `DELETE` answers `{ "value": null }`. A well-formed world id no
+  world carries still answers `{ "value": null }` on `GET`. There is no
+  public like count.
+- **Parses:** `value` must be exactly `like`, `dislike` or `null`. Anything
+  else is a failed read and is not shown as a rating. The world id must
+  match `^wrld_<GUID>$` and comes from a world reference main issued.
+- **Reachability:** a VRChat world sheet reads it when the sheet opens.
+  Like, Dislike and pressing the active choice again are the only writes,
+  each sent once with no retry. ChilloutVR sends nothing.
+- **When it breaks:** a 401 emits `auth-invalidated` and reports
+  `not-authenticated`. A 429 or a full admission queue reports
+  `rate-limited`. Any other failure reports `failed`, and the rating on
+  screen goes back to what it was. A reply is not logged.
 
 ### Images
 

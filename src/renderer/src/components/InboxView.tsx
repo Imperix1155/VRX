@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import type { FriendRequestAnswer } from '@shared/friendActions'
 import type { InboxItem, InboxKind } from '@shared/inbox'
 import type { Friend, Platform } from '@shared/types'
+import { asTranslate } from '../i18n/translate'
 import { useInbox, dismissInboxItem, clearInbox } from '../queries/inbox'
 import { useAnswerFriendRequest } from '../queries/friendActions'
 import { platformName } from '../utils/community'
@@ -82,6 +83,7 @@ const QUIET_BUTTON = [
 
 export default function InboxView(): React.JSX.Element {
   const { t, i18n } = useTranslation()
+  const translate = asTranslate(t)
   const inbox = useInbox()
   const vrcFriends = useFriends('vrchat')
   const cvrFriends = useFriends('chilloutvr')
@@ -272,7 +274,7 @@ export default function InboxView(): React.JSX.Element {
                     <PlatformPill platform={item.platform} className="shrink-0" />
                   </div>
                   <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                    <span className="break-words">{inboxActionText(item, t)}</span>
+                    <span className="break-words">{inboxActionText(item, translate)}</span>
                     <span aria-hidden="true"> · </span>
                     <time dateTime={new Date(item.receivedAt).toISOString()}>{age}</time>
                   </p>

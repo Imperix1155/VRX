@@ -155,6 +155,25 @@ describe('FriendsList search (VRX-65)', () => {
     expect(screen.getByText('Alice')).toBeTruthy()
   })
 
+  it('hides the sections with no match while a search is typed', async () => {
+    mockFriends([friend('Zed', 'offline'), friend('Alice')])
+    render(<FriendsList />)
+    expect(screen.getByRole('button', { name: /^In-Game \(0\)$/ })).toBeTruthy()
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search friends' }), {
+      target: { value: 'alice' }
+    })
+    await finishDebounce()
+
+    expect(screen.getByText('Alice')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Online \(1\)$/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /\(0\)$/ })).toBeNull()
+
+    // Clearing brings the empty sections back, so the list keeps its shape.
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(screen.getByRole('button', { name: /^In-Game \(0\)$/ })).toBeTruthy()
+  })
+
   it('ignores section collapse during search and restores it after clear', async () => {
     mockFriends([friend('Zed', 'offline'), friend('Alice')])
     render(<FriendsList />)

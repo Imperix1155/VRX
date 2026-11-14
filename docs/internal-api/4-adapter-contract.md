@@ -67,6 +67,20 @@ ChilloutVR REST uses `api.abinteractive.net/1`. Explore discovery uses fixed typ
 | `HomeWorldService` | [`homeWorldService.ts`](../../src/main/services/homeWorldService.ts) | Per-platform lock and cooldown fenced by lease generation. Resolves the renderer's reference with `resolveWorld`, checks the ID shape, and logs only platform and reason. `clearPlatform` runs on every session boundary and `auth-invalidated`. |
 | `HOME_WORLD_COOLDOWN_MS`, `isHomeWorldId`, `SetHomeWorldResult` | [`@shared/homeWorld`](../../src/shared/homeWorld.ts) | 5 s spacing, the world-ID shape check (`wrld_<GUID>` or a GUID), and the IPC result. |
 
+## World rating capability (`WorldRatingAdapter`)
+
+| Symbol | File | Purpose |
+| --- | --- | --- |
+| `WorldRatingAdapter` | [`WorldRatingAdapter.ts`](../../src/main/services/adapters/WorldRatingAdapter.ts) | Narrow main-only capability for the signed-in user's own world rating. It does not extend `IPlatformAdapter`. Only VRChat implements it; only `WorldRatingService` calls it. |
+| `captureWorldRatingLease()` | same | Captures the current session lease. Throws while the session is not durable. |
+| `getWorldRating(worldId, lease)` | same | `GET /worlds/{worldId}/rating`, `retry: 'none'`, through the shared VRChat admission line. |
+| `setWorldRating(worldId, value, lease)` | same | `PUT /worlds/{worldId}/rating` with `{ value: "like" \| "dislike" }`. Never retried. |
+| `deleteWorldRating(worldId, lease)` | same | `DELETE /worlds/{worldId}/rating`. Never retried. |
+| `WorldRatingIdError` / `WorldRatingDataError` | same | A malformed world id (no request) or a body whose `value` is not `like`, `dislike` or `null`. |
+| `parseWorldRatingBody` | [`vrchat/parseWorldRating.ts`](../../src/main/services/adapters/vrchat/parseWorldRating.ts) | Accepts only that object. Extra fields are ignored. |
+| `WorldRatingService` | [`worldRatingService.ts`](../../src/main/services/worldRatingService.ts) | Resolves the renderer's reference with `resolveWorld`, checks the id shape, caches a read for 5 minutes, shares an in-flight read, and fences a write with one-at-a-time and 1 s spacing. A late read cannot overwrite a press. `clearPlatform` runs on every VRChat session boundary and `auth-invalidated`. Logs carry only platform and reason. |
+| `WORLD_RATING_CACHE_MS`, `WORLD_RATING_WRITE_SPACING_MS`, `isVrchatWorldId`, `WorldRatingRead`, `SetWorldRatingResult` | [`@shared/worldRating`](../../src/shared/worldRating.ts) | 5 minute reuse, 1 s spacing, the `wrld_<GUID>` check, and the IPC results. |
+
 ## Community capability (`CommunityAdapter`)
 
 | Symbol | File | Purpose |
