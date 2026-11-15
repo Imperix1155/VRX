@@ -182,6 +182,31 @@ describe('useDragReorder', () => {
     expect(onOrder).toHaveBeenCalledTimes(3)
   })
 
+  it('forgets a press that was held when the list was disabled', () => {
+    const onClick = vi.fn()
+    const onOrder = vi.fn()
+    stubRows()
+    const view = render(<List onClick={onClick} onOrder={onOrder} />)
+    const held = screen.getByRole('button', { name: 'a' })
+    fireEvent.pointerDown(held, { pointerId: 1, button: 0, clientY: 20 })
+    fireEvent.pointerMove(held, { pointerId: 1, clientY: 20 + ROW_STEP })
+    // Reorder mode ends (Esc) with the button still down: the release that
+    // follows reaches no handler.
+    view.rerender(<List enabled={false} onClick={onClick} onOrder={onOrder} />)
+    expect(held.style.transform).toBe('')
+    fireEvent.pointerUp(held, { pointerId: 1, clientY: 20 + ROW_STEP })
+    expect(onOrder).not.toHaveBeenCalled()
+
+    // The mode starts again: another row drags as usual.
+    view.rerender(<List enabled onClick={onClick} onOrder={onOrder} />)
+    const row = screen.getByRole('button', { name: 'd' })
+    fireEvent.pointerDown(row, { pointerId: 2, button: 0, clientY: 150 })
+    fireEvent.pointerMove(row, { pointerId: 2, clientY: 150 - ROW_STEP })
+    expect(row.getAttribute('data-dragging')).toBe('true')
+    fireEvent.pointerUp(row, { pointerId: 2, clientY: 150 - ROW_STEP })
+    expect(order()).toEqual(['a', 'b', 'd', 'c'])
+  })
+
   it('does nothing while disabled', () => {
     const { onClick, onOrder } = setup(false)
     const row = screen.getByRole('button', { name: 'a' })

@@ -12,7 +12,7 @@
  * The rows are measured once when the press starts. Nothing is written while
  * the pointer moves: `onReorder` runs only on release or an arrow key.
  */
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { clampDrag, dropIndex, moveItem, rowShift, type RowBox } from '../utils/reorder'
 
 /** Below this, a press on a row is a click, not a drag. */
@@ -86,8 +86,15 @@ export function useDragReorder<T extends string>({
     setDrag(null)
   }, [])
 
-  // Leaving reorder mode in the middle of a drag drops the drag.
+  // Leaving reorder mode in the middle of a drag drops the drag, and the press
+  // behind it: the rows lose their handlers, so the release never arrives and
+  // a kept press would refuse every drag the next time the mode starts.
   if (!enabled && drag !== null) setDrag(null)
+  useEffect(() => {
+    if (enabled) return
+    press.current = null
+    suppressClick.current = false
+  }, [enabled])
 
   const itemProps = (id: T): ReorderItemProps | undefined => {
     if (!enabled) return undefined
