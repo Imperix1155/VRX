@@ -37,7 +37,7 @@ Pure types, values and helpers imported as `@shared/...` by main, preload and re
 
 | Symbol | File | Purpose |
 | --- | --- | --- |
-| `SETTINGS_VERSION` | [`settings.ts`](../../src/shared/settings.ts) | 28. Rule: every new persisted field bumps it and adds an identity migration, so an older build refuses to rewrite the newer file. |
+| `SETTINGS_VERSION` | [`settings.ts`](../../src/shared/settings.ts) | 29. Rule: every new persisted field bumps it and adds an identity migration, so an older build refuses to rewrite the newer file. |
 | `ACTIVITY_KINDS` / `ActivityKind` / `ActivityEntry` / `ACTIVITY_FILTERS` / `ActivityFilter` | [`activity.ts`](../../src/shared/activity.ts) | Activity entry values (`online`, `world`, `offline`; display name, world name or null, time) and the page's Show filter. No location crosses IPC. |
 | `SettingsSchema` / `Settings` | [`settings.ts`](../../src/shared/settings.ts) | Zod schema; each field uses `.catch(default)`, so a missing or invalid value degrades to its default. Unknown keys are stripped. |
 | `DEFAULT_SETTINGS` | [`settings.ts`](../../src/shared/settings.ts) | `SettingsSchema.parse({})`: every default in one object. |
@@ -65,6 +65,8 @@ Every persisted field in `SettingsSchema`. "Where" is the place a user changes i
 | `showGroupsPage` | boolean | `true` | Settings → Appearance; welcome setup | Groups in the sidebar. |
 | `showExplorePage` | boolean | `true` | Settings → Appearance; welcome setup | Explore in the sidebar. Popular now keeps its own switch. |
 | `setupPending` | boolean | `false` | Settings → About (Run setup again) | Opens the welcome setup. Only a brand-new install starts with `true`; finishing or skipping clears it. |
+| `sidebarOrder` | every `SIDEBAR_PAGES` entry once | default order | Quick reorder (sidebar reorder mode); Reset order | Sidebar page order (v29). Settings is not in it and always sits last. Unknown or repeated entries drop and missing ones are appended. Hidden pages keep their places. |
+| `quickReorder` | boolean | `true` | Settings → Appearance → Sidebar pages → Order | A right-click on the sidebar or the Dashboard offers "Reorder" (v29). Off leaves the order to Settings. |
 | `dashboardSections` | every `DASHBOARD_SECTIONS` entry once | default order | Settings → Dashboard (Sections) | Dashboard section order. Unknown or repeated entries drop and missing ones are appended; a file without it is derived from `dashboardSectionOrder`. |
 | `dashboardSectionOrder` | `'popular-first'` \| `'hot-first'` | `'popular-first'` | Settings → Dashboard; welcome setup | Which of Popular now and Hot Instances comes first. Kept in step with `dashboardSections` for older builds. |
 | `dashboardPopularNow` | boolean | `true` | Settings → Dashboard | Shows the Popular now section. Explore stays available. |
@@ -119,6 +121,7 @@ Turning off a Dashboard section keeps its child preferences, such as the thresho
 | `RECONCILE_INTERVALS` / `ReconcileInterval` | [`types.ts`](../../src/shared/types.ts) | `5m`, `10m`, `30m`, `1h`, `manual`. Milliseconds are in `RECONCILE_INTERVAL_MS`. |
 | `DRAWER_OPENERS` / `DrawerOpener` | [`types.ts`](../../src/shared/types.ts) | `card`, `avatar`. The avatar button stays the keyboard opener in both modes. |
 | `DASHBOARD_SECTION_ORDERS` / `DashboardSectionOrder` | [`types.ts`](../../src/shared/types.ts) | `popular-first`, `hot-first`. |
+| `SIDEBAR_PAGES` / `SidebarPage`, `normalizeSidebarOrder`, `mergeShownOrder` | [`types.ts`](../../src/shared/types.ts) | The nine movable sidebar pages in default order (`dashboard`, `friends`, `hot`, `activity`, `inbox`, `explore`, `search`, `groups`, `avatars`; never `settings`). `normalizeSidebarOrder` keeps known pages once and appends missing ones. `mergeShownOrder(full, shown)` writes a new order of the entries on screen back into the full list, leaving hidden entries in their slots. |
 | `DASHBOARD_SECTIONS` / `DashboardSection` and helpers | [`types.ts`](../../src/shared/types.ts) | `wearing-now`, `invites`, `popular`, `hot` (default order); `normalizeDashboardSections`, `dashboardSectionsFromOrder`, `dashboardSectionOrderOf`, `withDashboardSectionOrder`. |
 | `FRIEND_SECTIONS` / `FriendSection` | [`types.ts`](../../src/shared/types.ts) | `in-game`, `online`, `offline` friends-list sections. Presence `active` falls in the `online` section. |
 | `FRIEND_SORTS` / `FriendSort` | [`types.ts`](../../src/shared/types.ts) | `name`, `recent`, `world`, `joinable`: the Friends list order inside each group. |

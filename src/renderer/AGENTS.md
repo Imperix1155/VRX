@@ -51,7 +51,8 @@ or launch authority.
 - While `setupPending` is true the welcome setup replaces the shell and login.
   Only Hot Instances, Activity, Inbox, Explore, Search and Groups can be hidden
   (`isPageShown`); a hidden active page falls back to the Dashboard. The
-  Avatars page always shows.
+  Avatars page always shows. The sidebar follows `sidebarOrder`; Settings is
+  never in that list and always renders last.
 
 **State**
 
@@ -150,6 +151,14 @@ or launch authority.
 - All copy goes through i18next with every key in en and ja. Helpers and tests
   that pass a dynamic key use `Translate` from `i18n/translate.ts`
   (`asTranslate` adapts `useTranslation().t`).
+- Quick reorder: `reorderMode` (session-only, `useReorderMode`) lets the
+  sidebar pages and the Dashboard's `DashboardReorderList` be dragged with
+  `useDragReorder` or moved with the arrow keys. A sidebar move writes
+  `sidebarOrder` through `mergeShownOrder`; a Dashboard move writes
+  `dashboardSections` and `dashboardSectionOrder` together. The right-click
+  menu is absolute inside a positioned parent, never fixed, and is offered
+  only while `quickReorder` is on. The Dashboard sections stay mounted while
+  the list shows.
 - Settings change through `@shared/settings`. A collapsed parent card keeps
   its child values (Allow joining keeps Confirm join and launch mode).
   Stable, Beta, and Dev sit in the Automatic updates card on About, beside

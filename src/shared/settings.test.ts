@@ -4,6 +4,9 @@ import {
   DASHBOARD_SECTIONS,
   dashboardSectionOrderOf,
   withDashboardSectionOrder,
+  mergeShownOrder,
+  normalizeSidebarOrder,
+  SIDEBAR_PAGES,
   type DashboardSection
 } from './types'
 import {
@@ -52,6 +55,8 @@ describe('settings schema', () => {
       collapsedFriendSections: ['offline'],
       friendSort: 'name',
       startWithComputer: 'off',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: false,
@@ -292,6 +297,8 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -354,6 +361,8 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -416,6 +425,8 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -478,6 +489,8 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -540,6 +553,8 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -602,6 +617,8 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -1395,5 +1412,76 @@ describe('Start with your computer setting', () => {
     Reflect.deleteProperty(oldNormalized, 'startWithComputer')
     if (shouldPersistSettings(disk, 27)) disk = oldNormalized
     expect(parseSettings(disk)).toMatchObject({ startWithComputer: 'tray' })
+  })
+})
+
+describe('Sidebar order and quick reorder settings', () => {
+  it('defaults to the original order with quick reorder on', () => {
+    expect(DEFAULT_SETTINGS.sidebarOrder).toEqual([...SIDEBAR_PAGES])
+    expect(DEFAULT_SETTINGS.quickReorder).toBe(true)
+    expect(parseSettings({ version: 28 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true
+    })
+  })
+
+  it('never holds Settings: it always sits last, outside the list', () => {
+    expect(SIDEBAR_PAGES).not.toContain('settings')
+    expect(parseSettings({ sidebarOrder: ['settings', 'friends'] }).sidebarOrder).toEqual([
+      'friends',
+      ...SIDEBAR_PAGES.filter((page) => page !== 'friends')
+    ])
+  })
+
+  it('keeps a saved order, drops unknown and repeated pages, and appends missing ones', () => {
+    expect(normalizeSidebarOrder(['avatars', 'friends', 'avatars', 'nope', 7, null])).toEqual([
+      'avatars',
+      'friends',
+      'dashboard',
+      'hot',
+      'activity',
+      'inbox',
+      'explore',
+      'search',
+      'groups'
+    ])
+    for (const bad of ['friends', 7, null, { 0: 'friends' }, new Array(33).fill('friends')]) {
+      expect(parseSettings({ sidebarOrder: bad }).sidebarOrder).toEqual([...SIDEBAR_PAGES])
+    }
+    for (const bad of ['off', 0, null]) {
+      expect(parseSettings({ quickReorder: bad }).quickReorder).toBe(true)
+    }
+    expect(parseSettings({ quickReorder: false }).quickReorder).toBe(false)
+  })
+
+  it('keeps the order and the switch across a v28 round-trip', () => {
+    const order = ['friends', ...SIDEBAR_PAGES.filter((page) => page !== 'friends')]
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 29,
+      sidebarOrder: order,
+      quickReorder: false
+    }
+    const oldNormalized = { ...disk, version: 28 }
+    Reflect.deleteProperty(oldNormalized, 'sidebarOrder')
+    Reflect.deleteProperty(oldNormalized, 'quickReorder')
+    if (shouldPersistSettings(disk, 28)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ sidebarOrder: order, quickReorder: false })
+  })
+
+  it('reorders only the entries on screen and leaves hidden ones in their slots', () => {
+    // b and d are hidden; the shown a, c, e were dragged into e, a, c.
+    expect(mergeShownOrder(['a', 'b', 'c', 'd', 'e'], ['e', 'a', 'c'])).toEqual([
+      'e',
+      'b',
+      'a',
+      'd',
+      'c'
+    ])
+    expect(mergeShownOrder(['a', 'b'], ['b', 'a'])).toEqual(['b', 'a'])
+    // Anything that is not a reorder of real entries changes nothing.
+    expect(mergeShownOrder(['a', 'b'], ['a', 'a'])).toEqual(['a', 'b'])
+    expect(mergeShownOrder(['a', 'b'], ['a', 'x'])).toEqual(['a', 'b'])
   })
 })

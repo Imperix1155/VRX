@@ -206,6 +206,54 @@ describe('VRX smoke test', () => {
     await sheet.waitFor({ state: 'detached' })
   })
 
+  it('drags a sidebar page and a Dashboard section into a new order', async () => {
+    const { page } = vrx
+    await openPage('Dashboard')
+    const nav = page.getByRole('navigation', { name: 'Main navigation' })
+    const pages = () => nav.getByRole('button').allInnerTexts()
+    expect((await pages()).slice(0, 3)).toEqual(['Dashboard', 'Friends', 'Hot Instances'])
+
+    // A right-click offers the one-item menu; picking it starts reorder mode.
+    await nav.getByRole('button', { name: 'Friends', exact: true }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Reorder' }).click()
+
+    // Drag Friends below Hot Instances.
+    const friends = await nav.getByRole('button', { name: 'Friends', exact: true }).boundingBox()
+    const x = friends.x + friends.width / 2
+    const y = friends.y + friends.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x, y + 20, { steps: 4 })
+    await page.mouse.move(x, y + friends.height, { steps: 4 })
+    await page.mouse.up()
+    await expect
+      .poll(async () => (await pages()).slice(0, 3))
+      .toEqual(['Dashboard', 'Hot Instances', 'Friends'])
+    // Settings never moves and the drag opened no page.
+    expect((await pages()).at(-1)).toBe('Settings')
+    expect(await page.locator('h1').first().innerText()).toBe('Dashboard')
+
+    // The Dashboard shows its sections as a short list; move the last one up
+    // with the keyboard.
+    const sections = page.locator('[data-dashboard-reorder] [data-reorder-item]')
+    expect(await sections.allInnerTexts()).toEqual([
+      'Wearing now',
+      'Latest invites',
+      'Popular now',
+      'Hot Instances'
+    ])
+    await sections.nth(3).focus()
+    await page.keyboard.press('ArrowUp')
+    await expect.poll(async () => (await sections.allInnerTexts()).at(2)).toBe('Hot Instances')
+
+    await page.keyboard.press('Escape')
+    await page.locator('[data-dashboard-reorder]').waitFor({ state: 'detached' })
+    await page
+      .getByText(/^Friends online$/)
+      .first()
+      .waitFor()
+  })
+
   it('reported no error in the window', () => {
     expect(vrx.rendererErrors).toEqual([])
   })
@@ -218,5 +266,12 @@ describe('VRX smoke test', () => {
     await vrx.page.getByRole('heading', { name: 'Dashboard' }).waitFor()
     await waitUntilLive()
     expect(vrx.rendererErrors).toEqual([])
+    // The order dragged earlier was saved.
+    const nav = vrx.page.getByRole('navigation', { name: 'Main navigation' })
+    expect((await nav.getByRole('button').allInnerTexts()).slice(0, 3)).toEqual([
+      'Dashboard',
+      'Hot Instances',
+      'Friends'
+    ])
   })
 })

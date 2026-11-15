@@ -106,6 +106,26 @@
   "boot": {
     "connecting": "Connecting…"
   },
+  "reorder": {
+    "start": "Reorder",
+    "done": "Done",
+    "reset": "Reset order",
+    "resetNote": "Puts the sidebar and the Dashboard back in their original order.",
+    "resetDone": "Order reset",
+    "menuAria": "Order",
+    "sidebarHint": "Drag to move. Settings stays last.",
+    "keysHint": "Drag it, or press the up and down arrow keys to move it.",
+    "dashboardHeading": "Reorder sections",
+    "dashboardHint": "Drag a section, or use the up and down arrow keys.",
+    "sectionOff": "Off",
+    "moved": "{{name}}: {{position}} of {{count}}",
+    "setting": {
+      "open": "Order",
+      "label": "Quick reorder",
+      "description": "Right-click the sidebar or the Dashboard, pick Reorder, then drag things into place.",
+      "start": "Reorder now"
+    }
+  },
   "shell": {
     "subtitle": "Social VR Companion",
     "footer": "Social VR Companion",

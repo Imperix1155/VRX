@@ -312,6 +312,48 @@ export function withDashboardSectionOrder(
   )
 }
 
+// ─── Sidebar order (owner, 2026-11-15) ───────────────────────────────────────
+/** Every sidebar page the user can move, in the DEFAULT display order. Settings
+ *  is not here: it always sits last, so a muddled order can never lose it. */
+export const SIDEBAR_PAGES = [
+  'dashboard',
+  'friends',
+  'hot',
+  'activity',
+  'inbox',
+  'explore',
+  'search',
+  'groups',
+  'avatars'
+] as const
+export type SidebarPage = (typeof SIDEBAR_PAGES)[number]
+
+/** Every movable page once: known ones in the given order, missing ones appended. */
+export function normalizeSidebarOrder(value: readonly unknown[]): SidebarPage[] {
+  const known = new Set<string>(SIDEBAR_PAGES)
+  const out: SidebarPage[] = []
+  for (const item of value) {
+    if (typeof item === 'string' && known.has(item) && !out.includes(item as SidebarPage)) {
+      out.push(item as SidebarPage)
+    }
+  }
+  for (const page of SIDEBAR_PAGES) if (!out.includes(page)) out.push(page)
+  return out
+}
+
+/**
+ * A whole list after the user reordered only the entries on screen. Hidden
+ * entries keep their own slots; the shown ones take the remaining slots in
+ * their new order. `shown` must hold entries of `full`; anything else leaves
+ * `full` as it was.
+ */
+export function mergeShownOrder<T>(full: readonly T[], shown: readonly T[]): T[] {
+  const moved = new Set(shown)
+  if (moved.size !== shown.length || shown.some((item) => !full.includes(item))) return [...full]
+  const queue = [...shown]
+  return full.map((item) => (moved.has(item) ? (queue.shift() ?? item) : item))
+}
+
 // ─── Friends-list presence sections (VRX-67) ─────────────────────────────────
 /** Collapsible section grouping in the friends list — DISPLAY order. Distinct
  *  from `PresenceState`: `active` (web/desktop, not in a world) maps to the

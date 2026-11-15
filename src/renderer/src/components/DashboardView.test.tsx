@@ -1982,3 +1982,61 @@ describe('Dashboard two-card sections and order (owner, 2026-10-18)', () => {
     expect(hotIndex < popularIndex).toBe(order === 'hot-first')
   })
 })
+
+describe('Dashboard quick reorder (owner, 2026-11-15)', () => {
+  afterEach(() => useUiStore.setState({ reorderMode: false }))
+
+  function renderReady(): HTMLElement {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy')], isPending: false },
+      { data: [], isPending: false }
+    )
+    const { container } = render(<DashboardView />)
+    return container
+  }
+
+  it('offers Reorder on a right-click and swaps the sections for the reorder list', () => {
+    const container = renderReady()
+    const sections = container.querySelector<HTMLElement>('[data-dashboard-sections]')
+    expect(sections?.hidden).toBe(false)
+    expect(container.querySelector('[data-dashboard-reorder]')).toBeNull()
+
+    fireEvent.contextMenu(screen.getByText(msg('dashboard.statOnlineLabel')), {
+      clientX: 40,
+      clientY: 40
+    })
+    fireEvent.click(screen.getByRole('menuitem', { name: msg('reorder.start') }))
+    expect(useUiStore.getState().reorderMode).toBe(true)
+    // The sections stay mounted, only hidden, so nothing loads again afterwards.
+    expect(container.querySelector<HTMLElement>('[data-dashboard-sections]')).toBe(sections)
+    expect(sections?.hidden).toBe(true)
+    expect(container.querySelector('[data-dashboard-reorder]')).not.toBeNull()
+    // The numbers stay.
+    expect(screen.getByText(msg('dashboard.statOnlineLabel'))).toBeTruthy()
+
+    act(() => useUiStore.getState().setReorderMode(false))
+    expect(sections?.hidden).toBe(false)
+    expect(container.querySelector('[data-dashboard-reorder]')).toBeNull()
+  })
+
+  it('offers no menu while Quick reorder is off', () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, quickReorder: false } })
+    renderReady()
+    fireEvent.contextMenu(screen.getByText(msg('dashboard.statOnlineLabel')))
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('closes an open hot instance sheet when reorder mode starts', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+    fireEvent.click(
+      screen.getByRole('button', { name: msg('hotSheet.ariaLabel', { world: 'SunDown' }) })
+    )
+    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+    act(() => useUiStore.getState().setReorderMode(true))
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+  })
+})

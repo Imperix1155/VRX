@@ -45,6 +45,10 @@
  *   dashboardHideEmpty     → Dashboard sections with nothing to show step aside so the rest
  *                            use the space (owner, 2026-10-27; default on, v21)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
+ *   sidebarOrder           → the order of the sidebar pages; Settings always stays last
+ *                            (owner, 2026-11-15; v29)
+ *   quickReorder           → right-click the sidebar or the Dashboard to drag things into
+ *                            place (owner, 2026-11-15; default on, v29)
  *   showActivityPage       → the Activity page and its in-memory record (owner, 2026-10-27; default on)
  *   activityFilter         → which kind the Activity page lists (owner, 2026-10-27; all)
  *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v20)
@@ -76,6 +80,8 @@ import {
   dashboardSectionOrderOf,
   dashboardSectionsFromOrder,
   normalizeDashboardSections,
+  normalizeSidebarOrder,
+  SIDEBAR_PAGES,
   DRAWER_OPENERS,
   FRIEND_ALERT_SCOPES,
   FRIEND_LIST_SECTIONS,
@@ -95,7 +101,7 @@ import { ACTIVITY_FILTERS } from './activity'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 28 as const
+export const SETTINGS_VERSION = 29 as const
 
 const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -121,6 +127,16 @@ const SettingsSchema = z.object({
   /** Sections with nothing to show (no invites, no hot instances) step aside and
    *  the first shown section takes the picture cards. Off shows their empty states. */
   dashboardHideEmpty: z.boolean().catch(true),
+  /** The order of the sidebar pages. Settings is not in it and always sits last.
+   *  Unknown or repeated entries drop and missing ones are appended. */
+  sidebarOrder: z
+    .array(z.unknown())
+    .max(32)
+    .transform(normalizeSidebarOrder)
+    .catch([...SIDEBAR_PAGES]),
+  /** A right-click on the sidebar or the Dashboard offers to reorder them by
+   *  dragging. Off leaves that to Settings. */
+  quickReorder: z.boolean().catch(true),
   /** Optional sidebar pages. Hiding a page keeps its Dashboard section and alerts. */
   showHotInstancesPage: z.boolean().catch(true),
   showExplorePage: z.boolean().catch(true),
@@ -244,7 +260,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v27 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v28 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -320,7 +336,10 @@ const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   26: (prev) => ({ ...prev }),
   // v27 → v28: `startWithComputer` is additive. The version boundary stops an
   // older build from stripping the choice while the computer still starts VRX.
-  27: (prev) => ({ ...prev })
+  27: (prev) => ({ ...prev }),
+  // v28 → v29: `sidebarOrder` and `quickReorder` are additive. The version
+  // boundary stops an older build from stripping the user's order or their Off.
+  28: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
