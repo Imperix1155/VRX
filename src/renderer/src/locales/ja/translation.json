@@ -105,6 +105,26 @@
   "boot": {
     "connecting": "接続中…"
   },
+  "reorder": {
+    "start": "並べ替え",
+    "done": "完了",
+    "reset": "順番をリセット",
+    "resetNote": "サイドバーとダッシュボードを最初の順番に戻します。",
+    "resetDone": "順番を元に戻しました",
+    "menuAria": "順番",
+    "sidebarHint": "ドラッグで移動。設定は一番下のまま。",
+    "keysHint": "ドラッグするか、上下の矢印キーで移動できます。",
+    "dashboardHeading": "セクションの並べ替え",
+    "dashboardHint": "ドラッグか上下の矢印キーで移動できます。",
+    "sectionOff": "オフ",
+    "moved": "{{name}}は{{count}}個中{{position}}番目になりました",
+    "setting": {
+      "open": "順番",
+      "label": "クイック並べ替え",
+      "description": "サイドバーかダッシュボードを右クリックして「並べ替え」を選び、ドラッグで好きな位置に動かせます。",
+      "start": "今すぐ並べ替え"
+    }
+  },
   "shell": {
     "subtitle": "Social VR コンパニオン",
     "footer": "Social VR コンパニオン",

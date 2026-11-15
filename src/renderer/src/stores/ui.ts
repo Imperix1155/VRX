@@ -57,6 +57,10 @@ interface UiState {
   /** Per platform, the user hid the "signed you out" notice. It comes back
    *  after the next sign-in, should the platform end that session too. */
   signOutNoticeHidden: Record<Platform, boolean>
+  /** The sidebar pages and Dashboard sections can be dragged into a new order
+   *  (owner, 2026-11-15). Session-only; Done or Esc ends it. */
+  reorderMode: boolean
+  setReorderMode: (on: boolean) => void
   markInboxSeen: (platform: Platform, receivedAt: number) => void
   setSignOutNoticeHidden: (platform: Platform, hidden: boolean) => void
   setActiveTab: (tab: ActiveTab) => void
@@ -74,6 +78,8 @@ export const useUiStore = create<UiState>((set) => ({
   hotOpenedFromAlert: false,
   inboxSeenAt: { vrchat: 0, chilloutvr: 0 },
   signOutNoticeHidden: { vrchat: false, chilloutvr: false },
+  reorderMode: false,
+  setReorderMode: (reorderMode) => set({ reorderMode }),
   markInboxSeen: (platform, receivedAt) =>
     set((state) =>
       receivedAt > state.inboxSeenAt[platform]
