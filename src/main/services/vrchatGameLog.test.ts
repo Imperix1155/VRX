@@ -89,12 +89,12 @@ describe('parseVrchatLogLine', () => {
 
 describe('vrchatLogDirectories', () => {
   it('knows where VRChat keeps its log on Windows and Linux, and nowhere else', () => {
-    expect(vrchatLogDirectories('win32', 'C:\\Users\\me')).toHaveLength(1)
-    expect(vrchatLogDirectories('linux', '/home/me')).toHaveLength(3)
-    expect(vrchatLogDirectories('linux', '/home/me').every((path) => path.includes('438100'))).toBe(
-      true
-    )
-    expect(vrchatLogDirectories('darwin', '/Users/me')).toEqual([])
+    expect(vrchatLogDirectories('win32', join('profile', 'me'))).toHaveLength(1)
+    expect(vrchatLogDirectories('linux', join('profile', 'me'))).toHaveLength(3)
+    expect(
+      vrchatLogDirectories('linux', join('profile', 'me')).every((path) => path.includes('438100'))
+    ).toBe(true)
+    expect(vrchatLogDirectories('darwin', join('profile', 'me'))).toEqual([])
   })
 })
 

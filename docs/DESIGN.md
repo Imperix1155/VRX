@@ -386,6 +386,7 @@ frosted back panel from layer 2.
 | Top-bar counts panel, loading screen card, error screen card         | `.glass .glass-information`                      |
 | Favorites panel and alerts panel in friend details (16 px radius)    | `.glass .glass-information`                      |
 | Edit profile, Identities, Picked friends, Choose destination dialogs | `.glass .glass-frosted .glass-information`       |
+| History, Keep activity for, Clear this activity? dialogs             | `.glass .glass-frosted .glass-information`       |
 | Join confirmation; Unfriend, Block and Unblock confirmation          | `.glass .glass-frosted-heavy .glass-information` |
 
 `.glass-frosted` and `.glass-frosted-heavy` on their own give a 78% and a 94%
@@ -1265,8 +1266,10 @@ only and takes no clicks. The list behind stays usable.
    from §9.7. Under the rank it lists the User ID with "Copy link" beside it
    (§9.3). Nothing here is fetched until the button is pressed.
 8. **Foot row**, pinned at the bottom: "Identities" at the left (§10), then
+   "History", a quiet 12 px / 600 text button in `--text-dim` (§9.5), then
    the favorite star and the alerts bell at the right, both 32 px round
-   `.glass` buttons.
+   `.glass` buttons. History is there on all three views of a friend: a
+   VRChat friend, a ChilloutVR friend and a linked person.
 
 **Account-note states.** With "Save notes to my accounts" on in Settings,
 the line under the note says where the note is:
@@ -1604,30 +1607,71 @@ Source: [`auth/CredentialsForm.tsx`](../src/renderer/src/components/auth/Credent
 
 ### §9.5 Activity
 
-A log of friends coming online, joining worlds and going offline while VRX
-is open ([`ActivityView.tsx`](../src/renderer/src/components/ActivityView.tsx)).
-It keeps at most 300 entries per platform.
+A log of friends coming online, joining worlds and going offline, changes to
+your friends list, and the instances you were in
+([`ActivityView.tsx`](../src/renderer/src/components/ActivityView.tsx)). It
+is saved on this computer for each account, for as long as "Kept" says, and
+asks neither platform for anything.
 
 - **Top row.** A segmented control named "Show" with "All", "Online",
-  "Worlds", "Offline", and a quiet "Clear" button at the right. The filter
-  is remembered.
+  "Worlds", "Offline", "Friends list" and "Instances". At the right, two
+  quiet buttons: "Kept: 90 days" (the current choice) and "Clear". The
+  filter is remembered, except Instances.
 - **Entries.** A list with 6 px between entries, newest first. Each is a
   `.platform-row` for its platform, 12 px by 8 px padding:
 
-  | Part        | Detail                                                                                                          |
-  | ----------- | --------------------------------------------------------------------------------------------------------------- |
-  | Avatar      | 24 px                                                                                                           |
-  | Name        | 14 px / 500, one line                                                                                           |
-  | Description | 12 px `--text-dim`: "Came online", "Came online in {world}", "Joined {world}", "Joined a world", "Went offline" |
-  | Platform    | The platform pill, in a 96 px column                                                                            |
-  | Time        | Right aligned in a 104 px column, tabular digits                                                                |
+  | Part        | Detail                                                                                                                                                                                                   |
+  | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Avatar      | 24 px                                                                                                                                                                                                    |
+  | Name        | 14 px / 500, one line                                                                                                                                                                                    |
+  | Description | 12 px `--text-dim`: "Came online", "Came online in {world}", "Joined {world}", "Joined a world", "Went offline", "Now on your friends list", "No longer on your friends list", "Changed name from {old}" |
+  | Platform    | The platform pill, in a 96 px column                                                                                                                                                                     |
+  | Time        | Right aligned in a 104 px column, tabular digits; the date too once it is not today                                                                                                                      |
 
 - An entry for a current friend is a button that opens that friend in
   Friends. Hover adds `--surface-hover`; focus draws an inset ring.
-- **States.** "Loading activity…"; "No activity yet" with "Friends coming
-  online, joining worlds and going offline show up here while VRX is
-  open."; "Nothing to show with these filters."; "Couldn't load activity."
-  with "Retry"; the not-connected card.
+- **Show older.** The list holds the newest 300 entries per platform. Under
+  it, a quiet "Show older" button reads the next saved page; it is not there
+  when nothing older is saved.
+- **Instances.** The same rows for the rooms you were in, both platforms in
+  one list: the world name (14 px / 500), then "{how long} · {n} people" in
+  12 px `--text-dim` ("You're here now" for the current one), the platform
+  pill and the time. A row opens in place to list who was there, each with
+  their own times. VRChat's times come from the game's own log file, so
+  they are exact; on ChilloutVR friends' times are exact and everyone else
+  is listed for the whole stay.
+- **Kept** opens "Keep activity for": one line on where it is saved, then
+  five radio choices ("Until VRX closes", "30 days", "90 days", "1 year",
+  "Forever") that apply at once. Under a hairline, "Move your history": one
+  line of explanation and three small bordered buttons, "Bring in from
+  VRCX", "Back up…" and "Restore…". Restore first asks in place
+  ("Restoring replaces everything saved here…") with "Cancel" and "Choose a
+  backup…". One line under the buttons says what happened in words. The
+  buttons are dimmed, with the reason, while nothing is being saved.
+- **Clear** deletes what the page shows. When that is saved, it asks first
+  ("Clear this activity?").
+- **States.** "Loading activity…"; "No activity yet"; "Nothing to show with
+  these filters."; "Couldn't load activity." with "Retry"; "No instances
+  yet" with where they come from; the not-connected card.
+
+**A friend's History**
+([`FriendHistoryDialog.tsx`](../src/renderer/src/components/FriendHistoryDialog.tsx)),
+opened from "History" in the friend details foot row. Titled "{name}:
+history". The same layout for a VRChat friend, a ChilloutVR friend and a
+linked person:
+
+- **Facts**, per account in platform order (the platform pill heads each
+  block when there are two): "Friends since" (a date and how long ago, or
+  "Before {date}, when VRX started keeping history"), "Last together" (a
+  date and the world), "Instances together", "Time together", and "Earlier
+  names" (the newest three, each with "until {date}", then "Show all").
+  Labels are 12 px `--text-dim`; values 13 px `--text`. A fact with nothing
+  saved is left out, so both platforms show the same rows in the same order
+  whenever they have the same facts.
+- **Activity**: that friend's saved entries in the Activity row layout,
+  without the avatar and name, with "Show older".
+- **States.** "Loading history…"; "Nothing saved yet" with one line on what
+  will be; "Couldn't load this history."
 
 ### §9.6 Inbox
 
@@ -1987,8 +2031,8 @@ it is saved.
   unchanged. Try again or cancel.").
 
 **Shared dialog frame** ([`LinkedDialog.tsx`](../src/renderer/src/components/LinkedDialog.tsx)).
-Identities, Choose a destination, Picked friends and Edit profile use one
-frame:
+Identities, Choose a destination, Picked friends, Edit profile, a friend's
+History and the Activity page's dialogs use one frame:
 
 - A native modal `<dialog>`, at most 440 px wide (never closer than 16 px to
   the window sides) and never taller than the window less 48 px; long

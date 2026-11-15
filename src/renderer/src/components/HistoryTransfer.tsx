@@ -44,6 +44,12 @@ const RESTORE_FAILURE_KEYS = {
   string
 >
 
+const WORKING_KEYS = {
+  import: 'activity.transfer.working.import',
+  backup: 'activity.transfer.working.backup',
+  restore: 'activity.transfer.working.restore'
+} as const satisfies Record<Action, string>
+
 const buttonClass =
   'rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-[12px] text-[var(--text)] hover:bg-[var(--surface-hover)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors cursor-pointer aria-disabled:cursor-default aria-disabled:opacity-60 aria-disabled:hover:bg-transparent'
 
@@ -142,11 +148,7 @@ export default function HistoryTransfer({
 
   const disabled = !saving || busy !== null
   const status =
-    busy !== null
-      ? t(`activity.transfer.working.${busy}`)
-      : !saving
-        ? t('activity.transfer.off')
-        : message
+    busy !== null ? t(WORKING_KEYS[busy]) : !saving ? t('activity.transfer.off') : message
 
   return (
     <section

@@ -16,6 +16,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Dashboard back the way they came. Settings → Appearance → Sidebar pages →
   Order turns the right-click off, starts reordering from there, and resets
   the order. The up and down buttons in Settings → Dashboard still work.
+- Activity now remembers. It is saved on your computer for each account and
+  comes back after a restart, with "Show older" for what the list no longer
+  holds. "Kept" picks how long: until VRX closes, 30 days, 90 days (the
+  default), 1 year or forever. Nothing is sent anywhere, and neither
+  platform is asked for anything extra.
+- Friends list history, on both platforms: Activity gets a "Friends list"
+  tab that shows a new friend, someone no longer on your list, and a
+  friend's new name with the old one.
+- An instance log, on both platforms: the "Instances" tab in Activity lists
+  the instances you were in, how long you stayed and who was there. VRChat's
+  comes from the game's own log file on your computer, which VRX only reads.
+  ChilloutVR's comes from your live connection, so friends' times are exact
+  and everyone else is listed for the whole stay.
+- A small "History" button in a friend's side card, on a VRChat friend, a
+  ChilloutVR friend and a linked profile. It shows friends since, earlier
+  names, when you were last together, how many instances you shared and for
+  how long, and that friend's saved activity.
+- Move your history (Activity → Kept): "Back up…" saves everything VRX
+  remembers to one file and "Restore…" brings it back on another computer.
+  "Bring in from VRCX" adds VRCX's saved VRChat history (friends since,
+  earlier names, instances and who was there). VRX only reads VRCX's file,
+  from a private copy, when you press the button. VRCX has to be closed, and
+  it keeps no ChilloutVR history.
 
 ## [1.4.5] - 2026-11-13
 

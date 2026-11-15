@@ -25,7 +25,9 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `getFriendNote`, `setFriendNote` | [`hooks/useFriendNote.ts`](../../src/renderer/src/hooks/useFriendNote.ts) |
 | `getAlertPicks`, `setAlertPick` | [`queries/alertPicks.ts`](../../src/renderer/src/queries/alertPicks.ts) |
 | `getLinkedProfiles`, `changeLinkedProfile`, `onLinkedProfilesChanged` | [`queries/linkedProfiles.ts`](../../src/renderer/src/queries/linkedProfiles.ts) |
-| `getActivity`, `clearActivity`, `onActivityChanged` | [`queries/activity.ts`](../../src/renderer/src/queries/activity.ts) |
+| `getActivity`, `getActivityPage`, `getFriendHistory`, `clearActivity`, `onActivityChanged` | [`queries/activity.ts`](../../src/renderer/src/queries/activity.ts) |
+| `getInstanceVisits`, `getInstanceVisitPeople`, `clearInstanceLog` | [`queries/instanceLog.ts`](../../src/renderer/src/queries/instanceLog.ts) |
+| `importVrcxHistory`, `backupHistory`, `restoreHistory` | [`components/HistoryTransfer.tsx`](../../src/renderer/src/components/HistoryTransfer.tsx) (Activity → Kept) |
 | `joinInstance`, `joinExploreRoom`, `joinInvite` | [`hooks/useJoinInstance.ts`](../../src/renderer/src/hooks/useJoinInstance.ts) |
 | `selfInvite` | No renderer caller. Main's [join handoff](2-ipc-channels.md#join-handoff) calls it when VRChat is already open. |
 | `getJoinHandoff` | [`hooks/useJoinHandoff.ts`](../../src/renderer/src/hooks/useJoinHandoff.ts), once per join dialog open |

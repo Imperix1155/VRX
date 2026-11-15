@@ -25,7 +25,8 @@ Pure types, values and helpers imported as `@shared/...` by main, preload and re
 | `WORLD_CACHE_TTL_MS` | [`constants.ts`](../../src/shared/constants.ts) | 86,400,000 (24 h). VRChat world metadata success TTL. |
 | `INSTANCE_CACHE_TTL_MS` | [`constants.ts`](../../src/shared/constants.ts) | 300,000 (5 min). ChilloutVR instance detail success TTL. |
 | `HOT_INSTANCE_THRESHOLD` / `HOT_INSTANCE_THRESHOLD_MIN` / `HOT_INSTANCE_THRESHOLD_MAX` | [`constants.ts`](../../src/shared/constants.ts) | 2, bounds 1 to 10. Default minimum number of visible friends in one exact instance for a hot instance. |
-| `ACTIVITY_MAX_ENTRIES_PER_PLATFORM` / `ACTIVITY_PUSH_COALESCE_MS` | [`constants.ts`](../../src/shared/constants.ts) | 300 Activity entries kept per platform; at most one `activity-changed` push per 500 ms. |
+| `ACTIVITY_MAX_ENTRIES_PER_PLATFORM` / `ACTIVITY_PUSH_COALESCE_MS` | [`constants.ts`](../../src/shared/constants.ts) | 300 Activity entries held in memory per platform; at most one `activity-changed` push per 500 ms. |
+| `ACTIVITY_PAGE_SIZE` / `ACTIVITY_MAX_SAVED_ROWS` / `INSTANCE_LOG_MAX_SAVED_VISITS` / `ACTIVITY_PRUNE_INTERVAL_MS` | [`constants.ts`](../../src/shared/constants.ts) | 100 entries per saved page; at most 1,000,000 saved Activity rows and 100,000 saved visits; the Keep for choice is applied every 6 hours. |
 | `RELEASES_URL` / `ALL_RELEASES_URL` / `releasesUrlFor(version)` | [`constants.ts`](../../src/shared/constants.ts) | `…/releases/latest` and `…/releases`. Manual download link when in-app updates are unsupported: a version with a `-` suffix (beta or rc) gets the full list, since `/latest` never shows test builds. |
 | `ISSUES_URL` | [`constants.ts`](../../src/shared/constants.ts) | `…/issues`. Settings → About → Legal's Report a problem button. |
 | `NEW_BUG_REPORT_URL` | [`constants.ts`](../../src/shared/constants.ts) | `…/issues/new`. Main's `bugReport.ts` adds the template and the app version, install type and system, then `open-bug-report` checks it with `isAllowedUrl`. |
@@ -37,8 +38,12 @@ Pure types, values and helpers imported as `@shared/...` by main, preload and re
 
 | Symbol | File | Purpose |
 | --- | --- | --- |
-| `SETTINGS_VERSION` | [`settings.ts`](../../src/shared/settings.ts) | 29. Rule: every new persisted field bumps it and adds an identity migration, so an older build refuses to rewrite the newer file. |
-| `ACTIVITY_KINDS` / `ActivityKind` / `ActivityEntry` / `ACTIVITY_FILTERS` / `ActivityFilter` | [`activity.ts`](../../src/shared/activity.ts) | Activity entry values (`online`, `world`, `offline`; display name, world name or null, time) and the page's Show filter. No location crosses IPC. |
+| `SETTINGS_VERSION` | [`settings.ts`](../../src/shared/settings.ts) | 30. Rule: every new persisted field bumps it and adds an identity migration, so an older build refuses to rewrite the newer file. |
+| `ACTIVITY_KINDS` / `ActivityKind` / `FRIEND_LIST_KINDS` / `FriendListKind` / `ActivityEntry` / `ACTIVITY_FILTERS` / `ActivityFilter` / `activityKindsOf` / `matchesActivityFilter` | [`activity.ts`](../../src/shared/activity.ts) | Activity entry values (`online`, `world`, `offline`, and the friends list's `added`, `removed`, `renamed` with `previousName`; display name, world name or null, time) and the page's Show filter (`friends` shows the three friends list kinds). No location crosses IPC. |
+| `ACTIVITY_KEEP_FOR` / `ActivityKeepFor` / `ACTIVITY_KEEP_DAYS` | [`activity.ts`](../../src/shared/activity.ts) | How long saved history stays: `session`, `30d`, `90d`, `1y`, `forever`, and the days each means. |
+| `ActivityPageRequest` / `ActivityPageCursor` / `ActivityFriendRef` / `ActivityPage` / `FriendListFacts` / `FriendHistoryFacts` | [`activity.ts`](../../src/shared/activity.ts) | A saved page's request (platform cursors by entry id, a filter, one or two friends) and answer; what is saved about a friendship (`since`, `sinceKnown`, `previousNames`, plus `met` from the instance log). |
+| `InstanceVisit` / `InstanceVisitCursor` / `InstanceVisitPageRequest` / `InstanceVisitPage` / `InstanceVisitPerson` / `MetFacts` / `INSTANCE_VISIT_PAGE_SIZE` / `INSTANCE_VISIT_PEOPLE_MAX` | [`instanceLog.ts`](../../src/shared/instanceLog.ts) | The instance log across IPC: a visit (world name, entered, left, `current`, people count; never an instance id), who was there, and `MetFacts` (`times`, `togetherMs`, `lastAt`, `lastWorldName`). 50 visits a page; at most 200 people listed for one visit. |
+| `VrcxHistoryImportResult` / `HistoryBackupResult` / `HistoryRestoreResult` | [`historyTransfer.ts`](../../src/shared/historyTransfer.ts) | Answers of `import-vrcx-history`, `backup-history` and `restore-history`: counts or a typed reason. Never a path or a row. |
 | `SettingsSchema` / `Settings` | [`settings.ts`](../../src/shared/settings.ts) | Zod schema; each field uses `.catch(default)`, so a missing or invalid value degrades to its default. Unknown keys are stripped. |
 | `DEFAULT_SETTINGS` | [`settings.ts`](../../src/shared/settings.ts) | `SettingsSchema.parse({})`: every default in one object. |
 | `SETTINGS_MIGRATIONS` / `SettingsMigration` | [`settings.ts`](../../src/shared/settings.ts) | Version N to N+1 functions for 1 through 27. Identity except 11 → 12 (a hot alert muted by the old Dashboard switch stays off) and 13 → 14 (a stored `5m` re-sync becomes `1h`). |
@@ -60,7 +65,7 @@ Every persisted field in `SettingsSchema`. "Where" is the place a user changes i
 | `labelScheme` | `'vrchat'` \| `'platform-native'` \| `'chilloutvr'` | `'vrchat'` | Settings → Appearance | Instance pill naming. |
 | `showHotInstancesPage` | boolean | `true` | Settings → Appearance; welcome setup | Hot Instances in the sidebar. Its Dashboard section and alert keep their own switches. |
 | `showInboxPage` | boolean | `true` | Settings → Appearance; welcome setup | Inbox in the sidebar. Inbox alerts keep their own switches. |
-| `showActivityPage` | boolean | `true` | Settings → Appearance; welcome setup | Activity in the sidebar. Off also stops keeping activity and forgets what it kept. |
+| `showActivityPage` | boolean | `true` | Settings → Appearance; welcome setup | Activity in the sidebar. Off also stops keeping activity and deletes everything it saved: the Activity list, the friends list history and the instance log. |
 | `showSearchPage` | boolean | `true` | Settings → Appearance; welcome setup | Search in the sidebar. |
 | `showGroupsPage` | boolean | `true` | Settings → Appearance; welcome setup | Groups in the sidebar. |
 | `showExplorePage` | boolean | `true` | Settings → Appearance; welcome setup | Explore in the sidebar. Popular now keeps its own switch. |
@@ -99,7 +104,8 @@ Every persisted field in `SettingsSchema`. "Where" is the place a user changes i
 | `cvrSessionImportChoice` | `'ask'` \| `'skip'` \| `'import'` | `'ask'` | none | No reader since the startup import was removed; kept so older builds keep their saved answer. |
 | `platformFilter` | `'all'` \| `'vrchat'` \| `'chilloutvr'` | `'all'` | Top bar platform filter | One global filter shared by the views. |
 | `exploreWorldsShown` | `2` \| `4` \| `6` | `4` | Explore view | Number of worlds shown. |
-| `activityFilter` | `'all'` \| `'online'` \| `'world'` \| `'offline'` | `'all'` | Activity page (Show) | Which kind of entry the Activity page lists. |
+| `activityFilter` | `'all'` \| `'online'` \| `'world'` \| `'offline'` \| `'friends'` | `'all'` | Activity page (Show) | Which kind of entry the Activity page lists. `friends` is friends list changes. The Instances tab is not saved. |
+| `activityKeepFor` | `'session'` \| `'30d'` \| `'90d'` \| `'1y'` \| `'forever'` | `'90d'` | Activity page (Kept) | How long the Activity list and the instance log stay saved on this computer (v30). `session` saves nothing and deletes what was saved. |
 | `collapsedFriendSections` | array of `'favorites'` \| `'in-game'` \| `'online'` \| `'offline'` | `['offline']` | Friends list section headers | Collapsed sections. `favorites` (v24) is the starred friends who are in game (also listed under In-Game). |
 | `friendSort` | `'name'` \| `'recent'` \| `'world'` \| `'joinable'` | `'name'` | Friends list Order control | The order inside each friends-list group (v27). Recent is hidden and reads as Name while the Activity page is off. |
 | `startWithComputer` | `'off'` \| `'window'` \| `'tray'` | `'off'` | Settings → About | VRX opens when the user signs in to the computer (v28): with its window, or waiting in the tray. Main mirrors it to the operating system's startup list (`LoginItem`); `tray` hides the window only on a launch the computer made. |
