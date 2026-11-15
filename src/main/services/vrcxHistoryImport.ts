@@ -255,16 +255,22 @@ class Import {
     for (let start = 0; start < found.length; start += CHUNK_ROWS) {
       database.batch(() => {
         for (const [offset, room] of found.slice(start, start + CHUNK_ROWS).entries()) {
-          // A room VRCX never saw end lasted, at most, until the next one.
+          // No room outlasts the next one's start.
           const next = found[start + offset + 1]
-          const leftAt = room.leftAt ?? room.enteredAt
+          const leftAt =
+            room.leftAt === null || next === undefined
+              ? room.leftAt
+              : Math.min(room.leftAt, next.enteredAt)
           const saved = database.importVisit(this.accountKey, {
             instanceId: room.instanceId,
             worldName: room.worldName,
             enteredAt: room.enteredAt,
-            leftAt: next === undefined ? leftAt : Math.min(leftAt, next.enteredAt)
+            // A room VRCX never saw end is filled in from who was seen in it.
+            leftAt: leftAt ?? room.enteredAt
           })
-          if (saved !== null) visits.push({ ...room, ...saved, lastSeen: room.enteredAt })
+          if (saved !== null) {
+            visits.push({ ...room, leftAt, ...saved, lastSeen: room.enteredAt })
+          }
         }
       })
       if (!(await this.next())) return null
