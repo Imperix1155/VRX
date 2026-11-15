@@ -91,6 +91,7 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   // Read on page open and after each coalesced change push (at most two a
   // second), with headroom for remounts.
   'get-activity': { max: 240, windowMs: 60_000 },
+  'get-activity-page': { max: 120, windowMs: 60_000 },
   // A deliberate button press.
   'clear-activity': { max: 20, windowMs: 60_000 },
   // External links are human-clicked; 30/minute still bounds a click loop.

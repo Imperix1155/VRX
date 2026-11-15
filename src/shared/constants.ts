@@ -70,6 +70,13 @@ export const HOT_INSTANCE_THRESHOLD_MAX = 10
 /** Activity entries kept in memory per platform. Each platform has its own
  *  allowance so a busy friend list on one never pushes the other's out. */
 export const ACTIVITY_MAX_ENTRIES_PER_PLATFORM = 300
+/** Saved activity entries one older page holds (Show older, a friend's History). */
+export const ACTIVITY_PAGE_SIZE = 100
+/** Saved activity rows kept in all, whatever the age limit: the oldest go
+ *  first. A safety bound on the file's size, far above ordinary use. */
+export const ACTIVITY_MAX_SAVED_ROWS = 1_000_000
+/** How often saved activity past its age limit is removed while VRX runs (ms). */
+export const ACTIVITY_PRUNE_INTERVAL_MS = 6 * 60 * 60_000
 /** Activity changes reach the renderer at most this often (ms), so a burst of
  *  presence changes is one re-read. */
 export const ACTIVITY_PUSH_COALESCE_MS = 500

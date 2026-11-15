@@ -110,9 +110,14 @@ type VrxBridge = {
   ) => Promise<IpcInvoke['get-join-handoff']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   getLoginItem: () => Promise<IpcInvoke['get-login-item']['res']>
-  /** The in-memory activity list; reading it makes no platform request. */
+  /** The newest activity per platform; reading it makes no platform request. */
   getActivity: () => Promise<IpcInvoke['get-activity']['res']>
-  /** Forget only what the Activity page shows: its platforms and kind. */
+  /** One page of older saved activity, or of one friend's. Local only. */
+  getActivityPage: (
+    req: IpcInvoke['get-activity-page']['req']
+  ) => Promise<IpcInvoke['get-activity-page']['res']>
+  /** Forget only what the Activity page shows: its platforms and kind, saved
+   *  entries included. */
   clearActivity: (
     req: IpcInvoke['clear-activity']['req']
   ) => Promise<IpcInvoke['clear-activity']['res']>

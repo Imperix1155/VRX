@@ -46,7 +46,7 @@ import type { SetWorldRatingResult, WorldRating, WorldRatingRead } from './world
 import type { InboxSnapshot } from './inbox'
 import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
-import type { ActivityEntry, ActivityFilter } from './activity'
+import type { ActivityEntry, ActivityFilter, ActivityPage, ActivityPageRequest } from './activity'
 import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
 import type { GameFavoritesResult, GameFavoriteWriteResult } from './gameFavorites'
 import type {
@@ -287,11 +287,16 @@ export interface IpcInvoke {
   /** What the operating system's startup list says now, for Settings to show
    *  when the Start with your computer choice could not be applied. */
   'get-login-item': { req: void; res: LoginItemStatus }
-  /** The in-memory activity list, newest first. Main records it from the live
-   *  sockets; reading it makes no platform request. */
+  /** The newest activity per platform, newest first. Main records it from the
+   *  live sockets; reading it makes no platform request. */
   'get-activity': { req: void; res: ActivityEntry[] }
+  /** Older saved activity, or one friend's: one page, newest first, for the
+   *  signed-in accounts only. Reads this computer's history file, never a
+   *  platform. */
+  'get-activity-page': { req: ActivityPageRequest; res: ActivityPage }
   /** Forget the activity the page shows: these platforms' entries of the
-   *  shown kind (`all` for every kind). Anything else stays. */
+   *  shown kind (`all` for every kind), saved ones included. Anything else
+   *  stays. */
   'clear-activity': { req: { platforms: Platform[]; filter: ActivityFilter }; res: void }
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */

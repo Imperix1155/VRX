@@ -52,6 +52,7 @@ describe('settings schema', () => {
       collapsedFriendSections: ['offline'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: false,
@@ -292,6 +293,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -354,6 +356,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -416,6 +419,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -478,6 +482,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -540,6 +545,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -602,6 +608,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -1395,5 +1402,33 @@ describe('Start with your computer setting', () => {
     Reflect.deleteProperty(oldNormalized, 'startWithComputer')
     if (shouldPersistSettings(disk, 27)) disk = oldNormalized
     expect(parseSettings(disk)).toMatchObject({ startWithComputer: 'tray' })
+  })
+})
+
+describe('Keep activity for setting', () => {
+  it('keeps 90 days by default, reads each choice, and falls back to 90 days', () => {
+    expect(DEFAULT_SETTINGS.activityKeepFor).toBe('90d')
+    expect(parseSettings({ version: 28 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      activityKeepFor: '90d'
+    })
+    for (const choice of ['session', '30d', '90d', '1y', 'forever'] as const) {
+      expect(parseSettings({ activityKeepFor: choice })).toMatchObject({ activityKeepFor: choice })
+    }
+    for (const bad of [true, '7d', 90, null]) {
+      expect(parseSettings({ activityKeepFor: bad })).toMatchObject({ activityKeepFor: '90d' })
+    }
+  })
+
+  it('keeps the choice across a v28 round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 29,
+      activityKeepFor: 'session'
+    }
+    const oldNormalized = { ...disk, version: 28 }
+    Reflect.deleteProperty(oldNormalized, 'activityKeepFor')
+    if (shouldPersistSettings(disk, 28)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ activityKeepFor: 'session' })
   })
 })

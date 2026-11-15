@@ -65,7 +65,7 @@ import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { BroadcastAdapterEvent } from '@shared/ipc'
 import type { Friend, Platform } from '@shared/types'
-import { ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
+import { ACTIVITY_PRUNE_INTERVAL_MS, ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
 import {
@@ -84,6 +84,8 @@ import { isQuitShortcut } from './quitShortcut'
 import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
 import { ActivityFeed } from './services/activityFeed'
+import { ActivityHistory } from './services/activityHistory'
+import { HISTORY_FILE_NAME, HistoryDatabase } from './services/historyDatabase'
 import { InboxService } from './services/inbox'
 import { FriendActionsService } from './services/friendActions'
 import type { FriendActionsAdapter } from './services/adapters/FriendActionsAdapter'
@@ -694,10 +696,37 @@ app
     })
     friendAlertBoundary.current = friendAlerts
 
-    // The Activity page's list (activityFeed.ts): memory only, fed by the same
-    // events as the alerts, no requests. Changes reach the renderer coalesced.
+    // Saved history (historyDatabase.ts): one file in VRX's own data folder.
+    // A file that cannot be used never stops the app; the session then keeps
+    // history in memory only.
+    const historyDatabase = new HistoryDatabase({
+      path: join(app.getPath('userData'), HISTORY_FILE_NAME),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    const activityHistory = new ActivityHistory({
+      database: historyDatabase,
+      accountKeyFor: (platform) => {
+        const resolved = accountSession.resolve(platform)
+        return 'ready' in resolved ? resolved.accountKey : null
+      },
+      keepFor: () => getSettingsSnapshot().activityKeepFor,
+      now: () => Date.now()
+    })
+    // Apply the Keep activity for setting at launch and a few times a day.
+    activityHistory.prune()
+    const activityPruneTimer = setInterval(
+      () => activityHistory.prune(),
+      ACTIVITY_PRUNE_INTERVAL_MS
+    )
+    activityPruneTimer.unref()
+    let appliedActivityKeepFor = getSettingsSnapshot().activityKeepFor
+
+    // The Activity page's list (activityFeed.ts): fed by the same events as
+    // the alerts, no requests, saved per account through activityHistory.
+    // Changes reach the renderer coalesced.
     let activityPushTimer: ReturnType<typeof setTimeout> | null = null
     const activityFeed = new ActivityFeed({
+      store: activityHistory,
       now: () => Date.now(),
       clock: () => performance.now(),
       isEnabled: () => getSettingsSnapshot().showActivityPage,
@@ -715,6 +744,9 @@ app
       }
     })
     activityBoundary.current = activityFeed
+    // An account restored before this point brings its saved activity now.
+    activityFeed.hydrate('vrchat')
+    activityFeed.hydrate('chilloutvr')
     // The inbox: socket-delivered invites and requests, memory only.
     const inbox = new InboxService({
       now: () => Date.now(),
@@ -923,6 +955,9 @@ app
       rosterCatchUp.rosterRead(platform)
       friendAlerts.seedRoster(platform, friends)
       activityFeed.seedRoster(platform, friends)
+      // A roster read means the account is signed in: its saved activity
+      // comes back into the list. Repeating this adds nothing twice.
+      activityFeed.hydrate(platform)
     }
     const readFriendRoster = createFriendRosterReader(
       adapters,
@@ -1030,6 +1065,14 @@ app
         loginItem.follow(saved.startWithComputer !== 'off')
         // Turning the Activity page off also forgets what it kept.
         if (!saved.showActivityPage) activityFeed.clearAll()
+        if (saved.activityKeepFor !== appliedActivityKeepFor) {
+          const wasSaving = appliedActivityKeepFor !== 'session'
+          appliedActivityKeepFor = saved.activityKeepFor
+          // Saving just came on: what the list holds now is saved too. A
+          // shorter choice, or "until VRX closes", removes what no longer fits.
+          if (!wasSaving) activityFeed.saveAll()
+          activityHistory.prune()
+        }
       },
       accountRegistry,
       accountSession,
@@ -1133,6 +1176,9 @@ app
     const stopWakeReconnect = reconnectLiveOnWake(powerMonitor, [vrcAdapter, cvrAdapter], {
       logFailure: () => log.warn('live reconnect after wake failed')
     })
+    // Closed only once the quit is certain, so a quit something calls off
+    // never leaves the session without its history file.
+    app.once('quit', () => historyDatabase.close())
     app.on('before-quit', () => {
       explore.dispose()
       // Renderer changes are handed to main immediately; force the latest
@@ -1148,6 +1194,7 @@ app
           message: error instanceof Error ? error.message : String(error)
         })
       }
+      clearInterval(activityPruneTimer)
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'
       // event, so the close-to-tray handler in createWindow() always sees the

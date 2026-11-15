@@ -96,6 +96,7 @@ const vrx = {
   getAppStatus: () => invoke('get-app-status', undefined),
   getLoginItem: () => invoke('get-login-item', undefined),
   getActivity: () => invoke('get-activity', undefined),
+  getActivityPage: (req: IpcInvoke['get-activity-page']['req']) => invoke('get-activity-page', req),
   clearActivity: (req: IpcInvoke['clear-activity']['req']) => invoke('clear-activity', req),
   onActivityChanged: (callback: () => void) => {
     const listener = (): void => callback()

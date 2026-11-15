@@ -94,6 +94,7 @@ vi.mock('./login-item', () => ({
 vi.mock('./activity', () => ({
   registerActivityHandlers: () => {
     electron.ipcMain.handle('get-activity', () => [])
+    electron.ipcMain.handle('get-activity-page', () => ({ entries: [], hasMore: false }))
     electron.ipcMain.handle('clear-activity', () => undefined)
   }
 }))
@@ -163,6 +164,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'export-data',
   'get-accounts',
   'get-activity',
+  'get-activity-page',
   'get-alert-picks',
   'get-app-background',
   'get-app-status',

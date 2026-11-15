@@ -1,6 +1,12 @@
 import type { AdapterEvent, Friend, InstanceInfo, Platform } from '@shared/types'
-import type { ActivityEntry, ActivityFilter, ActivityKind } from '@shared/activity'
-import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM } from '@shared/constants'
+import type {
+  ActivityEntry,
+  ActivityFilter,
+  ActivityKind,
+  ActivityPage,
+  ActivityPageRequest
+} from '@shared/activity'
+import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM, ACTIVITY_PAGE_SIZE } from '@shared/constants'
 import { isWorldHidden } from '@shared/hotInstanceKey'
 import { FriendAlerts, type FriendAlert } from './friendAlerts'
 
@@ -21,6 +27,24 @@ interface EventLocation {
   location: EntryLocation | null
 }
 
+/**
+ * Where entries are saved between runs (`activityHistory.ts`). Every call is
+ * about the account signed in right now on that platform; the store resolves
+ * it. A store that is not saving ignores writes and answers `null` for pages.
+ */
+export interface ActivityStore {
+  /** The largest id ever saved, so new ids keep increasing across restarts. */
+  maxId(): number
+  append(entry: ActivityEntry): void
+  setWorldName(id: number, worldName: string): void
+  /** The signed-in account's newest saved entries, newest first. */
+  recent(platform: Platform, limit: number): ActivityEntry[]
+  /** Saved entries in a scope, newest first, or null when nothing is saved. */
+  page(request: ActivityPageRequest, limit: number): ActivityEntry[] | null
+  clear(platform: Platform, kind: ActivityKind | null): void
+  clearAll(): void
+}
+
 export interface ActivityFeedOptions {
   /** Wall clock for the time shown on each entry. */
   now: () => number
@@ -31,6 +55,8 @@ export interface ActivityFeedOptions {
   resolveName: (platform: Platform, platformUserId: string) => string | null
   /** Entries were added, filled in, or cleared. */
   onChanged: () => void
+  /** The saved copy. Without one the list is memory only. */
+  store?: ActivityStore
 }
 
 /** A world name arriving later than this no longer changes an old entry. */
@@ -42,8 +68,11 @@ const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
  * The in-app activity list. It runs its own copy of the friend alert
  * transition engine over the same adapter events, so "came online", "joined a
  * world", and "went offline" mean exactly what the alerts mean, without the
- * alerts' toast rate limit. It makes no requests, keeps entries in memory
- * only, and forgets a platform's entries at an account boundary.
+ * alerts' toast rate limit. It makes no requests. The newest entries per
+ * platform stay in memory for the page; with a store, each one is also saved
+ * under its account, so an account's list comes back when it signs in again
+ * (`hydrate`) and older entries can be read a page at a time (`page`). An
+ * account boundary drops the outgoing account's entries from memory.
  *
  * Privacy matches the alerts: a friend set to Ask Me or Do Not Disturb never
  * has a world recorded, and their moves between worlds are not recorded.
@@ -60,6 +89,7 @@ export class ActivityFeed {
   private changed = false
 
   constructor(private readonly options: ActivityFeedOptions) {
+    this.nextId = (options.store?.maxId() ?? 0) + 1
     this.engine = new FriendAlerts({
       notify: (alert) => this.record(alert),
       clock: options.clock,
@@ -97,8 +127,67 @@ export class ActivityFeed {
   }
 
   /**
-   * A session boundary. The transition baseline always resets; entries are
-   * forgotten unless the same account is still signed in.
+   * An account is signed in on this platform: bring its saved entries back
+   * into the list. Entries already in memory stay; nothing is saved twice.
+   */
+  hydrate(platform: Platform): void {
+    if (this.refill(platform)) {
+      this.changed = true
+      this.flush()
+    }
+  }
+
+  /** Top memory back up from the saved copy. While entries are saved, a
+   *  platform with fewer than its allowance in memory then holds every entry
+   *  saved for the account, which is how the page knows nothing older exists. */
+  private refill(platform: Platform): boolean {
+    const saved = this.options.store?.recent(platform, ACTIVITY_MAX_ENTRIES_PER_PLATFORM)
+    if (saved === undefined || saved.length === 0) return false
+    const platformEntries = this.platformEntries(platform)
+    const known = new Set(platformEntries.map((entry) => entry.id))
+    const added: StoredEntry[] = []
+    for (const entry of saved) {
+      if (entry.platform !== platform || known.has(entry.id)) continue
+      known.add(entry.id)
+      added.push({ ...entry, location: null })
+    }
+    if (added.length === 0) return false
+    const merged = [...platformEntries, ...added].sort((a, b) => a.id - b.id)
+    platformEntries.splice(
+      0,
+      platformEntries.length,
+      ...merged.slice(Math.max(0, merged.length - ACTIVITY_MAX_ENTRIES_PER_PLATFORM))
+    )
+    return true
+  }
+
+  /**
+   * Older entries than the list holds, or one friend's entries: newest first,
+   * one page at a time. Read from the saved copy when there is one, else from
+   * memory. Like every read here, it asks no platform for anything.
+   */
+  page(request: ActivityPageRequest): ActivityPage {
+    const found =
+      this.options.store?.page(request, ACTIVITY_PAGE_SIZE + 1) ?? this.pageFromMemory(request)
+    return {
+      entries: found.slice(0, ACTIVITY_PAGE_SIZE),
+      hasMore: found.length > ACTIVITY_PAGE_SIZE
+    }
+  }
+
+  /** Saving was just turned on: save what the list holds now. */
+  saveAll(): void {
+    const store = this.options.store
+    if (store === undefined) return
+    for (const platformEntries of this.entries.values()) {
+      for (const entry of platformEntries) store.append(toPublicEntry(entry))
+    }
+  }
+
+  /**
+   * A session boundary. The transition baseline always resets; entries leave
+   * memory unless the same account is still signed in. Saved entries stay
+   * under their account.
    */
   resetPlatform(platform: Platform, { keepEntries = false }: { keepEntries?: boolean } = {}): void {
     this.engine.resetPlatform(platform)
@@ -116,19 +205,26 @@ export class ActivityFeed {
   clear(platforms: readonly Platform[], filter: ActivityFilter): void {
     let any = false
     for (const platform of new Set(platforms)) {
+      // The saved copy can hold older entries than memory does.
+      this.options.store?.clear(platform, filter === 'all' ? null : filter)
       const platformEntries = this.platformEntries(platform)
       const kept = platformEntries.filter((entry) => filter !== 'all' && entry.kind !== filter)
-      if (kept.length === platformEntries.length) continue
-      platformEntries.splice(0, platformEntries.length, ...kept)
-      any = true
+      if (kept.length !== platformEntries.length) {
+        platformEntries.splice(0, platformEntries.length, ...kept)
+        any = true
+      }
+      // Older saved entries of the kinds that stay move up into the list.
+      if (this.refill(platform)) any = true
     }
     if (!any) return
     this.changed = true
     this.flush()
   }
 
-  /** The user turned the list off. */
+  /** The user turned the list off: forget everything, saved entries of every
+   *  account included. */
   clearAll(): void {
+    this.options.store?.clearAll()
     let any = false
     for (const platformEntries of this.entries.values()) {
       if (platformEntries.length > 0) any = true
@@ -160,7 +256,7 @@ export class ActivityFeed {
     }
     const keepsWorld = kind !== 'offline' && !hidden
     const platformEntries = this.platformEntries(alert.platform)
-    platformEntries.push({
+    const entry: StoredEntry = {
       id: this.nextId++,
       kind,
       platform: alert.platform,
@@ -169,7 +265,10 @@ export class ActivityFeed {
       worldName: keepsWorld ? cleanWorldName(alert.worldName) : null,
       at: this.options.now(),
       location: keepsWorld ? location : null
-    })
+    }
+    platformEntries.push(entry)
+    // The saved copy never gets the location: only what the page shows.
+    this.options.store?.append(toPublicEntry(entry))
     if (platformEntries.length > ACTIVITY_MAX_ENTRIES_PER_PLATFORM) {
       platformEntries.splice(0, platformEntries.length - ACTIVITY_MAX_ENTRIES_PER_PLATFORM)
     }
@@ -247,8 +346,32 @@ export class ActivityFeed {
       const name = cleanWorldName(match(entry.location) ?? null)
       if (name === null) continue
       platformEntries[i] = { ...entry, worldName: name }
+      this.options.store?.setWorldName(entry.id, name)
       this.changed = true
     }
+  }
+
+  private pageFromMemory(request: ActivityPageRequest): ActivityEntry[] {
+    const before = new Map<Platform, number | null>()
+    for (const cursor of request.scope) {
+      if (!before.has(cursor.platform)) before.set(cursor.platform, cursor.beforeId)
+    }
+    const isBefore = (entry: ActivityEntry): boolean => {
+      const beforeId = before.get(entry.platform)
+      return beforeId !== undefined && (beforeId === null || entry.id < beforeId)
+    }
+    const friends =
+      request.friends === undefined
+        ? null
+        : new Set(request.friends.map((friend) => `${friend.platform}\u0000${friend.friendId}`))
+    return this.list()
+      .filter(
+        (entry) =>
+          isBefore(entry) &&
+          (request.filter === 'all' || entry.kind === request.filter) &&
+          (friends === null || friends.has(`${entry.platform}\u0000${entry.platformUserId}`))
+      )
+      .slice(0, ACTIVITY_PAGE_SIZE + 1)
   }
 
   private flush(): void {

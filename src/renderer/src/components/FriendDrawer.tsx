@@ -65,6 +65,7 @@ import LinkedWorlds from './LinkedWorlds'
 import LinkedDestinationChooser from './LinkedDestinationChooser'
 import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
 import IdentitiesDialog from './IdentitiesDialog'
+import FriendHistoryDialog from './FriendHistoryDialog'
 import FriendAlertBell from './FriendAlertBell'
 import FriendFavoriteStar from './FriendFavoriteStar'
 import PlatformPill from './PlatformPill'
@@ -165,6 +166,11 @@ export default function FriendDrawer({
   // stays mounted between selections, so its scroll position would otherwise
   // carry over and open the next card partway down.
   const scrollOwner = identityOwner ?? (shown ? `${shown.platform}:${shown.platformUserId}` : null)
+  // The History dialog belongs to the friend it was opened for: it closes
+  // with the card and when the card moves to someone else.
+  const [historyOwner, setHistoryOwner] = useState<string | null>(null)
+  const historyOwnerKey = scrollOwner ?? ''
+  if (historyOwner !== null && (!open || historyOwner !== historyOwnerKey)) setHistoryOwner(null)
   useLayoutEffect(() => {
     if (open && scrollRef.current) scrollRef.current.scrollTop = 0
   }, [open, scrollOwner])
@@ -651,8 +657,9 @@ export default function FriendDrawer({
             )}
           </div>
         )}
-        {/* 6 · Footer, pinned below the scroll: Identities on the left, the
-            alerts bell on the right (owner, 2026-10-27). */}
+        {/* 6 · Footer, pinned below the scroll: Identities and History on the
+            left, the star and the alerts bell on the right (owner, 2026-10-27;
+            History 2026-11-15, on all three views of a friend). */}
         {shown && (
           <div className="flex shrink-0 items-center gap-[var(--space-2)] px-[var(--space-4)] pt-[var(--space-2)] pb-[var(--space-4)]">
             {selection && onNavigate && (
@@ -676,6 +683,17 @@ export default function FriendDrawer({
                 </span>
               </button>
             )}
+            <button
+              type="button"
+              data-drawer-history
+              className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors"
+              onClick={() => {
+                onNoteBlur()
+                setHistoryOwner(historyOwnerKey)
+              }}
+            >
+              {t('history.button')}
+            </button>
             <div className="ml-auto flex items-center gap-[var(--space-2)]">
               <FriendFavoriteStar
                 accounts={shownAccounts}
@@ -696,6 +714,13 @@ export default function FriendDrawer({
       </div>
       {open && chooserOwner !== null && (
         <LinkedDestinationChooser accounts={shownAccounts} onClose={() => setChooserOwner(null)} />
+      )}
+      {open && historyOwner !== null && shownAccounts.length > 0 && (
+        <FriendHistoryDialog
+          accounts={shownAccounts}
+          name={profileName || t('linking.unknownName')}
+          onClose={() => setHistoryOwner(null)}
+        />
       )}
       {open && identityDialogOwner !== null && selection && onNavigate && (
         <IdentitiesDialog

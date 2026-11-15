@@ -548,7 +548,7 @@
       },
       "activity": {
         "label": "Activity page",
-        "description": "Friends coming and going while VRX is open. Off hides it and keeps nothing."
+        "description": "Friends coming and going. Off hides it and deletes what was saved."
       },
       "inbox": {
         "label": "Inbox page",
@@ -692,7 +692,7 @@
     "clear": "Clear",
     "clearAria": "Clear the activity shown",
     "emptyHeading": "No activity yet",
-    "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open.",
+    "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open, and stay after a restart.",
     "filteredEmpty": "Nothing to show with these filters.",
     "loading": "Loading activity…",
     "error": "Couldn’t load activity.",
@@ -701,7 +701,38 @@
       "vrchat": "Connect VRChat to see your friends’ activity here",
       "chilloutvr": "Connect ChilloutVR to see your friends’ activity here",
       "openAccounts": "Go to Accounts"
+    },
+    "showOlder": "Show older",
+    "olderFailed": "Couldn’t load older activity.",
+    "keep": {
+      "button": "Kept: {{choice}}",
+      "buttonAria": "Activity is kept: {{choice}}. Change how long",
+      "title": "Keep activity for",
+      "note": "Activity is saved on this computer only, for each account. Picking a shorter time deletes what is older.",
+      "done": "Done",
+      "options": {
+        "session": "Until VRX closes",
+        "30d": "30 days",
+        "90d": "90 days",
+        "1y": "1 year",
+        "forever": "Forever"
+      }
+    },
+    "clearConfirm": {
+      "title": "Clear this activity?",
+      "body": "This also deletes the saved activity for what this page shows, older entries included. It can’t be undone.",
+      "confirm": "Clear",
+      "cancel": "Cancel"
     }
+  },
+  "history": {
+    "button": "History",
+    "title": "{{name}}: history",
+    "activityHeading": "Activity",
+    "loading": "Loading history…",
+    "error": "Couldn’t load this history.",
+    "emptyHeading": "Nothing saved yet",
+    "emptyHint": "Coming online, joining worlds and going offline are saved here from now on."
   },
   "drawer": {
     "close": "Close",

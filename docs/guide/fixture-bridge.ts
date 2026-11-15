@@ -384,6 +384,43 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         lastReconcileAt: { vrchat: null, chilloutvr: null }
       }),
     getActivity: () => Promise.resolve(variant === 'empty' ? [] : activityEntries(Date.now())),
+    // A friend's History: that friend's sample entries, and a few older ones
+    // so the dialog shows more than one day. The Activity page gets no older
+    // page: the sample list is shorter than what main keeps in memory.
+    getActivityPage: ({ scope, friends }) => {
+      if (friends === undefined || variant === 'empty') {
+        return Promise.resolve({ entries: [], hasMore: false })
+      }
+      const now = Date.now()
+      const wanted = new Set(friends.map((friend) => `${friend.platform}:${friend.friendId}`))
+      const sample = activityEntries(now).filter((entry) =>
+        wanted.has(`${entry.platform}:${entry.platformUserId}`)
+      )
+      // Older than every sample row, so ids and times agree.
+      const day = 3 * 86_400_000
+      const older = friends
+        .filter((friend) => scope.some((cursor) => cursor.platform === friend.platform))
+        .flatMap((friend, index) =>
+          [
+            { kind: 'offline' as const, worldName: null, ago: day + index * 60_000 },
+            { kind: 'world' as const, worldName: 'Glass Garden Arcade', ago: day + 3_600_000 },
+            { kind: 'online' as const, worldName: 'Aurora Transit Lounge', ago: 9 * day },
+            { kind: 'offline' as const, worldName: null, ago: 400 * day }
+          ].map((row, position) => ({
+            id: -(index * 10 + position + 1),
+            kind: row.kind,
+            platform: friend.platform,
+            platformUserId: friend.friendId,
+            displayName: '',
+            worldName: row.worldName,
+            at: now - row.ago
+          }))
+        )
+      return Promise.resolve({
+        entries: [...sample, ...older].sort((a, b) => b.at - a.at),
+        hasMore: false
+      })
+    },
     clearActivity: () => Promise.resolve(),
     onActivityChanged: unsubscribe,
     openUrl: () => Promise.resolve(),

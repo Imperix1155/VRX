@@ -5,14 +5,27 @@ import {
   type QueryClient,
   type UseQueryResult
 } from '@tanstack/react-query'
-import type { ActivityEntry, ActivityFilter } from '@shared/activity'
+import type {
+  ActivityEntry,
+  ActivityFilter,
+  ActivityPage,
+  ActivityPageRequest
+} from '@shared/activity'
 import type { Platform } from '@shared/types'
 import { queryClient } from './queryClient'
 
-/** Not persisted: only the `friends` namespace survives a restart (cache.ts). */
+/** Not persisted in the renderer: only the `friends` namespace survives a
+ *  restart here (cache.ts). Main saves activity itself. */
 export const activityKey = ['activity'] as const
 
-/** The in-memory activity list main keeps, newest first. Main pushes a change
+/** One page of older saved activity, or of one friend's, straight from main.
+ *  Local only: it reads this computer's history, never a platform. */
+export async function fetchActivityPage(request: ActivityPageRequest): Promise<ActivityPage> {
+  if (typeof window.vrx?.getActivityPage !== 'function') return { entries: [], hasMore: false }
+  return window.vrx.getActivityPage(request)
+}
+
+/** The newest activity main keeps per platform, newest first. Main pushes a change
  *  notice; this query never polls and reading it makes no platform request. */
 export function useActivity(): UseQueryResult<ActivityEntry[], Error> {
   return useQuery({

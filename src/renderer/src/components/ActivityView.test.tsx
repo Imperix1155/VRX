@@ -6,7 +6,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, within, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { ActivityEntry } from '@shared/activity'
+import type { ActivityEntry, ActivityPage, ActivityPageRequest } from '@shared/activity'
+import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM } from '@shared/constants'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
 import { translate as msg } from '../i18n/translate'
@@ -90,6 +91,11 @@ const entries: ActivityEntry[] = [
 
 let client: QueryClient
 const clearActivity = vi.fn(() => Promise.resolve())
+const getActivityPage = vi.fn((request: ActivityPageRequest): Promise<ActivityPage> =>
+  Promise.resolve({ entries: [], hasMore: request.scope.length < 0 })
+)
+/** Nothing saved: the list lasts until VRX closes, and Clear acts at once. */
+const SESSION_ONLY = { ...DEFAULT_SETTINGS, activityKeepFor: 'session' as const }
 
 function renderView(data: ActivityEntry[] = entries): void {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -106,13 +112,19 @@ function rowTexts(): string[] {
 }
 
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function (): void {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function (): void {
+    this.removeAttribute('open')
+  }
   useFriendsMock.mockImplementation((platform: string) => ({
     data: platform === 'vrchat' ? [alice] : [kai],
     isPending: false
   }))
   Object.defineProperty(window, 'vrx', {
     configurable: true,
-    value: { getActivity: () => Promise.resolve(entries), clearActivity }
+    value: { getActivity: () => Promise.resolve(entries), clearActivity, getActivityPage }
   })
 })
 
@@ -120,6 +132,8 @@ afterEach(() => {
   cleanup()
   useFriendsMock.mockReset()
   clearActivity.mockClear()
+  getActivityPage.mockReset()
+  getActivityPage.mockImplementation(() => Promise.resolve({ entries: [], hasMore: false }))
   authState.value = 'authenticated'
   useFriendsStore.setState({ platformFilter: 'all' })
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
@@ -156,7 +170,8 @@ describe('ActivityView', () => {
       isPending: false
     }))
     const both: ActivityEntry[] = (['chilloutvr', 'vrchat'] as const).map((platform, index) => ({
-      id: 10 + index,
+      // Newest first, as main sends them.
+      id: 11 - index,
       kind: 'online',
       platform,
       platformUserId: platform === 'vrchat' ? alice.platformUserId : aliceCvr.platformUserId,
@@ -258,6 +273,7 @@ describe('ActivityView', () => {
   })
 
   it('clears through main and empties the list at once', async () => {
+    useSettingsStore.setState({ settings: SESSION_ONLY })
     renderView()
     const clear = screen.getByRole<HTMLButtonElement>('button', {
       name: msg('activity.clearAria')
@@ -279,7 +295,7 @@ describe('ActivityView', () => {
 
   it('clears only what is on screen: the filtered platform and the shown kind', async () => {
     useFriendsStore.setState({ platformFilter: 'vrchat' })
-    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, activityFilter: 'online' } })
+    useSettingsStore.setState({ settings: { ...SESSION_ONLY, activityFilter: 'online' } })
     renderView()
     expect(rowTexts()).toEqual([expect.stringContaining('Former Friend')])
     fireEvent.click(screen.getByRole('button', { name: msg('activity.clearAria') }))
@@ -292,6 +308,138 @@ describe('ActivityView', () => {
     expect(client.getQueryData<ActivityEntry[]>(activityKey)?.map((entry) => entry.id)).toEqual([
       4, 3, 2
     ])
+  })
+
+  it('asks before Clear deletes saved activity, and Cancel deletes nothing', async () => {
+    renderView()
+    const clear = screen.getByRole('button', { name: msg('activity.clearAria') })
+    fireEvent.click(clear)
+    const dialog = screen.getByRole('dialog', { name: msg('activity.clearConfirm.title') })
+    expect(within(dialog).getByText(msg('activity.clearConfirm.body'))).toBeTruthy()
+    expect(clearActivity).not.toHaveBeenCalled()
+
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: msg('activity.clearConfirm.cancel') })
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(clearActivity).not.toHaveBeenCalled()
+    expect(screen.getAllByRole('listitem')).toHaveLength(entries.length)
+
+    fireEvent.click(clear)
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: msg('activity.clearConfirm.confirm')
+      })
+    )
+    expect(clearActivity).toHaveBeenCalledExactlyOnceWith({
+      platforms: ['vrchat', 'chilloutvr'],
+      filter: 'all'
+    })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(screen.getByText(msg('activity.emptyHeading'))).toBeTruthy())
+  })
+
+  it('says how long activity is kept and lets the user change it', () => {
+    renderView()
+    const keep = screen.getByRole('button', {
+      name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.90d') })
+    })
+    expect(keep.textContent).toBe(
+      msg('activity.keep.button', { choice: msg('activity.keep.options.90d') })
+    )
+    fireEvent.click(keep)
+    const dialog = screen.getByRole('dialog', { name: msg('activity.keep.title') })
+    const options = within(dialog).getAllByRole<HTMLInputElement>('radio')
+    expect(options.map((option) => option.value)).toEqual([
+      'session',
+      '30d',
+      '90d',
+      '1y',
+      'forever'
+    ])
+    expect(options.find((option) => option.checked)?.value).toBe('90d')
+
+    fireEvent.click(within(dialog).getByRole('radio', { name: msg('activity.keep.options.1y') }))
+    expect(useSettingsStore.getState().settings.activityKeepFor).toBe('1y')
+    fireEvent.click(within(dialog).getByRole('button', { name: msg('activity.keep.done') }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(
+      screen.getByRole('button', {
+        name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.1y') })
+      })
+    ).toBeTruthy()
+  })
+
+  it('offers no Show older while the list holds everything saved', async () => {
+    renderView()
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(entries.length))
+    expect(getActivityPage).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: msg('activity.showOlder') })).toBeNull()
+  })
+
+  it('shows older saved activity a page at a time, each platform from its own place', async () => {
+    // VRChat fills its allowance; ChilloutVR holds everything it has.
+    const full: ActivityEntry[] = Array.from(
+      { length: ACTIVITY_MAX_ENTRIES_PER_PLATFORM },
+      (_, index) => ({
+        id: 1_000 - index,
+        kind: 'online',
+        platform: 'vrchat',
+        platformUserId: alice.platformUserId,
+        displayName: 'Alice',
+        worldName: null,
+        at: now - index * 1_000
+      })
+    )
+    const oldestLive = 1_000 - (ACTIVITY_MAX_ENTRIES_PER_PLATFORM - 1)
+    const older = (id: number, worldName: string): ActivityEntry => ({
+      id,
+      kind: 'world',
+      platform: 'vrchat',
+      platformUserId: alice.platformUserId,
+      displayName: 'Alice',
+      worldName,
+      at: now - 10_000_000 - (1_000 - id) * 1_000
+    })
+    getActivityPage.mockImplementation((request: ActivityPageRequest) => {
+      const before = request.scope[0]?.beforeId
+      if (before === oldestLive) {
+        return Promise.resolve({ entries: [older(500, 'Older Lounge')], hasMore: true })
+      }
+      if (before === 500) {
+        return Promise.resolve({ entries: [older(400, 'Oldest Lounge')], hasMore: false })
+      }
+      return Promise.resolve({ entries: [], hasMore: false })
+    })
+    renderView([...full, ...entries.filter((entry) => entry.platform === 'chilloutvr')])
+
+    const button = await screen.findByRole('button', { name: msg('activity.showOlder') })
+    // Read ahead, not shown until asked for.
+    expect(getActivityPage).toHaveBeenCalledExactlyOnceWith({
+      scope: [{ platform: 'vrchat', beforeId: oldestLive }],
+      filter: 'all'
+    })
+    expect(screen.queryByText(msg('activity.joined', { world: 'Older Lounge' }))).toBeNull()
+
+    fireEvent.click(button)
+    expect(screen.getByText(msg('activity.joined', { world: 'Older Lounge' }))).toBeTruthy()
+    await waitFor(() =>
+      expect(getActivityPage).toHaveBeenLastCalledWith({
+        scope: [{ platform: 'vrchat', beforeId: 500 }],
+        filter: 'all'
+      })
+    )
+    fireEvent.click(await screen.findByRole('button', { name: msg('activity.showOlder') }))
+    expect(screen.getByText(msg('activity.joined', { world: 'Oldest Lounge' }))).toBeTruthy()
+    // Nothing older is left: the button goes away.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: msg('activity.showOlder') })).toBeNull()
+    )
+    // Still one list, newest first.
+    const texts = rowTexts()
+    const olderAt = texts.findIndex((text) => text.includes('Older Lounge'))
+    expect(olderAt).toBeGreaterThanOrEqual(ACTIVITY_MAX_ENTRIES_PER_PLATFORM)
+    expect(texts.findIndex((text) => text.includes('Oldest Lounge'))).toBe(olderAt + 1)
   })
 
   it('offers no Clear while the filtered platform has nothing stored', () => {
