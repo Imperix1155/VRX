@@ -22,7 +22,7 @@ Builds the design guide (`docs/design.html`) and isolated scenes
 - `scenarios.ts` is the registry for selectable source, Explore sheet, drawer
   (note load and save failure, account-note states), join (game closed, open,
   or invite) and Friends failure states, and the Dashboard section orders
-  (`hot-first`, `reordered`); `scene-entry.tsx` adds updater, settings
+  (`hot-first`, `reordered`, and `reorder` for reorder mode); `scene-entry.tsx` adds updater, settings
   save-error and read-error, and login variants, and `scene-renderer.tsx` the
   welcome-setup scene (`ready`,
   `signed-out`, `save-error`) and the Dashboard `needs-code` state (VRChat

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Quick reorder: right-click the sidebar or the Dashboard and pick Reorder,
+  then drag the sidebar pages and the Dashboard sections where you want
+  them. The arrow keys move them too. Settings always stays last in the
+  sidebar. "Done" or Esc ends it, and "Reset order" puts the sidebar and the
+  Dashboard back the way they came. Settings → Appearance → Sidebar pages →
+  Order turns the right-click off, starts reordering from there, and resets
+  the order. The up and down buttons in Settings → Dashboard still work.
+
 ## [1.4.5] - 2026-11-13
 
 Two small additions and a polish pass on top of 1.4.4.

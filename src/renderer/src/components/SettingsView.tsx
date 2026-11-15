@@ -35,6 +35,7 @@ import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
 import Toggle from './Toggle'
 import DashboardSectionsCard from './DashboardSectionsCard'
+import QuickReorderMenu from './QuickReorderMenu'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { IconDownload, IconSpinner, IconRestart, IconExternalLink } from './UpdaterIcons'
 import type { UpdaterFailure } from '@shared/ipc'
@@ -213,15 +214,19 @@ function SidebarPagesCard({
   return (
     <div className="setting-card" data-sidebar-pages="">
       {/* Name and note share one line so Appearance still fits the window
-          with a background picture and its size note showing. */}
-      <p className="flex flex-wrap items-baseline gap-x-[var(--space-2)]">
-        <span className="text-sm font-medium text-[var(--text)]">
-          {t('settings.pages.sidebar.label')}
-        </span>
-        <span className="text-xs text-[var(--text-dim)]">
-          {t('settings.pages.sidebar.description')}
-        </span>
-      </p>
+          with a background picture and its size note showing. "Order" opens
+          the quick reorder panel, which costs no line of its own. */}
+      <div className="flex items-start justify-between gap-[var(--space-3)]">
+        <p className="flex min-w-0 flex-wrap items-baseline gap-x-[var(--space-2)]">
+          <span className="text-sm font-medium text-[var(--text)]">
+            {t('settings.pages.sidebar.label')}
+          </span>
+          <span className="text-xs text-[var(--text-dim)]">
+            {t('settings.pages.sidebar.description')}
+          </span>
+        </p>
+        <QuickReorderMenu />
+      </div>
       <div className="mt-[var(--space-1)] grid grid-cols-2 gap-x-[var(--space-4)]">
         {pages.map((page, index) => (
           <div
