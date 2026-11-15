@@ -75,6 +75,8 @@ export const ACTIVITY_PAGE_SIZE = 100
 /** Saved activity rows kept in all, whatever the age limit: the oldest go
  *  first. A safety bound on the file's size, far above ordinary use. */
 export const ACTIVITY_MAX_SAVED_ROWS = 1_000_000
+/** Instance log visits kept in all, whatever the age limit: the oldest go first. */
+export const INSTANCE_LOG_MAX_SAVED_VISITS = 100_000
 /** How often saved activity past its age limit is removed while VRX runs (ms). */
 export const ACTIVITY_PRUNE_INTERVAL_MS = 6 * 60 * 60_000
 /** Activity changes reach the renderer at most this often (ms), so a burst of

@@ -86,6 +86,9 @@ import { FriendAlerts } from './services/friendAlerts'
 import { ActivityFeed } from './services/activityFeed'
 import { ActivityHistory, FriendHistory } from './services/activityHistory'
 import { FriendLog } from './services/friendLog'
+import { InstanceLog } from './services/instanceLog'
+import { CvrInstanceWatch } from './services/cvrInstanceWatch'
+import { VrchatGameLog, vrchatLogDirectories } from './services/vrchatGameLog'
 import { HISTORY_FILE_NAME, HistoryDatabase } from './services/historyDatabase'
 import { InboxService } from './services/inbox'
 import { FriendActionsService } from './services/friendActions'
@@ -495,7 +498,8 @@ app
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
     const activityBoundary: { current?: ActivityFeed } = {}
-    const friendLogBoundary: { current?: FriendLog } = {}
+    // Friends list history and the instance log, reset together at an account boundary.
+    const historyBoundary: { current?: { resetPlatform: (platform: Platform) => void } } = {}
     const inboxBoundary: { current?: InboxService } = {}
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
@@ -547,7 +551,7 @@ app
         activityBoundary.current?.resetPlatform('vrchat', { keepEntries: identityRetained })
         if (!identityRetained) {
           inboxBoundary.current?.resetPlatform('vrchat')
-          friendLogBoundary.current?.resetPlatform('vrchat')
+          historyBoundary.current?.resetPlatform('vrchat')
         }
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
@@ -632,7 +636,7 @@ app
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
         activityBoundary.current?.resetPlatform('chilloutvr')
         inboxBoundary.current?.resetPlatform('chilloutvr')
-        friendLogBoundary.current?.resetPlatform('chilloutvr')
+        historyBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
@@ -738,6 +742,16 @@ app
     // the alerts, no requests, saved per account through activityHistory.
     // Changes reach the renderer coalesced.
     let activityPushTimer: ReturnType<typeof setTimeout> | null = null
+    const pushActivityChanged = (): void => {
+      if (activityPushTimer !== null) return
+      activityPushTimer = setTimeout(() => {
+        activityPushTimer = null
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) window.webContents.send('activity-changed')
+        }
+      }, ACTIVITY_PUSH_COALESCE_MS)
+      activityPushTimer.unref()
+    }
     const activityFeed = new ActivityFeed({
       store: activityHistory,
       now: () => Date.now(),
@@ -745,16 +759,7 @@ app
       isEnabled: () => getSettingsSnapshot().showActivityPage,
       resolveName: (platform, platformUserId) =>
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null,
-      onChanged: () => {
-        if (activityPushTimer !== null) return
-        activityPushTimer = setTimeout(() => {
-          activityPushTimer = null
-          for (const window of BrowserWindow.getAllWindows()) {
-            if (!window.isDestroyed()) window.webContents.send('activity-changed')
-          }
-        }, ACTIVITY_PUSH_COALESCE_MS)
-        activityPushTimer.unref()
-      }
+      onChanged: pushActivityChanged
     })
     activityBoundary.current = activityFeed
     // An account restored before this point brings its saved activity now.
@@ -768,7 +773,49 @@ app
       record: (change) => activityFeed.recordFriendChange(change),
       store: friendHistory
     })
-    friendLogBoundary.current = friendLog
+    // The instance log (instanceLog.ts): the rooms the user was in and who
+    // was there. VRChat's comes from the game's own log file on this computer
+    // (read-only); ChilloutVR's from the live connection. No requests.
+    const isKeepingInstanceLog = (): boolean => {
+      const settings = getSettingsSnapshot()
+      return settings.showActivityPage && settings.activityKeepFor !== 'session'
+    }
+    const instanceLog = new InstanceLog({
+      database: historyDatabase,
+      accountKeyFor: historyAccountKeyFor,
+      isSaving: isKeepingInstanceLog,
+      onChanged: pushActivityChanged
+    })
+    const runningGames = new RunningGames(processNameListerFor(process.platform))
+    const vrchatGameLog = new VrchatGameLog({
+      directories: vrchatLogDirectories(process.platform, app.getPath('home')),
+      accountId: () => historyAccountKeyFor('vrchat')?.slice('vrchat:'.length) ?? null,
+      isEnabled: isKeepingInstanceLog,
+      isGameRunning: () => runningGames.isRunning('vrchat'),
+      sink: instanceLog
+    })
+    vrchatGameLog.start()
+    const cvrInstanceWatch = new CvrInstanceWatch({
+      isEnabled: isKeepingInstanceLog,
+      ownId: () => historyAccountKeyFor('chilloutvr')?.slice('chilloutvr:'.length) ?? null,
+      members: (instanceId) => cvrAdapter.instanceMembers(instanceId),
+      nameOf: (platformUserId) => cvrAdapter.resolveFriendName(platformUserId),
+      sink: instanceLog,
+      now: () => Date.now()
+    })
+    // Saving came on, or went off: both sources start over from what they see.
+    const restartInstanceSources = (): void => {
+      vrchatGameLog.reset()
+      cvrInstanceWatch.resetPlatform()
+    }
+    historyBoundary.current = {
+      resetPlatform: (platform) => {
+        friendLog.resetPlatform(platform)
+        instanceLog.resetPlatform(platform)
+        if (platform === 'vrchat') vrchatGameLog.reset()
+        else cvrInstanceWatch.resetPlatform()
+      }
+    }
     // The inbox: socket-delivered invites and requests, memory only.
     const inbox = new InboxService({
       now: () => Date.now(),
@@ -811,10 +858,7 @@ app
     const joinCoordinator = new JoinCoordinator()
     const gameHandoff = new GameHandoff({
       hostPlatform: process.platform,
-      isRunning: (() => {
-        const games = new RunningGames(processNameListerFor(process.platform))
-        return (platform: Platform) => games.isRunning(platform)
-      })(),
+      isRunning: (platform: Platform) => runningGames.isRunning(platform),
       settings: () => getSettingsSnapshot(),
       openExternal: (url) => shell.openExternal(url)
     })
@@ -1094,6 +1138,8 @@ app
         if (!saved.showActivityPage) {
           activityFeed.clearAll()
           friendLog.clearAll()
+          instanceLog.clearAll()
+          restartInstanceSources()
         }
         if (saved.activityKeepFor !== appliedActivityKeepFor) {
           const wasSaving = appliedActivityKeepFor !== 'session'
@@ -1106,6 +1152,10 @@ app
           }
           activityHistory.prune()
           friendHistory.prune()
+          if (wasSaving !== (appliedActivityKeepFor !== 'session')) {
+            if (wasSaving) instanceLog.clearAll()
+            restartInstanceSources()
+          }
         }
       },
       accountRegistry,
@@ -1127,6 +1177,7 @@ app
       loginItem,
       activity: activityFeed,
       friendLog,
+      instanceLog,
       importSession: createSessionImporter({
         discoverVrchat: importVrcxSession,
         discoverChilloutvr: () =>
@@ -1204,6 +1255,7 @@ app
       friendAlerts,
       activityFeed,
       friendLog,
+      instanceWatch: cvrInstanceWatch,
       inbox,
       rosterCatchUp,
       broadcast
@@ -1231,6 +1283,7 @@ app
         })
       }
       clearInterval(activityPruneTimer)
+      vrchatGameLog.stop()
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'
       // event, so the close-to-tray handler in createWindow() always sees the

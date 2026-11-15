@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { ActivityFeed } from '../services/activityFeed'
 import type { FriendLog } from '../services/friendLog'
+import type { InstanceLog } from '../services/instanceLog'
 
 const handlers = new Map<string, (event: unknown, req?: unknown) => unknown>()
 const trusted = vi.hoisted(() => ({ value: true }))
@@ -34,6 +35,7 @@ let feed: {
   clearAll: ReturnType<typeof vi.fn>
 }
 let friendLog: { facts: ReturnType<typeof vi.fn> }
+let instanceLog: Record<'page' | 'people' | 'met' | 'clear', ReturnType<typeof vi.fn>>
 
 beforeEach(() => {
   handlers.clear()
@@ -53,7 +55,17 @@ beforeEach(() => {
       previousNames: []
     }))
   }
-  registerActivityHandlers(feed as unknown as ActivityFeed, friendLog as unknown as FriendLog)
+  instanceLog = {
+    page: vi.fn(() => ({ visits: [], hasMore: false })),
+    people: vi.fn(() => []),
+    met: vi.fn(() => null),
+    clear: vi.fn()
+  }
+  registerActivityHandlers(
+    feed as unknown as ActivityFeed,
+    friendLog as unknown as FriendLog,
+    instanceLog as unknown as InstanceLog
+  )
 })
 
 describe('activity handlers', () => {
@@ -63,6 +75,9 @@ describe('activity handlers', () => {
       'get-activity',
       'get-activity-page',
       'get-friend-history',
+      'get-instance-visits',
+      'get-instance-visit-people',
+      'clear-instance-log',
       'clear-activity'
     ]) {
       expect(() => handlers.get(channel)!(event, { platforms: ['vrchat'], filter: 'all' })).toThrow(
@@ -74,6 +89,9 @@ describe('activity handlers', () => {
     expect(feed.clear).not.toHaveBeenCalled()
     expect(feed.clearAll).not.toHaveBeenCalled()
     expect(friendLog.facts).not.toHaveBeenCalled()
+    expect(instanceLog.page).not.toHaveBeenCalled()
+    expect(instanceLog.people).not.toHaveBeenCalled()
+    expect(instanceLog.clear).not.toHaveBeenCalled()
   })
 
   it('reads one page for the scope the page names, and nothing else', () => {
@@ -179,10 +197,74 @@ describe('activity handlers', () => {
         ]
       })
     ).toEqual([
-      { platform: 'vrchat', friendId: 'usr_a', since: 5, sinceKnown: true, previousNames: [] },
-      { platform: 'chilloutvr', friendId: 'id-1', since: 5, sinceKnown: true, previousNames: [] }
+      {
+        platform: 'vrchat',
+        friendId: 'usr_a',
+        since: 5,
+        sinceKnown: true,
+        previousNames: [],
+        met: null
+      },
+      {
+        platform: 'chilloutvr',
+        friendId: 'id-1',
+        since: 5,
+        sinceKnown: true,
+        previousNames: [],
+        met: null
+      }
     ])
     expect(friendLog.facts).toHaveBeenCalledTimes(2)
+    expect(instanceLog.met).toHaveBeenCalledWith('chilloutvr', 'id-1')
+  })
+
+  it('reads the instance log for the scope the page names', () => {
+    handlers.get('get-instance-visits')!(event, {
+      scope: [
+        { platform: 'vrchat', before: null },
+        { platform: 'chilloutvr', before: 1_700_000_000_000 }
+      ],
+      accountKey: 'vrchat:someone-else'
+    })
+    expect(instanceLog.page).toHaveBeenCalledExactlyOnceWith({
+      scope: [
+        { platform: 'vrchat', before: null },
+        { platform: 'chilloutvr', before: 1_700_000_000_000 }
+      ]
+    })
+    handlers.get('get-instance-visit-people')!(event, { platform: 'vrchat', visitId: 7 })
+    expect(instanceLog.people).toHaveBeenCalledExactlyOnceWith('vrchat', 7)
+    handlers.get('clear-instance-log')!(event, { platforms: ['chilloutvr'] })
+    expect(instanceLog.clear).toHaveBeenCalledExactlyOnceWith(['chilloutvr'])
+  })
+
+  it.each([
+    ['get-instance-visits', undefined],
+    ['get-instance-visits', { scope: [] }],
+    ['get-instance-visits', { scope: [{ platform: 'steam', before: null }] }],
+    ['get-instance-visits', { scope: [{ platform: 'vrchat', before: '5' }] }],
+    ['get-instance-visits', { scope: [{ platform: 'vrchat' }] }],
+    [
+      'get-instance-visits',
+      {
+        scope: [
+          { platform: 'vrchat', before: null },
+          { platform: 'vrchat', before: 5 }
+        ]
+      }
+    ],
+    ['get-instance-visit-people', { platform: 'vrchat', visitId: 0 }],
+    ['get-instance-visit-people', { platform: 'vrchat', visitId: 1.5 }],
+    ['get-instance-visit-people', { platform: 'steam', visitId: 1 }],
+    ['get-instance-visit-people', { platform: 'vrchat', visitId: '1' }],
+    ['clear-instance-log', { platforms: [] }],
+    ['clear-instance-log', { platforms: ['steam'] }],
+    ['clear-instance-log', undefined]
+  ])('refuses a bad %s request and touches nothing', (channel, request) => {
+    expect(() => handlers.get(channel)!(event, request)).toThrow(`Invalid ${channel} request`)
+    expect(instanceLog.page).not.toHaveBeenCalled()
+    expect(instanceLog.people).not.toHaveBeenCalled()
+    expect(instanceLog.clear).not.toHaveBeenCalled()
   })
 
   it.each([

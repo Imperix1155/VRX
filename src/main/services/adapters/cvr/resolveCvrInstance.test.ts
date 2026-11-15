@@ -56,6 +56,7 @@ describe('createCvrInstanceResolver', () => {
       groupName: null,
       groupImageUrl: null,
       playerCount: 7,
+      members: null,
       privacy: 0
     })
     expect(calls).toEqual(['/instances/i%2Babc123']) // URI-encoded path (VRX-51 class)
@@ -76,8 +77,32 @@ describe('createCvrInstanceResolver', () => {
       groupName: null,
       groupImageUrl: null,
       playerCount: null,
+      members: null,
       privacy: null
     })
+  })
+
+  it('reads the member list entry by entry, skipping what it cannot use', async () => {
+    const { fetcher } = makeFetcher({
+      id: 'i+members',
+      members: [
+        { id: 'AAAAAAAA-0000-4000-8000-000000000001', name: ' Pal ', rank: 'User' },
+        { id: 'not-a-guid', name: 'Odd' },
+        { id: 'aaaaaaaa-0000-4000-8000-000000000002', name: '   ' },
+        'nonsense',
+        { id: 'aaaaaaaa-0000-4000-8000-000000000003', name: 'Stranger' }
+      ]
+    })
+    const resolved = await createCvrInstanceResolver({ fetcher }).resolve('i+members')
+    expect(resolved?.members).toEqual([
+      { platformUserId: 'aaaaaaaa-0000-4000-8000-000000000001', displayName: 'Pal' },
+      { platformUserId: 'aaaaaaaa-0000-4000-8000-000000000003', displayName: 'Stranger' }
+    ])
+
+    const odd = makeFetcher({ id: 'i+odd', members: 'everyone' })
+    expect(
+      (await createCvrInstanceResolver({ fetcher: odd.fetcher }).resolve('i+odd'))?.members
+    ).toBeNull()
   })
 
   it('serves from cache within the TTL and re-fetches after it expires', async () => {

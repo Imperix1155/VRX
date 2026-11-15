@@ -446,10 +446,86 @@ export function createFixtureBridge(variant: string): FixtureBridge {
                       { name: 'Mossy', until: now - 40 * 86_400_000 },
                       { name: 'Moss in the Machine', until: now - 150 * 86_400_000 }
                     ]
-                  : []
+                  : [],
+              met: {
+                times: index === 0 ? 37 : 4,
+                togetherMs: (index === 0 ? 52 : 3) * 3_600_000 + 25 * 60_000,
+                lastAt: now - (index === 0 ? 2 : 20) * 86_400_000,
+                lastWorldName:
+                  index === 0 ? 'Aurora Transit Lounge' : 'Glass Garden Arcade (#816332)'
+              }
             }))
       )
     },
+    // The instance log: a room the visitor is in now and a few earlier ones,
+    // the same on both platforms.
+    getInstanceVisits: ({ scope }) => {
+      if (variant === 'empty') return Promise.resolve({ visits: [], hasMore: false })
+      const now = Date.now()
+      const hour = 3_600_000
+      const rows = [
+        {
+          platform: 'vrchat' as const,
+          worldName: 'Aurora Transit Lounge',
+          ago: 0.6,
+          stay: null,
+          people: 14
+        },
+        {
+          platform: 'chilloutvr' as const,
+          worldName: 'Midnight Museum of Small Wonders',
+          ago: 5,
+          stay: 1.4,
+          people: 6
+        },
+        {
+          platform: 'vrchat' as const,
+          worldName: 'Glass Garden Arcade',
+          ago: 26,
+          stay: 2.1,
+          people: 31
+        },
+        { platform: 'chilloutvr' as const, worldName: null, ago: 29, stay: 0.2, people: 0 },
+        {
+          platform: 'vrchat' as const,
+          worldName: 'A World With a Very Long Name That Has to Truncate Somewhere',
+          ago: 75,
+          stay: 0.01,
+          people: 1
+        }
+      ]
+      return Promise.resolve({
+        visits: rows
+          .map((row, index) => ({
+            id: rows.length - index,
+            platform: row.platform,
+            worldName: row.worldName,
+            enteredAt: now - row.ago * hour,
+            leftAt: row.stay === null ? null : now - row.ago * hour + row.stay * hour,
+            current: row.stay === null,
+            people: row.people
+          }))
+          .filter((visit) =>
+            scope.some((cursor) => cursor.platform === visit.platform && cursor.before === null)
+          ),
+        hasMore: false
+      })
+    },
+    getInstanceVisitPeople: ({ platform }) => {
+      const now = Date.now()
+      return Promise.resolve(
+        (platform === 'vrchat'
+          ? ['Iris Circuitbreaker', 'Vale After the Last Train', 'Kai', 'Someone Passing Through']
+          : ['Pixel Orchard', 'Fern', 'Marlow, Archive Keeper']
+        ).map((displayName, index) => ({
+          platformUserId: `guide-visit-${platform}-${index}`,
+          displayName,
+          joinedAt: now - (36 - index * 7) * 60_000,
+          leftAt: index % 2 === 1 ? now - (20 - index * 3) * 60_000 : null
+        }))
+      )
+    },
+    clearInstanceLog: () => Promise.resolve(),
     clearActivity: () => Promise.resolve(),
     onActivityChanged: unsubscribe,
     openUrl: () => Promise.resolve(),

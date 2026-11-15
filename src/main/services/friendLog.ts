@@ -12,7 +12,7 @@
  * them, or when the platform's own live event says so. A partial list never
  * removes anyone.
  */
-import type { FriendHistoryFacts, FriendListKind } from '@shared/activity'
+import type { FriendListFacts, FriendListKind } from '@shared/activity'
 import type { AdapterEvent, Friend, Platform } from '@shared/types'
 import type { RosterCompleteness } from './adapters/IPlatformAdapter'
 import type { SavedFriend, SavedNameChange } from './historyDatabase'
@@ -142,7 +142,7 @@ export class FriendLog {
   }
 
   /** What is saved about one friendship. */
-  facts(platform: Platform, friendId: string): FriendHistoryFacts {
+  facts(platform: Platform, friendId: string): FriendListFacts {
     const store = this.options.store
     const known =
       this.states.get(platform)?.friends.get(friendId) ?? store?.friend(platform, friendId)

@@ -23,7 +23,13 @@ import { asTranslate } from '../i18n/translate'
 import { useActivityPager } from '../hooks/useActivityPager'
 import { fetchFriendHistory, useActivity } from '../queries/activity'
 import { mergeActivity } from '../utils/activityPaging'
-import { activityTimeFormats, describeActivity, formatActivityTime } from '../utils/activityText'
+import {
+  activityTimeFormats,
+  describeActivity,
+  formatActivityTime,
+  formatStay
+} from '../utils/activityText'
+import { stripInstanceSuffix } from '../utils/worldName'
 import { inPlatformOrder } from '../utils/platformOrder'
 import LinkedDialog from './LinkedDialog'
 import PlatformPill from './PlatformPill'
@@ -66,7 +72,12 @@ function FriendFacts({
       new Intl.DateTimeFormat(i18n.language, { year: 'numeric', month: 'short', day: 'numeric' }),
     [i18n.language]
   )
-  if (facts.since === null && facts.previousNames.length === 0) return null
+  const numberFormat = useMemo(() => new Intl.NumberFormat(i18n.language), [i18n.language])
+  if (facts.since === null && facts.previousNames.length === 0 && facts.met === null) return null
+  const met = facts.met
+  const lastWorld =
+    met === null || met.lastWorldName === null ? '' : stripInstanceSuffix(met.lastWorldName).trim()
+  const lastDate = met === null ? '' : dayFormat.format(new Date(met.lastAt))
   let since: string | null = null
   if (facts.since !== null) {
     const date = dayFormat.format(new Date(facts.since))
@@ -78,7 +89,7 @@ function FriendFacts({
         : t('history.sinceWithAge', { date, age })
   }
   const names = allNames ? facts.previousNames : facts.previousNames.slice(0, NAMES_SHOWN)
-  const label = 'w-[112px] shrink-0 text-xs text-[var(--text-dim)]'
+  const label = 'w-[136px] shrink-0 text-xs text-[var(--text-dim)]'
   return (
     <div className="flex flex-col gap-[var(--space-1)]" data-history-facts={facts.platform}>
       {showsPlatform && (
@@ -92,6 +103,34 @@ function FriendFacts({
             <dt className={label}>{t('history.sinceLabel')}</dt>
             <dd className="min-w-0 flex-1 text-[13px] text-[var(--text)]">{since}</dd>
           </div>
+        )}
+        {/* From the instance log: the same three rows on both platforms. */}
+        {met !== null && (
+          <>
+            <div className="flex items-baseline gap-[var(--space-3)]">
+              <dt className={label}>{t('history.lastLabel')}</dt>
+              <dd
+                className="min-w-0 flex-1 truncate text-[13px] text-[var(--text)]"
+                title={met.lastWorldName ?? undefined}
+              >
+                {lastWorld === ''
+                  ? lastDate
+                  : t('history.lastIn', { date: lastDate, world: lastWorld })}
+              </dd>
+            </div>
+            <div className="flex items-baseline gap-[var(--space-3)]">
+              <dt className={label}>{t('history.timesLabel')}</dt>
+              <dd className="min-w-0 flex-1 text-[13px] tabular-nums text-[var(--text)]">
+                {numberFormat.format(met.times)}
+              </dd>
+            </div>
+            <div className="flex items-baseline gap-[var(--space-3)]">
+              <dt className={label}>{t('history.togetherLabel')}</dt>
+              <dd className="min-w-0 flex-1 text-[13px] text-[var(--text)]">
+                {formatStay(met.togetherMs, asTranslate(t))}
+              </dd>
+            </div>
+          </>
         )}
         {names.length > 0 && (
           <div className="flex items-baseline gap-[var(--space-3)]">
@@ -203,7 +242,7 @@ export default function FriendHistoryDialog({
     networkMode: 'always'
   }).data
   const shownFacts = (facts ?? []).filter(
-    (item) => item.since !== null || item.previousNames.length > 0
+    (item) => item.since !== null || item.previousNames.length > 0 || item.met !== null
   )
 
   const formats = useMemo(() => activityTimeFormats(i18n.language), [i18n.language])

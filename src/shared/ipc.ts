@@ -54,6 +54,11 @@ import type {
   ActivityPageRequest,
   FriendHistoryFacts
 } from './activity'
+import type {
+  InstanceVisitPage,
+  InstanceVisitPageRequest,
+  InstanceVisitPerson
+} from './instanceLog'
 import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
 import type { GameFavoritesResult, GameFavoriteWriteResult } from './gameFavorites'
 import type {
@@ -304,6 +309,16 @@ export interface IpcInvoke {
   /** What VRX has saved about a friendship: friends since, earlier names.
    *  One friend, or a linked person's two accounts. Local only. */
   'get-friend-history': { req: { friends: ActivityFriendRef[] }; res: FriendHistoryFacts[] }
+  /** The instance log: one page of the rooms the signed-in user was in,
+   *  newest first, for the accounts signed in right now. Local only. */
+  'get-instance-visits': { req: InstanceVisitPageRequest; res: InstanceVisitPage }
+  /** Who was there during one visit. Local only. */
+  'get-instance-visit-people': {
+    req: { platform: Platform; visitId: number }
+    res: InstanceVisitPerson[]
+  }
+  /** Forget these platforms' instance log for the accounts signed in. */
+  'clear-instance-log': { req: { platforms: Platform[] }; res: void }
   /** Forget the activity the page shows: these platforms' entries of the
    *  shown kind (`all` for every kind), saved ones included. Anything else
    *  stays. */
@@ -475,7 +490,7 @@ export interface IpcInvoke {
 export interface IpcEvents {
   'explore-changed': { platform: Platform }
   'linked-profiles-changed': void
-  /** The activity list changed; coalesced, carries nothing. */
+  /** The activity list or the instance log changed; coalesced, carries nothing. */
   'activity-changed': void
   /** The inbox changed; read it again with `get-inbox`. */
   'inbox-changed': void

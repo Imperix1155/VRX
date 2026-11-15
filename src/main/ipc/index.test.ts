@@ -96,6 +96,9 @@ vi.mock('./activity', () => ({
     electron.ipcMain.handle('get-activity', () => [])
     electron.ipcMain.handle('get-activity-page', () => ({ entries: [], hasMore: false }))
     electron.ipcMain.handle('get-friend-history', () => [])
+    electron.ipcMain.handle('get-instance-visits', () => ({ visits: [], hasMore: false }))
+    electron.ipcMain.handle('get-instance-visit-people', () => [])
+    electron.ipcMain.handle('clear-instance-log', () => undefined)
     electron.ipcMain.handle('clear-activity', () => undefined)
   }
 }))
@@ -161,6 +164,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'clear-activity',
   'clear-app-background',
   'clear-inbox',
+  'clear-instance-log',
   'dismiss-inbox-item',
   'export-data',
   'get-accounts',
@@ -184,6 +188,8 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-friends',
   'get-game-favorites',
   'get-inbox',
+  'get-instance-visit-people',
+  'get-instance-visits',
   'get-join-handoff',
   'get-linked-profiles',
   'get-login-item',

@@ -682,7 +682,8 @@
       "online": "Online",
       "world": "Worlds",
       "offline": "Offline",
-      "friends": "Friends list"
+      "friends": "Friends list",
+      "instances": "Instances"
     },
     "online": "Came online",
     "onlineIn": "Came online in {{world}}",
@@ -713,7 +714,7 @@
       "button": "Kept: {{choice}}",
       "buttonAria": "Activity is kept: {{choice}}. Change how long",
       "title": "Keep activity for",
-      "note": "Activity is saved on this computer only, for each account. Picking a shorter time deletes what is older.",
+      "note": "Activity and your instance log are saved on this computer only, for each account. Picking a shorter time deletes what is older.",
       "done": "Done",
       "options": {
         "session": "Until VRX closes",
@@ -730,6 +731,31 @@
       "cancel": "Cancel"
     }
   },
+  "instances": {
+    "hereNow": "You’re here now",
+    "people_one": "{{count, number}} person",
+    "people_other": "{{count, number}} people",
+    "noPeople": "No one else seen",
+    "summary": "{{stay}} · {{people}}",
+    "unknownWorld": "World name not known",
+    "duration": {
+      "hours": "{{hours}} h {{minutes}} min",
+      "minutes": "{{minutes}} min",
+      "under": "Under a minute"
+    },
+    "rowAria": "{{world}}, {{platform}}, {{time}}: {{summary}}. Show who was there",
+    "timeRange": "{{from}} to {{to}}",
+    "stillHere": "still here",
+    "peopleLoading": "Loading…",
+    "peopleFailed": "Couldn’t load who was there.",
+    "peopleEmpty": "No one else was seen in this instance.",
+    "error": "Couldn’t load your instances.",
+    "emptyHeading": "No instances yet",
+    "emptyHint": "The instances you join, and who was there, show up here. VRChat’s come from the game’s own log file on this computer; ChilloutVR’s from your live connection.",
+    "sessionHint": "Nothing is saved while activity is kept only until VRX closes. Change “Kept” to start an instance log.",
+    "clearAria": "Clear the instance log shown",
+    "clearBody": "This deletes the instance log shown here from this computer, who was there included. It can’t be undone."
+  },
   "history": {
     "button": "History",
     "title": "{{name}}: history",
@@ -744,7 +770,11 @@
     "namesLabel": "Earlier names",
     "nameUntil": "until {{date}}",
     "showAllNames": "Show all {{count, number}}",
-    "factsAria": "About this friendship"
+    "factsAria": "About this friendship",
+    "lastLabel": "Last together",
+    "lastIn": "{{date}} in {{world}}",
+    "timesLabel": "Instances together",
+    "togetherLabel": "Time together"
   },
   "drawer": {
     "close": "Close",

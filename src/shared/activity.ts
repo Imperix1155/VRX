@@ -7,6 +7,7 @@
  *
  * ⚠️ Bundled into the RENDERER (sandboxed). Keep pure: types and values only.
  */
+import type { MetFacts } from './instanceLog'
 import type { Platform } from './types'
 
 /** Where a friend is: coming online, joining a world, going offline. */
@@ -82,7 +83,7 @@ export interface ActivityPageRequest {
  * the day VRX saw it begin, or, for someone already a friend when history
  * started, that first day (`sinceKnown` false: "since before").
  */
-export interface FriendHistoryFacts {
+export interface FriendListFacts {
   platform: Platform
   friendId: string
   /** Ms since the epoch, or null when nothing is saved for this friend. */
@@ -114,4 +115,10 @@ export interface ActivityEntry {
   previousName?: string
   /** Wall-clock time in ms since the epoch. */
   at: number
+}
+
+/** Everything VRX has saved about one friend: the friends list history and
+ *  what the instance log says (null when they were never seen in a room). */
+export interface FriendHistoryFacts extends FriendListFacts {
+  met: MetFacts | null
 }

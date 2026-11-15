@@ -679,7 +679,8 @@
       "online": "オンライン",
       "world": "ワールド",
       "offline": "オフライン",
-      "friends": "フレンドリスト"
+      "friends": "フレンドリスト",
+      "instances": "インスタンス"
     },
     "online": "オンラインになりました",
     "onlineIn": "{{world}} でオンラインになりました",
@@ -710,7 +711,7 @@
       "button": "保存期間：{{choice}}",
       "buttonAria": "アクティビティの保存期間：{{choice}}。保存期間を変更",
       "title": "アクティビティの保存期間",
-      "note": "アクティビティはこのパソコンにだけ、アカウントごとに保存されます。短い期間を選ぶと、それより古いものは削除されます。",
+      "note": "アクティビティとインスタンスの記録はこのパソコンにだけ、アカウントごとに保存されます。短い期間を選ぶと、それより古いものは削除されます。",
       "done": "完了",
       "options": {
         "session": "VRXを閉じるまで",
@@ -727,6 +728,30 @@
       "cancel": "キャンセル"
     }
   },
+  "instances": {
+    "hereNow": "いまここにいます",
+    "people_other": "{{count, number}}人",
+    "noPeople": "ほかの人は確認できませんでした",
+    "summary": "{{stay}}・{{people}}",
+    "unknownWorld": "ワールド名不明",
+    "duration": {
+      "hours": "{{hours}}時間{{minutes}}分",
+      "minutes": "{{minutes}}分",
+      "under": "1分未満"
+    },
+    "rowAria": "{{world}}、{{platform}}、{{time}}：{{summary}}。いた人を表示",
+    "timeRange": "{{from}}〜{{to}}",
+    "stillHere": "まだいます",
+    "peopleLoading": "読み込み中…",
+    "peopleFailed": "いた人を読み込めませんでした。",
+    "peopleEmpty": "このインスタンスでは、ほかの人は確認できませんでした。",
+    "error": "インスタンスを読み込めませんでした。",
+    "emptyHeading": "まだインスタンスはありません",
+    "emptyHint": "参加したインスタンスと、そこにいた人がここに表示されます。VRChat はこのパソコンにあるゲームのログファイルから、ChilloutVR はライブ接続から記録します。",
+    "sessionHint": "アクティビティの保存期間が「VRX を閉じるまで」の間は保存されません。「保存期間」を変えるとインスタンスの記録が始まります。",
+    "clearAria": "表示中のインスタンスの記録をクリア",
+    "clearBody": "ここに表示されているインスタンスの記録を、いた人も含めてこのパソコンから削除します。元に戻せません。"
+  },
   "history": {
     "button": "履歴",
     "title": "{{name}}：履歴",
@@ -741,7 +766,11 @@
     "namesLabel": "以前の名前",
     "nameUntil": "{{date}} まで",
     "showAllNames": "{{count, number}} 件すべて表示",
-    "factsAria": "このフレンドについて"
+    "factsAria": "このフレンドについて",
+    "lastLabel": "最後に一緒だった日",
+    "lastIn": "{{date}}（{{world}}）",
+    "timesLabel": "一緒だったインスタンス",
+    "togetherLabel": "一緒にいた時間"
   },
   "drawer": {
     "close": "閉じる",

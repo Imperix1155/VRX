@@ -23,6 +23,8 @@ interface AdapterWiringOptions {
   activityFeed: AdapterEventConsumer
   /** The friends list's own history (`friendLog.ts`). */
   friendLog?: AdapterEventConsumer
+  /** ChilloutVR's side of the instance log (`cvrInstanceWatch.ts`). */
+  instanceWatch?: AdapterEventConsumer
   /** Sees every event: inbox changes, plus friend adds that settle a request. */
   inbox: AdapterEventConsumer
   /** The reconnect roster read while no window is open (`rosterCatchUp.ts`). */
@@ -69,6 +71,7 @@ export function wireAdapterEvents({
   friendAlerts,
   activityFeed,
   friendLog,
+  instanceWatch,
   inbox,
   rosterCatchUp,
   broadcast
@@ -98,6 +101,11 @@ export function wireAdapterEvents({
     if (friendLog) {
       runConsumerSafely('friendLog', event.type, () => {
         friendLog.consume(event)
+      })
+    }
+    if (instanceWatch) {
+      runConsumerSafely('instanceWatch', event.type, () => {
+        instanceWatch.consume(event)
       })
     }
     runConsumerSafely('inbox', event.type, () => {

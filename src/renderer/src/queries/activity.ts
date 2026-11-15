@@ -82,6 +82,9 @@ export function useActivityForFriendsOrder(
 export function subscribeActivity(client: QueryClient): () => void {
   const invalidate = (): void => {
     void client.invalidateQueries({ queryKey: activityKey })
+    // The same notice covers the instance log (a view that is open reads again).
+    void client.invalidateQueries({ queryKey: ['instance-log'] })
+    void client.invalidateQueries({ queryKey: ['friend-history'] })
   }
   const changed = window.vrx?.onActivityChanged?.(invalidate)
   const boundary = window.vrx?.onIdentityBoundary?.(({ platform }) => {

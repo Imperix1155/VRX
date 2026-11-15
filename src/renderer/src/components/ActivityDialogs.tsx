@@ -65,16 +65,21 @@ export function ActivityKeepDialog({
 
 /** Asked before Clear when activity is saved: it deletes saved entries too. */
 export function ActivityClearDialog({
+  body,
   onConfirm,
   onClose
 }: {
+  /** What is deleted, when it is not the Activity list. */
+  body?: string
   onConfirm: () => void
   onClose: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <LinkedDialog title={t('activity.clearConfirm.title')} onClose={onClose}>
-      <p className="text-[13px] text-[var(--text-dim)]">{t('activity.clearConfirm.body')}</p>
+      <p className="text-[13px] text-[var(--text-dim)]">
+        {body ?? t('activity.clearConfirm.body')}
+      </p>
       <div className="mt-[var(--space-4)] flex justify-end gap-[var(--space-2)]">
         <button type="button" className={buttonClass} onClick={onClose}>
           {t('activity.clearConfirm.cancel')}

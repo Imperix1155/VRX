@@ -64,3 +64,12 @@ export function formatActivityTime(at: Date, now: Date, formats: ActivityTimeFor
   if (at.getFullYear() === now.getFullYear()) return formats.dayTime.format(at)
   return formats.dayYearTime.format(at)
 }
+
+/** A length of time in words: hours and minutes, never seconds. */
+export function formatStay(ms: number, t: Translate): string {
+  const minutes = Math.floor(Math.max(0, ms) / 60_000)
+  if (minutes < 1) return t('instances.duration.under')
+  const hours = Math.floor(minutes / 60)
+  if (hours < 1) return t('instances.duration.minutes', { minutes })
+  return t('instances.duration.hours', { hours, minutes: minutes % 60 })
+}

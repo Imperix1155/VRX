@@ -16,7 +16,7 @@ import {
   type ActivityKind,
   type ActivityPageRequest
 } from '@shared/activity'
-import { ACTIVITY_MAX_SAVED_ROWS } from '@shared/constants'
+import { ACTIVITY_MAX_SAVED_ROWS, INSTANCE_LOG_MAX_SAVED_VISITS } from '@shared/constants'
 import type { Platform } from '@shared/types'
 import type { ActivityStore } from './activityFeed'
 import type { FriendLogStore } from './friendLog'
@@ -118,15 +118,17 @@ export class ActivityHistory implements ActivityStore {
    *  the setting changes. "Until VRX closes" removes everything saved. */
   prune(): void {
     const keepFor = this.options.keepFor()
+    const database = this.options.database
     if (keepFor === 'session') {
-      this.options.database.deleteAllActivity()
+      database.deleteAllActivity()
+      database.deleteAllInstanceLog()
       return
     }
     const days = ACTIVITY_KEEP_DAYS[keepFor]
-    this.options.database.pruneActivity(
-      days === null ? null : this.options.now() - days * DAY_MS,
-      ACTIVITY_MAX_SAVED_ROWS
-    )
+    const olderThan = days === null ? null : this.options.now() - days * DAY_MS
+    database.pruneActivity(olderThan, ACTIVITY_MAX_SAVED_ROWS)
+    // The instance log follows the same choice.
+    database.pruneInstanceLog(olderThan, INSTANCE_LOG_MAX_SAVED_VISITS)
   }
 
   private isSaving(): boolean {

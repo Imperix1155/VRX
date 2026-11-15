@@ -57,6 +57,7 @@ import type { AppStatusService } from '../services/appStatus'
 import type { LoginItem } from '../services/loginItem'
 import type { ActivityFeed } from '../services/activityFeed'
 import type { FriendLog } from '../services/friendLog'
+import type { InstanceLog } from '../services/instanceLog'
 import {
   IPC_RATE_LIMIT_BUDGETS,
   ipcRateLimitDenial,
@@ -102,6 +103,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   loginItem: Pick<LoginItem, 'status'>
   activity: ActivityFeed
   friendLog: FriendLog
+  instanceLog: InstanceLog
   instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
   homeWorld: HomeWorldService
@@ -213,7 +215,7 @@ export function registerIpcHandlers(
     registerSocialHandlers(options.social)
     registerAppStatusHandlers(options.appStatus)
     registerLoginItemHandlers(options.loginItem)
-    registerActivityHandlers(options.activity, options.friendLog)
+    registerActivityHandlers(options.activity, options.friendLog, options.instanceLog)
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)

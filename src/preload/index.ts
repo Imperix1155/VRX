@@ -99,6 +99,12 @@ const vrx = {
   getActivityPage: (req: IpcInvoke['get-activity-page']['req']) => invoke('get-activity-page', req),
   getFriendHistory: (req: IpcInvoke['get-friend-history']['req']) =>
     invoke('get-friend-history', req),
+  getInstanceVisits: (req: IpcInvoke['get-instance-visits']['req']) =>
+    invoke('get-instance-visits', req),
+  getInstanceVisitPeople: (req: IpcInvoke['get-instance-visit-people']['req']) =>
+    invoke('get-instance-visit-people', req),
+  clearInstanceLog: (req: IpcInvoke['clear-instance-log']['req']) =>
+    invoke('clear-instance-log', req),
   clearActivity: (req: IpcInvoke['clear-activity']['req']) => invoke('clear-activity', req),
   onActivityChanged: (callback: () => void) => {
     const listener = (): void => callback()

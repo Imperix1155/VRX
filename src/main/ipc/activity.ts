@@ -7,10 +7,16 @@ import {
   type ActivityPageCursor,
   type FriendHistoryFacts
 } from '@shared/activity'
+import type {
+  InstanceVisitCursor,
+  InstanceVisitPage,
+  InstanceVisitPerson
+} from '@shared/instanceLog'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 import type { ActivityFeed } from '../services/activityFeed'
 import type { FriendLog } from '../services/friendLog'
+import type { InstanceLog } from '../services/instanceLog'
 import { isTrustedIpcSender } from './security'
 
 const VALID_PLATFORMS: ReadonlySet<unknown> = new Set<Platform>(['vrchat', 'chilloutvr'])
@@ -43,6 +49,23 @@ function parseScope(value: unknown): ActivityPageCursor[] | null {
       return null
     }
     scope.push({ platform: platform as Platform, beforeId })
+  }
+  return scope
+}
+
+/** One or two platforms, each once, each with the time to read before. */
+function parseVisitScope(value: unknown): InstanceVisitCursor[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 2) return null
+  const scope: InstanceVisitCursor[] = []
+  for (const item of value as unknown[]) {
+    if (!isPlainObject(item)) return null
+    const { platform, before } = item
+    if (!VALID_PLATFORMS.has(platform)) return null
+    if (scope.some((cursor) => cursor.platform === platform)) return null
+    if (before !== null && !(typeof before === 'number' && Number.isSafeInteger(before))) {
+      return null
+    }
+    scope.push({ platform: platform as Platform, before })
   }
   return scope
 }
@@ -80,7 +103,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  it for the accounts signed in right now, never for one the renderer names.
  *  Clear names only what the page shows (one or two platforms and the Show
  *  kind), never an entry. */
-export function registerActivityHandlers(activity: ActivityFeed, friendLog: FriendLog): void {
+export function registerActivityHandlers(
+  activity: ActivityFeed,
+  friendLog: FriendLog,
+  instanceLog: InstanceLog
+): void {
   ipcMain.handle('get-activity', (event): ActivityEntry[] => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
     return activity.list()
@@ -118,7 +145,50 @@ export function registerActivityHandlers(activity: ActivityFeed, friendLog: Frie
       if (friends === null || friends === undefined) {
         throw new Error('Invalid get-friend-history request')
       }
-      return friends.map((friend) => friendLog.facts(friend.platform, friend.friendId))
+      return friends.map((friend) => ({
+        ...friendLog.facts(friend.platform, friend.friendId),
+        met: instanceLog.met(friend.platform, friend.friendId)
+      }))
+    }
+  )
+
+  // The instance log: the rooms the signed-in user was in. Main reads it for
+  // the accounts signed in right now, never for one the renderer names.
+  ipcMain.handle(
+    'get-instance-visits',
+    (event, req: IpcInvoke['get-instance-visits']['req']): InstanceVisitPage => {
+      if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+      const scope = isPlainObject(req) ? parseVisitScope(req.scope) : null
+      if (scope === null) throw new Error('Invalid get-instance-visits request')
+      return instanceLog.page({ scope })
+    }
+  )
+
+  ipcMain.handle(
+    'get-instance-visit-people',
+    (event, req: IpcInvoke['get-instance-visit-people']['req']): InstanceVisitPerson[] => {
+      if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+      if (
+        !isPlainObject(req) ||
+        !VALID_PLATFORMS.has(req.platform) ||
+        typeof req.visitId !== 'number' ||
+        !Number.isSafeInteger(req.visitId) ||
+        req.visitId <= 0
+      ) {
+        throw new Error('Invalid get-instance-visit-people request')
+      }
+      return instanceLog.people(req.platform, req.visitId)
+    }
+  )
+
+  ipcMain.handle(
+    'clear-instance-log',
+    (event, req: IpcInvoke['clear-instance-log']['req']): void => {
+      if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+      if (!isPlainObject(req) || !isPlatformList(req.platforms)) {
+        throw new Error('Invalid clear-instance-log request')
+      }
+      instanceLog.clear(req.platforms)
     }
   )
 

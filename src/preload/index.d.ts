@@ -120,12 +120,24 @@ type VrxBridge = {
   getFriendHistory: (
     req: IpcInvoke['get-friend-history']['req']
   ) => Promise<IpcInvoke['get-friend-history']['res']>
+  /** One page of the instance log: the rooms the user was in. Local only. */
+  getInstanceVisits: (
+    req: IpcInvoke['get-instance-visits']['req']
+  ) => Promise<IpcInvoke['get-instance-visits']['res']>
+  /** Who was there during one visit. Local only. */
+  getInstanceVisitPeople: (
+    req: IpcInvoke['get-instance-visit-people']['req']
+  ) => Promise<IpcInvoke['get-instance-visit-people']['res']>
+  /** Forget these platforms' instance log. */
+  clearInstanceLog: (
+    req: IpcInvoke['clear-instance-log']['req']
+  ) => Promise<IpcInvoke['clear-instance-log']['res']>
   /** Forget only what the Activity page shows: its platforms and kind, saved
    *  entries included. */
   clearActivity: (
     req: IpcInvoke['clear-activity']['req']
   ) => Promise<IpcInvoke['clear-activity']['res']>
-  /** The activity list changed (coalesced). Returns an unsubscribe. */
+  /** The activity list or the instance log changed (coalesced). Returns an unsubscribe. */
   onActivityChanged: (callback: () => void) => () => void
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
   openLogsFolder: () => Promise<IpcInvoke['open-logs-folder']['res']>

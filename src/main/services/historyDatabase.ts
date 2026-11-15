@@ -60,6 +60,30 @@ export interface SavedNameChange {
   at: number
 }
 
+/** One stay in one room, as saved. */
+export interface SavedVisit {
+  id: number
+  accountKey: string
+  worldName: string | null
+  enteredAt: number
+  leftAt: number | null
+  people: number
+}
+
+export interface SavedVisitPerson {
+  platformUserId: string
+  displayName: string
+  joinedAt: number
+  leftAt: number | null
+}
+
+export interface SavedMetFacts {
+  times: number
+  togetherMs: number
+  lastAt: number
+  lastWorldName: string | null
+}
+
 export interface ActivityPageQuery {
   /** Each account to read, from its own place (null starts at the newest). */
   accounts: ReadonlyArray<{ accountKey: string; beforeId: number | null }>
@@ -101,6 +125,7 @@ export class HistoryDatabase {
   private readonly statements = new Map<string, StatementSync>()
   private readonly log: (message: string, meta?: Record<string, unknown>) => void
   private failed = false
+  private inTransaction = false
 
   constructor(private readonly options: HistoryDatabaseOptions) {
     this.log = options.log ?? (() => undefined)
@@ -364,6 +389,286 @@ export class HistoryDatabase {
     })
   }
 
+  // ── Instance log ──────────────────────────────────────────────────────────
+
+  /** Run many instance log writes as one step on disk (a whole game log read
+   *  at launch). A write that fails inside is skipped; the rest still land. */
+  batch(step: () => void): void {
+    this.attempt(() => this.transaction(step))
+  }
+
+  /**
+   * The user entered a room. The same room entered at the same moment is the
+   * same visit, so reading a game log twice saves nothing twice. Returns the
+   * visit's id, or null when nothing could be saved.
+   */
+  openVisit(
+    accountKey: string,
+    visit: { instanceId: string; worldName: string | null; enteredAt: number }
+  ): number | null {
+    return (
+      this.attempt(() => {
+        const instanceId = clip(visit.instanceId)
+        this.statement(
+          `INSERT OR IGNORE INTO visits (account_key, instance_id, world_name, entered_at)
+           VALUES (?, ?, ?, ?)`
+        ).run(
+          accountKey,
+          instanceId,
+          visit.worldName === null ? null : clip(visit.worldName),
+          visit.enteredAt
+        )
+        const row = this.statement(
+          'SELECT id FROM visits WHERE account_key = ? AND instance_id = ? AND entered_at = ?'
+        ).get(accountKey, instanceId, visit.enteredAt) as { id?: unknown } | undefined
+        return typeof row?.id === 'number' ? row.id : null
+      }) ?? null
+    )
+  }
+
+  /** The world's name arrived after the visit began. A name already saved stays. */
+  setVisitWorldName(visitId: number, worldName: string): void {
+    this.attempt(() => {
+      this.statement('UPDATE visits SET world_name = ? WHERE id = ? AND world_name IS NULL').run(
+        clip(worldName),
+        visitId
+      )
+    })
+  }
+
+  /** The user left: the visit ends, and so does everyone's stay in it. A
+   *  visit already ended keeps its time. */
+  closeVisit(visitId: number, leftAt: number): void {
+    this.attempt(() => {
+      this.transaction(() => {
+        this.statement(
+          'UPDATE encounters SET left_at = MAX(?, joined_at) WHERE visit_id = ? AND left_at IS NULL'
+        ).run(leftAt, visitId)
+        this.statement(
+          'UPDATE visits SET left_at = MAX(?, entered_at) WHERE id = ? AND left_at IS NULL'
+        ).run(leftAt, visitId)
+      })
+    })
+  }
+
+  /**
+   * End every visit of an account that never saw its own end (the game closed
+   * without saying so) and began before `before` (null for all of them).
+   * Each ends at the last moment anything was seen in it.
+   */
+  closeStaleVisits(accountKey: string, before: number | null): void {
+    this.attempt(() => {
+      const rows = this.statement(
+        `SELECT id, entered_at FROM visits
+         WHERE account_key = ? AND left_at IS NULL AND entered_at < ?`
+      ).all(accountKey, before ?? Number.MAX_SAFE_INTEGER) as Array<{
+        id?: unknown
+        entered_at?: unknown
+      }>
+      for (const row of rows) {
+        if (typeof row.id !== 'number' || typeof row.entered_at !== 'number') continue
+        const last = this.statement(
+          `SELECT MAX(MAX(joined_at), COALESCE(MAX(left_at), 0)) AS at
+           FROM encounters WHERE visit_id = ?`
+        ).get(row.id) as { at?: unknown } | undefined
+        const at = typeof last?.at === 'number' ? Math.max(last.at, row.entered_at) : row.entered_at
+        this.closeVisit(row.id, at)
+      }
+    })
+  }
+
+  /** Someone was in the room with the user from `at`. Saved once per moment. */
+  encounterJoined(
+    accountKey: string,
+    visitId: number,
+    person: { platformUserId: string; displayName: string; at: number }
+  ): void {
+    if (person.platformUserId === '') return
+    this.attempt(() => {
+      this.statement(
+        `INSERT OR IGNORE INTO encounters
+           (account_key, visit_id, user_id, display_name, joined_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).run(accountKey, visitId, clip(person.platformUserId), clip(person.displayName), person.at)
+    })
+  }
+
+  /** They left the room: their newest stay still open ends. */
+  encounterLeft(visitId: number, platformUserId: string, at: number): void {
+    this.attempt(() => {
+      this.statement(
+        `UPDATE encounters SET left_at = MAX(?, joined_at) WHERE id = (
+           SELECT id FROM encounters
+           WHERE visit_id = ? AND user_id = ? AND left_at IS NULL AND joined_at <= ?
+           ORDER BY joined_at DESC LIMIT 1
+         )`
+      ).run(at, visitId, platformUserId, at)
+    })
+  }
+
+  /** One page of visits across accounts, newest first, each account from its
+   *  own place. */
+  pageVisits(query: {
+    accounts: ReadonlyArray<{ accountKey: string; before: number | null }>
+    limit: number
+  }): SavedVisit[] {
+    if (query.accounts.length === 0 || query.limit <= 0) return []
+    return (
+      this.attempt(() => {
+        const clauses: string[] = []
+        const parameters: Array<string | number> = []
+        for (const account of query.accounts) {
+          if (account.before === null) {
+            clauses.push('v.account_key = ?')
+            parameters.push(account.accountKey)
+          } else {
+            clauses.push('(v.account_key = ? AND v.entered_at < ?)')
+            parameters.push(account.accountKey, account.before)
+          }
+        }
+        parameters.push(query.limit)
+        const rows = this.statement(
+          `SELECT v.id, v.account_key, v.world_name, v.entered_at, v.left_at,
+                  (SELECT COUNT(DISTINCT e.user_id) FROM encounters e WHERE e.visit_id = v.id)
+                    AS people
+           FROM visits v
+           WHERE ${clauses.join(' OR ')}
+           ORDER BY v.entered_at DESC, v.id DESC LIMIT ?`
+        ).all(...parameters) as RawVisitRow[]
+        const visits: SavedVisit[] = []
+        for (const row of rows) {
+          const visit = parseVisitRow(row)
+          if (visit !== null) visits.push(visit)
+        }
+        return visits
+      }) ?? []
+    )
+  }
+
+  /** Who was there during one visit of this account: each person once, with
+   *  their first arrival and last leaving, in order of arrival. */
+  visitPeople(accountKey: string, visitId: number, limit: number): SavedVisitPerson[] {
+    return (
+      this.attempt(() => {
+        const rows = this.statement(
+          `SELECT user_id, MIN(joined_at) AS joined_at,
+                  CASE WHEN SUM(left_at IS NULL) > 0 THEN NULL ELSE MAX(left_at) END AS left_at,
+                  (SELECT n.display_name FROM encounters n
+                   WHERE n.visit_id = e.visit_id AND n.user_id = e.user_id
+                   ORDER BY n.joined_at DESC LIMIT 1) AS display_name
+           FROM encounters e
+           WHERE e.visit_id = ? AND e.account_key = ?
+           GROUP BY e.user_id ORDER BY MIN(e.joined_at), e.user_id LIMIT ?`
+        ).all(visitId, accountKey, limit) as Array<{
+          user_id?: unknown
+          display_name?: unknown
+          joined_at?: unknown
+          left_at?: unknown
+        }>
+        const people: SavedVisitPerson[] = []
+        for (const row of rows) {
+          if (typeof row.user_id !== 'string' || row.user_id === '') continue
+          if (typeof row.joined_at !== 'number') continue
+          people.push({
+            platformUserId: row.user_id,
+            displayName: typeof row.display_name === 'string' ? clip(row.display_name) : '',
+            joinedAt: row.joined_at,
+            leftAt: typeof row.left_at === 'number' ? row.left_at : null
+          })
+        }
+        return people
+      }) ?? []
+    )
+  }
+
+  /** What the instance log says about one person, or null when they were
+   *  never seen. A stay still open counts as a meeting but adds no time yet. */
+  metFacts(accountKey: string, platformUserId: string): SavedMetFacts | null {
+    return (
+      this.attempt(() => {
+        const row = this.statement(
+          `SELECT COUNT(DISTINCT e.visit_id) AS times,
+                  SUM(COALESCE(e.left_at, v.left_at, e.joined_at) - e.joined_at) AS together,
+                  MAX(COALESCE(e.left_at, v.left_at, e.joined_at)) AS last_at
+           FROM encounters e JOIN visits v ON v.id = e.visit_id
+           WHERE e.account_key = ? AND e.user_id = ?`
+        ).get(accountKey, platformUserId) as
+          { times?: unknown; together?: unknown; last_at?: unknown } | undefined
+        if (typeof row?.times !== 'number' || row.times <= 0) return null
+        if (typeof row.last_at !== 'number') return null
+        const where = this.statement(
+          `SELECT v.world_name FROM encounters e JOIN visits v ON v.id = e.visit_id
+           WHERE e.account_key = ? AND e.user_id = ?
+           ORDER BY e.joined_at DESC LIMIT 1`
+        ).get(accountKey, platformUserId) as { world_name?: unknown } | undefined
+        return {
+          times: row.times,
+          togetherMs: typeof row.together === 'number' && row.together > 0 ? row.together : 0,
+          lastAt: row.last_at,
+          lastWorldName: typeof where?.world_name === 'string' ? clip(where.world_name) : null
+        }
+      }) ?? null
+    )
+  }
+
+  /** Forget one account's instance log. */
+  deleteInstanceLog(accountKey: string): void {
+    this.attempt(() => {
+      this.transaction(() => {
+        this.statement('DELETE FROM encounters WHERE account_key = ?').run(accountKey)
+        this.statement('DELETE FROM visits WHERE account_key = ?').run(accountKey)
+      })
+      this.reclaim()
+    })
+  }
+
+  /** Forget every account's instance log. */
+  deleteAllInstanceLog(): void {
+    this.attempt(() => {
+      this.statement('DELETE FROM encounters').run()
+      this.statement('DELETE FROM visits').run()
+      this.reclaim()
+    })
+  }
+
+  /** Remove ended visits that began before `olderThan` (null for no age
+   *  limit), then the oldest ended visits beyond `maxVisits`. */
+  pruneInstanceLog(olderThan: number | null, maxVisits: number): void {
+    this.attempt(() => {
+      let removed = 0
+      this.transaction(() => {
+        if (olderThan !== null) {
+          this.statement(
+            `DELETE FROM encounters WHERE visit_id IN (
+               SELECT id FROM visits WHERE entered_at < ? AND left_at IS NOT NULL
+             )`
+          ).run(olderThan)
+          removed += Number(
+            this.statement('DELETE FROM visits WHERE entered_at < ? AND left_at IS NOT NULL').run(
+              olderThan
+            ).changes
+          )
+        }
+        const cutoff = this.statement(
+          'SELECT entered_at FROM visits ORDER BY entered_at DESC LIMIT 1 OFFSET ?'
+        ).get(maxVisits) as { entered_at?: unknown } | undefined
+        if (typeof cutoff?.entered_at === 'number') {
+          this.statement(
+            `DELETE FROM encounters WHERE visit_id IN (
+               SELECT id FROM visits WHERE entered_at <= ? AND left_at IS NOT NULL
+             )`
+          ).run(cutoff.entered_at)
+          removed += Number(
+            this.statement('DELETE FROM visits WHERE entered_at <= ? AND left_at IS NOT NULL').run(
+              cutoff.entered_at
+            ).changes
+          )
+        }
+      })
+      if (removed > 0) this.reclaim()
+    })
+  }
+
   /** Flush and close. Safe to call twice. */
   close(): void {
     const db = this.db
@@ -471,7 +776,13 @@ export class HistoryDatabase {
   private transaction(step: () => void): void {
     const db = this.db
     if (db === null) throw new Error('history database is closed')
+    // A step inside a running transaction is simply part of it.
+    if (this.inTransaction) {
+      step()
+      return
+    }
     db.exec('BEGIN')
+    this.inTransaction = true
     try {
       step()
       db.exec('COMMIT')
@@ -482,6 +793,8 @@ export class HistoryDatabase {
         // The transaction is already gone.
       }
       throw error
+    } finally {
+      this.inTransaction = false
     }
   }
 
@@ -552,6 +865,28 @@ function migrate(db: DatabaseSync, from: number): void {
         );
         CREATE INDEX IF NOT EXISTS friend_names_by_friend
           ON friend_names (account_key, user_id, id);
+        CREATE TABLE IF NOT EXISTS visits (
+          id INTEGER PRIMARY KEY,
+          account_key TEXT NOT NULL,
+          instance_id TEXT NOT NULL,
+          world_name TEXT,
+          entered_at INTEGER NOT NULL,
+          left_at INTEGER,
+          UNIQUE (account_key, instance_id, entered_at)
+        );
+        CREATE INDEX IF NOT EXISTS visits_by_account ON visits (account_key, entered_at);
+        CREATE TABLE IF NOT EXISTS encounters (
+          id INTEGER PRIMARY KEY,
+          account_key TEXT NOT NULL,
+          visit_id INTEGER NOT NULL,
+          user_id TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          joined_at INTEGER NOT NULL,
+          left_at INTEGER,
+          UNIQUE (visit_id, user_id, joined_at)
+        );
+        CREATE INDEX IF NOT EXISTS encounters_by_person
+          ON encounters (account_key, user_id, joined_at);
       `)
     }
     db.exec(`PRAGMA user_version = ${HISTORY_SCHEMA_VERSION}`)
@@ -615,6 +950,30 @@ function parseFriendRow(row: RawFriendRow): SavedFriend | null {
     since: row.since,
     sinceKnown: row.since_known === 1,
     misses: typeof row.misses === 'number' && Number.isSafeInteger(row.misses) ? row.misses : 0
+  }
+}
+
+interface RawVisitRow {
+  id?: unknown
+  account_key?: unknown
+  world_name?: unknown
+  entered_at?: unknown
+  left_at?: unknown
+  people?: unknown
+}
+
+function parseVisitRow(row: RawVisitRow): SavedVisit | null {
+  if (typeof row.id !== 'number' || !Number.isSafeInteger(row.id)) return null
+  if (typeof row.account_key !== 'string' || row.account_key === '') return null
+  if (typeof row.entered_at !== 'number' || !Number.isFinite(row.entered_at)) return null
+  return {
+    id: row.id,
+    accountKey: row.account_key,
+    worldName:
+      typeof row.world_name === 'string' && row.world_name !== '' ? clip(row.world_name) : null,
+    enteredAt: row.entered_at,
+    leftAt: typeof row.left_at === 'number' ? row.left_at : null,
+    people: typeof row.people === 'number' && row.people > 0 ? row.people : 0
   }
 }
 

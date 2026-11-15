@@ -28,6 +28,7 @@ import type { LinkSnapshot } from '@shared/linkedProfiles'
 import type { Friend, Platform } from '@shared/types'
 import { asTranslate } from '../i18n/translate'
 import { clearActivity, useActivity } from '../queries/activity'
+import { clearInstanceLog, useInstanceVisits } from '../queries/instanceLog'
 import { useFriends } from '../queries/friends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
 import { useActivityPager } from '../hooks/useActivityPager'
@@ -49,15 +50,21 @@ import {
 import { ActivityClearDialog, ActivityKeepDialog } from './ActivityDialogs'
 import { Avatar } from './Avatar'
 import PlatformPill from './PlatformPill'
+import InstanceVisitList from './InstanceVisitList'
 import SegmentedControl from './SegmentedControl'
 import { initialOf } from '../utils/initialOf'
 
-const FILTER_LABEL_KEYS: Record<ActivityFilter, string> = {
+/** The page's tabs: the Activity list's kinds, then the instance log. */
+const INSTANCES = 'instances'
+type ActivityTab = ActivityFilter | typeof INSTANCES
+const ACTIVITY_TABS: readonly ActivityTab[] = [...ACTIVITY_FILTERS, INSTANCES]
+const FILTER_LABEL_KEYS: Record<ActivityTab, string> = {
   all: 'activity.kinds.all',
   online: 'activity.kinds.online',
   world: 'activity.kinds.world',
   offline: 'activity.kinds.offline',
-  friends: 'activity.kinds.friends'
+  friends: 'activity.kinds.friends',
+  instances: 'activity.kinds.instances'
 }
 
 function friendKey(platform: Friend['platform'], platformUserId: string): string {
@@ -259,9 +266,20 @@ export default function ActivityView(): React.JSX.Element {
   const hasAnyInScope =
     (live ?? []).some((entry) => platformFilter === 'all' || entry.platform === platformFilter) ||
     pager.canShowOlder
+  // The instance log is its own list under the same header. Which list is
+  // open is not saved: the page opens on the Activity list.
+  const [showInstances, setShowInstances] = useState(false)
+  const instanceVisits = useInstanceVisits(platforms, showInstances)
+  const shownCount = showInstances ? instanceVisits.visits.length : entries.length
   const [keepOpen, setKeepOpen] = useState(false)
   const [clearOpen, setClearOpen] = useState(false)
   const clearShown = (): void => {
+    if (showInstances) {
+      clearInstanceLog(client, platforms)
+        .then(() => instanceVisits.startOver())
+        .catch(() => undefined)
+      return
+    }
     // Drop what this page holds first, so nothing cleared is carried on.
     startOver()
     // Clear takes only what is on screen, like the Inbox's Hide all: the
@@ -295,7 +313,37 @@ export default function ActivityView(): React.JSX.Element {
   }
 
   let content: React.JSX.Element
-  if (activity.data === undefined) {
+  if (showInstances) {
+    if (!instanceVisits.ready) {
+      content = instanceVisits.failed ? (
+        <div className="flex items-center gap-[var(--space-3)]">
+          <p className="text-sm text-[var(--error)]">{t('instances.error')}</p>
+          <button
+            type="button"
+            onClick={instanceVisits.retry}
+            className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+          >
+            {t('activity.retry')}
+          </button>
+        </div>
+      ) : (
+        <p className="text-sm text-[var(--text-dim)]">{t('activity.loading')}</p>
+      )
+    } else if (instanceVisits.visits.length === 0) {
+      content = (
+        <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
+          <p className="text-sm font-semibold text-[var(--text-dim)]">
+            {t('instances.emptyHeading')}
+          </p>
+          <p className="mt-[var(--space-1)] max-w-[52ch] text-balance text-xs text-[var(--text-dim)]">
+            {t(keepFor === 'session' ? 'instances.sessionHint' : 'instances.emptyHint')}
+          </p>
+        </div>
+      )
+    } else {
+      content = <InstanceVisitList visits={instanceVisits.visits} now={now} formats={formats} />
+    }
+  } else if (activity.data === undefined) {
     content = activity.isError ? (
       <div className="flex items-center gap-[var(--space-3)]">
         <p className="text-sm text-[var(--error)]">{t('activity.error')}</p>
@@ -355,11 +403,14 @@ export default function ActivityView(): React.JSX.Element {
     <section aria-label={t('shell.nav.activity')}>
       <div className="mb-[12px] flex flex-wrap items-center justify-between gap-[var(--space-2)]">
         <SegmentedControl
-          values={ACTIVITY_FILTERS}
-          active={filter}
+          values={ACTIVITY_TABS}
+          active={showInstances ? INSTANCES : filter}
           labelKeys={FILTER_LABEL_KEYS}
           ariaLabel={t('activity.filterAria')}
-          onChange={(value) => updateSettings({ activityFilter: value })}
+          onChange={(value) => {
+            setShowInstances(value === INSTANCES)
+            if (value !== INSTANCES) updateSettings({ activityFilter: value })
+          }}
         />
         <div className="flex items-center gap-[var(--space-1)]">
           {/* How long activity stays saved: the choice in words, and the
@@ -378,15 +429,15 @@ export default function ActivityView(): React.JSX.Element {
             type="button"
             // Not `disabled`: once the list it cleared is empty, a disabled
             // button would drop keyboard focus to the page.
-            aria-disabled={entries.length === 0}
+            aria-disabled={shownCount === 0}
             onClick={() => {
-              if (entries.length === 0) return
+              if (shownCount === 0) return
               // Saved activity is deleted for good, so ask first. With nothing
               // saved, Clear acts at once as it always did.
-              if (keepFor === 'session') clearShown()
+              if (keepFor === 'session' && !showInstances) clearShown()
               else setClearOpen(true)
             }}
-            aria-label={t('activity.clearAria')}
+            aria-label={t(showInstances ? 'instances.clearAria' : 'activity.clearAria')}
             className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent motion-safe:transition-colors"
           >
             {t('activity.clear')}
@@ -394,32 +445,50 @@ export default function ActivityView(): React.JSX.Element {
         </div>
       </div>
       {content}
-      {live !== undefined && (pager.canShowOlder || pager.status === 'failed') && (
+      {showInstances && (instanceVisits.canShowOlder || instanceVisits.olderFailed) && (
         <div className="mt-[var(--space-3)] flex items-center justify-center gap-[var(--space-3)]">
-          {pager.status === 'failed' ? (
-            <>
-              <p className="canvas-text text-xs text-[var(--text-dim)]">
-                {t('activity.olderFailed')}
-              </p>
-              <button
-                type="button"
-                onClick={pager.retry}
-                className="canvas-text rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
-              >
-                {t('activity.retry')}
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={pager.showOlder}
-              className="canvas-text rounded-control px-[var(--space-4)] py-[var(--space-2)] text-xs font-medium text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
-            >
-              {t('activity.showOlder')}
-            </button>
+          {instanceVisits.olderFailed && (
+            <p className="canvas-text text-xs text-[var(--text-dim)]">
+              {t('activity.olderFailed')}
+            </p>
           )}
+          <button
+            type="button"
+            onClick={instanceVisits.olderFailed ? instanceVisits.retry : instanceVisits.showOlder}
+            className="canvas-text rounded-control px-[var(--space-4)] py-[var(--space-2)] text-xs font-medium text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
+          >
+            {t(instanceVisits.olderFailed ? 'activity.retry' : 'activity.showOlder')}
+          </button>
         </div>
       )}
+      {!showInstances &&
+        live !== undefined &&
+        (pager.canShowOlder || pager.status === 'failed') && (
+          <div className="mt-[var(--space-3)] flex items-center justify-center gap-[var(--space-3)]">
+            {pager.status === 'failed' ? (
+              <>
+                <p className="canvas-text text-xs text-[var(--text-dim)]">
+                  {t('activity.olderFailed')}
+                </p>
+                <button
+                  type="button"
+                  onClick={pager.retry}
+                  className="canvas-text rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
+                >
+                  {t('activity.retry')}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={pager.showOlder}
+                className="canvas-text rounded-control px-[var(--space-4)] py-[var(--space-2)] text-xs font-medium text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
+              >
+                {t('activity.showOlder')}
+              </button>
+            )}
+          </div>
+        )}
       {keepOpen && (
         <ActivityKeepDialog
           value={keepFor}
@@ -428,7 +497,11 @@ export default function ActivityView(): React.JSX.Element {
         />
       )}
       {clearOpen && (
-        <ActivityClearDialog onConfirm={clearShown} onClose={() => setClearOpen(false)} />
+        <ActivityClearDialog
+          body={showInstances ? t('instances.clearBody') : undefined}
+          onConfirm={clearShown}
+          onClose={() => setClearOpen(false)}
+        />
       )}
     </section>
   )
