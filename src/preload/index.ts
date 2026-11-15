@@ -96,6 +96,15 @@ const vrx = {
   getAppStatus: () => invoke('get-app-status', undefined),
   getLoginItem: () => invoke('get-login-item', undefined),
   getActivity: () => invoke('get-activity', undefined),
+  getActivityPage: (req: IpcInvoke['get-activity-page']['req']) => invoke('get-activity-page', req),
+  getFriendHistory: (req: IpcInvoke['get-friend-history']['req']) =>
+    invoke('get-friend-history', req),
+  getInstanceVisits: (req: IpcInvoke['get-instance-visits']['req']) =>
+    invoke('get-instance-visits', req),
+  getInstanceVisitPeople: (req: IpcInvoke['get-instance-visit-people']['req']) =>
+    invoke('get-instance-visit-people', req),
+  clearInstanceLog: (req: IpcInvoke['clear-instance-log']['req']) =>
+    invoke('clear-instance-log', req),
   clearActivity: (req: IpcInvoke['clear-activity']['req']) => invoke('clear-activity', req),
   onActivityChanged: (callback: () => void) => {
     const listener = (): void => callback()
@@ -110,6 +119,9 @@ const vrx = {
   chooseAppBackground: () => invoke('choose-app-background', undefined),
   clearAppBackground: () => invoke('clear-app-background', undefined),
   exportData: () => invoke('export-data', undefined),
+  importVrcxHistory: () => invoke('import-vrcx-history', undefined),
+  backupHistory: () => invoke('backup-history', undefined),
+  restoreHistory: () => invoke('restore-history', undefined),
   getInbox: () => invoke('get-inbox', undefined),
   joinInvite: (req: IpcInvoke['join-invite']['req']) => invoke('join-invite', req),
   dismissInboxItem: (req: IpcInvoke['dismiss-inbox-item']['req']) =>

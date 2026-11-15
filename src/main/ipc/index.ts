@@ -3,7 +3,7 @@ import log from '../logger'
 import type { IpcInvokeChannel } from '@shared/ipc'
 import type { Settings } from '@shared/settings'
 import type { Friend, Platform } from '@shared/types'
-import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import type { IPlatformAdapter, RosterCompleteness } from '../services/adapters/IPlatformAdapter'
 import { registerAccountsHandlers } from './accounts'
 import { registerActivityHandlers } from './activity'
 import { registerAppStatusHandlers } from './app-status'
@@ -13,6 +13,10 @@ import { registerAppBackgroundHandlers, type AppBackgroundHandlerOptions } from 
 import { registerFriendsHandlers } from './friends'
 import { registerInboxHandlers } from './inbox'
 import { registerDataExportHandlers, type DataExportHandlerOptions } from './data-export'
+import {
+  registerHistoryTransferHandlers,
+  type HistoryTransferHandlerOptions
+} from './history-transfer'
 import { registerLoginItemHandlers } from './login-item'
 import { registerFriendActionHandlers } from './friend-actions'
 import type { FriendActionsService } from '../services/friendActions'
@@ -56,6 +60,8 @@ import type { AccountNoteService } from '../services/accountNotes'
 import type { AppStatusService } from '../services/appStatus'
 import type { LoginItem } from '../services/loginItem'
 import type { ActivityFeed } from '../services/activityFeed'
+import type { FriendLog } from '../services/friendLog'
+import type { InstanceLog } from '../services/instanceLog'
 import {
   IPC_RATE_LIMIT_BUDGETS,
   ipcRateLimitDenial,
@@ -100,6 +106,8 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   appStatus: AppStatusService
   loginItem: Pick<LoginItem, 'status'>
   activity: ActivityFeed
+  friendLog: FriendLog
+  instanceLog: InstanceLog
   instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
   homeWorld: HomeWorldService
@@ -111,12 +119,13 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   social: SocialActionService
   appBackground: AppBackgroundHandlerOptions
   dataExport: DataExportHandlerOptions
+  historyTransfer: HistoryTransferHandlerOptions
   inbox: InboxService
   friendActions: FriendActionsService
   vrOverlayAlerts: Pick<VrOverlayAlerts, 'test'>
   onRendererHydrated: (event: IpcMainEvent) => void
   /** Each roster read, after the location authority is seeded. */
-  onFriendRoster?: (platform: Platform, friends: Friend[]) => void
+  onFriendRoster?: (platform: Platform, friends: Friend[], completeness: RosterCompleteness) => void
   /** After each settings save attempt, with the in-memory settings. */
   onSettingsApplied?: (settings: Settings) => void
   rateLimit?: IpcRateLimitOptions
@@ -211,11 +220,12 @@ export function registerIpcHandlers(
     registerSocialHandlers(options.social)
     registerAppStatusHandlers(options.appStatus)
     registerLoginItemHandlers(options.loginItem)
-    registerActivityHandlers(options.activity)
+    registerActivityHandlers(options.activity, options.friendLog, options.instanceLog)
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)
     registerDataExportHandlers(options.dataExport)
+    registerHistoryTransferHandlers(options.historyTransfer)
     registerInboxHandlers(options.inbox)
     registerFriendActionHandlers(options.friendActions)
     registerVrAlertHandlers(options.vrOverlayAlerts)

@@ -44,9 +44,26 @@ import type { OwnProfileChanges, OwnProfileResult, SaveOwnProfileResult } from '
 import type { SetHomeWorldResult } from './homeWorld'
 import type { SetWorldRatingResult, WorldRating, WorldRatingRead } from './worldRating'
 import type { InboxSnapshot } from './inbox'
+import type {
+  HistoryBackupResult,
+  HistoryRestoreResult,
+  VrcxHistoryImportResult
+} from './historyTransfer'
 import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
-import type { ActivityEntry, ActivityFilter } from './activity'
+import type {
+  ActivityEntry,
+  ActivityFilter,
+  ActivityFriendRef,
+  ActivityPage,
+  ActivityPageRequest,
+  FriendHistoryFacts
+} from './activity'
+import type {
+  InstanceVisitPage,
+  InstanceVisitPageRequest,
+  InstanceVisitPerson
+} from './instanceLog'
 import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
 import type { GameFavoritesResult, GameFavoriteWriteResult } from './gameFavorites'
 import type {
@@ -287,11 +304,29 @@ export interface IpcInvoke {
   /** What the operating system's startup list says now, for Settings to show
    *  when the Start with your computer choice could not be applied. */
   'get-login-item': { req: void; res: LoginItemStatus }
-  /** The in-memory activity list, newest first. Main records it from the live
-   *  sockets; reading it makes no platform request. */
+  /** The newest activity per platform, newest first. Main records it from the
+   *  live sockets; reading it makes no platform request. */
   'get-activity': { req: void; res: ActivityEntry[] }
+  /** Older saved activity, or one friend's: one page, newest first, for the
+   *  signed-in accounts only. Reads this computer's history file, never a
+   *  platform. */
+  'get-activity-page': { req: ActivityPageRequest; res: ActivityPage }
+  /** What VRX has saved about a friendship: friends since, earlier names.
+   *  One friend, or a linked person's two accounts. Local only. */
+  'get-friend-history': { req: { friends: ActivityFriendRef[] }; res: FriendHistoryFacts[] }
+  /** The instance log: one page of the rooms the signed-in user was in,
+   *  newest first, for the accounts signed in right now. Local only. */
+  'get-instance-visits': { req: InstanceVisitPageRequest; res: InstanceVisitPage }
+  /** Who was there during one visit. Local only. */
+  'get-instance-visit-people': {
+    req: { platform: Platform; visitId: number }
+    res: InstanceVisitPerson[]
+  }
+  /** Forget these platforms' instance log for the accounts signed in. */
+  'clear-instance-log': { req: { platforms: Platform[] }; res: void }
   /** Forget the activity the page shows: these platforms' entries of the
-   *  shown kind (`all` for every kind). Anything else stays. */
+   *  shown kind (`all` for every kind), saved ones included. Anything else
+   *  stays. */
   'clear-activity': { req: { platforms: Platform[]; filter: ActivityFilter }; res: void }
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */
@@ -315,6 +350,16 @@ export interface IpcInvoke {
    *  dialog. Main builds the file from what it already holds; the renderer
    *  supplies nothing. */
   'export-data': { req: void; res: DataExportResult }
+  /** Bring VRCX's saved history for the signed-in VRChat account into VRX's
+   *  own history. Main reads a private copy of VRCX's file, on this press
+   *  only; the renderer supplies nothing. */
+  'import-vrcx-history': { req: void; res: VrcxHistoryImportResult }
+  /** Save a backup of the saved history to a file the user picks in a native
+   *  dialog. */
+  'backup-history': { req: void; res: HistoryBackupResult }
+  /** Replace the saved history with a backup the user picks in a native
+   *  dialog. The renderer asks first; main owns the dialog and the path. */
+  'restore-history': { req: void; res: HistoryRestoreResult }
   /** Invites and requests that arrived while VRX was open. */
   'get-inbox': { req: void; res: InboxSnapshot }
   /** Join the instance an invite row leads to. Main looks the row up itself:
@@ -460,7 +505,7 @@ export interface IpcInvoke {
 export interface IpcEvents {
   'explore-changed': { platform: Platform }
   'linked-profiles-changed': void
-  /** The activity list changed; coalesced, carries nothing. */
+  /** The activity list or the instance log changed; coalesced, carries nothing. */
   'activity-changed': void
   /** The inbox changed; read it again with `get-inbox`. */
   'inbox-changed': void

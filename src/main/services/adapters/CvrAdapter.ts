@@ -1351,6 +1351,17 @@ export class CvrAdapter
     }
   }
 
+  /**
+   * Who was in an instance, from the instance read presence enrichment
+   * already made. Cache only: this never asks ChilloutVR for anything. Null
+   * when that read has not answered, failed, or carried no member list.
+   */
+  instanceMembers(
+    instanceId: string
+  ): Array<{ platformUserId: string; displayName: string }> | null {
+    return this.instanceResolver.peek(instanceId)?.members ?? null
+  }
+
   /** Resolve an id-only CVR presence entry against the latest REST roster. */
   resolveFriendName(platformUserId: string): string | null {
     return this.friendNames.get(platformUserId) ?? null

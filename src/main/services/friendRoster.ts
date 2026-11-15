@@ -1,5 +1,9 @@
 import type { Friend, Platform } from '@shared/types'
-import type { FriendRoster, IPlatformAdapter } from './adapters/IPlatformAdapter'
+import type {
+  FriendRoster,
+  IPlatformAdapter,
+  RosterCompleteness
+} from './adapters/IPlatformAdapter'
 import type { AppStatusService } from './appStatus'
 import type { LocationAuthority } from './locationAuthority'
 
@@ -14,13 +18,14 @@ export interface FriendRosterRead {
  * while no window is open (`RosterCatchUp`). In order: capture a location
  * authority seed revision, read through the adapter (concurrent reads share one
  * run), seed the authority from each physical read, record the reconcile time,
- * then hand `onRoster` the authority's merged rows.
+ * then hand `onRoster` the authority's merged rows and whether the read was
+ * the whole list.
  */
 export function createFriendRosterReader(
   adapters: ReadonlyMap<Platform, IPlatformAdapter>,
   authority: LocationAuthority,
   appStatus: AppStatusService,
-  onRoster?: (platform: Platform, friends: Friend[]) => void
+  onRoster?: (platform: Platform, friends: Friend[], completeness: RosterCompleteness) => void
 ): (platform: Platform) => Promise<FriendRosterRead> {
   return async (platform) => {
     const adapter = adapters.get(platform)
@@ -43,7 +48,7 @@ export function createFriendRosterReader(
           const resolved = authority.resolve(platform, friend.platformUserId)
           return resolved.ok ? [resolved.friend] : []
         })
-        onRoster(platform, accepted)
+        onRoster(platform, accepted, roster.completeness)
       }
     } catch {
       /* A consumer failure must not fail the roster read. */

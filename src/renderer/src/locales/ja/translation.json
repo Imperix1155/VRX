@@ -565,7 +565,7 @@
       },
       "activity": {
         "label": "アクティビティのページ",
-        "description": "VRXを開いている間のフレンドの動き。オフで何も保持しません。"
+        "description": "フレンドの動き。オフにすると非表示になり、保存した内容も削除されます。"
       },
       "inbox": {
         "label": "受信箱のページ",
@@ -698,18 +698,24 @@
       "all": "すべて",
       "online": "オンライン",
       "world": "ワールド",
-      "offline": "オフライン"
+      "offline": "オフライン",
+      "friends": "フレンドリスト",
+      "instances": "インスタンス"
     },
     "online": "オンラインになりました",
     "onlineIn": "{{world}} でオンラインになりました",
     "joined": "{{world}} に移動しました",
     "joinedUnknown": "ワールドに移動しました",
     "offline": "オフラインになりました",
+    "friendAdded": "フレンドリストに加わりました",
+    "friendRemoved": "フレンドリストからいなくなりました",
+    "renamedFrom": "名前を変更しました（以前: {{previous}}）",
+    "renamed": "名前を変更しました",
     "rowAria": "{{name}}、{{platform}}：{{description}}、{{time}}。{{name}} をフレンドで開く",
     "clear": "クリア",
     "clearAria": "表示中のアクティビティをクリア",
     "emptyHeading": "まだアクティビティはありません",
-    "emptyHint": "VRXを開いている間、フレンドのオンライン、ワールド移動、オフラインがここに表示されます。",
+    "emptyHint": "VRXを開いている間、フレンドのオンライン、ワールド移動、オフラインがここに表示され、再起動後も残ります。",
     "filteredEmpty": "この条件で表示できるものはありません。",
     "loading": "アクティビティを読み込み中…",
     "error": "アクティビティを読み込めませんでした。",
@@ -718,7 +724,104 @@
       "vrchat": "ここでフレンドのアクティビティを確認するにはVRChatに接続してください",
       "chilloutvr": "ここでフレンドのアクティビティを確認するにはChilloutVRに接続してください",
       "openAccounts": "アカウントを開く"
+    },
+    "showOlder": "さらに前を表示",
+    "olderFailed": "以前のアクティビティを読み込めませんでした。",
+    "keep": {
+      "button": "保存期間：{{choice}}",
+      "buttonAria": "アクティビティの保存期間：{{choice}}。保存期間を変更",
+      "title": "アクティビティの保存期間",
+      "note": "アクティビティとインスタンスの記録はこのパソコンにだけ、アカウントごとに保存されます。短い期間を選ぶと、それより古いものは削除されます。",
+      "done": "完了",
+      "options": {
+        "session": "VRXを閉じるまで",
+        "30d": "30日",
+        "90d": "90日",
+        "1y": "1年",
+        "forever": "無期限"
+      }
+    },
+    "clearConfirm": {
+      "title": "このアクティビティをクリアしますか？",
+      "body": "このページに表示される範囲の保存済みアクティビティも、古いものを含めて削除されます。元に戻せません。",
+      "confirm": "クリア",
+      "cancel": "キャンセル"
+    },
+    "transfer": {
+      "heading": "履歴の移動",
+      "hint": "バックアップには両方のプラットフォームの履歴が入り、新しいパソコンへの移行に使えます。VRCXにあるのはVRChatの履歴だけです。取り込む前にVRCXを閉じてください。",
+      "importVrcx": "VRCXから取り込む",
+      "backup": "バックアップ…",
+      "restore": "復元…",
+      "cancel": "キャンセル",
+      "restoreAsk": "復元すると、ここに保存されている履歴はすべてバックアップの内容に置き換わります。元に戻せません。",
+      "restoreConfirm": "バックアップを選択…",
+      "working": {
+        "import": "VRCXの履歴を読み込み中…",
+        "backup": "バックアップを保存中…",
+        "restore": "復元中…"
+      },
+      "off": "いまは何も保存されていません。先に上で期間を選んでください。",
+      "tooMany": "回数が多すぎます。1分ほど待ってからもう一度お試しください。",
+      "imported": "VRCXから取り込みました。ルーム：{{visits}} · フレンドになった日：{{friends}} · 以前の名前：{{names}}",
+      "importedNothing": "VRCXに新しく取り込むものはありませんでした。",
+      "importedOlder": "上で選んだ期間より古いルームは取り込んでいません。",
+      "importSignedOut": "先にVRChatにサインインしてください。",
+      "importBusy": "VRCXが開いています。閉じてからもう一度お試しください。",
+      "importNotFound": "このパソコンにVRCXの履歴は見つかりませんでした。",
+      "importNoHistory": "VRCXにこのVRChatアカウントの履歴はありません。",
+      "importFailed": "最後まで終わりませんでした。もう一度お試しください。",
+      "backedUp": "バックアップを保存しました。フレンドの名前が含まれるため、他の人に渡さないでください。",
+      "backupFailed": "バックアップを保存できませんでした。",
+      "restored": "履歴を復元しました。",
+      "restoreNotBackup": "そのファイルはVRXの履歴のバックアップではありません。",
+      "restoreNewer": "そのバックアップは新しいバージョンのVRXで作られています。先にVRXを更新してください。",
+      "restoreFailed": "バックアップを読み込めませんでした。何も変更されていません。"
     }
+  },
+  "instances": {
+    "hereNow": "いまここにいます",
+    "people_other": "{{count, number}}人",
+    "noPeople": "ほかの人は確認できませんでした",
+    "summary": "{{stay}}・{{people}}",
+    "unknownWorld": "ワールド名不明",
+    "duration": {
+      "hours": "{{hours}}時間{{minutes}}分",
+      "minutes": "{{minutes}}分",
+      "under": "1分未満"
+    },
+    "rowAria": "{{world}}、{{platform}}、{{time}}：{{summary}}。いた人を表示",
+    "timeRange": "{{from}}〜{{to}}",
+    "stillHere": "まだいます",
+    "peopleLoading": "読み込み中…",
+    "peopleFailed": "いた人を読み込めませんでした。",
+    "peopleEmpty": "このインスタンスでは、ほかの人は確認できませんでした。",
+    "error": "インスタンスを読み込めませんでした。",
+    "emptyHeading": "まだインスタンスはありません",
+    "emptyHint": "参加したインスタンスと、そこにいた人がここに表示されます。VRChat はこのパソコンにあるゲームのログファイルから、ChilloutVR はライブ接続から記録します。",
+    "sessionHint": "アクティビティの保存期間が「VRX を閉じるまで」の間は保存されません。「保存期間」を変えるとインスタンスの記録が始まります。",
+    "clearAria": "表示中のインスタンスの記録をクリア",
+    "clearBody": "ここに表示されているインスタンスの記録を、いた人も含めてこのパソコンから削除します。元に戻せません。"
+  },
+  "history": {
+    "button": "履歴",
+    "title": "{{name}}：履歴",
+    "activityHeading": "アクティビティ",
+    "loading": "履歴を読み込み中…",
+    "error": "この履歴を読み込めませんでした。",
+    "emptyHeading": "まだ保存された履歴はありません",
+    "emptyHint": "これからのオンライン、ワールド移動、オフライン、フレンドリストの変化がここに保存されます。",
+    "sinceLabel": "フレンドになった日",
+    "sinceBefore": "{{date}} より前（VRX が履歴の保存を始めた日）",
+    "sinceWithAge": "{{date}}（{{age}}）",
+    "namesLabel": "以前の名前",
+    "nameUntil": "{{date}} まで",
+    "showAllNames": "{{count, number}} 件すべて表示",
+    "factsAria": "このフレンドについて",
+    "lastLabel": "最後に一緒だった日",
+    "lastIn": "{{date}}（{{world}}）",
+    "timesLabel": "一緒だったインスタンス",
+    "togetherLabel": "一緒にいた時間"
   },
   "drawer": {
     "close": "閉じる",

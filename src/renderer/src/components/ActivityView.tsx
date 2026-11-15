@@ -2,7 +2,10 @@
  * Activity page (owner, 2026-10-27): friends coming online, joining a world,
  * and going offline, newest first, for both platforms in one list. Main keeps
  * the list in memory from the live sockets (`activityFeed.ts`); this page only
- * reads it, so opening it makes no platform request.
+ * reads it, so opening it makes no platform request. Since 2026-11-15
+ * (owner) main also saves the list on this computer, per account: Show older
+ * reads further back a page at a time, Kept for sets how long it stays, and
+ * Clear asks first when it would delete saved entries.
  *
  * Both platforms share one row layout. Each entry is a capsule tinted with its
  * platform's color (owner, 2026-10-27); the platform pill carries the platform
@@ -11,16 +14,24 @@
  * Clear forgets only what that scope shows. A row opens that friend's details
  * on the Friends page.
  */
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ACTIVITY_FILTERS, type ActivityEntry, type ActivityFilter } from '@shared/activity'
+import {
+  ACTIVITY_FILTERS,
+  matchesActivityFilter,
+  type ActivityEntry,
+  type ActivityFilter
+} from '@shared/activity'
+import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM } from '@shared/constants'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
-import type { Friend } from '@shared/types'
-import { asTranslate, type Translate } from '../i18n/translate'
+import type { Friend, Platform } from '@shared/types'
+import { asTranslate } from '../i18n/translate'
 import { clearActivity, useActivity } from '../queries/activity'
+import { clearInstanceLog, useInstanceVisits } from '../queries/instanceLog'
 import { useFriends } from '../queries/friends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
+import { useActivityPager } from '../hooks/useActivityPager'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
@@ -29,34 +40,35 @@ import { useProfileSelection } from '../stores/profileSelection'
 import type { PlatformFilter } from '../stores/friends'
 import type { ProfileTarget } from '../utils/projectLinkedFriends'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
-import { stripInstanceSuffix } from '../utils/worldName'
+import { mergeActivity, olderThanList } from '../utils/activityPaging'
+import {
+  ACTIVITY_KEEP_LABEL_KEYS,
+  activityTimeFormats,
+  describeActivity,
+  formatActivityTime
+} from '../utils/activityText'
+import { ActivityClearDialog, ActivityKeepDialog } from './ActivityDialogs'
 import { Avatar } from './Avatar'
 import PlatformPill from './PlatformPill'
+import InstanceVisitList from './InstanceVisitList'
 import SegmentedControl from './SegmentedControl'
 import { initialOf } from '../utils/initialOf'
 
-const FILTER_LABEL_KEYS: Record<ActivityFilter, string> = {
+/** The page's tabs: the Activity list's kinds, then the instance log. */
+const INSTANCES = 'instances'
+type ActivityTab = ActivityFilter | typeof INSTANCES
+const ACTIVITY_TABS: readonly ActivityTab[] = [...ACTIVITY_FILTERS, INSTANCES]
+const FILTER_LABEL_KEYS: Record<ActivityTab, string> = {
   all: 'activity.kinds.all',
   online: 'activity.kinds.online',
   world: 'activity.kinds.world',
-  offline: 'activity.kinds.offline'
+  offline: 'activity.kinds.offline',
+  friends: 'activity.kinds.friends',
+  instances: 'activity.kinds.instances'
 }
 
 function friendKey(platform: Friend['platform'], platformUserId: string): string {
   return `${platform}\u0000${platformUserId}`
-}
-
-/** What happened, in words. World names drop ChilloutVR's "(#…)" instance tag. */
-function describe(entry: ActivityEntry, t: Translate): string {
-  const world = entry.worldName === null ? '' : stripInstanceSuffix(entry.worldName).trim()
-  switch (entry.kind) {
-    case 'online':
-      return world === '' ? t('activity.online') : t('activity.onlineIn', { world })
-    case 'world':
-      return world === '' ? t('activity.joinedUnknown') : t('activity.joined', { world })
-    case 'offline':
-      return t('activity.offline')
-  }
 }
 
 /** The same target a Friends row for this account would carry: a linked
@@ -95,7 +107,7 @@ function ActivityRow({
   onOpen: (entry: ActivityEntry) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const description = describe(entry, asTranslate(t))
+  const description = describeActivity(entry, asTranslate(t))
   const name = friend?.displayName ?? entry.displayName
   const body = (
     <>
@@ -167,6 +179,7 @@ export default function ActivityView(): React.JSX.Element {
   const cvrFriends = useFriends('chilloutvr')
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const filter = useSettingsStore((s) => s.settings.activityFilter)
+  const keepFor = useSettingsStore((s) => s.settings.activityKeepFor)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   const links = useLinkedProfiles().data
   const openFriend = (entry: ActivityEntry): void => {
@@ -186,33 +199,98 @@ export default function ActivityView(): React.JSX.Element {
     return byKey
   }, [vrcData, cvrData])
 
-  const entries = useMemo(
-    () =>
-      (activity.data ?? []).filter(
-        (entry) =>
-          (platformFilter === 'all' || entry.platform === platformFilter) &&
-          (filter === 'all' || entry.kind === filter)
-      ),
-    [activity.data, platformFilter, filter]
-  )
-  const hasAnyInScope = (activity.data ?? []).some(
-    (entry) => platformFilter === 'all' || entry.platform === platformFilter
+  const live = activity.data
+  const platforms = useMemo<Platform[]>(
+    () => (platformFilter === 'all' ? ['vrchat', 'chilloutvr'] : [platformFilter]),
+    [platformFilter]
   )
 
-  const language = i18n.language
-  const formats = useMemo(
-    () => ({
-      time: new Intl.DateTimeFormat(language, { hour: 'numeric', minute: '2-digit' }),
-      dayTime: new Intl.DateTimeFormat(language, {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit'
-      })
-    }),
-    [language]
+  // Entries the list held while this page was open. Main keeps only the newest
+  // per platform, so once older pages are shown, an entry that leaves the list
+  // for a newer one would otherwise vanish from the middle of the page.
+  const [carried, setCarried] = useState<ReadonlyMap<number, ActivityEntry>>(() => new Map())
+  const [carriedFrom, setCarriedFrom] = useState<ActivityEntry[] | undefined>(undefined)
+  if (live !== carriedFrom) {
+    setCarriedFrom(live)
+    if (live !== undefined && live.length > 0) {
+      const next = new Map(carried)
+      for (const entry of live) next.set(entry.id, entry)
+      setCarried(next)
+    }
+  }
+
+  // Older saved entries. They start over when the scope changes, after a
+  // Clear, and when an account changes; a platform takes part only while the
+  // list holds its full allowance (see `olderThanList`).
+  const [restarts, setRestarts] = useState(0)
+  const startOver = (): void => {
+    setCarried(new Map())
+    setRestarts((count) => count + 1)
+  }
+  useEffect(
+    () =>
+      window.vrx?.onIdentityBoundary?.(() => {
+        setCarried(new Map())
+        setRestarts((count) => count + 1)
+      }),
+    []
   )
-  const today = new Date().toDateString()
+  const olderStart = useMemo(
+    () => olderThanList(live ?? [], platforms, ACTIVITY_MAX_ENTRIES_PER_PLATFORM),
+    [live, platforms]
+  )
+  const knownIds = useMemo(() => new Set(carried.keys()), [carried])
+  const pager = useActivityPager({
+    restartKey: [
+      live === undefined ? 'waiting' : 'ready',
+      platformFilter,
+      filter,
+      keepFor === 'session' ? 'session' : 'saved',
+      olderStart.map((cursor) => cursor.platform).join('+'),
+      restarts
+    ].join('|'),
+    start: olderStart,
+    filter,
+    known: knownIds
+  })
+
+  const entries = useMemo(
+    () =>
+      mergeActivity(pager.entries, carried.values(), live ?? []).filter(
+        (entry) =>
+          (platformFilter === 'all' || entry.platform === platformFilter) &&
+          matchesActivityFilter(entry.kind, filter)
+      ),
+    [pager.entries, carried, live, platformFilter, filter]
+  )
+  const hasAnyInScope =
+    (live ?? []).some((entry) => platformFilter === 'all' || entry.platform === platformFilter) ||
+    pager.canShowOlder
+  // The instance log is its own list under the same header. Which list is
+  // open is not saved: the page opens on the Activity list.
+  const [showInstances, setShowInstances] = useState(false)
+  const instanceVisits = useInstanceVisits(platforms, showInstances)
+  const shownCount = showInstances ? instanceVisits.visits.length : entries.length
+  const [keepOpen, setKeepOpen] = useState(false)
+  const [clearOpen, setClearOpen] = useState(false)
+  const clearShown = (): void => {
+    if (showInstances) {
+      clearInstanceLog(client, platforms)
+        .then(() => instanceVisits.startOver())
+        .catch(() => undefined)
+      return
+    }
+    // Drop what this page holds first, so nothing cleared is carried on.
+    startOver()
+    // Clear takes only what is on screen, like the Inbox's Hide all: the
+    // filtered platforms and the shown kind, saved entries included. A failed
+    // clear keeps the list as it is; the next push refreshes it.
+    clearActivity(client, { platforms, filter }).catch(() => undefined)
+  }
+
+  const language = i18n.language
+  const formats = useMemo(() => activityTimeFormats(language), [language])
+  const now = new Date()
 
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-dim)]">{t('activity.loading')}</p>
@@ -235,7 +313,37 @@ export default function ActivityView(): React.JSX.Element {
   }
 
   let content: React.JSX.Element
-  if (activity.data === undefined) {
+  if (showInstances) {
+    if (!instanceVisits.ready) {
+      content = instanceVisits.failed ? (
+        <div className="flex items-center gap-[var(--space-3)]">
+          <p className="text-sm text-[var(--error)]">{t('instances.error')}</p>
+          <button
+            type="button"
+            onClick={instanceVisits.retry}
+            className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+          >
+            {t('activity.retry')}
+          </button>
+        </div>
+      ) : (
+        <p className="text-sm text-[var(--text-dim)]">{t('activity.loading')}</p>
+      )
+    } else if (instanceVisits.visits.length === 0) {
+      content = (
+        <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
+          <p className="text-sm font-semibold text-[var(--text-dim)]">
+            {t('instances.emptyHeading')}
+          </p>
+          <p className="mt-[var(--space-1)] max-w-[52ch] text-balance text-xs text-[var(--text-dim)]">
+            {t(keepFor === 'session' ? 'instances.sessionHint' : 'instances.emptyHint')}
+          </p>
+        </div>
+      )
+    } else {
+      content = <InstanceVisitList visits={instanceVisits.visits} now={now} formats={formats} />
+    }
+  } else if (activity.data === undefined) {
     content = activity.isError ? (
       <div className="flex items-center gap-[var(--space-3)]">
         <p className="text-sm text-[var(--error)]">{t('activity.error')}</p>
@@ -250,7 +358,7 @@ export default function ActivityView(): React.JSX.Element {
     ) : (
       <p className="text-sm text-[var(--text-dim)]">{t('activity.loading')}</p>
     )
-  } else if (entries.length === 0) {
+  } else if (entries.length === 0 && !pager.canShowOlder) {
     content = (
       <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
         {hasAnyInScope ? (
@@ -274,7 +382,7 @@ export default function ActivityView(): React.JSX.Element {
       <ol className="flex flex-col gap-[6px]">
         {entries.map((entry) => {
           const at = new Date(entry.at)
-          const time = (at.toDateString() === today ? formats.time : formats.dayTime).format(at)
+          const time = formatActivityTime(at, now, formats)
           return (
             <li key={entry.id} className={`platform-row platform-row--${entry.platform}`}>
               <ActivityRow
@@ -295,34 +403,106 @@ export default function ActivityView(): React.JSX.Element {
     <section aria-label={t('shell.nav.activity')}>
       <div className="mb-[12px] flex flex-wrap items-center justify-between gap-[var(--space-2)]">
         <SegmentedControl
-          values={ACTIVITY_FILTERS}
-          active={filter}
+          values={ACTIVITY_TABS}
+          active={showInstances ? INSTANCES : filter}
           labelKeys={FILTER_LABEL_KEYS}
           ariaLabel={t('activity.filterAria')}
-          onChange={(value) => updateSettings({ activityFilter: value })}
-        />
-        <button
-          type="button"
-          // Not `disabled`: once the list it cleared is empty, a disabled
-          // button would drop keyboard focus to the page.
-          aria-disabled={entries.length === 0}
-          onClick={() => {
-            if (entries.length === 0) return
-            // Clear takes only what is on screen, like the Inbox's Hide all:
-            // the filtered platforms and the shown kind. A failed clear keeps
-            // the list as it is; the next push refreshes it.
-            clearActivity(client, {
-              platforms: platformFilter === 'all' ? ['vrchat', 'chilloutvr'] : [platformFilter],
-              filter
-            }).catch(() => undefined)
+          onChange={(value) => {
+            setShowInstances(value === INSTANCES)
+            if (value !== INSTANCES) updateSettings({ activityFilter: value })
           }}
-          aria-label={t('activity.clearAria')}
-          className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent motion-safe:transition-colors"
-        >
-          {t('activity.clear')}
-        </button>
+        />
+        <div className="flex items-center gap-[var(--space-1)]">
+          {/* How long activity stays saved: the choice in words, and the
+              button that changes it (owner, 2026-11-15). */}
+          <button
+            type="button"
+            onClick={() => setKeepOpen(true)}
+            aria-label={t('activity.keep.buttonAria', {
+              choice: t(ACTIVITY_KEEP_LABEL_KEYS[keepFor])
+            })}
+            className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
+          >
+            {t('activity.keep.button', { choice: t(ACTIVITY_KEEP_LABEL_KEYS[keepFor]) })}
+          </button>
+          <button
+            type="button"
+            // Not `disabled`: once the list it cleared is empty, a disabled
+            // button would drop keyboard focus to the page.
+            aria-disabled={shownCount === 0}
+            onClick={() => {
+              if (shownCount === 0) return
+              // Saved activity is deleted for good, so ask first. With nothing
+              // saved, Clear acts at once as it always did.
+              if (keepFor === 'session' && !showInstances) clearShown()
+              else setClearOpen(true)
+            }}
+            aria-label={t(showInstances ? 'instances.clearAria' : 'activity.clearAria')}
+            className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent motion-safe:transition-colors"
+          >
+            {t('activity.clear')}
+          </button>
+        </div>
       </div>
       {content}
+      {showInstances && (instanceVisits.canShowOlder || instanceVisits.olderFailed) && (
+        <div className="mt-[var(--space-3)] flex items-center justify-center gap-[var(--space-3)]">
+          {instanceVisits.olderFailed && (
+            <p className="canvas-text text-xs text-[var(--text-dim)]">
+              {t('activity.olderFailed')}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={instanceVisits.olderFailed ? instanceVisits.retry : instanceVisits.showOlder}
+            className="canvas-text rounded-control px-[var(--space-4)] py-[var(--space-2)] text-xs font-medium text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
+          >
+            {t(instanceVisits.olderFailed ? 'activity.retry' : 'activity.showOlder')}
+          </button>
+        </div>
+      )}
+      {!showInstances &&
+        live !== undefined &&
+        (pager.canShowOlder || pager.status === 'failed') && (
+          <div className="mt-[var(--space-3)] flex items-center justify-center gap-[var(--space-3)]">
+            {pager.status === 'failed' ? (
+              <>
+                <p className="canvas-text text-xs text-[var(--text-dim)]">
+                  {t('activity.olderFailed')}
+                </p>
+                <button
+                  type="button"
+                  onClick={pager.retry}
+                  className="canvas-text rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
+                >
+                  {t('activity.retry')}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={pager.showOlder}
+                className="canvas-text rounded-control px-[var(--space-4)] py-[var(--space-2)] text-xs font-medium text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
+              >
+                {t('activity.showOlder')}
+              </button>
+            )}
+          </div>
+        )}
+      {keepOpen && (
+        <ActivityKeepDialog
+          value={keepFor}
+          onChange={(value) => updateSettings({ activityKeepFor: value })}
+          onClose={() => setKeepOpen(false)}
+        />
+      )}
+      {clearOpen && (
+        <ActivityClearDialog
+          body={showInstances ? t('instances.clearBody') : undefined}
+          onConfirm={clearShown}
+          onClose={() => setClearOpen(false)}
+        />
+      )}
     </section>
   )
 }

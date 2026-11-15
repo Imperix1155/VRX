@@ -55,6 +55,7 @@ describe('settings schema', () => {
       collapsedFriendSections: ['offline'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       sidebarOrder: [...SIDEBAR_PAGES],
       quickReorder: true,
       notifyFriendOnline: false,
@@ -297,6 +298,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       sidebarOrder: [...SIDEBAR_PAGES],
       quickReorder: true,
       notifyFriendOnline: false,
@@ -361,6 +363,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       sidebarOrder: [...SIDEBAR_PAGES],
       quickReorder: true,
       notifyFriendOnline: false,
@@ -425,6 +428,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       sidebarOrder: [...SIDEBAR_PAGES],
       quickReorder: true,
       notifyFriendOnline: false,
@@ -489,6 +493,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       sidebarOrder: [...SIDEBAR_PAGES],
       quickReorder: true,
       notifyFriendOnline: false,
@@ -553,6 +558,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       sidebarOrder: [...SIDEBAR_PAGES],
       quickReorder: true,
       notifyFriendOnline: false,
@@ -617,6 +623,7 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
       sidebarOrder: [...SIDEBAR_PAGES],
       quickReorder: true,
       notifyFriendOnline: false,
@@ -990,7 +997,7 @@ describe('shouldPersistSettings (rollback safety)', () => {
       activityFilter: 'all'
     })
     expect(
-      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'friends' })
+      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'renamed' })
     ).toMatchObject({ showActivityPage: true, activityFilter: 'all' })
   })
 
@@ -1483,5 +1490,33 @@ describe('Sidebar order and quick reorder settings', () => {
     // Anything that is not a reorder of real entries changes nothing.
     expect(mergeShownOrder(['a', 'b'], ['a', 'a'])).toEqual(['a', 'b'])
     expect(mergeShownOrder(['a', 'b'], ['a', 'x'])).toEqual(['a', 'b'])
+  })
+})
+
+describe('Keep activity for setting', () => {
+  it('keeps 90 days by default, reads each choice, and falls back to 90 days', () => {
+    expect(DEFAULT_SETTINGS.activityKeepFor).toBe('90d')
+    expect(parseSettings({ version: 29 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      activityKeepFor: '90d'
+    })
+    for (const choice of ['session', '30d', '90d', '1y', 'forever'] as const) {
+      expect(parseSettings({ activityKeepFor: choice })).toMatchObject({ activityKeepFor: choice })
+    }
+    for (const bad of [true, '7d', 90, null]) {
+      expect(parseSettings({ activityKeepFor: bad })).toMatchObject({ activityKeepFor: '90d' })
+    }
+  })
+
+  it('keeps the choice across a v29 round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 30,
+      activityKeepFor: 'session'
+    }
+    const oldNormalized = { ...disk, version: 29 }
+    Reflect.deleteProperty(oldNormalized, 'activityKeepFor')
+    if (shouldPersistSettings(disk, 29)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ activityKeepFor: 'session' })
   })
 })

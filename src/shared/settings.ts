@@ -51,6 +51,8 @@
  *                            place (owner, 2026-11-15; default on, v29)
  *   showActivityPage       → the Activity page and its in-memory record (owner, 2026-10-27; default on)
  *   activityFilter         → which kind the Activity page lists (owner, 2026-10-27; all)
+ *   activityKeepFor        → how long activity stays saved on this computer (owner,
+ *                            2026-11-15; default 90 days, v30). `session` saves nothing.
  *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v20)
  *   notifyInvites, notifyFriendRequests → inbox alerts (owner, 2026-10-27; opt-in like every alert, v20)
  *   vrOverlayAlerts, vrOverlayAlertDuration → the same alerts in the VR headset through
@@ -95,13 +97,13 @@ import {
   VR_ALERT_DURATIONS,
   VRCHAT_OPEN_GAME_JOINS
 } from './types'
-import { ACTIVITY_FILTERS } from './activity'
+import { ACTIVITY_FILTERS, ACTIVITY_KEEP_FOR } from './activity'
 
 /** Additive-at-the-same-version fields can be silently stripped and rewritten by
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 29 as const
+export const SETTINGS_VERSION = 30 as const
 
 const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -144,6 +146,9 @@ const SettingsSchema = z.object({
   showActivityPage: z.boolean().catch(true),
   /** Which kind the Activity page lists. Filters the view only; nothing is lost. */
   activityFilter: z.enum(ACTIVITY_FILTERS).catch('all'),
+  /** How long activity stays saved on this computer. `session` saves nothing
+   *  and removes what was saved; a shorter choice removes what is older. */
+  activityKeepFor: z.enum(ACTIVITY_KEEP_FOR).catch('90d'),
   /** The Inbox page. Hiding it keeps its alerts, which have their own switches. */
   showInboxPage: z.boolean().catch(true),
   /** The Search page (people and worlds on both platforms). */
@@ -339,7 +344,10 @@ const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   27: (prev) => ({ ...prev }),
   // v28 → v29: `sidebarOrder` and `quickReorder` are additive. The version
   // boundary stops an older build from stripping the user's order or their Off.
-  28: (prev) => ({ ...prev })
+  28: (prev) => ({ ...prev }),
+  // v29 → v30: `activityKeepFor` is additive. The version boundary stops an
+  // older build from stripping a user's "until VRX closes" or a longer choice.
+  29: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

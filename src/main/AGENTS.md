@@ -7,9 +7,8 @@ services, credentials, platform adapters and game launches. Node and Electron
 access and all privileged state stay on this side of the process boundary. The
 [root contract](../../AGENTS.md) security and API etiquette rules apply in
 full; this file adds local rules. Exact limits, cooldowns and caps for each
-service are in the [internal API catalog](../../docs/INTERNAL-API.md) (mostly
-its adapter contract, main process and IPC sections); keep them there, not
-here.
+service are in the [internal API catalog](../../docs/INTERNAL-API.md); keep
+them there, not here.
 
 ## Ownership
 
@@ -49,29 +48,26 @@ here.
   crashes and hangs.
 - Start with your computer (`services/loginItem.ts`): the `startWithComputer`
   setting is mirrored to the operating system at startup and after a save,
-  writing only on a mismatch. Only a packaged copy registers. On Linux the one
-  file is `<config>/autostart/vrx.desktop`, and only an entry with VRX's own
-  marker is ever removed. A launch the computer made carries
-  `--launched-at-login`; with the In the tray choice its first window stays
-  hidden (`createShowGate` `startHidden`) until VRX is asked for.
+  writing only on a mismatch, and only by a packaged copy. On Linux only an
+  autostart entry with VRX's own marker is ever removed. A launch the
+  computer made (`--launched-at-login`) keeps its first window hidden with
+  the In the tray choice until VRX is asked for.
 - Export your data (`services/dataExport.ts`, `ipc/data-export.ts`): built
-  only from what main already holds. The builder reads in-game favorite groups
-  with `GameFavoritesService.peek`; before it runs, the handler's `prepare`
-  waits up to 10 s for the once-per-sign-in favorites read (`get` without
-  refresh), and only when an export is possible. A session change during
-  that wait answers `stale`. Groups still missing are marked `unavailable`
-  in the file and the answer. The file carries no credential, session or
-  own-account id, and the same fields for both platforms. Main owns the save
-  dialog and the path; the renderer gets counts or a typed reason.
+  only from what main already holds. It may wait briefly for the
+  once-per-sign-in favorites read, never a refresh; a session change during
+  that wait answers `stale`, and groups still missing are marked
+  `unavailable`. The file carries no credential, session or own-account id,
+  and the same fields for both platforms. Main owns the save dialog and the
+  path; the renderer gets counts or a typed reason.
 - On Windows and Linux, close hides to the tray until `before-quit` sets the
   single `quitting` flag; a throwing teardown must not skip the flag. macOS
   keeps native close. Hide, minimize, close and renderer loss stop Explore
   discovery.
 - Windows and Linux have no app menu, so Alt can't reveal Reload or developer
   tools; `isQuitShortcut` restores Ctrl+Q.
-- Tray artwork: `resources/icon.ico` on Windows, 16 px PNG on macOS, 24 px PNG
-  on Linux, each with `@2x`, imported as `?asset&asarUnpack`. Never shrink the
-  512 px master for the tray.
+- Tray artwork: `resources/icon.ico` on Windows, 16 px PNG on macOS, 24 px on
+  Linux, each with `@2x` (`?asset&asarUnpack`). Never shrink the 512 px
+  master for the tray.
 
 **Authority**
 
@@ -105,7 +101,7 @@ here.
 
 - Discovery runs only from the `import-session` IPC, which the "Use my sign-in
   from" button calls; the press is the consent. Startup restores VRX's own
-  sessions only and never looks at VRCX, CVRX or game files.
+  sessions only and never looks at VRCX, CVRX or game files for a sign-in.
 - Importers only read and return. The adapter checks the material with the
   platform before it replaces anything, binds the owner, then persists. A
   dead, unreadable or ownerless import leaves the current session as it was.
@@ -133,13 +129,13 @@ here.
 **Events, alerts and activity**
 
 - `adapterWiring.ts` feeds each event to app status, `LocationAuthority`,
-  `FriendAlerts`, `ActivityFeed`, `InboxService`, then the broadcast, isolating
-  each consumer. `inbox` events go only to `InboxService`. With no window open,
+  `FriendAlerts`, `ActivityFeed`, `FriendLog`, `CvrInstanceWatch`,
+  `InboxService`, then the broadcast, isolating each consumer. `inbox` events go only to `InboxService`. With no window open,
   `RosterCatchUp` makes the one reconnect roster read an open window would.
   Broadcasts stamp `rosterRevision`; event revisions never move per-friend
   location fences.
 - A session boundary clears that platform's alerts, locations, inbox (unless
-  `identityRetained`), Explore, avatars, community, game favorites, note sync,
+  `identityRetained`), history held in memory, Explore, avatars, community, game favorites, note sync,
   home world, world rating, friend actions, social actions and own-profile state, then sends
   `identity-boundary`. A VRChat data-path 401
   sets `identityRetained`: clear main state, send no boundary; the following
@@ -152,9 +148,13 @@ here.
 - `vrOverlayAlerts.ts` talks only to this computer: one UDP datagram from
   `127.0.0.1` to `127.0.0.1:42069`, then close. Never listen, read replies or
   widen the host.
-- `ActivityFeed` and `InboxService` are memory only and bounded. Neither calls
-  a platform. Activity never records a world for a hidden location; Hide in
-  the inbox is local. Where an invite leads stays beside its row in main
+- `ActivityFeed` and `InboxService` are bounded and never call a platform.
+  The inbox is memory only. Activity never records a world for a hidden
+  location; Hide in the inbox is local.
+- Saved history (`history.sqlite3`) is keyed by the account main resolves at
+  each call, never a dependency (a failure answers empty) and never a
+  platform request. Never log a row, name, id or path. See
+  [API policy](../../docs/api-policy.md#saved-history). Where an invite leads stays beside its row in main
   (`inviteTarget`); snapshots carry only `canJoin`.
 
 **Platform writes**

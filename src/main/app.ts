@@ -62,10 +62,14 @@ import {
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
 import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdapter'
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
-import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
+import type { IPlatformAdapter, RosterCompleteness } from './services/adapters/IPlatformAdapter'
 import type { BroadcastAdapterEvent } from '@shared/ipc'
 import type { Friend, Platform } from '@shared/types'
-import { ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
+import {
+  ACTIVITY_PRUNE_INTERVAL_MS,
+  ACTIVITY_PUSH_COALESCE_MS,
+  INSTANCE_LOG_MAX_SAVED_VISITS
+} from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
 import {
@@ -84,6 +88,12 @@ import { isQuitShortcut } from './quitShortcut'
 import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
 import { ActivityFeed } from './services/activityFeed'
+import { ActivityHistory, FriendHistory } from './services/activityHistory'
+import { FriendLog } from './services/friendLog'
+import { InstanceLog } from './services/instanceLog'
+import { CvrInstanceWatch } from './services/cvrInstanceWatch'
+import { VrchatGameLog, vrchatLogDirectories } from './services/vrchatGameLog'
+import { HISTORY_FILE_NAME, HistoryDatabase } from './services/historyDatabase'
 import { InboxService } from './services/inbox'
 import { FriendActionsService } from './services/friendActions'
 import type { FriendActionsAdapter } from './services/adapters/FriendActionsAdapter'
@@ -112,7 +122,14 @@ import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
 import { RosterCatchUp } from './rosterCatchUp'
 import { importCvrSession } from './services/cvrSessionImport'
-import { importVrcxSession } from './services/vrcxSessionImport'
+import { importVrcxSession, readVrcxDatabaseSnapshot } from './services/vrcxSessionImport'
+import { importVrcxHistory } from './services/vrcxHistoryImport'
+import {
+  backUpHistory,
+  historyBackupFileName,
+  restoreHistory,
+  type HistoryTransferOptions
+} from './services/historyTransfer'
 import { createSessionImporter } from './services/sessionImport'
 import { mt, setMainLocale } from './i18n'
 import { showFatalErrorBox } from './fatalErrorBox'
@@ -492,6 +509,8 @@ app
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
     const activityBoundary: { current?: ActivityFeed } = {}
+    // Friends list history and the instance log, reset together at an account boundary.
+    const historyBoundary: { current?: { resetPlatform: (platform: Platform) => void } } = {}
     const inboxBoundary: { current?: InboxService } = {}
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
@@ -541,7 +560,10 @@ app
         friendAlertBoundary.current?.resetPlatform('vrchat')
         // The same account after a data-path 401 keeps its activity and inbox.
         activityBoundary.current?.resetPlatform('vrchat', { keepEntries: identityRetained })
-        if (!identityRetained) inboxBoundary.current?.resetPlatform('vrchat')
+        if (!identityRetained) {
+          inboxBoundary.current?.resetPlatform('vrchat')
+          historyBoundary.current?.resetPlatform('vrchat')
+        }
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
@@ -625,6 +647,7 @@ app
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
         activityBoundary.current?.resetPlatform('chilloutvr')
         inboxBoundary.current?.resetPlatform('chilloutvr')
+        historyBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
@@ -694,27 +717,135 @@ app
     })
     friendAlertBoundary.current = friendAlerts
 
-    // The Activity page's list (activityFeed.ts): memory only, fed by the same
-    // events as the alerts, no requests. Changes reach the renderer coalesced.
+    // Saved history (historyDatabase.ts): one file in VRX's own data folder.
+    // A file that cannot be used never stops the app; the session then keeps
+    // history in memory only.
+    const historyDatabase = new HistoryDatabase({
+      path: join(app.getPath('userData'), HISTORY_FILE_NAME),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    const historyAccountKeyFor = (platform: Platform): string | null => {
+      const resolved = accountSession.resolve(platform)
+      return 'ready' in resolved ? resolved.accountKey : null
+    }
+    const activityHistory = new ActivityHistory({
+      database: historyDatabase,
+      accountKeyFor: historyAccountKeyFor,
+      keepFor: () => getSettingsSnapshot().activityKeepFor,
+      now: () => Date.now()
+    })
+    const friendHistory = new FriendHistory({
+      database: historyDatabase,
+      accountKeyFor: historyAccountKeyFor,
+      keepFor: () => getSettingsSnapshot().activityKeepFor
+    })
+    // Apply the Keep activity for setting at launch and a few times a day.
+    activityHistory.prune()
+    friendHistory.prune()
+    const activityPruneTimer = setInterval(
+      () => activityHistory.prune(),
+      ACTIVITY_PRUNE_INTERVAL_MS
+    )
+    activityPruneTimer.unref()
+    let appliedActivityKeepFor = getSettingsSnapshot().activityKeepFor
+
+    // The Activity page's list (activityFeed.ts): fed by the same events as
+    // the alerts, no requests, saved per account through activityHistory.
+    // Changes reach the renderer coalesced.
     let activityPushTimer: ReturnType<typeof setTimeout> | null = null
+    const pushActivityChanged = (): void => {
+      if (activityPushTimer !== null) return
+      activityPushTimer = setTimeout(() => {
+        activityPushTimer = null
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) window.webContents.send('activity-changed')
+        }
+      }, ACTIVITY_PUSH_COALESCE_MS)
+      activityPushTimer.unref()
+    }
     const activityFeed = new ActivityFeed({
+      store: activityHistory,
       now: () => Date.now(),
       clock: () => performance.now(),
       isEnabled: () => getSettingsSnapshot().showActivityPage,
       resolveName: (platform, platformUserId) =>
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null,
-      onChanged: () => {
-        if (activityPushTimer !== null) return
-        activityPushTimer = setTimeout(() => {
-          activityPushTimer = null
-          for (const window of BrowserWindow.getAllWindows()) {
-            if (!window.isDestroyed()) window.webContents.send('activity-changed')
-          }
-        }, ACTIVITY_PUSH_COALESCE_MS)
-        activityPushTimer.unref()
-      }
+      onChanged: pushActivityChanged
     })
     activityBoundary.current = activityFeed
+    // An account restored before this point brings its saved activity now.
+    activityFeed.hydrate('vrchat')
+    activityFeed.hydrate('chilloutvr')
+    // The friends list's own history (friendLog.ts): new friends, people no
+    // longer on the list, name changes. It reads the lists VRX already reads.
+    const friendLog = new FriendLog({
+      now: () => Date.now(),
+      isEnabled: () => getSettingsSnapshot().showActivityPage,
+      record: (change) => activityFeed.recordFriendChange(change),
+      store: friendHistory
+    })
+    // The instance log (instanceLog.ts): the rooms the user was in and who
+    // was there. VRChat's comes from the game's own log file on this computer
+    // (read-only); ChilloutVR's from the live connection. No requests.
+    const isKeepingInstanceLog = (): boolean => {
+      const settings = getSettingsSnapshot()
+      return settings.showActivityPage && settings.activityKeepFor !== 'session'
+    }
+    const instanceLog = new InstanceLog({
+      database: historyDatabase,
+      accountKeyFor: historyAccountKeyFor,
+      isSaving: isKeepingInstanceLog,
+      onChanged: pushActivityChanged
+    })
+    const runningGames = new RunningGames(processNameListerFor(process.platform))
+    const vrchatGameLog = new VrchatGameLog({
+      directories: vrchatLogDirectories(process.platform, app.getPath('home')),
+      accountId: () => historyAccountKeyFor('vrchat')?.slice('vrchat:'.length) ?? null,
+      isEnabled: isKeepingInstanceLog,
+      isGameRunning: () => runningGames.isRunning('vrchat'),
+      sink: instanceLog
+    })
+    vrchatGameLog.start()
+    const cvrInstanceWatch = new CvrInstanceWatch({
+      isEnabled: isKeepingInstanceLog,
+      ownId: () => historyAccountKeyFor('chilloutvr')?.slice('chilloutvr:'.length) ?? null,
+      members: (instanceId) => cvrAdapter.instanceMembers(instanceId),
+      nameOf: (platformUserId) => cvrAdapter.resolveFriendName(platformUserId),
+      sink: instanceLog,
+      now: () => Date.now()
+    })
+    // Saving came on, or went off: both sources start over from what they see.
+    const restartInstanceSources = (): void => {
+      vrchatGameLog.reset()
+      cvrInstanceWatch.resetPlatform()
+    }
+    // Moving history (historyTransfer.ts, vrcxHistoryImport.ts): a backup
+    // file for a new computer, and VRCX's history brought in on a press.
+    const historyTransfer: HistoryTransferOptions = {
+      database: historyDatabase,
+      isKeeping: isKeepingInstanceLog,
+      workDirectory: () => app.getPath('temp'),
+      afterRestore: () => {
+        // What is in memory belonged to the rows just replaced.
+        for (const platform of ['vrchat', 'chilloutvr'] as const) {
+          friendLog.resetPlatform(platform)
+          instanceLog.resetPlatform(platform)
+        }
+        activityHistory.prune()
+        friendHistory.prune()
+        activityFeed.reload()
+        restartInstanceSources()
+        pushActivityChanged()
+      }
+    }
+    historyBoundary.current = {
+      resetPlatform: (platform) => {
+        friendLog.resetPlatform(platform)
+        instanceLog.resetPlatform(platform)
+        if (platform === 'vrchat') vrchatGameLog.reset()
+        else cvrInstanceWatch.resetPlatform()
+      }
+    }
     // The inbox: socket-delivered invites and requests, memory only.
     const inbox = new InboxService({
       now: () => Date.now(),
@@ -757,10 +888,7 @@ app
     const joinCoordinator = new JoinCoordinator()
     const gameHandoff = new GameHandoff({
       hostPlatform: process.platform,
-      isRunning: (() => {
-        const games = new RunningGames(processNameListerFor(process.platform))
-        return (platform: Platform) => games.isRunning(platform)
-      })(),
+      isRunning: (platform: Platform) => runningGames.isRunning(platform),
       settings: () => getSettingsSnapshot(),
       openExternal: (url) => shell.openExternal(url)
     })
@@ -917,12 +1045,20 @@ app
       logFailure: (platform) => log.warn('roster catch-up failed', { platform })
     })
     // Each roster read, after the location authority is seeded.
-    const onFriendRoster = (platform: Platform, friends: Friend[]): void => {
+    const onFriendRoster = (
+      platform: Platform,
+      friends: Friend[],
+      completeness: RosterCompleteness
+    ): void => {
       // Settle requests first: it cannot throw, and an alert failure must not skip it.
       inbox.settleRoster(platform, friends)
       rosterCatchUp.rosterRead(platform)
       friendAlerts.seedRoster(platform, friends)
       activityFeed.seedRoster(platform, friends)
+      // A roster read means the account is signed in: its saved activity
+      // comes back into the list. Repeating this adds nothing twice.
+      activityFeed.hydrate(platform)
+      friendLog.rosterRead(platform, friends, completeness)
     }
     const readFriendRoster = createFriendRosterReader(
       adapters,
@@ -1024,12 +1160,79 @@ app
           return true
         }
       },
+      // Activity → Kept: bring in VRCX history, back up, restore.
+      historyTransfer: {
+        importVrcx: async () => {
+          const result = await importVrcxHistory({
+            database: historyDatabase,
+            isKeeping: () => isKeepingInstanceLog() && historyDatabase.storage === 'file',
+            accountKey: () => historyAccountKeyFor('vrchat'),
+            keepCutoff: () => activityHistory.cutoff(),
+            maxVisits: INSTANCE_LOG_MAX_SAVED_VISITS,
+            readSnapshot: readVrcxDatabaseSnapshot,
+            pause: () => new Promise((resolve) => setImmediate(resolve))
+          })
+          // The friends list in memory still holds the days it knew before.
+          friendLog.resetPlatform('vrchat')
+          pushActivityChanged()
+          return result
+        },
+        isKeeping: isKeepingInstanceLog,
+        pickBackupTarget: async (event) => {
+          const owner = BrowserWindow.fromWebContents(event.sender)
+          const options: Electron.SaveDialogOptions = {
+            title: mt('historyTransfer.backupTitle'),
+            defaultPath: join(app.getPath('documents'), historyBackupFileName(new Date())),
+            filters: [{ name: mt('historyTransfer.dialogFilter'), extensions: ['sqlite3'] }]
+          }
+          const picked = owner
+            ? await dialog.showSaveDialog(owner, options)
+            : await dialog.showSaveDialog(options)
+          return picked.canceled || !picked.filePath ? null : picked.filePath
+        },
+        pickBackupSource: async (event) => {
+          const owner = BrowserWindow.fromWebContents(event.sender)
+          const options: Electron.OpenDialogOptions = {
+            title: mt('historyTransfer.restoreTitle'),
+            defaultPath: app.getPath('documents'),
+            properties: ['openFile'],
+            filters: [{ name: mt('historyTransfer.dialogFilter'), extensions: ['sqlite3'] }]
+          }
+          const picked = owner
+            ? await dialog.showOpenDialog(owner, options)
+            : await dialog.showOpenDialog(options)
+          return picked.canceled ? null : (picked.filePaths[0] ?? null)
+        },
+        backUp: (targetPath) => backUpHistory(historyTransfer, targetPath),
+        restore: (sourcePath) => restoreHistory(historyTransfer, sourcePath)
+      },
       onSettingsApplied: (saved) => {
         applyWindowTheme(saved.theme)
         applyUpdaterSettings(saved)
         loginItem.follow(saved.startWithComputer !== 'off')
         // Turning the Activity page off also forgets what it kept.
-        if (!saved.showActivityPage) activityFeed.clearAll()
+        if (!saved.showActivityPage) {
+          activityFeed.clearAll()
+          friendLog.clearAll()
+          instanceLog.clearAll()
+          restartInstanceSources()
+        }
+        if (saved.activityKeepFor !== appliedActivityKeepFor) {
+          const wasSaving = appliedActivityKeepFor !== 'session'
+          appliedActivityKeepFor = saved.activityKeepFor
+          // Saving just came on: what the list holds now is saved too. A
+          // shorter choice, or "until VRX closes", removes what no longer fits.
+          if (!wasSaving) {
+            activityFeed.saveAll()
+            friendLog.saveAll()
+          }
+          activityHistory.prune()
+          friendHistory.prune()
+          if (wasSaving !== (appliedActivityKeepFor !== 'session')) {
+            if (wasSaving) instanceLog.clearAll()
+            restartInstanceSources()
+          }
+        }
       },
       accountRegistry,
       accountSession,
@@ -1049,6 +1252,8 @@ app
       appStatus,
       loginItem,
       activity: activityFeed,
+      friendLog,
+      instanceLog,
       importSession: createSessionImporter({
         discoverVrchat: importVrcxSession,
         discoverChilloutvr: () =>
@@ -1125,6 +1330,8 @@ app
       locationAuthority,
       friendAlerts,
       activityFeed,
+      friendLog,
+      instanceWatch: cvrInstanceWatch,
       inbox,
       rosterCatchUp,
       broadcast
@@ -1133,6 +1340,9 @@ app
     const stopWakeReconnect = reconnectLiveOnWake(powerMonitor, [vrcAdapter, cvrAdapter], {
       logFailure: () => log.warn('live reconnect after wake failed')
     })
+    // Closed only once the quit is certain, so a quit something calls off
+    // never leaves the session without its history file.
+    app.once('quit', () => historyDatabase.close())
     app.on('before-quit', () => {
       explore.dispose()
       // Renderer changes are handed to main immediately; force the latest
@@ -1148,6 +1358,8 @@ app
           message: error instanceof Error ? error.message : String(error)
         })
       }
+      clearInterval(activityPruneTimer)
+      vrchatGameLog.stop()
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'
       // event, so the close-to-tray handler in createWindow() always sees the

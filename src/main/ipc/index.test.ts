@@ -88,12 +88,24 @@ vi.mock('./data-export', () => ({
   registerDataExportHandlers: () =>
     electron.ipcMain.handle('export-data', () => ({ ok: false, reason: 'cancelled' }))
 }))
+vi.mock('./history-transfer', () => ({
+  registerHistoryTransferHandlers: () => {
+    electron.ipcMain.handle('import-vrcx-history', () => ({ ok: false, reason: 'off' }))
+    electron.ipcMain.handle('backup-history', () => ({ ok: false, reason: 'cancelled' }))
+    electron.ipcMain.handle('restore-history', () => ({ ok: false, reason: 'cancelled' }))
+  }
+}))
 vi.mock('./login-item', () => ({
   registerLoginItemHandlers: () => electron.ipcMain.handle('get-login-item', () => 'off')
 }))
 vi.mock('./activity', () => ({
   registerActivityHandlers: () => {
     electron.ipcMain.handle('get-activity', () => [])
+    electron.ipcMain.handle('get-activity-page', () => ({ entries: [], hasMore: false }))
+    electron.ipcMain.handle('get-friend-history', () => [])
+    electron.ipcMain.handle('get-instance-visits', () => ({ visits: [], hasMore: false }))
+    electron.ipcMain.handle('get-instance-visit-people', () => [])
+    electron.ipcMain.handle('clear-instance-log', () => undefined)
     electron.ipcMain.handle('clear-activity', () => undefined)
   }
 }))
@@ -153,16 +165,19 @@ import { IPC_RATE_LIMIT_BUDGETS } from './rate-limit'
 // list and the typed budget table (one entry per IpcInvoke channel) disagree.
 const EXPECTED_INVOKE_CHANNELS = [
   'answer-friend-request',
+  'backup-history',
   'cancel-explore-world',
   'change-linked-profile',
   'choose-app-background',
   'clear-activity',
   'clear-app-background',
   'clear-inbox',
+  'clear-instance-log',
   'dismiss-inbox-item',
   'export-data',
   'get-accounts',
   'get-activity',
+  'get-activity-page',
   'get-alert-picks',
   'get-app-background',
   'get-app-status',
@@ -176,10 +191,13 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-explore-world',
   'get-favorite-friends',
   'get-favorite-worlds',
+  'get-friend-history',
   'get-friend-note',
   'get-friends',
   'get-game-favorites',
   'get-inbox',
+  'get-instance-visit-people',
+  'get-instance-visits',
   'get-join-handoff',
   'get-linked-profiles',
   'get-login-item',
@@ -194,6 +212,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-world-list',
   'get-world-rating',
   'import-session',
+  'import-vrcx-history',
   'join-explore-room',
   'join-instance',
   'join-invite',
@@ -202,6 +221,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'open-bug-report',
   'open-logs-folder',
   'open-url',
+  'restore-history',
   'save-own-profile',
   'save-settings',
   'search-community',
@@ -248,6 +268,7 @@ function options(): IpcHandlerOptions {
     loginItem: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
     dataExport: {} as IpcHandlerOptions['dataExport'],
+    historyTransfer: {} as IpcHandlerOptions['historyTransfer'],
     inbox: {} as IpcHandlerOptions['inbox'],
     friendActions: {} as IpcHandlerOptions['friendActions'],
     vrOverlayAlerts: { test: async () => undefined },

@@ -88,9 +88,10 @@ never a design rule.
 - Allowlist URLs before `shell.openExternal`. Never allow `unsafe-inline` in
   the shipped CSP; only the Vite dev server may relax `style-src` for HMR
   (`scripts/dev-style-csp.ts`, serve-only).
-- Never log credentials, tokens or personal data. Never write to VRCX or
-  ChilloutVR folders; read local VRCX, ChilloutVR or CVRX files only through
-  the "Use my sign-in from" import, which runs only on that button press.
+- Never log credentials, tokens or personal data. Never write to VRCX, CVRX
+  or game folders; read them read-only, only for "Use my sign-in from" and
+  "Bring in from VRCX" (each on its button press) and VRChat's `output_log`
+  for the instance log.
 - Keep the packaged-app Electron fuses in `electron-builder.yml`, and keep
   repository docs, tooling and tests out of the package
   (`scripts/package-files.test.mjs` checks both).
