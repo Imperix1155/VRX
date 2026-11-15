@@ -88,6 +88,13 @@ vi.mock('./data-export', () => ({
   registerDataExportHandlers: () =>
     electron.ipcMain.handle('export-data', () => ({ ok: false, reason: 'cancelled' }))
 }))
+vi.mock('./history-transfer', () => ({
+  registerHistoryTransferHandlers: () => {
+    electron.ipcMain.handle('import-vrcx-history', () => ({ ok: false, reason: 'off' }))
+    electron.ipcMain.handle('backup-history', () => ({ ok: false, reason: 'cancelled' }))
+    electron.ipcMain.handle('restore-history', () => ({ ok: false, reason: 'cancelled' }))
+  }
+}))
 vi.mock('./login-item', () => ({
   registerLoginItemHandlers: () => electron.ipcMain.handle('get-login-item', () => 'off')
 }))
@@ -158,6 +165,7 @@ import { IPC_RATE_LIMIT_BUDGETS } from './rate-limit'
 // list and the typed budget table (one entry per IpcInvoke channel) disagree.
 const EXPECTED_INVOKE_CHANNELS = [
   'answer-friend-request',
+  'backup-history',
   'cancel-explore-world',
   'change-linked-profile',
   'choose-app-background',
@@ -204,6 +212,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-world-list',
   'get-world-rating',
   'import-session',
+  'import-vrcx-history',
   'join-explore-room',
   'join-instance',
   'join-invite',
@@ -212,6 +221,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'open-bug-report',
   'open-logs-folder',
   'open-url',
+  'restore-history',
   'save-own-profile',
   'save-settings',
   'search-community',
@@ -258,6 +268,7 @@ function options(): IpcHandlerOptions {
     loginItem: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
     dataExport: {} as IpcHandlerOptions['dataExport'],
+    historyTransfer: {} as IpcHandlerOptions['historyTransfer'],
     inbox: {} as IpcHandlerOptions['inbox'],
     friendActions: {} as IpcHandlerOptions['friendActions'],
     vrOverlayAlerts: { test: async () => undefined },

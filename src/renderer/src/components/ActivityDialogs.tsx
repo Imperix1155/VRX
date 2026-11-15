@@ -1,12 +1,14 @@
 /**
  * The Activity page's two dialogs (owner, 2026-11-15): how long activity
- * stays saved on this computer, and the question before Clear deletes saved
+ * stays saved on this computer (with the buttons that move saved history:
+ * `HistoryTransfer.tsx`), and the question before Clear deletes saved
  * activity. Both use the shared dialog shell.
  */
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ACTIVITY_KEEP_FOR, type ActivityKeepFor } from '@shared/activity'
 import { ACTIVITY_KEEP_LABEL_KEYS } from '../utils/activityText'
+import HistoryTransfer from './HistoryTransfer'
 import LinkedDialog from './LinkedDialog'
 
 const buttonClass =
@@ -54,6 +56,7 @@ export function ActivityKeepDialog({
           </label>
         ))}
       </div>
+      <HistoryTransfer saving={value !== 'session'} />
       <div className="mt-[var(--space-4)] flex justify-end">
         <button type="button" className={buttonClass} onClick={onClose}>
           {t('activity.keep.done')}

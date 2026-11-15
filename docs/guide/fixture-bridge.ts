@@ -552,6 +552,10 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         favorites: 31,
         gameFavoritesMissing: false
       }),
+    importVrcxHistory: () =>
+      Promise.resolve({ ok: true, friendsSince: 38, names: 6, visits: 412, olderSkipped: true }),
+    backupHistory: () => Promise.resolve({ ok: true }),
+    restoreHistory: () => Promise.resolve({ ok: true }),
     dismissInboxItem: ({ platform, id }) => {
       inbox = {
         items: inbox.items.filter((item) => !(item.platform === platform && item.id === id))

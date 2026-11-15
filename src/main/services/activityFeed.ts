@@ -240,6 +240,21 @@ export class ActivityFeed {
   }
 
   /**
+   * The saved copy was replaced (a restored backup): the list starts over
+   * from what is saved now for the accounts signed in. Ids already given out
+   * are never given again.
+   */
+  reload(): void {
+    this.nextId = Math.max(this.nextId, (this.options.store?.maxId() ?? 0) + 1)
+    for (const platform of PLATFORMS) {
+      this.platformEntries(platform).length = 0
+      this.refill(platform)
+    }
+    this.changed = true
+    this.flush()
+  }
+
+  /**
    * The friends list changed (`friendLog.ts`): a new friend, someone no longer
    * on the list, a friend's new name. Listed like any other entry.
    */

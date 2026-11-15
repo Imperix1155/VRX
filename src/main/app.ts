@@ -65,7 +65,11 @@ import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter, RosterCompleteness } from './services/adapters/IPlatformAdapter'
 import type { BroadcastAdapterEvent } from '@shared/ipc'
 import type { Friend, Platform } from '@shared/types'
-import { ACTIVITY_PRUNE_INTERVAL_MS, ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
+import {
+  ACTIVITY_PRUNE_INTERVAL_MS,
+  ACTIVITY_PUSH_COALESCE_MS,
+  INSTANCE_LOG_MAX_SAVED_VISITS
+} from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
 import {
@@ -118,7 +122,14 @@ import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
 import { RosterCatchUp } from './rosterCatchUp'
 import { importCvrSession } from './services/cvrSessionImport'
-import { importVrcxSession } from './services/vrcxSessionImport'
+import { importVrcxSession, readVrcxDatabaseSnapshot } from './services/vrcxSessionImport'
+import { importVrcxHistory } from './services/vrcxHistoryImport'
+import {
+  backUpHistory,
+  historyBackupFileName,
+  restoreHistory,
+  type HistoryTransferOptions
+} from './services/historyTransfer'
 import { createSessionImporter } from './services/sessionImport'
 import { mt, setMainLocale } from './i18n'
 import { showFatalErrorBox } from './fatalErrorBox'
@@ -808,6 +819,25 @@ app
       vrchatGameLog.reset()
       cvrInstanceWatch.resetPlatform()
     }
+    // Moving history (historyTransfer.ts, vrcxHistoryImport.ts): a backup
+    // file for a new computer, and VRCX's history brought in on a press.
+    const historyTransfer: HistoryTransferOptions = {
+      database: historyDatabase,
+      isKeeping: isKeepingInstanceLog,
+      workDirectory: () => app.getPath('temp'),
+      afterRestore: () => {
+        // What is in memory belonged to the rows just replaced.
+        for (const platform of ['vrchat', 'chilloutvr'] as const) {
+          friendLog.resetPlatform(platform)
+          instanceLog.resetPlatform(platform)
+        }
+        activityHistory.prune()
+        friendHistory.prune()
+        activityFeed.reload()
+        restartInstanceSources()
+        pushActivityChanged()
+      }
+    }
     historyBoundary.current = {
       resetPlatform: (platform) => {
         friendLog.resetPlatform(platform)
@@ -1129,6 +1159,52 @@ app
           await writeFile(picked.filePath, content, 'utf8')
           return true
         }
+      },
+      // Activity → Kept: bring in VRCX history, back up, restore.
+      historyTransfer: {
+        importVrcx: async () => {
+          const result = await importVrcxHistory({
+            database: historyDatabase,
+            isKeeping: () => isKeepingInstanceLog() && historyDatabase.storage === 'file',
+            accountKey: () => historyAccountKeyFor('vrchat'),
+            keepCutoff: () => activityHistory.cutoff(),
+            maxVisits: INSTANCE_LOG_MAX_SAVED_VISITS,
+            readSnapshot: readVrcxDatabaseSnapshot,
+            pause: () => new Promise((resolve) => setImmediate(resolve))
+          })
+          // The friends list in memory still holds the days it knew before.
+          friendLog.resetPlatform('vrchat')
+          pushActivityChanged()
+          return result
+        },
+        isKeeping: isKeepingInstanceLog,
+        pickBackupTarget: async (event) => {
+          const owner = BrowserWindow.fromWebContents(event.sender)
+          const options: Electron.SaveDialogOptions = {
+            title: mt('historyTransfer.backupTitle'),
+            defaultPath: join(app.getPath('documents'), historyBackupFileName(new Date())),
+            filters: [{ name: mt('historyTransfer.dialogFilter'), extensions: ['sqlite3'] }]
+          }
+          const picked = owner
+            ? await dialog.showSaveDialog(owner, options)
+            : await dialog.showSaveDialog(options)
+          return picked.canceled || !picked.filePath ? null : picked.filePath
+        },
+        pickBackupSource: async (event) => {
+          const owner = BrowserWindow.fromWebContents(event.sender)
+          const options: Electron.OpenDialogOptions = {
+            title: mt('historyTransfer.restoreTitle'),
+            defaultPath: app.getPath('documents'),
+            properties: ['openFile'],
+            filters: [{ name: mt('historyTransfer.dialogFilter'), extensions: ['sqlite3'] }]
+          }
+          const picked = owner
+            ? await dialog.showOpenDialog(owner, options)
+            : await dialog.showOpenDialog(options)
+          return picked.canceled ? null : (picked.filePaths[0] ?? null)
+        },
+        backUp: (targetPath) => backUpHistory(historyTransfer, targetPath),
+        restore: (sourcePath) => restoreHistory(historyTransfer, sourcePath)
       },
       onSettingsApplied: (saved) => {
         applyWindowTheme(saved.theme)

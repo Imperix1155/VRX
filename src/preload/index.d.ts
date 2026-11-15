@@ -149,6 +149,9 @@ type VrxBridge = {
   chooseAppBackground: () => Promise<IpcInvoke['choose-app-background']['res']>
   clearAppBackground: () => Promise<IpcInvoke['clear-app-background']['res']>
   exportData: () => Promise<IpcInvoke['export-data']['res']>
+  importVrcxHistory: () => Promise<IpcInvoke['import-vrcx-history']['res']>
+  backupHistory: () => Promise<IpcInvoke['backup-history']['res']>
+  restoreHistory: () => Promise<IpcInvoke['restore-history']['res']>
   /** The inbox: rows the sockets delivered while VRX was open. */
   getInbox: () => Promise<IpcInvoke['get-inbox']['res']>
   /** Hide a row in VRX only; nothing reaches the platform. */

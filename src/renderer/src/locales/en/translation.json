@@ -749,6 +749,37 @@
       "body": "This also deletes the saved activity for what this page shows, older entries included. It can’t be undone.",
       "confirm": "Clear",
       "cancel": "Cancel"
+    },
+    "transfer": {
+      "heading": "Move your history",
+      "hint": "A backup holds both platforms, for moving to a new computer. VRCX keeps VRChat history only; close VRCX before bringing it in.",
+      "importVrcx": "Bring in from VRCX",
+      "backup": "Back up…",
+      "restore": "Restore…",
+      "cancel": "Cancel",
+      "restoreAsk": "Restoring replaces everything saved here with what is in the backup. It can’t be undone.",
+      "restoreConfirm": "Choose a backup…",
+      "working": {
+        "import": "Reading VRCX’s history…",
+        "backup": "Saving the backup…",
+        "restore": "Restoring…"
+      },
+      "off": "Nothing is being saved. Pick a time above first.",
+      "tooMany": "Too many tries. Wait a minute and try again.",
+      "imported": "Brought in from VRCX. Rooms: {{visits}} · Friends since: {{friends}} · Earlier names: {{names}}",
+      "importedNothing": "VRCX had nothing new to bring in.",
+      "importedOlder": "Rooms older than the time picked above were left out.",
+      "importSignedOut": "Sign in to VRChat first.",
+      "importBusy": "VRCX is open. Close it and try again.",
+      "importNotFound": "No VRCX history was found on this computer.",
+      "importNoHistory": "VRCX has no history for this VRChat account.",
+      "importFailed": "That didn’t finish. Try again.",
+      "backedUp": "Backup saved. Keep it private: it holds your friends’ names.",
+      "backupFailed": "The backup couldn’t be saved.",
+      "restored": "History restored.",
+      "restoreNotBackup": "That file isn’t a VRX history backup.",
+      "restoreNewer": "That backup was made by a newer VRX. Update VRX first.",
+      "restoreFailed": "The backup couldn’t be read. Nothing was changed."
     }
   },
   "instances": {

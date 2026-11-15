@@ -237,6 +237,33 @@ describe('ActivityFeed with a saved copy', () => {
     expect(newest?.id).toBeGreaterThan(Math.max(...before.map((item) => item.id)))
   })
 
+  it('starts over from the saved copy after it was replaced, never reusing an id', () => {
+    const world = setup()
+    const feed = world.feed()
+    seed(feed, ['usr_a'])
+    comeOnline(feed, 'usr_a')
+    const before = Math.max(...feed.list().map((item) => item.id))
+
+    // A restored backup: other rows, one with a higher id than any given out.
+    world.database.deleteAllActivity()
+    world.database.insertActivity({
+      id: before + 40,
+      accountKey: 'vrchat:usr_me',
+      kind: 'offline',
+      platformUserId: 'usr_r',
+      displayName: 'Restored',
+      worldName: null,
+      previousName: null,
+      at: 5
+    })
+    feed.reload()
+    expect(feed.list().map((item) => item.displayName)).toEqual(['Restored'])
+
+    seed(feed, ['usr_c'])
+    comeOnline(feed, 'usr_c')
+    expect(feed.list()[0]?.id).toBe(before + 41)
+  })
+
   it('drops the outgoing account from memory and shows the next account only its own', () => {
     const world = setup()
     const feed = world.feed()

@@ -100,6 +100,49 @@ const SIDE_FILES = ['', '-wal', '-shm'] as const
 /** Longest text a row may carry; longer values are cut on the way in. */
 const MAX_TEXT_LENGTH = 512
 
+/** A brought-in visit this close to a saved one of the same room is the same stay. */
+const IMPORT_SAME_VISIT_MS = 60_000
+
+const HISTORY_TABLES = [
+  'activity',
+  'friend_roster',
+  'friend_names',
+  'visits',
+  'encounters'
+] as const
+
+/** Restore: every table emptied, then filled from the attached backup. Text
+ *  is cut to the same length as on any other way in. */
+const RESTORE_SQL = `
+  DELETE FROM encounters;
+  DELETE FROM visits;
+  DELETE FROM friend_names;
+  DELETE FROM friend_roster;
+  DELETE FROM activity;
+  INSERT INTO activity (id, account_key, kind, user_id, display_name, world_name, previous_name, at)
+    SELECT id, substr(account_key, 1, ${MAX_TEXT_LENGTH}), substr(kind, 1, 32),
+           substr(user_id, 1, ${MAX_TEXT_LENGTH}), substr(display_name, 1, ${MAX_TEXT_LENGTH}),
+           substr(world_name, 1, ${MAX_TEXT_LENGTH}), substr(previous_name, 1, ${MAX_TEXT_LENGTH}), at
+    FROM backup.activity;
+  INSERT INTO friend_roster (account_key, user_id, display_name, since, since_known, misses)
+    SELECT substr(account_key, 1, ${MAX_TEXT_LENGTH}), substr(user_id, 1, ${MAX_TEXT_LENGTH}),
+           substr(display_name, 1, ${MAX_TEXT_LENGTH}), since, since_known, misses
+    FROM backup.friend_roster;
+  INSERT INTO friend_names (id, account_key, user_id, previous_name, at)
+    SELECT id, substr(account_key, 1, ${MAX_TEXT_LENGTH}), substr(user_id, 1, ${MAX_TEXT_LENGTH}),
+           substr(previous_name, 1, ${MAX_TEXT_LENGTH}), at
+    FROM backup.friend_names;
+  INSERT INTO visits (id, account_key, instance_id, world_name, entered_at, left_at)
+    SELECT id, substr(account_key, 1, ${MAX_TEXT_LENGTH}), substr(instance_id, 1, ${MAX_TEXT_LENGTH}),
+           substr(world_name, 1, ${MAX_TEXT_LENGTH}), entered_at, left_at
+    FROM backup.visits;
+  INSERT INTO encounters (id, account_key, visit_id, user_id, display_name, joined_at, left_at)
+    SELECT id, substr(account_key, 1, ${MAX_TEXT_LENGTH}), visit_id,
+           substr(user_id, 1, ${MAX_TEXT_LENGTH}), substr(display_name, 1, ${MAX_TEXT_LENGTH}),
+           joined_at, left_at
+    FROM backup.encounters;
+`
+
 interface RawActivityRow {
   id?: unknown
   account_key?: unknown
@@ -367,7 +410,7 @@ export class HistoryDatabase {
       this.attempt(() => {
         const rows = this.statement(
           `SELECT previous_name, at FROM friend_names
-           WHERE account_key = ? AND user_id = ? ORDER BY id DESC LIMIT ?`
+           WHERE account_key = ? AND user_id = ? ORDER BY at DESC, id DESC LIMIT ?`
         ).all(accountKey, platformUserId, limit) as Array<{ previous_name?: unknown; at?: unknown }>
         const changes: SavedNameChange[] = []
         for (const row of rows) {
@@ -667,6 +710,189 @@ export class HistoryDatabase {
       })
       if (removed > 0) this.reclaim()
     })
+  }
+
+  // ── Brought in from elsewhere, backup and restore ─────────────────────────
+
+  /**
+   * An earlier day a friendship is known to have begun (VRCX saw it). Only a
+   * friend already saved is touched, and only toward an earlier or first-known
+   * day. True when the day was taken.
+   */
+  importFriendSince(accountKey: string, platformUserId: string, since: number): boolean {
+    return (
+      this.attempt(
+        () =>
+          Number(
+            this.statement(
+              `UPDATE friend_roster SET since = ?, since_known = 1
+               WHERE account_key = ? AND user_id = ? AND (since_known = 0 OR since > ?)`
+            ).run(since, accountKey, platformUserId, since).changes
+          ) > 0
+      ) ?? false
+    )
+  }
+
+  /** A name a saved friend used before, unless that change is already saved.
+   *  True when it was added. */
+  importNameChange(
+    accountKey: string,
+    platformUserId: string,
+    previousName: string,
+    at: number
+  ): boolean {
+    return (
+      this.attempt(
+        () =>
+          Number(
+            this.statement(
+              `INSERT INTO friend_names (account_key, user_id, previous_name, at)
+               SELECT ?1, ?2, ?3, ?4
+               WHERE EXISTS (
+                 SELECT 1 FROM friend_roster WHERE account_key = ?1 AND user_id = ?2
+               ) AND NOT EXISTS (
+                 SELECT 1 FROM friend_names
+                 WHERE account_key = ?1 AND user_id = ?2 AND previous_name = ?3 AND at = ?4
+               )`
+            ).run(accountKey, clip(platformUserId), clip(previousName), at).changes
+          ) > 0
+      ) ?? false
+    )
+  }
+
+  /**
+   * A stay in a room that already ended. A visit to the same room that began
+   * within a minute of it is the same stay (VRX saw it too), and is left as it
+   * is: `fresh` is false and nothing more should be added to it.
+   */
+  importVisit(
+    accountKey: string,
+    visit: { instanceId: string; worldName: string | null; enteredAt: number; leftAt: number }
+  ): { id: number; fresh: boolean } | null {
+    return (
+      this.attempt(() => {
+        const instanceId = clip(visit.instanceId)
+        const known = this.statement(
+          `SELECT id FROM visits
+           WHERE account_key = ? AND instance_id = ? AND entered_at BETWEEN ? AND ? LIMIT 1`
+        ).get(
+          accountKey,
+          instanceId,
+          visit.enteredAt - IMPORT_SAME_VISIT_MS,
+          visit.enteredAt + IMPORT_SAME_VISIT_MS
+        ) as { id?: unknown } | undefined
+        if (typeof known?.id === 'number') return { id: known.id, fresh: false }
+        const id = this.statement(
+          `INSERT INTO visits (account_key, instance_id, world_name, entered_at, left_at)
+           VALUES (?, ?, ?, ?, ?)`
+        ).run(
+          accountKey,
+          instanceId,
+          visit.worldName === null ? null : clip(visit.worldName),
+          visit.enteredAt,
+          Math.max(visit.leftAt, visit.enteredAt)
+        ).lastInsertRowid
+        return { id: Number(id), fresh: true }
+      }) ?? null
+    )
+  }
+
+  /** A brought-in visit lasted at least until `leftAt`. */
+  importVisitEnd(visitId: number, leftAt: number): void {
+    this.attempt(() => {
+      this.statement(
+        'UPDATE visits SET left_at = MAX(left_at, ?) WHERE id = ? AND left_at IS NOT NULL'
+      ).run(leftAt, visitId)
+    })
+  }
+
+  /** Someone's whole stay during a brought-in visit. Saved once per moment. */
+  importEncounter(
+    accountKey: string,
+    visitId: number,
+    stay: { platformUserId: string; displayName: string; joinedAt: number; leftAt: number }
+  ): void {
+    if (stay.platformUserId === '') return
+    this.attempt(() => {
+      this.statement(
+        `INSERT OR IGNORE INTO encounters
+           (account_key, visit_id, user_id, display_name, joined_at, left_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).run(
+        accountKey,
+        visitId,
+        clip(stay.platformUserId),
+        clip(stay.displayName),
+        stay.joinedAt,
+        Math.max(stay.leftAt, stay.joinedAt)
+      )
+    })
+  }
+
+  /** Write a whole copy of the history to a new file. False when it failed
+   *  (the file must not exist yet). */
+  backupTo(path: string): boolean {
+    return (
+      this.attempt(() => {
+        const db = this.db
+        if (db === null) return false
+        db.prepare('VACUUM INTO ?').run(path)
+        return true
+      }) ?? false
+    )
+  }
+
+  /**
+   * Replace everything saved with the rows of a backup file. All of it lands
+   * or none does. The file is only read; give it a private copy, since SQLite
+   * may write beside a file it opens.
+   */
+  restoreFrom(path: string): 'restored' | 'not-a-backup' | 'newer' | 'failed' {
+    const db = this.db
+    if (db === null) return 'failed'
+    try {
+      db.prepare('ATTACH DATABASE ? AS backup').run(path)
+    } catch {
+      return 'not-a-backup'
+    }
+    try {
+      let version: number
+      try {
+        const row = db.prepare('PRAGMA backup.user_version').get() as
+          { user_version?: unknown } | undefined
+        if (typeof row?.user_version !== 'number') return 'not-a-backup'
+        version = row.user_version
+        const tables = new Set<unknown>(
+          (
+            db
+              .prepare("SELECT name FROM backup.sqlite_master WHERE type = 'table'")
+              .all() as Array<{
+              name?: unknown
+            }>
+          ).map((table) => table.name)
+        )
+        if (!HISTORY_TABLES.every((table) => tables.has(table))) return 'not-a-backup'
+      } catch {
+        return 'not-a-backup'
+      }
+      if (version > HISTORY_SCHEMA_VERSION) return 'newer'
+      if (version < 1) return 'not-a-backup'
+      try {
+        this.transaction(() => {
+          db.exec(RESTORE_SQL)
+        })
+      } catch {
+        return 'failed'
+      }
+      this.attempt(() => this.reclaim())
+      return 'restored'
+    } finally {
+      try {
+        db.exec('DETACH DATABASE backup')
+      } catch {
+        // Nothing left to detach.
+      }
+    }
   }
 
   /** Flush and close. Safe to call twice. */

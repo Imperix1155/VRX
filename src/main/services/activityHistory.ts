@@ -124,11 +124,19 @@ export class ActivityHistory implements ActivityStore {
       database.deleteAllInstanceLog()
       return
     }
-    const days = ACTIVITY_KEEP_DAYS[keepFor]
-    const olderThan = days === null ? null : this.options.now() - days * DAY_MS
+    const olderThan = this.cutoff()
     database.pruneActivity(olderThan, ACTIVITY_MAX_SAVED_ROWS)
     // The instance log follows the same choice.
     database.pruneInstanceLog(olderThan, INSTANCE_LOG_MAX_SAVED_VISITS)
+  }
+
+  /** The oldest moment the setting still keeps, or null when nothing is
+   *  removed by age. */
+  cutoff(): number | null {
+    const keepFor = this.options.keepFor()
+    if (keepFor === 'session') return this.options.now()
+    const days = ACTIVITY_KEEP_DAYS[keepFor]
+    return days === null ? null : this.options.now() - days * DAY_MS
   }
 
   private isSaving(): boolean {

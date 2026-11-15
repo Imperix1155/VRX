@@ -44,6 +44,11 @@ import type { OwnProfileChanges, OwnProfileResult, SaveOwnProfileResult } from '
 import type { SetHomeWorldResult } from './homeWorld'
 import type { SetWorldRatingResult, WorldRating, WorldRatingRead } from './worldRating'
 import type { InboxSnapshot } from './inbox'
+import type {
+  HistoryBackupResult,
+  HistoryRestoreResult,
+  VrcxHistoryImportResult
+} from './historyTransfer'
 import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type {
@@ -345,6 +350,16 @@ export interface IpcInvoke {
    *  dialog. Main builds the file from what it already holds; the renderer
    *  supplies nothing. */
   'export-data': { req: void; res: DataExportResult }
+  /** Bring VRCX's saved history for the signed-in VRChat account into VRX's
+   *  own history. Main reads a private copy of VRCX's file, on this press
+   *  only; the renderer supplies nothing. */
+  'import-vrcx-history': { req: void; res: VrcxHistoryImportResult }
+  /** Save a backup of the saved history to a file the user picks in a native
+   *  dialog. */
+  'backup-history': { req: void; res: HistoryBackupResult }
+  /** Replace the saved history with a backup the user picks in a native
+   *  dialog. The renderer asks first; main owns the dialog and the path. */
+  'restore-history': { req: void; res: HistoryRestoreResult }
   /** Invites and requests that arrived while VRX was open. */
   'get-inbox': { req: void; res: InboxSnapshot }
   /** Join the instance an invite row leads to. Main looks the row up itself:
