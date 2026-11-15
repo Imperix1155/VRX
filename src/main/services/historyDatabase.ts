@@ -11,7 +11,7 @@
  */
 import { chmodSync, existsSync, renameSync } from 'node:fs'
 import { DatabaseSync, type StatementSync } from 'node:sqlite'
-import type { ActivityEntry, ActivityKind } from '@shared/activity'
+import { ACTIVITY_KINDS, type ActivityEntry, type ActivityKind } from '@shared/activity'
 import type { Platform } from '@shared/types'
 
 /** The schema this build writes. Bump with a migration step below. */
@@ -38,19 +38,39 @@ export interface SavedActivityRow {
   platformUserId: string
   displayName: string
   worldName: string | null
+  /** `renamed` only. */
+  previousName: string | null
+  at: number
+}
+
+/** One friend as last seen on the friends list. */
+export interface SavedFriend {
+  platformUserId: string
+  displayName: string
+  /** When the friendship began as far as VRX knows (ms since the epoch). */
+  since: number
+  /** False for someone already a friend when history began. */
+  sinceKnown: boolean
+  /** Whole friends lists in a row they were missing from. */
+  misses: number
+}
+
+export interface SavedNameChange {
+  previousName: string
   at: number
 }
 
 export interface ActivityPageQuery {
   /** Each account to read, from its own place (null starts at the newest). */
   accounts: ReadonlyArray<{ accountKey: string; beforeId: number | null }>
-  kind: ActivityKind | null
+  /** Only these kinds; null reads every kind. */
+  kinds: readonly ActivityKind[] | null
   /** Only these people, each under their own account. */
   friends: ReadonlyArray<{ accountKey: string; platformUserId: string }> | null
   limit: number
 }
 
-const ACTIVITY_KINDS: ReadonlySet<unknown> = new Set<ActivityKind>(['online', 'world', 'offline'])
+const KNOWN_KINDS: ReadonlySet<unknown> = new Set<ActivityKind>(ACTIVITY_KINDS)
 const SIDE_FILES = ['', '-wal', '-shm'] as const
 
 /** Longest text a row may carry; longer values are cut on the way in. */
@@ -63,7 +83,16 @@ interface RawActivityRow {
   user_id?: unknown
   display_name?: unknown
   world_name?: unknown
+  previous_name?: unknown
   at?: unknown
+}
+
+interface RawFriendRow {
+  user_id?: unknown
+  display_name?: unknown
+  since?: unknown
+  since_known?: unknown
+  misses?: unknown
 }
 
 export class HistoryDatabase {
@@ -99,8 +128,9 @@ export class HistoryDatabase {
     return (
       this.attempt(() => {
         this.statement(
-          `INSERT OR IGNORE INTO activity (id, account_key, kind, user_id, display_name, world_name, at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`
+          `INSERT OR IGNORE INTO activity
+             (id, account_key, kind, user_id, display_name, world_name, previous_name, at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         ).run(
           row.id,
           row.accountKey,
@@ -108,6 +138,7 @@ export class HistoryDatabase {
           clip(row.platformUserId),
           clip(row.displayName),
           row.worldName === null ? null : clip(row.worldName),
+          row.previousName === null ? null : clip(row.previousName),
           row.at
         )
         return true
@@ -129,7 +160,7 @@ export class HistoryDatabase {
   recentActivity(accountKey: string, limit: number): SavedActivityRow[] {
     return this.pageActivity({
       accounts: [{ accountKey, beforeId: null }],
-      kind: null,
+      kinds: null,
       friends: null,
       limit
     })
@@ -139,6 +170,7 @@ export class HistoryDatabase {
   pageActivity(query: ActivityPageQuery): SavedActivityRow[] {
     if (query.accounts.length === 0 || query.limit <= 0) return []
     if (query.friends !== null && query.friends.length === 0) return []
+    if (query.kinds !== null && query.kinds.length === 0) return []
     return (
       this.attempt(() => {
         const where: string[] = []
@@ -154,9 +186,9 @@ export class HistoryDatabase {
           }
         }
         where.push(`(${accounts.join(' OR ')})`)
-        if (query.kind !== null) {
-          where.push('kind = ?')
-          params.push(query.kind)
+        if (query.kinds !== null) {
+          where.push(`kind IN (${query.kinds.map(() => '?').join(', ')})`)
+          params.push(...query.kinds)
         }
         if (query.friends !== null) {
           where.push(
@@ -165,7 +197,7 @@ export class HistoryDatabase {
           for (const friend of query.friends) params.push(friend.accountKey, friend.platformUserId)
         }
         const rows = this.statement(
-          `SELECT id, account_key, kind, user_id, display_name, world_name, at
+          `SELECT id, account_key, kind, user_id, display_name, world_name, previous_name, at
            FROM activity WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT ?`
         ).all(...params, query.limit) as RawActivityRow[]
         const parsed: SavedActivityRow[] = []
@@ -178,12 +210,14 @@ export class HistoryDatabase {
     )
   }
 
-  /** Forget one account's entries, of one kind or of every kind. */
-  deleteActivity(accountKey: string, kind: ActivityKind | null): void {
+  /** Forget one account's entries, of some kinds or of every kind. */
+  deleteActivity(accountKey: string, kinds: readonly ActivityKind[] | null): void {
     this.attempt(() => {
-      if (kind === null) {
+      if (kinds === null) {
         this.statement('DELETE FROM activity WHERE account_key = ?').run(accountKey)
-      } else {
+        return
+      }
+      for (const kind of kinds) {
         this.statement('DELETE FROM activity WHERE account_key = ? AND kind = ?').run(
           accountKey,
           kind
@@ -218,6 +252,115 @@ export class HistoryDatabase {
         ).run(maxRows).changes
       )
       if (removed > 0) this.reclaim()
+    })
+  }
+
+  // ── Friends list history ──────────────────────────────────────────────────
+
+  /** The friends list as last saved for an account. Empty when none is saved. */
+  savedFriends(accountKey: string): SavedFriend[] {
+    return (
+      this.attempt(() => {
+        const rows = this.statement(
+          'SELECT user_id, display_name, since, since_known, misses FROM friend_roster WHERE account_key = ?'
+        ).all(accountKey) as RawFriendRow[]
+        const friends: SavedFriend[] = []
+        for (const row of rows) {
+          const friend = parseFriendRow(row)
+          if (friend !== null) friends.push(friend)
+        }
+        return friends
+      }) ?? []
+    )
+  }
+
+  /** One saved friend, or null. */
+  savedFriend(accountKey: string, platformUserId: string): SavedFriend | null {
+    return (
+      this.attempt(() => {
+        const row = this.statement(
+          `SELECT user_id, display_name, since, since_known, misses FROM friend_roster
+           WHERE account_key = ? AND user_id = ?`
+        ).get(accountKey, platformUserId) as RawFriendRow | undefined
+        return row === undefined ? null : parseFriendRow(row)
+      }) ?? null
+    )
+  }
+
+  /** Save friends in one step. A friend already saved keeps their `since`. */
+  saveFriends(accountKey: string, friends: readonly SavedFriend[]): void {
+    if (friends.length === 0) return
+    this.attempt(() => {
+      this.transaction(() => {
+        const statement = this.statement(
+          `INSERT INTO friend_roster (account_key, user_id, display_name, since, since_known, misses)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (account_key, user_id) DO UPDATE
+             SET display_name = excluded.display_name, misses = excluded.misses`
+        )
+        for (const friend of friends) {
+          statement.run(
+            accountKey,
+            clip(friend.platformUserId),
+            clip(friend.displayName),
+            friend.since,
+            friend.sinceKnown ? 1 : 0,
+            Number.isSafeInteger(friend.misses) && friend.misses > 0 ? friend.misses : 0
+          )
+        }
+      })
+    })
+  }
+
+  /** Someone is no longer on the friends list. */
+  removeSavedFriend(accountKey: string, platformUserId: string): void {
+    this.attempt(() => {
+      this.statement('DELETE FROM friend_roster WHERE account_key = ? AND user_id = ?').run(
+        accountKey,
+        platformUserId
+      )
+    })
+  }
+
+  /** A friend took a new name: keep the one they had. */
+  insertNameChange(
+    accountKey: string,
+    platformUserId: string,
+    previousName: string,
+    at: number
+  ): void {
+    this.attempt(() => {
+      this.statement(
+        'INSERT INTO friend_names (account_key, user_id, previous_name, at) VALUES (?, ?, ?, ?)'
+      ).run(accountKey, clip(platformUserId), clip(previousName), at)
+    })
+  }
+
+  /** The names a friend used before, newest change first. */
+  nameChanges(accountKey: string, platformUserId: string, limit: number): SavedNameChange[] {
+    return (
+      this.attempt(() => {
+        const rows = this.statement(
+          `SELECT previous_name, at FROM friend_names
+           WHERE account_key = ? AND user_id = ? ORDER BY id DESC LIMIT ?`
+        ).all(accountKey, platformUserId, limit) as Array<{ previous_name?: unknown; at?: unknown }>
+        const changes: SavedNameChange[] = []
+        for (const row of rows) {
+          if (typeof row.previous_name !== 'string' || row.previous_name === '') continue
+          if (typeof row.at !== 'number' || !Number.isFinite(row.at)) continue
+          changes.push({ previousName: clip(row.previous_name), at: row.at })
+        }
+        return changes
+      }) ?? []
+    )
+  }
+
+  /** Forget every account's friends list history. */
+  deleteAllFriendHistory(): void {
+    this.attempt(() => {
+      this.statement('DELETE FROM friend_roster').run()
+      this.statement('DELETE FROM friend_names').run()
+      this.reclaim()
     })
   }
 
@@ -324,6 +467,24 @@ export class HistoryDatabase {
     return statement
   }
 
+  /** Run several writes as one: all of them land, or none. */
+  private transaction(step: () => void): void {
+    const db = this.db
+    if (db === null) throw new Error('history database is closed')
+    db.exec('BEGIN')
+    try {
+      step()
+      db.exec('COMMIT')
+    } catch (error) {
+      try {
+        db.exec('ROLLBACK')
+      } catch {
+        // The transaction is already gone.
+      }
+      throw error
+    }
+  }
+
   /** Give freed pages back to the disk. */
   private reclaim(): void {
     this.db?.exec('PRAGMA incremental_vacuum')
@@ -367,11 +528,30 @@ function migrate(db: DatabaseSync, from: number): void {
           user_id TEXT NOT NULL,
           display_name TEXT NOT NULL,
           world_name TEXT,
+          previous_name TEXT,
           at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS activity_by_account ON activity (account_key, id);
         CREATE INDEX IF NOT EXISTS activity_by_friend ON activity (account_key, user_id, id);
         CREATE INDEX IF NOT EXISTS activity_by_time ON activity (at);
+        CREATE TABLE IF NOT EXISTS friend_roster (
+          account_key TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          display_name TEXT NOT NULL,
+          since INTEGER NOT NULL,
+          since_known INTEGER NOT NULL,
+          misses INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (account_key, user_id)
+        ) WITHOUT ROWID;
+        CREATE TABLE IF NOT EXISTS friend_names (
+          id INTEGER PRIMARY KEY,
+          account_key TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          previous_name TEXT NOT NULL,
+          at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS friend_names_by_friend
+          ON friend_names (account_key, user_id, id);
       `)
     }
     db.exec(`PRAGMA user_version = ${HISTORY_SCHEMA_VERSION}`)
@@ -406,10 +586,11 @@ function clip(text: string): string {
 function parseActivityRow(row: RawActivityRow): SavedActivityRow | null {
   if (typeof row.id !== 'number' || !Number.isSafeInteger(row.id) || row.id <= 0) return null
   if (typeof row.account_key !== 'string' || row.account_key === '') return null
-  if (!ACTIVITY_KINDS.has(row.kind)) return null
+  if (!KNOWN_KINDS.has(row.kind)) return null
   if (typeof row.user_id !== 'string' || row.user_id === '') return null
   if (typeof row.display_name !== 'string') return null
   if (row.world_name !== null && typeof row.world_name !== 'string') return null
+  if (row.previous_name != null && typeof row.previous_name !== 'string') return null
   if (typeof row.at !== 'number' || !Number.isFinite(row.at)) return null
   return {
     id: row.id,
@@ -418,7 +599,22 @@ function parseActivityRow(row: RawActivityRow): SavedActivityRow | null {
     platformUserId: row.user_id,
     displayName: clip(row.display_name),
     worldName: row.world_name === null || row.world_name === '' ? null : clip(row.world_name),
+    previousName:
+      row.previous_name == null || row.previous_name === '' ? null : clip(row.previous_name),
     at: row.at
+  }
+}
+
+function parseFriendRow(row: RawFriendRow): SavedFriend | null {
+  if (typeof row.user_id !== 'string' || row.user_id === '') return null
+  if (typeof row.display_name !== 'string') return null
+  if (typeof row.since !== 'number' || !Number.isFinite(row.since)) return null
+  return {
+    platformUserId: row.user_id,
+    displayName: clip(row.display_name),
+    since: row.since,
+    sinceKnown: row.since_known === 1,
+    misses: typeof row.misses === 'number' && Number.isSafeInteger(row.misses) ? row.misses : 0
   }
 }
 
@@ -440,6 +636,7 @@ export function toActivityEntry(row: SavedActivityRow): ActivityEntry | null {
     platformUserId: row.platformUserId,
     displayName: row.displayName,
     worldName: row.worldName,
+    ...(row.previousName === null ? {} : { previousName: row.previousName }),
     at: row.at
   }
 }

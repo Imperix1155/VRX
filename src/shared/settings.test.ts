@@ -980,7 +980,7 @@ describe('shouldPersistSettings (rollback safety)', () => {
       activityFilter: 'all'
     })
     expect(
-      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'friends' })
+      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'renamed' })
     ).toMatchObject({ showActivityPage: true, activityFilter: 'all' })
   })
 

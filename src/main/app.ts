@@ -62,7 +62,7 @@ import {
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
 import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdapter'
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
-import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
+import type { IPlatformAdapter, RosterCompleteness } from './services/adapters/IPlatformAdapter'
 import type { BroadcastAdapterEvent } from '@shared/ipc'
 import type { Friend, Platform } from '@shared/types'
 import { ACTIVITY_PRUNE_INTERVAL_MS, ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
@@ -84,7 +84,8 @@ import { isQuitShortcut } from './quitShortcut'
 import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
 import { ActivityFeed } from './services/activityFeed'
-import { ActivityHistory } from './services/activityHistory'
+import { ActivityHistory, FriendHistory } from './services/activityHistory'
+import { FriendLog } from './services/friendLog'
 import { HISTORY_FILE_NAME, HistoryDatabase } from './services/historyDatabase'
 import { InboxService } from './services/inbox'
 import { FriendActionsService } from './services/friendActions'
@@ -494,6 +495,7 @@ app
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
     const activityBoundary: { current?: ActivityFeed } = {}
+    const friendLogBoundary: { current?: FriendLog } = {}
     const inboxBoundary: { current?: InboxService } = {}
     const exploreBoundary: { current?: ExploreService } = {}
     const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
@@ -543,7 +545,10 @@ app
         friendAlertBoundary.current?.resetPlatform('vrchat')
         // The same account after a data-path 401 keeps its activity and inbox.
         activityBoundary.current?.resetPlatform('vrchat', { keepEntries: identityRetained })
-        if (!identityRetained) inboxBoundary.current?.resetPlatform('vrchat')
+        if (!identityRetained) {
+          inboxBoundary.current?.resetPlatform('vrchat')
+          friendLogBoundary.current?.resetPlatform('vrchat')
+        }
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
         avatarLibraryBoundary.current?.clearPlatform('vrchat')
@@ -627,6 +632,7 @@ app
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
         activityBoundary.current?.resetPlatform('chilloutvr')
         inboxBoundary.current?.resetPlatform('chilloutvr')
+        friendLogBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
         avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
@@ -703,17 +709,24 @@ app
       path: join(app.getPath('userData'), HISTORY_FILE_NAME),
       log: (message, meta) => log.warn(message, meta)
     })
+    const historyAccountKeyFor = (platform: Platform): string | null => {
+      const resolved = accountSession.resolve(platform)
+      return 'ready' in resolved ? resolved.accountKey : null
+    }
     const activityHistory = new ActivityHistory({
       database: historyDatabase,
-      accountKeyFor: (platform) => {
-        const resolved = accountSession.resolve(platform)
-        return 'ready' in resolved ? resolved.accountKey : null
-      },
+      accountKeyFor: historyAccountKeyFor,
       keepFor: () => getSettingsSnapshot().activityKeepFor,
       now: () => Date.now()
     })
+    const friendHistory = new FriendHistory({
+      database: historyDatabase,
+      accountKeyFor: historyAccountKeyFor,
+      keepFor: () => getSettingsSnapshot().activityKeepFor
+    })
     // Apply the Keep activity for setting at launch and a few times a day.
     activityHistory.prune()
+    friendHistory.prune()
     const activityPruneTimer = setInterval(
       () => activityHistory.prune(),
       ACTIVITY_PRUNE_INTERVAL_MS
@@ -747,6 +760,15 @@ app
     // An account restored before this point brings its saved activity now.
     activityFeed.hydrate('vrchat')
     activityFeed.hydrate('chilloutvr')
+    // The friends list's own history (friendLog.ts): new friends, people no
+    // longer on the list, name changes. It reads the lists VRX already reads.
+    const friendLog = new FriendLog({
+      now: () => Date.now(),
+      isEnabled: () => getSettingsSnapshot().showActivityPage,
+      record: (change) => activityFeed.recordFriendChange(change),
+      store: friendHistory
+    })
+    friendLogBoundary.current = friendLog
     // The inbox: socket-delivered invites and requests, memory only.
     const inbox = new InboxService({
       now: () => Date.now(),
@@ -949,7 +971,11 @@ app
       logFailure: (platform) => log.warn('roster catch-up failed', { platform })
     })
     // Each roster read, after the location authority is seeded.
-    const onFriendRoster = (platform: Platform, friends: Friend[]): void => {
+    const onFriendRoster = (
+      platform: Platform,
+      friends: Friend[],
+      completeness: RosterCompleteness
+    ): void => {
       // Settle requests first: it cannot throw, and an alert failure must not skip it.
       inbox.settleRoster(platform, friends)
       rosterCatchUp.rosterRead(platform)
@@ -958,6 +984,7 @@ app
       // A roster read means the account is signed in: its saved activity
       // comes back into the list. Repeating this adds nothing twice.
       activityFeed.hydrate(platform)
+      friendLog.rosterRead(platform, friends, completeness)
     }
     const readFriendRoster = createFriendRosterReader(
       adapters,
@@ -1064,14 +1091,21 @@ app
         applyUpdaterSettings(saved)
         loginItem.follow(saved.startWithComputer !== 'off')
         // Turning the Activity page off also forgets what it kept.
-        if (!saved.showActivityPage) activityFeed.clearAll()
+        if (!saved.showActivityPage) {
+          activityFeed.clearAll()
+          friendLog.clearAll()
+        }
         if (saved.activityKeepFor !== appliedActivityKeepFor) {
           const wasSaving = appliedActivityKeepFor !== 'session'
           appliedActivityKeepFor = saved.activityKeepFor
           // Saving just came on: what the list holds now is saved too. A
           // shorter choice, or "until VRX closes", removes what no longer fits.
-          if (!wasSaving) activityFeed.saveAll()
+          if (!wasSaving) {
+            activityFeed.saveAll()
+            friendLog.saveAll()
+          }
           activityHistory.prune()
+          friendHistory.prune()
         }
       },
       accountRegistry,
@@ -1092,6 +1126,7 @@ app
       appStatus,
       loginItem,
       activity: activityFeed,
+      friendLog,
       importSession: createSessionImporter({
         discoverVrchat: importVrcxSession,
         discoverChilloutvr: () =>
@@ -1168,6 +1203,7 @@ app
       locationAuthority,
       friendAlerts,
       activityFeed,
+      friendLog,
       inbox,
       rosterCatchUp,
       broadcast

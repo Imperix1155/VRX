@@ -9,13 +9,34 @@
  */
 import type { Platform } from './types'
 
-/** What happened. Display order, which is also the filter order on the page. */
-const ACTIVITY_KINDS = ['online', 'world', 'offline'] as const
+/** Where a friend is: coming online, joining a world, going offline. */
+const PRESENCE_KINDS = ['online', 'world', 'offline'] as const
+/** The friends list itself changing (owner, 2026-11-15): a new friend, someone
+ *  no longer on the list, a friend's new name. */
+export const FRIEND_LIST_KINDS = ['added', 'removed', 'renamed'] as const
+export type FriendListKind = (typeof FRIEND_LIST_KINDS)[number]
+
+/** What happened. */
+export const ACTIVITY_KINDS = [...PRESENCE_KINDS, ...FRIEND_LIST_KINDS] as const
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number]
 
-/** The Activity page's Show filter: everything, or one kind. Display order. */
-export const ACTIVITY_FILTERS = ['all', ...ACTIVITY_KINDS] as const
+/** The Activity page's Show filter: everything, one presence kind, or the
+ *  friends list changes together. Display order. */
+export const ACTIVITY_FILTERS = ['all', ...PRESENCE_KINDS, 'friends'] as const
 export type ActivityFilter = (typeof ACTIVITY_FILTERS)[number]
+
+/** The kinds a Show filter lists; null lists every kind. */
+export function activityKindsOf(filter: ActivityFilter): readonly ActivityKind[] | null {
+  if (filter === 'all') return null
+  if (filter === 'friends') return FRIEND_LIST_KINDS
+  return [filter]
+}
+
+/** Whether an entry is listed under a Show filter. */
+export function matchesActivityFilter(kind: ActivityKind, filter: ActivityFilter): boolean {
+  const kinds = activityKindsOf(filter)
+  return kinds === null || kinds.includes(kind)
+}
 
 /** How long saved activity stays on this computer. `session` saves nothing:
  *  the list lasts until VRX closes, as it did before saving existed. */
@@ -55,6 +76,22 @@ export interface ActivityPageRequest {
   friends?: ActivityFriendRef[]
 }
 
+/**
+ * What VRX knows about one friendship from its own saved history (owner,
+ * 2026-11-15). Neither platform says when a friendship began, so `since` is
+ * the day VRX saw it begin, or, for someone already a friend when history
+ * started, that first day (`sinceKnown` false: "since before").
+ */
+export interface FriendHistoryFacts {
+  platform: Platform
+  friendId: string
+  /** Ms since the epoch, or null when nothing is saved for this friend. */
+  since: number | null
+  sinceKnown: boolean
+  /** Names they used before, newest change first. */
+  previousNames: Array<{ name: string; until: number }>
+}
+
 export interface ActivityPage {
   /** Newest first. */
   entries: ActivityEntry[]
@@ -71,8 +108,10 @@ export interface ActivityEntry {
   /** The name the friend had when it happened. */
   displayName: string
   /** The world they came online in or joined, when known. Always null for
-   *  friends set to Ask Me or Do Not Disturb, and for going offline. */
+   *  friends set to Ask Me or Do Not Disturb, and for every other kind. */
   worldName: string | null
+  /** `renamed` only: the name they had before. */
+  previousName?: string
   /** Wall-clock time in ms since the epoch. */
   at: number
 }

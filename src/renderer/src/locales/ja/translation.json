@@ -678,13 +678,18 @@
       "all": "すべて",
       "online": "オンライン",
       "world": "ワールド",
-      "offline": "オフライン"
+      "offline": "オフライン",
+      "friends": "フレンドリスト"
     },
     "online": "オンラインになりました",
     "onlineIn": "{{world}} でオンラインになりました",
     "joined": "{{world}} に移動しました",
     "joinedUnknown": "ワールドに移動しました",
     "offline": "オフラインになりました",
+    "friendAdded": "フレンドリストに加わりました",
+    "friendRemoved": "フレンドリストからいなくなりました",
+    "renamedFrom": "名前を変更しました（以前: {{previous}}）",
+    "renamed": "名前を変更しました",
     "rowAria": "{{name}}、{{platform}}：{{description}}、{{time}}。{{name}} をフレンドで開く",
     "clear": "クリア",
     "clearAria": "表示中のアクティビティをクリア",
@@ -729,7 +734,14 @@
     "loading": "履歴を読み込み中…",
     "error": "この履歴を読み込めませんでした。",
     "emptyHeading": "まだ保存された履歴はありません",
-    "emptyHint": "これからのオンライン、ワールド移動、オフラインがここに保存されます。"
+    "emptyHint": "これからのオンライン、ワールド移動、オフライン、フレンドリストの変化がここに保存されます。",
+    "sinceLabel": "フレンドになった日",
+    "sinceBefore": "{{date}} より前（VRX が履歴の保存を始めた日）",
+    "sinceWithAge": "{{date}}（{{age}}）",
+    "namesLabel": "以前の名前",
+    "nameUntil": "{{date}} まで",
+    "showAllNames": "{{count, number}} 件すべて表示",
+    "factsAria": "このフレンドについて"
   },
   "drawer": {
     "close": "閉じる",

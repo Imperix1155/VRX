@@ -97,6 +97,8 @@ const vrx = {
   getLoginItem: () => invoke('get-login-item', undefined),
   getActivity: () => invoke('get-activity', undefined),
   getActivityPage: (req: IpcInvoke['get-activity-page']['req']) => invoke('get-activity-page', req),
+  getFriendHistory: (req: IpcInvoke['get-friend-history']['req']) =>
+    invoke('get-friend-history', req),
   clearActivity: (req: IpcInvoke['clear-activity']['req']) => invoke('clear-activity', req),
   onActivityChanged: (callback: () => void) => {
     const listener = (): void => callback()

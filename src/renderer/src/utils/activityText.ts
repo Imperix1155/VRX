@@ -22,6 +22,14 @@ export function describeActivity(entry: ActivityEntry, t: Translate): string {
       return world === '' ? t('activity.joinedUnknown') : t('activity.joined', { world })
     case 'offline':
       return t('activity.offline')
+    case 'added':
+      return t('activity.friendAdded')
+    case 'removed':
+      return t('activity.friendRemoved')
+    case 'renamed':
+      return entry.previousName
+        ? t('activity.renamedFrom', { previous: entry.previousName })
+        : t('activity.renamed')
   }
 }
 

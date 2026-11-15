@@ -46,7 +46,14 @@ import type { SetWorldRatingResult, WorldRating, WorldRatingRead } from './world
 import type { InboxSnapshot } from './inbox'
 import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
-import type { ActivityEntry, ActivityFilter, ActivityPage, ActivityPageRequest } from './activity'
+import type {
+  ActivityEntry,
+  ActivityFilter,
+  ActivityFriendRef,
+  ActivityPage,
+  ActivityPageRequest,
+  FriendHistoryFacts
+} from './activity'
 import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
 import type { GameFavoritesResult, GameFavoriteWriteResult } from './gameFavorites'
 import type {
@@ -294,6 +301,9 @@ export interface IpcInvoke {
    *  signed-in accounts only. Reads this computer's history file, never a
    *  platform. */
   'get-activity-page': { req: ActivityPageRequest; res: ActivityPage }
+  /** What VRX has saved about a friendship: friends since, earlier names.
+   *  One friend, or a linked person's two accounts. Local only. */
+  'get-friend-history': { req: { friends: ActivityFriendRef[] }; res: FriendHistoryFacts[] }
   /** Forget the activity the page shows: these platforms' entries of the
    *  shown kind (`all` for every kind), saved ones included. Anything else
    *  stays. */

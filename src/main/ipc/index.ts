@@ -3,7 +3,7 @@ import log from '../logger'
 import type { IpcInvokeChannel } from '@shared/ipc'
 import type { Settings } from '@shared/settings'
 import type { Friend, Platform } from '@shared/types'
-import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import type { IPlatformAdapter, RosterCompleteness } from '../services/adapters/IPlatformAdapter'
 import { registerAccountsHandlers } from './accounts'
 import { registerActivityHandlers } from './activity'
 import { registerAppStatusHandlers } from './app-status'
@@ -56,6 +56,7 @@ import type { AccountNoteService } from '../services/accountNotes'
 import type { AppStatusService } from '../services/appStatus'
 import type { LoginItem } from '../services/loginItem'
 import type { ActivityFeed } from '../services/activityFeed'
+import type { FriendLog } from '../services/friendLog'
 import {
   IPC_RATE_LIMIT_BUDGETS,
   ipcRateLimitDenial,
@@ -100,6 +101,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   appStatus: AppStatusService
   loginItem: Pick<LoginItem, 'status'>
   activity: ActivityFeed
+  friendLog: FriendLog
   instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
   homeWorld: HomeWorldService
@@ -116,7 +118,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   vrOverlayAlerts: Pick<VrOverlayAlerts, 'test'>
   onRendererHydrated: (event: IpcMainEvent) => void
   /** Each roster read, after the location authority is seeded. */
-  onFriendRoster?: (platform: Platform, friends: Friend[]) => void
+  onFriendRoster?: (platform: Platform, friends: Friend[], completeness: RosterCompleteness) => void
   /** After each settings save attempt, with the in-memory settings. */
   onSettingsApplied?: (settings: Settings) => void
   rateLimit?: IpcRateLimitOptions
@@ -211,7 +213,7 @@ export function registerIpcHandlers(
     registerSocialHandlers(options.social)
     registerAppStatusHandlers(options.appStatus)
     registerLoginItemHandlers(options.loginItem)
-    registerActivityHandlers(options.activity)
+    registerActivityHandlers(options.activity, options.friendLog)
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)

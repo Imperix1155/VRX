@@ -8,13 +8,20 @@
  * and asks no platform for anything. The live list is merged in, so something
  * that happens while it is open shows up.
  */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import type { ActivityEntry, ActivityFriendRef, ActivityPageCursor } from '@shared/activity'
+import {
+  FRIEND_LIST_KINDS,
+  type ActivityEntry,
+  type ActivityFriendRef,
+  type ActivityPageCursor,
+  type FriendHistoryFacts
+} from '@shared/activity'
 import type { Friend, Platform } from '@shared/types'
 import { asTranslate } from '../i18n/translate'
 import { useActivityPager } from '../hooks/useActivityPager'
-import { useActivity } from '../queries/activity'
+import { fetchFriendHistory, useActivity } from '../queries/activity'
 import { mergeActivity } from '../utils/activityPaging'
 import { activityTimeFormats, describeActivity, formatActivityTime } from '../utils/activityText'
 import { inPlatformOrder } from '../utils/platformOrder'
@@ -23,6 +30,103 @@ import PlatformPill from './PlatformPill'
 
 function friendKey(platform: Platform, platformUserId: string): string {
   return `${platform}\u0000${platformUserId}`
+}
+
+const DAY_MS = 86_400_000
+/** Earlier names shown before "Show all". */
+const NAMES_SHOWN = 3
+const FRIEND_LIST_KIND_SET: ReadonlySet<string> = new Set(FRIEND_LIST_KINDS)
+
+/** How long ago, in the largest unit that fits: days, months or years. */
+function ageOf(since: number, now: number, language: string): string | null {
+  const days = Math.floor((now - since) / DAY_MS)
+  if (days < 1) return null
+  const format = new Intl.RelativeTimeFormat(language, { numeric: 'always' })
+  if (days < 60) return format.format(-days, 'day')
+  if (days < 730) return format.format(-Math.floor(days / 30.44), 'month')
+  return format.format(-Math.floor(days / 365.25), 'year')
+}
+
+/** What is saved about one friendship: friends since and earlier names. The
+ *  same rows in the same order on both platforms; a row with nothing saved
+ *  is left out. */
+function FriendFacts({
+  facts,
+  showsPlatform,
+  now
+}: {
+  facts: FriendHistoryFacts
+  showsPlatform: boolean
+  now: number
+}): React.JSX.Element | null {
+  const { t, i18n } = useTranslation()
+  const [allNames, setAllNames] = useState(false)
+  const dayFormat = useMemo(
+    () =>
+      new Intl.DateTimeFormat(i18n.language, { year: 'numeric', month: 'short', day: 'numeric' }),
+    [i18n.language]
+  )
+  if (facts.since === null && facts.previousNames.length === 0) return null
+  let since: string | null = null
+  if (facts.since !== null) {
+    const date = dayFormat.format(new Date(facts.since))
+    const age = facts.sinceKnown ? ageOf(facts.since, now, i18n.language) : null
+    since = !facts.sinceKnown
+      ? t('history.sinceBefore', { date })
+      : age === null
+        ? date
+        : t('history.sinceWithAge', { date, age })
+  }
+  const names = allNames ? facts.previousNames : facts.previousNames.slice(0, NAMES_SHOWN)
+  const label = 'w-[112px] shrink-0 text-xs text-[var(--text-dim)]'
+  return (
+    <div className="flex flex-col gap-[var(--space-1)]" data-history-facts={facts.platform}>
+      {showsPlatform && (
+        <div className="flex">
+          <PlatformPill platform={facts.platform} />
+        </div>
+      )}
+      <dl className="flex flex-col gap-[var(--space-1)]">
+        {since !== null && (
+          <div className="flex items-baseline gap-[var(--space-3)]">
+            <dt className={label}>{t('history.sinceLabel')}</dt>
+            <dd className="min-w-0 flex-1 text-[13px] text-[var(--text)]">{since}</dd>
+          </div>
+        )}
+        {names.length > 0 && (
+          <div className="flex items-baseline gap-[var(--space-3)]">
+            <dt className={label}>{t('history.namesLabel')}</dt>
+            <dd className="min-w-0 flex-1">
+              <ul className="flex flex-col gap-[2px]">
+                {names.map((change) => (
+                  <li
+                    key={`${change.until}-${change.name}`}
+                    className="flex items-baseline gap-[var(--space-2)] text-[13px]"
+                  >
+                    <span className="min-w-0 truncate text-[var(--text)]" title={change.name}>
+                      {change.name}
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap text-xs text-[var(--text-dim)]">
+                      {t('history.nameUntil', { date: dayFormat.format(new Date(change.until)) })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {!allNames && facts.previousNames.length > NAMES_SHOWN && (
+                <button
+                  type="button"
+                  onClick={() => setAllNames(true)}
+                  className="mt-[var(--space-1)] rounded-control px-[var(--space-2)] py-[2px] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
+                >
+                  {t('history.showAllNames', { count: facts.previousNames.length })}
+                </button>
+              )}
+            </dd>
+          </div>
+        )}
+      </dl>
+    </div>
+  )
 }
 
 export default function FriendHistoryDialog({
@@ -79,6 +183,28 @@ export default function FriendHistoryDialog({
     const fresh = pager.canShowOlder ? mine.filter((entry) => entry.id > oldestShown) : mine
     return mergeActivity(pager.entries, fresh)
   }, [live, keys, pager.entries, pager.canShowOlder])
+
+  // Friends since and earlier names. Read again when this person's friends
+  // list entries change, so a new name shows while the dialog is open.
+  const listChanges = (live ?? []).reduce(
+    (newest, entry) =>
+      FRIEND_LIST_KIND_SET.has(entry.kind) &&
+      keys.has(friendKey(entry.platform, entry.platformUserId))
+        ? Math.max(newest, entry.id)
+        : newest,
+    0
+  )
+  const facts = useQuery({
+    queryKey: ['friend-history', ownerKey, listChanges],
+    queryFn: () => fetchFriendHistory(friends),
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+    networkMode: 'always'
+  }).data
+  const shownFacts = (facts ?? []).filter(
+    (item) => item.since !== null || item.previousNames.length > 0
+  )
 
   const formats = useMemo(() => activityTimeFormats(i18n.language), [i18n.language])
   const now = new Date()
@@ -141,6 +267,21 @@ export default function FriendHistoryDialog({
         <div className="mb-[var(--space-3)] flex">
           <PlatformPill platform={start[0].platform} />
         </div>
+      )}
+      {shownFacts.length > 0 && (
+        <section
+          aria-label={t('history.factsAria')}
+          className="mb-[var(--space-4)] flex flex-col gap-[var(--space-3)]"
+        >
+          {shownFacts.map((item) => (
+            <FriendFacts
+              key={friendKey(item.platform, item.friendId)}
+              facts={item}
+              showsPlatform={showsPlatform}
+              now={now.getTime()}
+            />
+          ))}
+        </section>
       )}
       <section aria-label={t('history.activityHeading')}>
         <h3 className="mb-[var(--space-2)] text-[10.5px] font-semibold tracking-widest text-[var(--text-dim)] uppercase">

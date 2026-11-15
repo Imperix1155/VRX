@@ -681,13 +681,18 @@
       "all": "All",
       "online": "Online",
       "world": "Worlds",
-      "offline": "Offline"
+      "offline": "Offline",
+      "friends": "Friends list"
     },
     "online": "Came online",
     "onlineIn": "Came online in {{world}}",
     "joined": "Joined {{world}}",
     "joinedUnknown": "Joined a world",
     "offline": "Went offline",
+    "friendAdded": "Now on your friends list",
+    "friendRemoved": "No longer on your friends list",
+    "renamedFrom": "Changed name from {{previous}}",
+    "renamed": "Changed name",
     "rowAria": "{{name}}, {{platform}}: {{description}}, {{time}}. Open {{name}} in Friends",
     "clear": "Clear",
     "clearAria": "Clear the activity shown",
@@ -732,7 +737,14 @@
     "loading": "Loading history…",
     "error": "Couldn’t load this history.",
     "emptyHeading": "Nothing saved yet",
-    "emptyHint": "Coming online, joining worlds and going offline are saved here from now on."
+    "emptyHint": "Coming online, joining worlds, going offline and friends list changes are saved here from now on.",
+    "sinceLabel": "Friends since",
+    "sinceBefore": "Before {{date}}, when VRX started keeping history",
+    "sinceWithAge": "{{date}} ({{age}})",
+    "namesLabel": "Earlier names",
+    "nameUntil": "until {{date}}",
+    "showAllNames": "Show all {{count, number}}",
+    "factsAria": "About this friendship"
   },
   "drawer": {
     "close": "Close",

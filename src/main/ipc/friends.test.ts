@@ -272,7 +272,7 @@ describe('get-friends location seeding', () => {
       completeness: 'complete'
     })
     await handlers.get('get-friends')!(event, { platform: 'vrchat' })
-    expect(onRoster).toHaveBeenLastCalledWith('vrchat', [rosterFriend])
+    expect(onRoster).toHaveBeenLastCalledWith('vrchat', [rosterFriend], 'complete')
 
     // A live removal that lands while a roster read is in flight wins.
     let finish!: (roster: FriendRoster) => void
@@ -290,7 +290,7 @@ describe('get-friends location seeding', () => {
     })
     finish({ friends: [rosterFriend], completeness: 'complete' })
     await pending
-    expect(onRoster).toHaveBeenLastCalledWith('vrchat', [])
+    expect(onRoster).toHaveBeenLastCalledWith('vrchat', [], 'complete')
   })
 
   it('stamps the platform reconcile time only after a successful friends response', async () => {

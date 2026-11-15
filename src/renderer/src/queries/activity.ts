@@ -5,11 +5,14 @@ import {
   type QueryClient,
   type UseQueryResult
 } from '@tanstack/react-query'
-import type {
-  ActivityEntry,
-  ActivityFilter,
-  ActivityPage,
-  ActivityPageRequest
+import {
+  matchesActivityFilter,
+  type ActivityEntry,
+  type ActivityFilter,
+  type ActivityFriendRef,
+  type ActivityPage,
+  type ActivityPageRequest,
+  type FriendHistoryFacts
 } from '@shared/activity'
 import type { Platform } from '@shared/types'
 import { queryClient } from './queryClient'
@@ -23,6 +26,15 @@ export const activityKey = ['activity'] as const
 export async function fetchActivityPage(request: ActivityPageRequest): Promise<ActivityPage> {
   if (typeof window.vrx?.getActivityPage !== 'function') return { entries: [], hasMore: false }
   return window.vrx.getActivityPage(request)
+}
+
+/** What VRX has saved about a friendship (friends since, earlier names), for
+ *  one friend or a linked person's two accounts. Local only. */
+export async function fetchFriendHistory(
+  friends: ActivityFriendRef[]
+): Promise<FriendHistoryFacts[]> {
+  if (typeof window.vrx?.getFriendHistory !== 'function') return []
+  return window.vrx.getFriendHistory({ friends })
 }
 
 /** The newest activity main keeps per platform, newest first. Main pushes a change
@@ -106,7 +118,7 @@ export async function clearActivity(client: QueryClient, scope: ActivityClearSco
     entries?.filter(
       (entry) =>
         !scope.platforms.includes(entry.platform) ||
-        (scope.filter !== 'all' && entry.kind !== scope.filter)
+        !matchesActivityFilter(entry.kind, scope.filter)
     )
   )
 }

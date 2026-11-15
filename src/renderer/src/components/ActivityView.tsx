@@ -17,7 +17,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ACTIVITY_FILTERS, type ActivityEntry, type ActivityFilter } from '@shared/activity'
+import {
+  ACTIVITY_FILTERS,
+  matchesActivityFilter,
+  type ActivityEntry,
+  type ActivityFilter
+} from '@shared/activity'
 import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM } from '@shared/constants'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
 import type { Friend, Platform } from '@shared/types'
@@ -51,7 +56,8 @@ const FILTER_LABEL_KEYS: Record<ActivityFilter, string> = {
   all: 'activity.kinds.all',
   online: 'activity.kinds.online',
   world: 'activity.kinds.world',
-  offline: 'activity.kinds.offline'
+  offline: 'activity.kinds.offline',
+  friends: 'activity.kinds.friends'
 }
 
 function friendKey(platform: Friend['platform'], platformUserId: string): string {
@@ -246,7 +252,7 @@ export default function ActivityView(): React.JSX.Element {
       mergeActivity(pager.entries, carried.values(), live ?? []).filter(
         (entry) =>
           (platformFilter === 'all' || entry.platform === platformFilter) &&
-          (filter === 'all' || entry.kind === filter)
+          matchesActivityFilter(entry.kind, filter)
       ),
     [pager.entries, carried, live, platformFilter, filter]
   )

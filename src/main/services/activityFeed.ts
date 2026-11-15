@@ -1,10 +1,13 @@
 import type { AdapterEvent, Friend, InstanceInfo, Platform } from '@shared/types'
-import type {
-  ActivityEntry,
-  ActivityFilter,
-  ActivityKind,
-  ActivityPage,
-  ActivityPageRequest
+import {
+  activityKindsOf,
+  matchesActivityFilter,
+  type ActivityEntry,
+  type ActivityFilter,
+  type ActivityKind,
+  type ActivityPage,
+  type ActivityPageRequest,
+  type FriendListKind
 } from '@shared/activity'
 import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM, ACTIVITY_PAGE_SIZE } from '@shared/constants'
 import { isWorldHidden } from '@shared/hotInstanceKey'
@@ -41,7 +44,7 @@ export interface ActivityStore {
   recent(platform: Platform, limit: number): ActivityEntry[]
   /** Saved entries in a scope, newest first, or null when nothing is saved. */
   page(request: ActivityPageRequest, limit: number): ActivityEntry[] | null
-  clear(platform: Platform, kind: ActivityKind | null): void
+  clear(platform: Platform, kinds: readonly ActivityKind[] | null): void
   clearAll(): void
 }
 
@@ -204,11 +207,12 @@ export class ActivityFeed {
    *  stays. */
   clear(platforms: readonly Platform[], filter: ActivityFilter): void {
     let any = false
+    const kinds = activityKindsOf(filter)
     for (const platform of new Set(platforms)) {
       // The saved copy can hold older entries than memory does.
-      this.options.store?.clear(platform, filter === 'all' ? null : filter)
+      this.options.store?.clear(platform, kinds)
       const platformEntries = this.platformEntries(platform)
-      const kept = platformEntries.filter((entry) => filter !== 'all' && entry.kind !== filter)
+      const kept = platformEntries.filter((entry) => kinds !== null && !kinds.includes(entry.kind))
       if (kept.length !== platformEntries.length) {
         platformEntries.splice(0, platformEntries.length, ...kept)
         any = true
@@ -235,6 +239,48 @@ export class ActivityFeed {
     this.flush()
   }
 
+  /**
+   * The friends list changed (`friendLog.ts`): a new friend, someone no longer
+   * on the list, a friend's new name. Listed like any other entry.
+   */
+  recordFriendChange(change: {
+    kind: FriendListKind
+    platform: Platform
+    platformUserId: string
+    displayName: string
+    previousName?: string
+  }): void {
+    if (!this.options.isEnabled()) return
+    if (change.displayName.trim() === '') return
+    const entry: StoredEntry = {
+      id: this.nextId++,
+      kind: change.kind,
+      platform: change.platform,
+      platformUserId: change.platformUserId,
+      displayName: change.displayName,
+      worldName: null,
+      ...(change.kind === 'renamed' && change.previousName
+        ? { previousName: change.previousName }
+        : {}),
+      at: this.options.now(),
+      location: null
+    }
+    this.push(entry)
+    this.changed = true
+    this.flush()
+  }
+
+  /** Add one entry to memory and the saved copy, within the allowance. */
+  private push(entry: StoredEntry): void {
+    const platformEntries = this.platformEntries(entry.platform)
+    platformEntries.push(entry)
+    // The saved copy never gets the location: only what the page shows.
+    this.options.store?.append(toPublicEntry(entry))
+    if (platformEntries.length > ACTIVITY_MAX_ENTRIES_PER_PLATFORM) {
+      platformEntries.splice(0, platformEntries.length - ACTIVITY_MAX_ENTRIES_PER_PLATFORM)
+    }
+  }
+
   private record(alert: FriendAlert): void {
     if (alert.type === 'hot-instance') return
     // Read at the decision point, like the alert switches.
@@ -255,7 +301,6 @@ export class ActivityFeed {
       kind = 'offline'
     }
     const keepsWorld = kind !== 'offline' && !hidden
-    const platformEntries = this.platformEntries(alert.platform)
     const entry: StoredEntry = {
       id: this.nextId++,
       kind,
@@ -266,12 +311,7 @@ export class ActivityFeed {
       at: this.options.now(),
       location: keepsWorld ? location : null
     }
-    platformEntries.push(entry)
-    // The saved copy never gets the location: only what the page shows.
-    this.options.store?.append(toPublicEntry(entry))
-    if (platformEntries.length > ACTIVITY_MAX_ENTRIES_PER_PLATFORM) {
-      platformEntries.splice(0, platformEntries.length - ACTIVITY_MAX_ENTRIES_PER_PLATFORM)
-    }
+    this.push(entry)
     this.changed = true
   }
 
@@ -368,7 +408,7 @@ export class ActivityFeed {
       .filter(
         (entry) =>
           isBefore(entry) &&
-          (request.filter === 'all' || entry.kind === request.filter) &&
+          matchesActivityFilter(entry.kind, request.filter) &&
           (friends === null || friends.has(`${entry.platform}\u0000${entry.platformUserId}`))
       )
       .slice(0, ACTIVITY_PAGE_SIZE + 1)
@@ -399,6 +439,7 @@ function toPublicEntry(entry: StoredEntry): ActivityEntry {
     platformUserId: entry.platformUserId,
     displayName: entry.displayName,
     worldName: entry.worldName,
+    ...(entry.previousName === undefined ? {} : { previousName: entry.previousName }),
     at: entry.at
   }
 }

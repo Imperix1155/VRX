@@ -95,6 +95,7 @@ vi.mock('./activity', () => ({
   registerActivityHandlers: () => {
     electron.ipcMain.handle('get-activity', () => [])
     electron.ipcMain.handle('get-activity-page', () => ({ entries: [], hasMore: false }))
+    electron.ipcMain.handle('get-friend-history', () => [])
     electron.ipcMain.handle('clear-activity', () => undefined)
   }
 }))
@@ -178,6 +179,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-explore-world',
   'get-favorite-friends',
   'get-favorite-worlds',
+  'get-friend-history',
   'get-friend-note',
   'get-friends',
   'get-game-favorites',

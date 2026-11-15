@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { ActivityFeed } from '../services/activityFeed'
+import type { FriendLog } from '../services/friendLog'
 
 const handlers = new Map<string, (event: unknown, req?: unknown) => unknown>()
 const trusted = vi.hoisted(() => ({ value: true }))
@@ -32,6 +33,7 @@ let feed: {
   clear: ReturnType<typeof vi.fn>
   clearAll: ReturnType<typeof vi.fn>
 }
+let friendLog: { facts: ReturnType<typeof vi.fn> }
 
 beforeEach(() => {
   handlers.clear()
@@ -42,13 +44,27 @@ beforeEach(() => {
     clear: vi.fn(),
     clearAll: vi.fn()
   }
-  registerActivityHandlers(feed as unknown as ActivityFeed)
+  friendLog = {
+    facts: vi.fn((platform: string, friendId: string) => ({
+      platform,
+      friendId,
+      since: 5,
+      sinceKnown: true,
+      previousNames: []
+    }))
+  }
+  registerActivityHandlers(feed as unknown as ActivityFeed, friendLog as unknown as FriendLog)
 })
 
 describe('activity handlers', () => {
   it('rejects untrusted senders on every channel', () => {
     trusted.value = false
-    for (const channel of ['get-activity', 'get-activity-page', 'clear-activity']) {
+    for (const channel of [
+      'get-activity',
+      'get-activity-page',
+      'get-friend-history',
+      'clear-activity'
+    ]) {
       expect(() => handlers.get(channel)!(event, { platforms: ['vrchat'], filter: 'all' })).toThrow(
         'Untrusted IPC sender'
       )
@@ -57,6 +73,7 @@ describe('activity handlers', () => {
     expect(feed.page).not.toHaveBeenCalled()
     expect(feed.clear).not.toHaveBeenCalled()
     expect(feed.clearAll).not.toHaveBeenCalled()
+    expect(friendLog.facts).not.toHaveBeenCalled()
   })
 
   it('reads one page for the scope the page names, and nothing else', () => {
@@ -109,7 +126,7 @@ describe('activity handlers', () => {
       'the same platform twice',
       { scope: [...(vrc(null) as unknown[]), ...(vrc(5) as unknown[])], filter: 'all' }
     ],
-    ['an unknown kind', { scope: vrc(null), filter: 'friends' }],
+    ['an unknown kind', { scope: vrc(null), filter: 'renamed' }],
     ['no place to read from', { scope: [{ platform: 'vrchat' }], filter: 'all' }],
     ['an id that is not a whole number', { scope: vrc(1.5), filter: 'all' }],
     ['an id below one', { scope: vrc(0), filter: 'all' }],
@@ -153,6 +170,36 @@ describe('activity handlers', () => {
     expect(feed.list).toHaveBeenCalledWith()
   })
 
+  it("reads what is saved about one friend, or a linked person's two accounts", () => {
+    expect(
+      handlers.get('get-friend-history')!(event, {
+        friends: [
+          { platform: 'vrchat', friendId: 'usr_a' },
+          { platform: 'chilloutvr', friendId: 'id-1' }
+        ]
+      })
+    ).toEqual([
+      { platform: 'vrchat', friendId: 'usr_a', since: 5, sinceKnown: true, previousNames: [] },
+      { platform: 'chilloutvr', friendId: 'id-1', since: 5, sinceKnown: true, previousNames: [] }
+    ])
+    expect(friendLog.facts).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['no request', undefined],
+    ['no friends', {}],
+    ['an empty list', { friends: [] }],
+    ['too many friends', { friends: Array(3).fill({ platform: 'vrchat', friendId: 'usr_a' }) }],
+    ['an unknown platform', { friends: [{ platform: 'steam', friendId: 'usr_a' }] }],
+    ['an id that is not a plain id', { friends: [{ platform: 'vrchat', friendId: "a' OR 1" }] }],
+    ['an id that is too long', { friends: [{ platform: 'vrchat', friendId: 'a'.repeat(129) }] }]
+  ])('refuses a friend history request with %s', (_label, request) => {
+    expect(() => handlers.get('get-friend-history')!(event, request)).toThrow(
+      'Invalid get-friend-history request'
+    )
+    expect(friendLog.facts).not.toHaveBeenCalled()
+  })
+
   it('clears only the platforms and the kind the page shows', () => {
     expect(
       handlers.get('clear-activity')!(event, { platforms: ['chilloutvr'], filter: 'world' })
@@ -169,7 +216,7 @@ describe('activity handlers', () => {
     ['an unknown platform', { platforms: ['steam'], filter: 'all' }],
     ['too many platforms', { platforms: ['vrchat', 'chilloutvr', 'vrchat'], filter: 'all' }],
     ['platforms that are not a list', { platforms: 'vrchat', filter: 'all' }],
-    ['an unknown kind', { platforms: ['vrchat'], filter: 'friends' }],
+    ['an unknown kind', { platforms: ['vrchat'], filter: 'renamed' }],
     ['no kind', { platforms: ['vrchat'] }],
     ['a request that is not a plain object', Object.create({ platforms: ['vrchat'] }) as unknown]
   ])('refuses %s and clears nothing', (_label, request) => {

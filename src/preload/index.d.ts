@@ -116,6 +116,10 @@ type VrxBridge = {
   getActivityPage: (
     req: IpcInvoke['get-activity-page']['req']
   ) => Promise<IpcInvoke['get-activity-page']['res']>
+  /** What VRX has saved about a friendship: friends since, earlier names. */
+  getFriendHistory: (
+    req: IpcInvoke['get-friend-history']['req']
+  ) => Promise<IpcInvoke['get-friend-history']['res']>
   /** Forget only what the Activity page shows: its platforms and kind, saved
    *  entries included. */
   clearActivity: (

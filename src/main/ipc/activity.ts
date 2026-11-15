@@ -4,11 +4,13 @@ import {
   type ActivityEntry,
   type ActivityFriendRef,
   type ActivityPage,
-  type ActivityPageCursor
+  type ActivityPageCursor,
+  type FriendHistoryFacts
 } from '@shared/activity'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 import type { ActivityFeed } from '../services/activityFeed'
+import type { FriendLog } from '../services/friendLog'
 import { isTrustedIpcSender } from './security'
 
 const VALID_PLATFORMS: ReadonlySet<unknown> = new Set<Platform>(['vrchat', 'chilloutvr'])
@@ -78,7 +80,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  it for the accounts signed in right now, never for one the renderer names.
  *  Clear names only what the page shows (one or two platforms and the Show
  *  kind), never an entry. */
-export function registerActivityHandlers(activity: ActivityFeed): void {
+export function registerActivityHandlers(activity: ActivityFeed, friendLog: FriendLog): void {
   ipcMain.handle('get-activity', (event): ActivityEntry[] => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
     return activity.list()
@@ -103,6 +105,20 @@ export function registerActivityHandlers(activity: ActivityFeed): void {
         filter: req.filter,
         ...(friends === undefined ? {} : { friends })
       })
+    }
+  )
+
+  // What is saved about one friendship (or a linked person's two): read
+  // from VRX's own file for the accounts signed in right now.
+  ipcMain.handle(
+    'get-friend-history',
+    (event, req: IpcInvoke['get-friend-history']['req']): FriendHistoryFacts[] => {
+      if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+      const friends = isPlainObject(req) ? parseFriends(req.friends) : null
+      if (friends === null || friends === undefined) {
+        throw new Error('Invalid get-friend-history request')
+      }
+      return friends.map((friend) => friendLog.facts(friend.platform, friend.friendId))
     }
   )
 

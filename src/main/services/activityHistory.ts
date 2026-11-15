@@ -10,6 +10,7 @@
  */
 import {
   ACTIVITY_KEEP_DAYS,
+  activityKindsOf,
   type ActivityEntry,
   type ActivityKeepFor,
   type ActivityKind,
@@ -18,7 +19,13 @@ import {
 import { ACTIVITY_MAX_SAVED_ROWS } from '@shared/constants'
 import type { Platform } from '@shared/types'
 import type { ActivityStore } from './activityFeed'
-import { toActivityEntry, type HistoryDatabase } from './historyDatabase'
+import type { FriendLogStore } from './friendLog'
+import {
+  toActivityEntry,
+  type HistoryDatabase,
+  type SavedFriend,
+  type SavedNameChange
+} from './historyDatabase'
 
 const DAY_MS = 86_400_000
 
@@ -49,6 +56,7 @@ export class ActivityHistory implements ActivityStore {
       platformUserId: entry.platformUserId,
       displayName: entry.displayName,
       worldName: entry.worldName,
+      previousName: entry.previousName ?? null,
       at: entry.at
     })
   }
@@ -89,17 +97,17 @@ export class ActivityHistory implements ActivityStore {
     return toEntries(
       this.options.database.pageActivity({
         accounts,
-        kind: request.filter === 'all' ? null : request.filter,
+        kinds: activityKindsOf(request.filter),
         friends,
         limit
       })
     )
   }
 
-  clear(platform: Platform, kind: ActivityKind | null): void {
+  clear(platform: Platform, kinds: readonly ActivityKind[] | null): void {
     const accountKey = this.options.accountKeyFor(platform)
     if (accountKey === null) return
-    this.options.database.deleteActivity(accountKey, kind)
+    this.options.database.deleteActivity(accountKey, kinds)
   }
 
   clearAll(): void {
@@ -133,4 +141,63 @@ function toEntries(rows: ReturnType<HistoryDatabase['recentActivity']>): Activit
     if (entry !== null) entries.push(entry)
   }
   return entries
+}
+
+/**
+ * The friends list history's saved copy (`friendLog.ts`), with the same rules
+ * as the Activity list's: only the account signed in right now, and nothing
+ * at all while activity is kept only until VRX closes. It is never removed by
+ * age: "friends since" is only worth having if it stays.
+ */
+export class FriendHistory implements FriendLogStore {
+  constructor(private readonly options: Omit<ActivityHistoryOptions, 'now'>) {}
+
+  load(platform: Platform): SavedFriend[] | null {
+    const accountKey = this.accountKey(platform)
+    return accountKey === null ? null : this.options.database.savedFriends(accountKey)
+  }
+
+  save(platform: Platform, friends: readonly SavedFriend[]): void {
+    const accountKey = this.accountKey(platform)
+    if (accountKey !== null) this.options.database.saveFriends(accountKey, friends)
+  }
+
+  remove(platform: Platform, platformUserId: string): void {
+    const accountKey = this.accountKey(platform)
+    if (accountKey !== null) this.options.database.removeSavedFriend(accountKey, platformUserId)
+  }
+
+  nameChanged(platform: Platform, platformUserId: string, previousName: string, at: number): void {
+    const accountKey = this.accountKey(platform)
+    if (accountKey === null) return
+    this.options.database.insertNameChange(accountKey, platformUserId, previousName, at)
+  }
+
+  friend(platform: Platform, platformUserId: string): SavedFriend | null {
+    const accountKey = this.accountKey(platform)
+    return accountKey === null
+      ? null
+      : this.options.database.savedFriend(accountKey, platformUserId)
+  }
+
+  names(platform: Platform, platformUserId: string, limit: number): SavedNameChange[] {
+    const accountKey = this.accountKey(platform)
+    return accountKey === null
+      ? []
+      : this.options.database.nameChanges(accountKey, platformUserId, limit)
+  }
+
+  clearAll(): void {
+    this.options.database.deleteAllFriendHistory()
+  }
+
+  /** "Until VRX closes" removes what was saved, like the Activity list. */
+  prune(): void {
+    if (this.options.keepFor() === 'session') this.options.database.deleteAllFriendHistory()
+  }
+
+  private accountKey(platform: Platform): string | null {
+    if (this.options.keepFor() === 'session') return null
+    return this.options.accountKeyFor(platform)
+  }
 }

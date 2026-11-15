@@ -23,6 +23,7 @@ function row(id: number, overrides: Partial<SavedActivityRow> = {}): SavedActivi
     platformUserId: 'usr_a',
     displayName: 'Alice',
     worldName: null,
+    previousName: null,
     at: 1_000 + id,
     ...overrides
   }
@@ -81,13 +82,13 @@ describe('HistoryDatabase', () => {
             { accountKey: VRC, beforeId: null },
             { accountKey: CVR, beforeId: null }
           ],
-          kind: null,
+          kinds: null,
           friends: null,
           limit: 10
         })
         .map((entry) => entry.id)
     ).toEqual([2, 1])
-    expect(db.pageActivity({ accounts: [], kind: null, friends: null, limit: 10 })).toEqual([])
+    expect(db.pageActivity({ accounts: [], kinds: null, friends: null, limit: 10 })).toEqual([])
   })
 
   it('pages by id, kind and friend', () => {
@@ -104,7 +105,7 @@ describe('HistoryDatabase', () => {
       db
         .pageActivity({
           accounts: [{ accountKey: VRC, beforeId: null }],
-          kind: null,
+          kinds: null,
           friends: null,
           limit: 10,
           ...query
@@ -112,7 +113,7 @@ describe('HistoryDatabase', () => {
         .map((entry) => entry.id)
 
     expect(page({ accounts: [{ accountKey: VRC, beforeId: 4 }] })).toEqual([3, 2, 1])
-    expect(page({ kind: 'offline' })).toEqual([6, 4, 2])
+    expect(page({ kinds: ['offline'] })).toEqual([6, 4, 2])
     expect(page({ limit: 2 })).toEqual([6, 5])
     expect(page({ friends: [{ accountKey: VRC, platformUserId: 'usr_b' }] })).toEqual([6, 5, 4])
     // The same friend id under another account is someone else's row.
@@ -132,7 +133,7 @@ describe('HistoryDatabase', () => {
             { accountKey: VRC, beforeId: 7 },
             { accountKey: CVR, beforeId: 4 }
           ],
-          kind: null,
+          kinds: null,
           friends: null,
           limit: 10
         })
@@ -158,7 +159,7 @@ describe('HistoryDatabase', () => {
     db.insertActivity(row(2, { kind: 'offline' }))
     db.insertActivity(row(3, { accountKey: CVR }))
 
-    db.deleteActivity(VRC, 'offline')
+    db.deleteActivity(VRC, ['offline'])
     expect(db.recentActivity(VRC, 10).map((entry) => entry.id)).toEqual([1])
     db.deleteActivity(VRC, null)
     expect(db.recentActivity(VRC, 10)).toEqual([])

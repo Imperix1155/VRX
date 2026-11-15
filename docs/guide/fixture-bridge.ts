@@ -405,6 +405,12 @@ export function createFixtureBridge(variant: string): FixtureBridge {
             { kind: 'offline' as const, worldName: null, ago: day + index * 60_000 },
             { kind: 'world' as const, worldName: 'Glass Garden Arcade', ago: day + 3_600_000 },
             { kind: 'online' as const, worldName: 'Aurora Transit Lounge', ago: 9 * day },
+            {
+              kind: 'renamed' as const,
+              worldName: null,
+              ago: (40 / 3) * day,
+              previousName: 'Mossy'
+            },
             { kind: 'offline' as const, worldName: null, ago: 400 * day }
           ].map((row, position) => ({
             id: -(index * 10 + position + 1),
@@ -413,6 +419,7 @@ export function createFixtureBridge(variant: string): FixtureBridge {
             platformUserId: friend.friendId,
             displayName: '',
             worldName: row.worldName,
+            ...('previousName' in row ? { previousName: row.previousName } : {}),
             at: now - row.ago
           }))
         )
@@ -420,6 +427,28 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         entries: [...sample, ...older].sort((a, b) => b.at - a.at),
         hasMore: false
       })
+    },
+    // Friends since and earlier names: the first account is a friendship
+    // VRX saw begin, a second one was already there when history started.
+    getFriendHistory: ({ friends }) => {
+      const now = Date.now()
+      return Promise.resolve(
+        variant === 'empty'
+          ? []
+          : friends.map((friend, index) => ({
+              platform: friend.platform,
+              friendId: friend.friendId,
+              since: now - (index === 0 ? 212 : 400) * 86_400_000,
+              sinceKnown: index === 0,
+              previousNames:
+                index === 0
+                  ? [
+                      { name: 'Mossy', until: now - 40 * 86_400_000 },
+                      { name: 'Moss in the Machine', until: now - 150 * 86_400_000 }
+                    ]
+                  : []
+            }))
+      )
     },
     clearActivity: () => Promise.resolve(),
     onActivityChanged: unsubscribe,
