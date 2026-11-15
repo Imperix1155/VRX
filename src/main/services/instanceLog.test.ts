@@ -10,12 +10,15 @@ interface World {
   accounts: Partial<Record<Platform, string>>
   setSaving: (value: boolean) => void
   onChanged: ReturnType<typeof vi.fn>
+  /** VRX's clock, for the moment the log is cleared. */
+  setNow: (value: number) => void
   /** A log over the same saved copy, as a restart would build. */
   log: () => InstanceLog
 }
 
 function setup(): World {
   let saving = true
+  let now = 0
   const accounts: Partial<Record<Platform, string>> = {
     vrchat: VRC,
     chilloutvr: 'chilloutvr:me-1'
@@ -29,12 +32,16 @@ function setup(): World {
     setSaving: (value) => {
       saving = value
     },
+    setNow: (value) => {
+      now = value
+    },
     log: () =>
       new InstanceLog({
         database,
         accountKeyFor: (platform) => accounts[platform] ?? null,
         isSaving: () => saving,
-        onChanged
+        onChanged,
+        now: () => now
       })
   }
 }
@@ -201,6 +208,44 @@ describe('InstanceLog', () => {
     expect(log.page(cvr).visits).toHaveLength(1)
     log.clearAll()
     expect(log.page(cvr).visits).toEqual([])
+  })
+
+  it('keeps a cleared log cleared when a source tells the same rooms again', () => {
+    const world = setup()
+    const replay = (log: InstanceLog): void => {
+      log.enter('vrchat', { instanceId: 'wrld_a:1', worldName: 'Pug Lounge', at: 1_000 })
+      log.join('vrchat', { platformUserId: 'usr_a', displayName: 'Alice', at: 2_000 })
+      log.enter('vrchat', { instanceId: 'wrld_b:2', worldName: 'Still here', at: 4_000 })
+      log.join('vrchat', { platformUserId: 'usr_a', displayName: 'Alice', at: 4_500 })
+    }
+    const cvr = { scope: [{ platform: 'chilloutvr' as const, before: null }] }
+    const log = world.log()
+    replay(log)
+    log.enter('chilloutvr', { instanceId: 'i-1', worldName: 'Museum', at: 1_000 })
+    world.setNow(5_000)
+    log.clear(['vrchat'])
+
+    // A restart reads the game's log from its first line.
+    const restarted = world.log()
+    replay(restarted)
+    // Someone arriving after the clear, in the room entered before it.
+    restarted.join('vrchat', { platformUserId: 'usr_b', displayName: 'Bob', at: 6_000 })
+    expect(restarted.page(all).visits).toEqual([])
+    expect(restarted.met('vrchat', 'usr_a')).toBeNull()
+    // The other platform was not cleared, and what follows is saved as ever.
+    restarted.enter('chilloutvr', { instanceId: 'i-1', worldName: 'Museum', at: 1_000 })
+    expect(restarted.page(cvr).visits).toHaveLength(1)
+    restarted.enter('vrchat', { instanceId: 'wrld_c:3', worldName: 'After', at: 7_000 })
+    expect(restarted.page(all).visits.map((visit) => visit.worldName)).toEqual(['After'])
+
+    world.setNow(8_000)
+    restarted.clearAll()
+    const again = world.log()
+    replay(again)
+    again.enter('vrchat', { instanceId: 'wrld_c:3', worldName: 'After', at: 7_000 })
+    again.enter('chilloutvr', { instanceId: 'i-1', worldName: 'Museum', at: 1_000 })
+    expect(again.page(all).visits).toEqual([])
+    expect(again.page(cvr).visits).toEqual([])
   })
 
   it('removes ended visits past the age limit and keeps the one in progress', () => {

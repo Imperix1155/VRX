@@ -9,6 +9,8 @@
  *
  * Every step carries the time it happened, and the same step told twice saves
  * nothing twice, so a source may replay a whole game log after a restart.
+ * Clearing the log is remembered: a replay never brings back a room from
+ * before it.
  */
 import type {
   InstanceVisit,
@@ -29,6 +31,7 @@ export interface InstanceLogOptions {
   isSaving: () => boolean
   /** Something the page shows changed. */
   onChanged: () => void
+  now?: () => number
 }
 
 interface CurrentVisit {
@@ -39,8 +42,11 @@ interface CurrentVisit {
 
 export class InstanceLog {
   private readonly current = new Map<Platform, CurrentVisit>()
+  private readonly now: () => number
 
-  constructor(private readonly options: InstanceLogOptions) {}
+  constructor(private readonly options: InstanceLogOptions) {
+    this.now = options.now ?? Date.now
+  }
 
   /** Many steps as one write on disk (a game log read at launch). */
   batch(step: () => void): void {
@@ -59,6 +65,9 @@ export class InstanceLog {
     const accountKey = this.options.accountKeyFor(platform)
     if (accountKey === null) return
     const database = this.options.database
+    // A room from before the log was last cleared stays forgotten, however
+    // often a source tells it again.
+    if (room.at <= database.instanceLogFloor(accountKey)) return
     const visitId = database.openVisit(accountKey, {
       instanceId: room.instanceId,
       worldName: emptyToNull(room.worldName),
@@ -177,7 +186,7 @@ export class InstanceLog {
       const accountKey = this.options.accountKeyFor(platform)
       if (accountKey === null) continue
       this.current.delete(platform)
-      this.options.database.deleteInstanceLog(accountKey)
+      this.options.database.deleteInstanceLog(accountKey, this.now())
     }
     this.options.onChanged()
   }
@@ -185,7 +194,7 @@ export class InstanceLog {
   /** The user turned activity off, or keeps it only until VRX closes. */
   clearAll(): void {
     this.current.clear()
-    this.options.database.deleteAllInstanceLog()
+    this.options.database.deleteAllInstanceLog(this.now())
     this.options.onChanged()
   }
 

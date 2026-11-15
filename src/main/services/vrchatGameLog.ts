@@ -155,6 +155,12 @@ export interface VrchatGameLogOptions {
   now?: () => number
 }
 
+/** The account a pass reads for, and whether it is still the one signed in. */
+interface Fence {
+  accountId: string
+  holds: () => boolean
+}
+
 interface FileState {
   offset: number
   decoder: StringDecoder
@@ -176,6 +182,8 @@ export class VrchatGameLog {
   private timer: ReturnType<typeof setInterval> | null = null
   private running: Promise<void> | null = null
   private directory: string | null = null
+  /** Goes up at every `reset`, so a pass begun before it saves nothing after. */
+  private generation = 0
   private readonly now: () => number
 
   constructor(private readonly options: VrchatGameLogOptions) {
@@ -196,6 +204,7 @@ export class VrchatGameLog {
 
   /** An account boundary, or saving turned off: read from the start next time. */
   reset(): void {
+    this.generation += 1
     this.files.clear()
   }
 
@@ -216,12 +225,31 @@ export class VrchatGameLog {
     }
     const accountId = this.options.accountId()
     if (accountId === null) return
+    // The pass waits on the disk between steps. Whatever it read belongs to
+    // the account signed in when it began: after a wait, nothing is told
+    // unless that account is still the one signed in and no `reset` came.
+    const generation = this.generation
+    const fence: Fence = {
+      accountId,
+      holds: () => this.generation === generation && this.options.accountId() === accountId
+    }
+    try {
+      await this.readFiles(fence)
+    } finally {
+      // What this pass took in was read for someone else: start over.
+      if (!fence.holds()) this.files.clear()
+    }
+  }
+
+  private async readFiles(fence: Fence): Promise<void> {
+    const { accountId } = fence
     const directory = await this.findDirectory()
-    if (directory === null) return
+    if (directory === null || !fence.holds()) return
     const names = (await readdir(directory))
       .filter((name) => LOG_FILE.test(name))
       .sort()
       .slice(-MAX_FILES)
+    if (!fence.holds()) return
     for (const name of [...this.files.keys()]) {
       if (!names.includes(name)) this.files.delete(name)
     }
@@ -230,8 +258,8 @@ export class VrchatGameLog {
       const newest = index === names.length - 1
       const state = this.stateOf(name)
       if (state.done) continue
-      const atEnd = await this.readFile(join(directory, name), state, accountId, budget)
-      if (atEnd === null) return
+      const atEnd = await this.readFile(join(directory, name), state, fence, budget)
+      if (atEnd === null || !fence.holds()) return
       budget -= atEnd.read
       if (!atEnd.reachedEnd) return
       if (!newest) {
@@ -243,7 +271,9 @@ export class VrchatGameLog {
         state.done = true
       } else if (state.inRoom && this.now() - state.grewAt >= QUIET_BEFORE_RUNNING_CHECK_MS) {
         state.grewAt = this.now()
-        if (!(await this.options.isGameRunning())) {
+        const running = await this.options.isGameRunning()
+        if (!fence.holds()) return
+        if (!running) {
           if (this.mayRecord(state, accountId)) this.options.sink.exit('vrchat', state.lastAt)
           state.inRoom = false
         }
@@ -274,7 +304,7 @@ export class VrchatGameLog {
   private async readFile(
     path: string,
     state: FileState,
-    accountId: string,
+    fence: Fence,
     budget: number
   ): Promise<{ read: number; reachedEnd: boolean } | null> {
     let handle
@@ -299,11 +329,12 @@ export class VrchatGameLog {
       let read = 0
       while (read < budget) {
         const { bytesRead } = await handle.read(buffer, 0, CHUNK_BYTES, state.offset)
+        if (!fence.holds()) return null
         if (bytesRead === 0) return { read, reachedEnd: true }
         state.offset += bytesRead
         read += bytesRead
         state.grewAt = this.now()
-        this.take(state.decoder.write(buffer.subarray(0, bytesRead)), state, accountId)
+        this.take(state.decoder.write(buffer.subarray(0, bytesRead)), state, fence.accountId)
       }
       return { read, reachedEnd: false }
     } catch {

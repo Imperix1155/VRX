@@ -121,7 +121,7 @@ export class ActivityHistory implements ActivityStore {
     const database = this.options.database
     if (keepFor === 'session') {
       database.deleteAllActivity()
-      database.deleteAllInstanceLog()
+      database.deleteAllInstanceLog(this.options.now())
       return
     }
     const olderThan = this.cutoff()

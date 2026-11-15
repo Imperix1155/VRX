@@ -85,6 +85,13 @@ function person(
     .run(iso(at), type, name, location, userId, stayedMs)
 }
 
+/** Many rows as one write, so a large VRCX file is quick to build. */
+function bulk(step: () => void): void {
+  vrcx.exec('BEGIN')
+  step()
+  vrcx.exec('COMMIT')
+}
+
 function friend(userId: string, displayName: string, since: number, sinceKnown = false): void {
   database.saveFriends(KEY, [{ platformUserId: userId, displayName, since, sinceKnown, misses: 0 }])
 }
@@ -306,9 +313,11 @@ describe('importVrcxHistory', () => {
   })
 
   it('stops when the account changes part way', async () => {
-    for (let index = 0; index < 2_500; index += 1) {
-      room(`wrld_cccc:${index}`, T0 + index * MINUTE, 1_000)
-    }
+    bulk(() => {
+      for (let index = 0; index < 2_500; index += 1) {
+        room(`wrld_cccc:${index}`, T0 + index * MINUTE, 1_000)
+      }
+    })
     const result = await importVrcxHistory(
       options({
         pause: () => {
@@ -319,6 +328,42 @@ describe('importVrcxHistory', () => {
     )
     expect(result).toEqual({ ok: false, reason: 'failed' })
     expect(visits()).toEqual([])
+  })
+
+  it('finishes a run that stopped part way, without adding anything twice', async () => {
+    const second = 'wrld_bbbb:1'
+    bulk(() => {
+      room(ROOM, T0, 10 * MINUTE)
+      person('OnPlayerJoined', 'usr_a', 'Alice', T0 + MINUTE)
+      person('OnPlayerLeft', 'usr_a', 'Alice', T0 + 5 * MINUTE)
+      // More people than one step reads, so the run can stop inside this room.
+      room(second, T0 + 60 * MINUTE, 600 * MINUTE, 'Crowded')
+      for (let index = 0; index < 1_500; index += 1) {
+        person('OnPlayerJoined', `usr_p${index}`, `P${index}`, T0 + 61 * MINUTE, 0, second)
+        person('OnPlayerLeft', `usr_p${index}`, `P${index}`, T0 + 90 * MINUTE, 0, second)
+      }
+    })
+
+    const stopped = await importVrcxHistory(
+      options({
+        pause: () => {
+          accountKey = 'vrchat:usr_other'
+          return Promise.resolve()
+        }
+      })
+    )
+    expect(stopped).toEqual({ ok: false, reason: 'failed' })
+    // Only a whole room was saved: the one being read is not there at all.
+    expect(visits().map((visit) => [visit.worldName, visit.people])).toEqual([['The Room', 1]])
+
+    accountKey = KEY
+    await expect(importVrcxHistory(options())).resolves.toMatchObject({ ok: true, visits: 1 })
+    expect(visits().map((visit) => [visit.worldName, visit.people])).toEqual([
+      ['Crowded', 1_500],
+      ['The Room', 1]
+    ])
+    await expect(importVrcxHistory(options())).resolves.toMatchObject({ ok: true, visits: 0 })
+    expect(visits()).toHaveLength(2)
   })
 
   it('reads only tables shaped the way VRCX writes them', async () => {

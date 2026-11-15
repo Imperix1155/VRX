@@ -51,16 +51,20 @@ type ReadOutcome =
   | { ok: true; friendsSince: number; names: number; visits: number; olderSkipped: boolean }
   | { ok: false; reason: 'no-history' | 'failed' }
 
-interface ImportedVisit {
+interface FoundRoom {
   enteredAt: number
   instanceId: string
   worldName: string | null
   /** Null when VRCX never saw the visit end. */
   leftAt: number | null
-  id: number
-  fresh: boolean
-  /** The last moment anyone was seen in it. */
-  lastSeen: number
+}
+
+/** Someone's stay in the room being read, until the room is saved. */
+interface Stay {
+  platformUserId: string
+  displayName: string
+  joinedAt: number
+  leftAt: number
 }
 
 export async function importVrcxHistory(
@@ -146,10 +150,9 @@ class Import {
       const rooms = await this.rooms()
       if (rooms === null) return { ok: false, reason: 'failed' }
       olderSkipped = rooms.olderSkipped
-      visits = rooms.visits.filter((visit) => visit.fresh).length
-      if (hasPeople && visits > 0 && !(await this.people(rooms.visits))) {
-        return { ok: false, reason: 'failed' }
-      }
+      const saved = await this.save(rooms.found, hasPeople)
+      if (saved === null) return { ok: false, reason: 'failed' }
+      visits = saved
     }
     return { ok: true, friendsSince: friends.since, names: friends.names, visits, olderSkipped }
   }
@@ -207,8 +210,8 @@ class Import {
     return { since, names }
   }
 
-  /** The rooms the user was in, oldest first. */
-  private async rooms(): Promise<{ visits: ImportedVisit[]; olderSkipped: boolean } | null> {
+  /** The rooms the user was in, oldest first. Nothing is saved here. */
+  private async rooms(): Promise<{ found: FoundRoom[]; olderSkipped: boolean } | null> {
     const cutoff = this.options.keepCutoff()
     const read = this.source.prepare(
       `SELECT id, created_at, location, world_name, time FROM gamelog_location
@@ -216,7 +219,7 @@ class Import {
          AND (world_name IS NULL OR octet_length(world_name) <= ${MAX_TEXT_BYTES})
        ORDER BY id LIMIT ?`
     )
-    const found: Array<Omit<ImportedVisit, 'id' | 'fresh' | 'lastSeen'>> = []
+    const found: FoundRoom[] = []
     let olderSkipped = false
     let after = 0
     for (;;) {
@@ -249,119 +252,149 @@ class Import {
       found.splice(0, found.length - this.options.maxVisits)
       olderSkipped = true
     }
-
-    const visits: ImportedVisit[] = []
-    const database = this.options.database
-    for (let start = 0; start < found.length; start += CHUNK_ROWS) {
-      database.batch(() => {
-        for (const [offset, room] of found.slice(start, start + CHUNK_ROWS).entries()) {
-          // No room outlasts the next one's start.
-          const next = found[start + offset + 1]
-          const leftAt =
-            room.leftAt === null || next === undefined
-              ? room.leftAt
-              : Math.min(room.leftAt, next.enteredAt)
-          const saved = database.importVisit(this.accountKey, {
-            instanceId: room.instanceId,
-            worldName: room.worldName,
-            enteredAt: room.enteredAt,
-            // A room VRCX never saw end is filled in from who was seen in it.
-            leftAt: leftAt ?? room.enteredAt
-          })
-          if (saved !== null) {
-            visits.push({ ...room, leftAt, ...saved, lastSeen: room.enteredAt })
-          }
-        }
-      })
-      if (!(await this.next())) return null
+    // No room outlasts the next one's start.
+    for (const [index, room] of found.entries()) {
+      const next = found[index + 1]
+      if (room.leftAt !== null && next !== undefined) {
+        room.leftAt = Math.min(room.leftAt, next.enteredAt)
+      }
     }
-    return { visits, olderSkipped }
+    return { found, olderSkipped }
   }
 
-  /** Who was in those rooms. Only rooms this run added are filled in. */
-  private async people(visits: readonly ImportedVisit[]): Promise<boolean> {
-    const first = visits[0]
-    if (first === undefined) return true
+  /**
+   * Save the rooms, each together with who was in it, oldest first. A room
+   * and its people land in one step on disk or not at all, so a run that
+   * stops part way leaves only whole rooms and the next run adds the rest.
+   * Returns how many rooms were added, or null when the run had to stop.
+   */
+  private async save(rooms: readonly FoundRoom[], withPeople: boolean): Promise<number | null> {
     const database = this.options.database
-    // Start at the first row that could belong to the oldest room kept.
-    const newest = this.source
-      .prepare('SELECT id FROM gamelog_join_leave ORDER BY id DESC LIMIT 1 OFFSET ?')
-      .get(MAX_JOIN_LEAVE_ROWS) as { id?: unknown } | undefined
-    let after = typeof newest?.id === 'number' ? newest.id : 0
-    const read = this.source.prepare(
-      `SELECT id, created_at, type, display_name, location, user_id, time FROM gamelog_join_leave
-       WHERE id > ? AND created_at >= ? AND type IN ('OnPlayerJoined', 'OnPlayerLeft')
-         AND octet_length(user_id) BETWEEN 1 AND ${MAX_TEXT_BYTES}
-         AND octet_length(display_name) <= ${MAX_TEXT_BYTES}
-         AND (location IS NULL OR octet_length(location) <= ${MAX_TEXT_BYTES})
-       ORDER BY id LIMIT ?`
-    )
-    // Stored times are ISO text, so text order is time order to the second.
-    const from = new Date(first.enteredAt).toISOString().slice(0, 19)
-
-    const room: { open: ImportedVisit | null } = { open: null }
+    let added = 0
+    /** Every room before this one is settled: saved, or already there. */
+    let settled = 0
+    /** The room whose people are being read; it is always `settled`. */
+    let open: FoundRoom | null = null
+    let lastSeen = 0
+    const stays: Stay[] = []
     const present = new Map<string, { joinedAt: number; displayName: string }>()
-    const close = (visit: ImportedVisit): void => {
-      const end = visit.leftAt ?? Math.max(visit.lastSeen, visit.enteredAt)
-      for (const [userId, stay] of present) {
-        database.importEncounter(this.accountKey, visit.id, {
-          platformUserId: userId,
-          displayName: stay.displayName,
-          joinedAt: stay.joinedAt,
-          leftAt: end
-        })
+
+    const isKnown = (room: FoundRoom): boolean =>
+      database.hasVisitNear(this.accountKey, room.instanceId, room.enteredAt)
+    const write = (room: FoundRoom, people: boolean): void => {
+      // A room VRCX never saw end lasted until the last moment anyone was seen.
+      const end = room.leftAt ?? (people ? Math.max(lastSeen, room.enteredAt) : room.enteredAt)
+      if (people) {
+        for (const [platformUserId, stay] of present) {
+          stays.push({ platformUserId, ...stay, leftAt: end })
+        }
       }
-      present.clear()
-      if (visit.leftAt === null) database.importVisitEnd(visit.id, end)
+      const saved = database.importVisit(
+        this.accountKey,
+        {
+          instanceId: room.instanceId,
+          worldName: room.worldName,
+          enteredAt: room.enteredAt,
+          leftAt: end
+        },
+        people ? stays : []
+      )
+      if (saved) added += 1
+    }
+    /** Settle every room before `index`. Call inside a batch. */
+    const settleBefore = (index: number): void => {
+      for (; settled < index; settled += 1) {
+        const room = rooms[settled]
+        if (room === undefined) continue
+        if (room === open) {
+          write(room, true)
+          open = null
+          stays.length = 0
+          present.clear()
+        } else if (!isKnown(room)) {
+          write(room, false)
+        }
+      }
     }
 
-    for (;;) {
-      const rows = read.all(after, from, CHUNK_ROWS) as Array<Record<string, unknown>>
-      database.batch(() => {
-        for (const row of rows) {
-          if (typeof row.id === 'number') after = row.id
-          const at = readTime(row.created_at)
-          const userId = row.user_id
-          if (at === null || typeof userId !== 'string') continue
-          if (userId.toLowerCase() === this.ownId) continue
-          const visit = visitAt(visits, at)
-          if (visit === null || !visit.fresh) continue
-          // An old row may name no room, or "traveling"; the time decides then.
-          const location = typeof row.location === 'string' ? cleanLocation(row.location) : null
-          if (location !== null && location !== visit.instanceId) continue
-          if (visit.leftAt !== null && at > visit.leftAt) continue
-          if (room.open !== visit) {
-            if (room.open !== null) close(room.open)
-            room.open = visit
+    if (withPeople && rooms[0] !== undefined) {
+      // Start at the first row that could belong to the oldest room kept.
+      const newest = this.source
+        .prepare('SELECT id FROM gamelog_join_leave ORDER BY id DESC LIMIT 1 OFFSET ?')
+        .get(MAX_JOIN_LEAVE_ROWS) as { id?: unknown } | undefined
+      let after = typeof newest?.id === 'number' ? newest.id : 0
+      const read = this.source.prepare(
+        `SELECT id, created_at, type, display_name, location, user_id, time FROM gamelog_join_leave
+         WHERE id > ? AND created_at >= ? AND type IN ('OnPlayerJoined', 'OnPlayerLeft')
+           AND octet_length(user_id) BETWEEN 1 AND ${MAX_TEXT_BYTES}
+           AND octet_length(display_name) <= ${MAX_TEXT_BYTES}
+           AND (location IS NULL OR octet_length(location) <= ${MAX_TEXT_BYTES})
+         ORDER BY id LIMIT ?`
+      )
+      // Stored times are ISO text, so text order is time order to the second.
+      const from = new Date(rooms[0].enteredAt).toISOString().slice(0, 19)
+
+      for (;;) {
+        const rows = read.all(after, from, CHUNK_ROWS) as Array<Record<string, unknown>>
+        database.batch(() => {
+          for (const row of rows) {
+            if (typeof row.id === 'number') after = row.id
+            const at = readTime(row.created_at)
+            const userId = row.user_id
+            if (at === null || typeof userId !== 'string') continue
+            if (userId.toLowerCase() === this.ownId) continue
+            const index = roomAt(rooms, at)
+            const room = rooms[index]
+            // A row for a room already settled came too late to count.
+            if (room === undefined || index < settled) continue
+            // An old row may name no room, or "traveling"; the time decides then.
+            const location = typeof row.location === 'string' ? cleanLocation(row.location) : null
+            if (location !== null && location !== room.instanceId) continue
+            if (room.leftAt !== null && at > room.leftAt) continue
+            if (room !== open) {
+              settleBefore(index)
+              if (isKnown(room)) {
+                // VRX has this stay already: it is left as it is.
+                settled = index + 1
+                continue
+              }
+              open = room
+              lastSeen = room.enteredAt
+            }
+            lastSeen = Math.max(lastSeen, at)
+            const displayName = typeof row.display_name === 'string' ? row.display_name : ''
+            if (row.type === 'OnPlayerJoined') {
+              if (!present.has(userId)) present.set(userId, { joinedAt: at, displayName })
+              continue
+            }
+            const stay = present.get(userId)
+            present.delete(userId)
+            const stayed = typeof row.time === 'number' && row.time > 0 ? row.time : null
+            // A leaving with no arrival seen: VRCX's own count of the stay, if any.
+            const joinedAt =
+              stay?.joinedAt ?? (stayed === null ? null : Math.max(at - stayed, room.enteredAt))
+            if (joinedAt === null) continue
+            stays.push({
+              platformUserId: userId,
+              displayName: displayName === '' ? (stay?.displayName ?? '') : displayName,
+              joinedAt,
+              leftAt: at
+            })
           }
-          visit.lastSeen = Math.max(visit.lastSeen, at)
-          const displayName = typeof row.display_name === 'string' ? row.display_name : ''
-          if (row.type === 'OnPlayerJoined') {
-            if (!present.has(userId)) present.set(userId, { joinedAt: at, displayName })
-            continue
-          }
-          const stay = present.get(userId)
-          present.delete(userId)
-          const stayed = typeof row.time === 'number' && row.time > 0 ? row.time : null
-          // A leaving with no arrival seen: VRCX's own count of the stay, if any.
-          const joinedAt =
-            stay?.joinedAt ?? (stayed === null ? null : Math.max(at - stayed, visit.enteredAt))
-          if (joinedAt === null) continue
-          database.importEncounter(this.accountKey, visit.id, {
-            platformUserId: userId,
-            displayName: displayName === '' ? (stay?.displayName ?? '') : displayName,
-            joinedAt,
-            leftAt: at
-          })
-        }
-      })
-      if (rows.length < CHUNK_ROWS) break
-      if (!(await this.next())) return false
+        })
+        if (rows.length < CHUNK_ROWS) break
+        if (!(await this.next())) return null
+      }
     }
-    database.batch(() => {
-      if (room.open !== null) close(room.open)
-    })
-    return true
+
+    // The rooms after the last person seen, and every room when VRCX kept no
+    // record of people.
+    for (;;) {
+      database.batch(() => settleBefore(Math.min(settled + CHUNK_ROWS, rooms.length)))
+      if (settled >= rooms.length) break
+      if (!(await this.next())) return null
+    }
+    return added
   }
 
   /** Whether a table exists as a plain table with these columns. */
@@ -405,17 +438,18 @@ function cleanLocation(location: string): string | null {
   return cleaned === '' ? null : cleaned
 }
 
-/** The room the user was in at a moment: the last one entered by then. */
-function visitAt(visits: readonly ImportedVisit[], at: number): ImportedVisit | null {
+/** The room the user was in at a moment: the last one entered by then.
+ *  -1 when it was before the first. */
+function roomAt(rooms: readonly FoundRoom[], at: number): number {
   let low = 0
-  let high = visits.length - 1
-  let found: ImportedVisit | null = null
+  let high = rooms.length - 1
+  let found = -1
   while (low <= high) {
     const middle = (low + high) >> 1
-    const visit = visits[middle]
-    if (visit === undefined) break
-    if (visit.enteredAt <= at) {
-      found = visit
+    const room = rooms[middle]
+    if (room === undefined) break
+    if (room.enteredAt <= at) {
+      found = middle
       low = middle + 1
     } else {
       high = middle - 1

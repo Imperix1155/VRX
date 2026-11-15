@@ -103,6 +103,9 @@ const MAX_TEXT_LENGTH = 512
 /** A brought-in visit this close to a saved one of the same room is the same stay. */
 const IMPORT_SAME_VISIT_MS = 60_000
 
+/** The `instance_log_floor` row that stands for every account. */
+const EVERY_ACCOUNT = ''
+
 const HISTORY_TABLES = [
   'activity',
   'friend_roster',
@@ -654,24 +657,51 @@ export class HistoryDatabase {
     )
   }
 
-  /** Forget one account's instance log. */
-  deleteInstanceLog(accountKey: string): void {
+  /**
+   * Forget one account's instance log, as of `at`. The moment is kept
+   * (`instanceLogFloor`), so a game log read again later does not bring back
+   * what was forgotten.
+   */
+  deleteInstanceLog(accountKey: string, at: number): void {
     this.attempt(() => {
       this.transaction(() => {
         this.statement('DELETE FROM encounters WHERE account_key = ?').run(accountKey)
         this.statement('DELETE FROM visits WHERE account_key = ?').run(accountKey)
+        this.statement(
+          `INSERT INTO instance_log_floor (account_key, at) VALUES (?, ?)
+           ON CONFLICT (account_key) DO UPDATE SET at = MAX(at, excluded.at)`
+        ).run(accountKey, at)
       })
       this.reclaim()
     })
   }
 
-  /** Forget every account's instance log. */
-  deleteAllInstanceLog(): void {
+  /** Forget every account's instance log, as of `at`. */
+  deleteAllInstanceLog(at: number): void {
     this.attempt(() => {
-      this.statement('DELETE FROM encounters').run()
-      this.statement('DELETE FROM visits').run()
+      this.transaction(() => {
+        this.statement('DELETE FROM encounters').run()
+        this.statement('DELETE FROM visits').run()
+        this.statement('DELETE FROM instance_log_floor').run()
+        this.statement('INSERT INTO instance_log_floor (account_key, at) VALUES (?, ?)').run(
+          EVERY_ACCOUNT,
+          at
+        )
+      })
       this.reclaim()
     })
+  }
+
+  /** The moment an account's instance log was last forgotten, or 0. A room
+   *  entered at or before it is not saved again. */
+  instanceLogFloor(accountKey: string): number {
+    const row = this.attempt(
+      () =>
+        this.statement(
+          'SELECT MAX(at) AS at FROM instance_log_floor WHERE account_key IN (?, ?)'
+        ).get(accountKey, EVERY_ACCOUNT) as { at?: unknown } | undefined
+    )
+    return typeof row?.at === 'number' ? row.at : 0
   }
 
   /** Remove ended visits that began before `olderThan` (null for no age
@@ -760,73 +790,90 @@ export class HistoryDatabase {
     )
   }
 
-  /**
-   * A stay in a room that already ended. A visit to the same room that began
-   * within a minute of it is the same stay (VRX saw it too), and is left as it
-   * is: `fresh` is false and nothing more should be added to it.
-   */
-  importVisit(
-    accountKey: string,
-    visit: { instanceId: string; worldName: string | null; enteredAt: number; leftAt: number }
-  ): { id: number; fresh: boolean } | null {
+  /** Whether a visit to this room that began within a minute of `enteredAt`
+   *  is saved: the same stay, seen by VRX itself or brought in before. */
+  hasVisitNear(accountKey: string, instanceId: string, enteredAt: number): boolean {
     return (
-      this.attempt(() => {
-        const instanceId = clip(visit.instanceId)
-        const known = this.statement(
-          `SELECT id FROM visits
-           WHERE account_key = ? AND instance_id = ? AND entered_at BETWEEN ? AND ? LIMIT 1`
-        ).get(
-          accountKey,
-          instanceId,
-          visit.enteredAt - IMPORT_SAME_VISIT_MS,
-          visit.enteredAt + IMPORT_SAME_VISIT_MS
-        ) as { id?: unknown } | undefined
-        if (typeof known?.id === 'number') return { id: known.id, fresh: false }
-        const id = this.statement(
-          `INSERT INTO visits (account_key, instance_id, world_name, entered_at, left_at)
-           VALUES (?, ?, ?, ?, ?)`
-        ).run(
-          accountKey,
-          instanceId,
-          visit.worldName === null ? null : clip(visit.worldName),
-          visit.enteredAt,
-          Math.max(visit.leftAt, visit.enteredAt)
-        ).lastInsertRowid
-        return { id: Number(id), fresh: true }
-      }) ?? null
+      this.attempt(
+        () =>
+          this.statement(
+            `SELECT 1 AS found FROM visits
+             WHERE account_key = ? AND instance_id = ? AND entered_at BETWEEN ? AND ? LIMIT 1`
+          ).get(
+            accountKey,
+            clip(instanceId),
+            enteredAt - IMPORT_SAME_VISIT_MS,
+            enteredAt + IMPORT_SAME_VISIT_MS
+          ) !== undefined
+      ) ?? false
     )
   }
 
-  /** A brought-in visit lasted at least until `leftAt`. */
-  importVisitEnd(visitId: number, leftAt: number): void {
-    this.attempt(() => {
-      this.statement(
-        'UPDATE visits SET left_at = MAX(left_at, ?) WHERE id = ? AND left_at IS NOT NULL'
-      ).run(leftAt, visitId)
-    })
-  }
-
-  /** Someone's whole stay during a brought-in visit. Saved once per moment. */
-  importEncounter(
+  /**
+   * A stay in a room that already ended, with everyone who was there. The
+   * room and its people land together or not at all, also inside a `batch`.
+   * A stay already saved (`hasVisitNear`) is left as it is. True when the
+   * room was added.
+   */
+  importVisit(
     accountKey: string,
-    visitId: number,
-    stay: { platformUserId: string; displayName: string; joinedAt: number; leftAt: number }
-  ): void {
-    if (stay.platformUserId === '') return
-    this.attempt(() => {
-      this.statement(
-        `INSERT OR IGNORE INTO encounters
-           (account_key, visit_id, user_id, display_name, joined_at, left_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(
-        accountKey,
-        visitId,
-        clip(stay.platformUserId),
-        clip(stay.displayName),
-        stay.joinedAt,
-        Math.max(stay.leftAt, stay.joinedAt)
-      )
-    })
+    visit: { instanceId: string; worldName: string | null; enteredAt: number; leftAt: number },
+    people: ReadonlyArray<{
+      platformUserId: string
+      displayName: string
+      joinedAt: number
+      leftAt: number
+    }>
+  ): boolean {
+    if (this.hasVisitNear(accountKey, visit.instanceId, visit.enteredAt)) return false
+    return (
+      this.attempt(() => {
+        const db = this.db
+        if (db === null) return false
+        // A savepoint, so the room is whole on its own inside a larger step.
+        db.exec('SAVEPOINT brought_in_room')
+        try {
+          const visitId = Number(
+            this.statement(
+              `INSERT INTO visits (account_key, instance_id, world_name, entered_at, left_at)
+               VALUES (?, ?, ?, ?, ?)`
+            ).run(
+              accountKey,
+              clip(visit.instanceId),
+              visit.worldName === null ? null : clip(visit.worldName),
+              visit.enteredAt,
+              Math.max(visit.leftAt, visit.enteredAt)
+            ).lastInsertRowid
+          )
+          const add = this.statement(
+            `INSERT OR IGNORE INTO encounters
+               (account_key, visit_id, user_id, display_name, joined_at, left_at)
+             VALUES (?, ?, ?, ?, ?, ?)`
+          )
+          for (const stay of people) {
+            if (stay.platformUserId === '') continue
+            add.run(
+              accountKey,
+              visitId,
+              clip(stay.platformUserId),
+              clip(stay.displayName),
+              stay.joinedAt,
+              Math.max(stay.leftAt, stay.joinedAt)
+            )
+          }
+          db.exec('RELEASE brought_in_room')
+          return true
+        } catch (error) {
+          try {
+            db.exec('ROLLBACK TO brought_in_room')
+            db.exec('RELEASE brought_in_room')
+          } catch {
+            // The step it was part of is already gone.
+          }
+          throw error
+        }
+      }) ?? false
+    )
   }
 
   /** Write a whole copy of the history to a new file. False when it failed
@@ -1113,6 +1160,10 @@ function migrate(db: DatabaseSync, from: number): void {
         );
         CREATE INDEX IF NOT EXISTS encounters_by_person
           ON encounters (account_key, user_id, joined_at);
+        CREATE TABLE IF NOT EXISTS instance_log_floor (
+          account_key TEXT PRIMARY KEY,
+          at INTEGER NOT NULL
+        ) WITHOUT ROWID;
       `)
     }
     db.exec(`PRAGMA user_version = ${HISTORY_SCHEMA_VERSION}`)

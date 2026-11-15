@@ -222,6 +222,34 @@ describe('VrchatGameLog', () => {
     expect(steps).toHaveLength(9)
   })
 
+  it('tells nothing read for an account that is no longer the one signed in', async () => {
+    write('output_log_2026-11-15_12-00-00.txt', session)
+    const log = reader()
+    const running = log.pass()
+    // The account changes while the pass waits on the disk.
+    accountId = 'usr_someone-else'
+    await running
+    expect(steps).toEqual([])
+    // Nothing of that pass is kept: the file is read again for who is here now.
+    await log.pass()
+    expect(steps).toEqual([])
+    accountId = ME
+    log.reset()
+    await log.pass()
+    expect(steps).toHaveLength(3)
+  })
+
+  it('tells nothing from a pass that a reset overtook', async () => {
+    write('output_log_2026-11-15_12-00-00.txt', session)
+    const log = reader()
+    const running = log.pass()
+    log.reset()
+    await running
+    expect(steps).toEqual([])
+    await log.pass()
+    expect(steps).toHaveLength(3)
+  })
+
   it('reads only VRChat log files, and never fails on a folder it cannot use', async () => {
     write('notes.txt', session)
     write('output_log_evil.txt.bak', session)
