@@ -53,6 +53,17 @@ Saved history, quick reorder and quick launch, on top of 1.4.5.
 - Settings → Dashboard: the notes under "Player counts" and "Hot instance
   threshold" are shorter, so the page still fits the smallest window.
 
+### Fixed
+
+Found after the last test builds (1.5.0-dev.4 and 1.5.0-beta.3):
+
+- The Instances tab on the Activity page keeps every instance listed. With
+  "Show older" pressed, each new instance you entered made one older
+  instance drop out of the middle of the list until the page was reopened.
+- After a shorter "Kept" choice deletes saved history, the Activity page
+  stops showing the older rows it had already loaded. Before, they stayed
+  on screen until the page was reopened.
+
 ### Security
 
 - The dependency check has one dated exception for a development-only build
