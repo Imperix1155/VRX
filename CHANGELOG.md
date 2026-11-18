@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0-beta.1] - 2026-11-18
+
+The first beta of 1.5.0. It holds everything from dev builds 1.5.0-dev.1 and
+1.5.0-dev.2, on top of 1.4.5.
+
+### Added
+
+- Saved history, on both platforms. Activity now remembers after a restart,
+  with "Kept" to pick how long. It has a "Friends list" tab (new friends,
+  people no longer on your list, new names) and an "Instances" tab (where
+  you were, how long, and who was there). A friend's side card gets a small
+  "History" button. Activity → Kept can back up and restore your history,
+  and bring in VRCX's saved VRChat history. Everything stays on your
+  computer, and neither platform is asked for anything extra.
+- Quick reorder: right-click the sidebar or the Dashboard and pick Reorder,
+  then drag the sidebar pages and the Dashboard sections where you want
+  them. Settings always stays last in the sidebar. "Reset order" puts
+  everything back, and Settings → Appearance → Sidebar pages → Order turns
+  the right-click off.
+- Quick launch on the Dashboard: "Launch VRChat" and "Launch ChilloutVR"
+  start that game through Steam, the same as pressing Play there, without
+  joining anyone. Settings → Dashboard → Sections turns the row off.
+
+### Changed
+
+- Settings → Dashboard: the notes under "Player counts" and "Hot instance
+  threshold" are shorter, so the page still fits the smallest window.
+
+### Security
+
+- The dependency check has one dated exception for a development-only build
+  tool that has no fixed release yet. The tool is not part of the installed
+  app. The exception ends on its review date; SECURITY.md has the entry.
+
 ## [1.5.0-dev.2] - 2026-11-18
 
 ### Added
