@@ -129,7 +129,10 @@ every file); later runs reuse `.eslintcache`. The full test suite takes about
 a minute and a half. Two warnings at the top of a test run are expected and
 harmless: Vite's note that `vitest.config.ts` isn't ready for its future
 `configLoader: 'native'`, and Node's SQLite `ExperimentalWarning` (the VRCX
-import tests read a SQLite file).
+import tests read a SQLite file). A test may take 5 seconds on your computer
+and 15 in CI (`testTimeout` in `vitest.config.ts`), because CI runners are
+slower; keep a test well under 5 seconds locally instead of raising its own
+limit.
 
 - `verify` does not start the app. After it passes, run `npm run test:e2e`
   for any change that can affect the running app (on Linux without a screen:
