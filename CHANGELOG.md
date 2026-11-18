@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Quick launch on the Dashboard: a slim row under the numbers with "Launch
+  VRChat" and "Launch ChilloutVR". A press starts that game through Steam,
+  the same as pressing Play there, without joining anyone. A game that is
+  already open is left alone, and VRX says so. A platform gets a button once
+  you are signed in to it. Settings → Dashboard → Sections turns the row off
+  or moves it, and Quick reorder can drag it like any other section.
+
+### Changed
+
+- Settings → Dashboard: the notes under "Player counts" and "Hot instance
+  threshold" are shorter, so the page still fits the smallest window with
+  the new Quick launch row in the list.
+
 ## [1.5.0-dev.1] - 2026-11-15
 
 ### Added

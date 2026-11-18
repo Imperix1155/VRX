@@ -248,6 +248,7 @@ describe('Dashboard reorder list', () => {
     withSettings({ dashboardInvites: false })
     render(<DashboardReorderList />)
     expect(rows()).toEqual([
+      t('settings.dashboard.quickLaunch.label'),
       t('settings.dashboard.wearingNow.label'),
       t('settings.dashboard.invites.label') + t('reorder.sectionOff'),
       t('settings.dashboard.popular.label'),
@@ -259,11 +260,17 @@ describe('Dashboard reorder list', () => {
     render(<DashboardReorderList />)
     const hot = screen.getByRole('button', { name: t('settings.dashboard.hot.label') })
     fireEvent.keyDown(hot, { key: 'ArrowUp' })
-    expect(settings().dashboardSections).toEqual(['wearing-now', 'invites', 'hot', 'popular'])
+    expect(settings().dashboardSections).toEqual([
+      'quick-launch',
+      'wearing-now',
+      'invites',
+      'hot',
+      'popular'
+    ])
     expect(settings().dashboardSectionOrder).toBe('hot-first')
     expect(
       screen.getByText(
-        t('reorder.moved', { name: t('settings.dashboard.hot.label'), position: 3, count: 4 })
+        t('reorder.moved', { name: t('settings.dashboard.hot.label'), position: 4, count: 5 })
       )
     ).toBeTruthy()
   })

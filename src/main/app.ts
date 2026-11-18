@@ -21,6 +21,7 @@ import { JoinCoordinator } from './services/joinCoordinator'
 import { LoginItem } from './services/loginItem'
 import { DATA_EXPORT_FAVORITES_WAIT_MS } from './services/dataExport'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
+import { GameLauncher } from './services/gameLauncher'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
 import type { AvatarLibraryAdapter } from './services/adapters/AvatarLibraryAdapter'
 import {
@@ -892,6 +893,18 @@ app
       settings: () => getSettingsSnapshot(),
       openExternal: (url) => shell.openExternal(url)
     })
+    // Quick launch: start a game through Steam without joining anyone. On
+    // Windows a computer with nothing registered for the link says so up
+    // front instead of showing the system's "choose an app" box.
+    const gameLauncher = new GameLauncher({
+      isRunning: (platform: Platform) => runningGames.isRunning(platform),
+      openExternal: (url) => shell.openExternal(url),
+      joins: joinCoordinator,
+      canOpen:
+        process.platform === 'win32'
+          ? (url) => app.getApplicationNameForProtocol(url) !== ''
+          : undefined
+    })
     const explore = new ExploreService({
       adapters: new Map<Platform, ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>>([
         ['vrchat', vrcAdapter],
@@ -1290,6 +1303,7 @@ app
       locationAuthority,
       onRendererHydrated,
       onFriendRoster,
+      gameLauncher,
       instance: {
         joinCoordinator,
         gameHandoff,

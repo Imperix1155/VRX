@@ -16,8 +16,8 @@ press a "Use my sign-in from" button (see [Sessions and privacy](#sessions-and-p
 Pages, top to bottom in the sidebar:
 
 - **Dashboard**: friends online, friends in game and hot instances at a glance,
-  then the avatar you're wearing, your latest invites, Popular now worlds and
-  Hot Instances. Sections with nothing to show step aside. Move or hide any
+  then Quick launch buttons that start VRChat or ChilloutVR, the avatar you're
+  wearing, your latest invites, Popular now worlds and Hot Instances. Sections with nothing to show step aside. Move or hide any
   section in Settings → Dashboard, or right-click the Dashboard and pick
   Reorder to drag them.
 - **Friends**: one list for both platforms, grouped into Favorites, In-Game,

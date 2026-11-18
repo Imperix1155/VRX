@@ -103,10 +103,11 @@ explicit approval.
    on them, then the small chips on the cards. The background shows through
    every pane as blurred color; words stay readable and platform color stays
    the strongest tint on a platform card. Menus and dialogs stay opaque (§3).
-7. **Dashboard layout.** Under the numbers the Dashboard has four sections:
-   Wearing now (the worn avatar per signed-in platform), Latest invites (the
-   newest invite per platform), Popular now and Hot Instances, in that order
-   by default. Settings → Dashboard → Sections moves each one up or down and
+7. **Dashboard layout.** Under the numbers the Dashboard has five sections:
+   Quick launch (one slim button per platform that starts the game), Wearing
+   now (the worn avatar per signed-in platform), Latest invites (the newest
+   invite per platform), Popular now and Hot Instances, in that order by
+   default. Settings → Dashboard → Sections moves each one up or down and
    turns it on or off, all on by default; off only hides the Dashboard section
    (§9.1, §9.8). Wearing now and Latest invites share one glance row while they
    sit next to each other. Of Popular now and Hot Instances, the first shown
@@ -355,7 +356,7 @@ descendants, which would trap the drawer inside the list panel. **Never put a
   Friends search field, the Friends section headers, and the sign-in fields
   inside the welcome setup.
 - `.platform-row` is a row that belongs to one platform: a friend row, an
-  Activity entry, an Inbox row, a Dashboard glance row. It is a
+  Activity entry, an Inbox row, a Dashboard glance row, a Quick launch button. It is a
   `--glass-layer` pane washed in the platform color from the left
   (`--platform-row-tint-strong` falling to `--platform-row-tint-soft`), with a
   1 px platform-tinted border and the 12 px control radius.
@@ -1107,8 +1108,8 @@ Top to bottom:
    Hot Instances is on, "Hot instances". Each is a VT323 38 px number over a
    12.5 px label. Three cards are 184 x 95 px each at the minimum window.
 2. **Sections**, in the order set in Settings → Dashboard → Sections. The
-   four sections are "Wearing now", "Latest invites", "Popular now" and
-   "Hot Instances". Each can be turned off.
+   five sections are "Quick launch", "Wearing now", "Latest invites",
+   "Popular now" and "Hot Instances". Each can be turned off.
 3. A quiet "Settings" button at the bottom right. It opens Settings →
    Dashboard.
 
@@ -1128,6 +1129,21 @@ closes when the mode starts.
 A section heading is VT323 18 px, uppercase, 2 px letter spacing,
 `--text-dim`, with 24 px above it and 12 px below. Any button for the
 section sits on the same line at the right.
+
+**Quick launch** is one slim row with no visible heading (its heading is
+for screen readers): one `.platform-row` button per platform, equal widths,
+14 px apart, 44 px tall, 26 px above the next section. Each reads "Launch
+VRChat" or "Launch ChilloutVR" (14 px / 600, centered) after a 16 px
+outlined play triangle; the platform's name is the word beside its tint, so
+there is no pill. A platform shows once VRX knows an account for it, and the
+row follows the platform filter; one button fills the row. A press starts
+the game through Steam, exactly as Play there does, and joins nobody. The
+button then reads "Starting VRChat…" for 8 seconds, without the triangle,
+and takes no second press; a game that is already open reads "VRChat is
+already open" for 10 seconds and is left alone. A start that fails puts one
+12 px `--error` line under the row ("Couldn't start VRChat. VRX starts it
+through Steam, so check that Steam and the game are installed."), which
+clears itself after 10 seconds or at the next try.
 
 **Wearing now** and **Latest invites** are the two glance sections. When
 they are neighbors in the order they share one row, two equal columns
@@ -1169,6 +1185,7 @@ with "Retry"; the not-connected card (Appendix B.7); and the same per-platform
 source lines as Friends, worded "…so they are left out here."
 
 Source: [`DashboardView.tsx`](../src/renderer/src/components/DashboardView.tsx),
+[`DashboardQuickLaunch.tsx`](../src/renderer/src/components/DashboardQuickLaunch.tsx),
 [`DashboardGlance.tsx`](../src/renderer/src/components/DashboardGlance.tsx),
 [`ExploreDashboardPreview.tsx`](../src/renderer/src/components/ExploreDashboardPreview.tsx),
 [`HotInstancesHeader.tsx`](../src/renderer/src/components/HotInstancesHeader.tsx).
@@ -1846,7 +1863,7 @@ A change applies at once and is saved; there is no Save button.
 | Category      | Settings, in order                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Appearance    | **Theme** (Dark, System, Light; default System). **Background glow** (Off, Muted, Standard, Vivid; default Standard). **Background picture** ("Choose picture"; then a thumbnail, "Change picture", "Remove" and **Picture fade**: Low, Medium, High). **Instance labels** (VRChat, Per platform, ChilloutVR). **Sidebar pages**: On/Off for Hot Instances, Activity, Inbox, Explore, Search, Groups in two columns. Its header ends with a small "Order" button that opens an opaque panel above it: **Quick reorder** (On/Off, default On: a right-click on the sidebar or the Dashboard offers "Reorder"), "Reorder now" (starts reorder mode on the Dashboard, with the switch on or off) and "Reset order" |
-| Dashboard     | **Hide empty sections**. **Player counts**. **Sections**: the four sections in order, each with "↑" and "↓" (24 px round buttons) and On/Off. **Hot instance threshold** (stepper, 1 to 10, default 2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Dashboard     | **Hide empty sections**. **Player counts**. **Sections**: the five sections in order, 2 px apart, each with "↑" and "↓" (24 px round buttons) and On/Off. **Hot instance threshold** (stepper, 1 to 10, default 2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Behavior      | **Friend details open from** (Whole card, Avatar only). **Save notes to my accounts**, with **Use my game favorites** under it. **Friends background re-sync** (5m, 10m, 30m, 1h, Manual only; default 1h). **Allow joining friends**, with **Confirm before joining**, **Join in** (VR, Always ask, Desktop) and **When the game is already open** (Go there, Send invite, Off) under it                                                                                                                                                                                                                                                                                                                       |
 | Notifications | **Who alerts you** (Everyone, Picked friends; with Picked friends, a count line and a "Show" link to the Picked friends dialog). **Friend comes online**, **Friend joins a world**, **Friend goes offline**, **Hot instance**, **Invite received**, **Friend request received**: all Off by default. **Alerts in VR**, with **Time on screen** (Short, Medium, Long) and "Send a test" under it                                                                                                                                                                                                                                                                                                                 |
 | Accounts      | Two account cards side by side. **Export your data** ("Export…" saves friends, notes and favorites to a file the user picks; the result reads in words under the description). Then the unofficial-app notice                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -1854,7 +1871,7 @@ A change applies at once and is saved; there is no Save button.
 
 A settings action button is 13 px / 500, radius 10 px, 1 px `--border`,
 `--control-fill`, about 30 px tall. Moving a Dashboard section announces
-its new place to screen readers ("Popular now: 2 of 4").
+its new place to screen readers ("Popular now: 3 of 5").
 
 **Account card** ([`AccountCard.tsx`](../src/renderer/src/components/AccountCard.tsx)).
 One per platform, VRChat first, in a two-column grid 24 px apart. Each is
@@ -2095,7 +2112,7 @@ chrome: `http://127.0.0.1:4173/glass.html?scene=NAME&theme=dark&render=1`.
 - Add `theme=light`, `glow=off`, `glow=muted` or `glow=vivid`, `picture=1`
   for a background picture, and `variant=` for a state (for example
   `variant=cvr-missing` on `friends`, `variant=note-account-conflict` on
-  `drawer`, `variant=hot-first` or `variant=reorder` on `dashboard`). The states are listed in
+  `drawer`, `variant=hot-first`, `variant=reorder` or `variant=launch-failed` on `dashboard`). The states are listed in
   [`docs/guide/scenarios.ts`](guide/scenarios.ts).
 
 Check every change against this list:

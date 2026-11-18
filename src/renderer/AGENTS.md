@@ -151,6 +151,8 @@ or launch authority.
 - All copy goes through i18next with every key in en and ja. Helpers and tests
   that pass a dynamic key use `Translate` from `i18n/translate.ts`
   (`asTranslate` adapts `useTranslation().t`).
+- Quick launch (`DashboardQuickLaunch`) sends `launchGame` a platform and
+  nothing else, once per press; main decides what opens.
 - Quick reorder: `reorderMode` (session-only, `useReorderMode`) lets the
   sidebar pages and the Dashboard's `DashboardReorderList` be dragged with
   `useDragReorder` or moved with the arrow keys. A sidebar move writes

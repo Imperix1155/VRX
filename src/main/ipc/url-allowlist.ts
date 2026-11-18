@@ -98,3 +98,15 @@ export function isAllowedLaunchUrl(raw: string): boolean {
 
   return false
 }
+
+/** VRChat and ChilloutVR on Steam; no other app id is ever started. */
+const GAME_START_URL_RE = /^steam:\/\/rungameid\/(?:438100|661130)$/
+
+/**
+ * Permit only the two links Quick launch opens: Steam's own "run this game"
+ * link for VRChat or ChilloutVR, with nothing after the app id. Like
+ * `isAllowedLaunchUrl`, this is NOT used by renderer-facing open-url.
+ */
+export function isAllowedGameStartUrl(raw: string): boolean {
+  return GAME_START_URL_RE.test(raw)
+}

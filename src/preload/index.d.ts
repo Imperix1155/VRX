@@ -108,6 +108,7 @@ type VrxBridge = {
   getJoinHandoff: (
     req: IpcInvoke['get-join-handoff']['req']
   ) => Promise<IpcInvoke['get-join-handoff']['res']>
+  launchGame: (req: IpcInvoke['launch-game']['req']) => Promise<IpcInvoke['launch-game']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   getLoginItem: () => Promise<IpcInvoke['get-login-item']['res']>
   /** The newest activity per platform; reading it makes no platform request. */

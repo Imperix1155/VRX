@@ -37,6 +37,8 @@ import type { CurrentAvatarService } from '../services/currentAvatarService'
 import type { ExploreService } from '../services/exploreService'
 import type { HomeWorldService } from '../services/homeWorldService'
 import { registerLaunchHandlers } from './launch'
+import { registerGameLaunchHandlers } from './game-launch'
+import type { GameLauncher } from '../services/gameLauncher'
 import { registerNotesHandlers } from './notes'
 import { registerAlertPicksHandlers } from './alert-picks'
 import { registerFavoritesHandlers } from './favorites'
@@ -109,6 +111,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   friendLog: FriendLog
   instanceLog: InstanceLog
   instance: Omit<InstanceHandlerOptions, 'accountSession'>
+  gameLauncher: Pick<GameLauncher, 'start'>
   explore: ExploreService
   homeWorld: HomeWorldService
   worldRating: WorldRatingService
@@ -222,6 +225,7 @@ export function registerIpcHandlers(
     registerLoginItemHandlers(options.loginItem)
     registerActivityHandlers(options.activity, options.friendLog, options.instanceLog)
     registerLaunchHandlers()
+    registerGameLaunchHandlers(options.gameLauncher, (message, meta) => log.warn(message, meta))
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)
     registerDataExportHandlers(options.dataExport)

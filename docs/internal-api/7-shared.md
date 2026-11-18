@@ -38,7 +38,7 @@ Pure types, values and helpers imported as `@shared/...` by main, preload and re
 
 | Symbol | File | Purpose |
 | --- | --- | --- |
-| `SETTINGS_VERSION` | [`settings.ts`](../../src/shared/settings.ts) | 30. Rule: every new persisted field bumps it and adds an identity migration, so an older build refuses to rewrite the newer file. |
+| `SETTINGS_VERSION` | [`settings.ts`](../../src/shared/settings.ts) | 31. Rule: every new persisted field bumps it and adds an identity migration, so an older build refuses to rewrite the newer file. The v30 → v31 step also puts `quick-launch` at the top of a saved `dashboardSections` list. |
 | `ACTIVITY_KINDS` / `ActivityKind` / `FRIEND_LIST_KINDS` / `FriendListKind` / `ActivityEntry` / `ACTIVITY_FILTERS` / `ActivityFilter` / `activityKindsOf` / `matchesActivityFilter` | [`activity.ts`](../../src/shared/activity.ts) | Activity entry values (`online`, `world`, `offline`, and the friends list's `added`, `removed`, `renamed` with `previousName`; display name, world name or null, time) and the page's Show filter (`friends` shows the three friends list kinds). No location crosses IPC. |
 | `ACTIVITY_KEEP_FOR` / `ActivityKeepFor` / `ACTIVITY_KEEP_DAYS` | [`activity.ts`](../../src/shared/activity.ts) | How long saved history stays: `session`, `30d`, `90d`, `1y`, `forever`, and the days each means. |
 | `ActivityPageRequest` / `ActivityPageCursor` / `ActivityFriendRef` / `ActivityPage` / `FriendListFacts` / `FriendHistoryFacts` | [`activity.ts`](../../src/shared/activity.ts) | A saved page's request (platform cursors by entry id, a filter, one or two friends) and answer; what is saved about a friendship (`since`, `sinceKnown`, `previousNames`, plus `met` from the instance log). |
@@ -76,6 +76,7 @@ Every persisted field in `SettingsSchema`. "Where" is the place a user changes i
 | `dashboardSectionOrder` | `'popular-first'` \| `'hot-first'` | `'popular-first'` | Settings → Dashboard; welcome setup | Which of Popular now and Hot Instances comes first. Kept in step with `dashboardSections` for older builds. |
 | `dashboardPopularNow` | boolean | `true` | Settings → Dashboard | Shows the Popular now section. Explore stays available. |
 | `hotInstancesEnabled` | boolean | `true` | Settings → Dashboard | Shows the Dashboard Hot Instances section. Does not gate the hot-instance alert. |
+| `dashboardQuickLaunch` | boolean | `true` | Settings → Dashboard (Sections) | Shows the Quick launch row: one button per platform that starts the game without joining anyone (v31). |
 | `dashboardWearingNow` | boolean | `true` | Settings → Dashboard | Shows the worn avatar per platform under the Dashboard numbers. The Avatars page stays. |
 | `dashboardInvites` | boolean | `true` | Settings → Dashboard | Shows the newest invite per platform under the Dashboard numbers. The Inbox and its alerts stay. |
 | `dashboardHideEmpty` | boolean | `true` | Settings → Dashboard | Empty Dashboard sections (no invites, no worn avatar reported, nothing hot) step aside and the first shown section takes the picture cards. Off shows empty states; card style follows the order only. |
@@ -128,7 +129,7 @@ Turning off a Dashboard section keeps its child preferences, such as the thresho
 | `DRAWER_OPENERS` / `DrawerOpener` | [`types.ts`](../../src/shared/types.ts) | `card`, `avatar`. The avatar button stays the keyboard opener in both modes. |
 | `DASHBOARD_SECTION_ORDERS` / `DashboardSectionOrder` | [`types.ts`](../../src/shared/types.ts) | `popular-first`, `hot-first`. |
 | `SIDEBAR_PAGES` / `SidebarPage`, `normalizeSidebarOrder`, `mergeShownOrder` | [`types.ts`](../../src/shared/types.ts) | The nine movable sidebar pages in default order (`dashboard`, `friends`, `hot`, `activity`, `inbox`, `explore`, `search`, `groups`, `avatars`; never `settings`). `normalizeSidebarOrder` keeps known pages once and appends missing ones. `mergeShownOrder(full, shown)` writes a new order of the entries on screen back into the full list, leaving hidden entries in their slots. |
-| `DASHBOARD_SECTIONS` / `DashboardSection` and helpers | [`types.ts`](../../src/shared/types.ts) | `wearing-now`, `invites`, `popular`, `hot` (default order); `normalizeDashboardSections`, `dashboardSectionsFromOrder`, `dashboardSectionOrderOf`, `withDashboardSectionOrder`. |
+| `DASHBOARD_SECTIONS` / `DashboardSection` and helpers | [`types.ts`](../../src/shared/types.ts) | `quick-launch`, `wearing-now`, `invites`, `popular`, `hot` (default order); `normalizeDashboardSections`, `dashboardSectionsFromOrder`, `dashboardSectionOrderOf`, `withDashboardSectionOrder`. |
 | `FRIEND_SECTIONS` / `FriendSection` | [`types.ts`](../../src/shared/types.ts) | `in-game`, `online`, `offline` friends-list sections. Presence `active` falls in the `online` section. |
 | `FRIEND_SORTS` / `FriendSort` | [`types.ts`](../../src/shared/types.ts) | `name`, `recent`, `world`, `joinable`: the Friends list order inside each group. |
 | `FRIEND_LIST_SECTIONS` / `FriendListSection` | [`types.ts`](../../src/shared/types.ts) | `favorites` plus `FRIEND_SECTIONS`: every group header the Friends list can collapse. |
@@ -139,6 +140,7 @@ Turning off a Dashboard section keeps its child preferences, such as the thresho
 | `START_WITH_COMPUTER` / `StartWithComputer` | [`types.ts`](../../src/shared/types.ts) | `off`, `window`, `tray`. Whether VRX opens at sign-in, and whether its window shows. |
 | `JOIN_HANDOFFS` / `JoinHandoff` | [`types.ts`](../../src/shared/types.ts) | `launch`, `in-game`, `invite`: what a Join did, or would do now (start the game, hand off to the open game, or send a VRChat self-invite). |
 | `DataExportResult` | [`ipc.ts`](../../src/shared/ipc.ts) | Answer of `export-data`: counts of friends, notes and favorites saved plus `gameFavoritesMissing` (the accounts' own favorite groups could not be read), or a typed reason (`cancelled`, `signed-out`, `not-ready`, `stale` when an account signed in or out while the file was being prepared, `save-failed`, `rate-limited`). Never a path. |
+| `GameLaunchResult` | [`ipc.ts`](../../src/shared/ipc.ts) | Quick launch's answer: `{ ok: true, state }` with `started`, `starting` (asked moments ago, nothing more opened) or `already-open`; or `{ ok: false, reason }` with `launch-failed`, `cooldown` or `rate-limited`. |
 | `LoginItemStatus` | [`ipc.ts`](../../src/shared/ipc.ts) | `on`, `off`, `unavailable`: what the operating system's startup list says. `unavailable` means this copy cannot register (a development run, or an unsupported system). |
 | `UPDATE_CHANNELS` / `UpdateChannel` | [`types.ts`](../../src/shared/types.ts) | `stable`, `beta`, `dev`. Settings label for the updater feed. Stable publishes as `latest`. |
 

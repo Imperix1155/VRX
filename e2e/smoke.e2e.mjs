@@ -206,6 +206,41 @@ describe('VRX smoke test', () => {
     await sheet.waitFor({ state: 'detached' })
   })
 
+  it('starts each game from Quick launch with its own Steam link, asking the platforms nothing', async () => {
+    const { page, app } = vrx
+    await openPage('Dashboard')
+    // A test must never start a real game: record the link instead of opening
+    // it, and answer "Steam is installed" where VRX checks first (Windows).
+    await app.evaluate(({ app, shell }) => {
+      globalThis.vrxE2eOpened = []
+      shell.openExternal = async (url) => {
+        globalThis.vrxE2eOpened.push(url)
+      }
+      app.getApplicationNameForProtocol = () => 'Steam'
+    })
+    const opened = () => app.evaluate(() => globalThis.vrxE2eOpened)
+    const writes = () => JSON.stringify(fake.state().writes)
+
+    // One button per signed-in platform, between the numbers and the sections.
+    const vrchat = page.getByRole('button', { name: 'Launch VRChat', exact: true })
+    const chilloutvr = page.getByRole('button', { name: 'Launch ChilloutVR', exact: true })
+    await vrchat.waitFor()
+    await chilloutvr.waitFor()
+    const before = writes()
+
+    await vrchat.click()
+    await page.getByRole('button', { name: 'Starting VRChat…', exact: true }).waitFor()
+    await expect.poll(opened).toEqual(['steam://rungameid/438100'])
+    // A second press while it starts opens nothing more.
+    await page.getByRole('button', { name: 'Starting VRChat…', exact: true }).click()
+
+    await chilloutvr.click()
+    await page.getByRole('button', { name: 'Starting ChilloutVR…', exact: true }).waitFor()
+    await expect.poll(opened).toEqual(['steam://rungameid/438100', 'steam://rungameid/661130'])
+    // Starting a game is local: neither platform was asked to change anything.
+    expect(writes()).toBe(before)
+  })
+
   it('drags a sidebar page and a Dashboard section into a new order', async () => {
     const { page } = vrx
     await openPage('Dashboard')
@@ -237,14 +272,15 @@ describe('VRX smoke test', () => {
     // with the keyboard.
     const sections = page.locator('[data-dashboard-reorder] [data-reorder-item]')
     expect(await sections.allInnerTexts()).toEqual([
+      'Quick launch',
       'Wearing now',
       'Latest invites',
       'Popular now',
       'Hot Instances'
     ])
-    await sections.nth(3).focus()
+    await sections.nth(4).focus()
     await page.keyboard.press('ArrowUp')
-    await expect.poll(async () => (await sections.allInnerTexts()).at(2)).toBe('Hot Instances')
+    await expect.poll(async () => (await sections.allInnerTexts()).at(3)).toBe('Hot Instances')
 
     await page.keyboard.press('Escape')
     await page.locator('[data-dashboard-reorder]').waitFor({ state: 'detached' })

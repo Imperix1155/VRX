@@ -4,7 +4,9 @@
  * Renders:
  *  - Three stat cards (online / in-game / hot-instances), big VT323 numbers tinted by meaning.
  *  - Every section below in the order the user picked in Settings → Dashboard
- *    (owner, 2026-10-18 and 2026-10-27): the glance sections (the avatar worn
+ *    (owner, 2026-10-18 and 2026-10-27): Quick launch (one button per platform
+ *    that starts the game, `DashboardQuickLaunch`; owner, 2026-11-18), the
+ *    glance sections (the avatar worn
  *    and the latest invite per platform, `DashboardGlance`; neighbours share a
  *    row), Popular now and Hot Instances. Of those two, the FIRST shows picture
  *    cards; the SECOND shows compact bars with the world picture behind them. Each section shows two
@@ -40,6 +42,7 @@ import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
 import DashboardGlance from './DashboardGlance'
+import DashboardQuickLaunch from './DashboardQuickLaunch'
 import NotConnectedCard from './NotConnectedCard'
 import DashboardReorderList from './DashboardReorderList'
 import { ReorderMenu } from './ReorderControls'
@@ -209,7 +212,7 @@ function DashboardContent(): React.JSX.Element {
   // Every branch below keeps Popular now in the same slot, a keyed child of
   // the array inside the sections <div> (always the second child of the root
   // <div>), so React reuses it when friends finish loading: an Explore sheet
-  // opened during the load stays open.
+  // opened during the load stays open. Quick launch is keyed the same way.
   const popularSection = popularNow ? (
     <ExploreDashboardPreviewRoute
       key="popular"
@@ -220,6 +223,17 @@ function DashboardContent(): React.JSX.Element {
     />
   ) : null
 
+  // Quick launch needs no friends data either, so it shows in every state
+  // below, in its place relative to Popular now.
+  const quickLaunchSection = <DashboardQuickLaunch key="quick-launch" platforms={scopedPlatforms} />
+  const sectionsWithoutFriends = sections.flatMap((section) =>
+    section === 'popular'
+      ? [popularSection]
+      : section === 'quick-launch'
+        ? [quickLaunchSection]
+        : []
+  )
+
   if (!hasData) {
     // Loading while ANY scoped query is still pending or holds a placeholder
     // that has not failed (don't flash an error while the other platform may
@@ -228,7 +242,7 @@ function DashboardContent(): React.JSX.Element {
       return (
         <div>
           <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
-          <div data-dashboard-sections="">{[popularSection]}</div>
+          <div data-dashboard-sections="">{sectionsWithoutFriends}</div>
         </div>
       )
     }
@@ -246,7 +260,7 @@ function DashboardContent(): React.JSX.Element {
             {t('dashboard.retry')}
           </button>
         </div>
-        <div data-dashboard-sections="">{[popularSection]}</div>
+        <div data-dashboard-sections="">{sectionsWithoutFriends}</div>
       </div>
     )
   }
@@ -339,6 +353,8 @@ function DashboardContent(): React.JSX.Element {
             popularSection
           ) : block === 'hot' ? (
             hotSection
+          ) : block === 'quick-launch' ? (
+            quickLaunchSection
           ) : (
             <DashboardGlance
               key={`glance-${block[0]}`}

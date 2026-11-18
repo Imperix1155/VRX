@@ -31,6 +31,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `joinInstance`, `joinExploreRoom`, `joinInvite` | [`hooks/useJoinInstance.ts`](../../src/renderer/src/hooks/useJoinInstance.ts) |
 | `selfInvite` | No renderer caller. Main's [join handoff](2-ipc-channels.md#join-handoff) calls it when VRChat is already open. |
 | `getJoinHandoff` | [`hooks/useJoinHandoff.ts`](../../src/renderer/src/hooks/useJoinHandoff.ts), once per join dialog open |
+| `launchGame` | [`components/DashboardQuickLaunch.tsx`](../../src/renderer/src/components/DashboardQuickLaunch.tsx), once per press on a Quick launch button |
 | `setExploreActive`, `getExplore`, `getExploreImage`, `getExploreWorld`, `cancelExploreWorld`, `onExploreChanged` | [`hooks/useExploreCoordinator.ts`](../../src/renderer/src/hooks/useExploreCoordinator.ts), [`queries/explore.ts`](../../src/renderer/src/queries/explore.ts), [`hooks/useExploreWorldSelection.ts`](../../src/renderer/src/hooks/useExploreWorldSelection.ts) |
 | `getAppStatus` | [`queries/appStatus.ts`](../../src/renderer/src/queries/appStatus.ts) (`useConnectionHealth`, read by `TopBar`), every 7.5 s while the window shows; `useLiveFriendEvents` writes pushed `connection` events into it in between. It reads main's local snapshot and makes no platform request. |
 | `getLoginItem` | [`queries/loginItem.ts`](../../src/renderer/src/queries/loginItem.ts) (`useLoginItemProblem`, read by Settings → About once the choice is saved) |

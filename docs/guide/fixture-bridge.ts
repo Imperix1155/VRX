@@ -378,6 +378,14 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     joinInstance: () => Promise.resolve(denied),
     selfInvite: () => Promise.resolve(denied),
     getJoinHandoff: ({ platform }) => Promise.resolve(joinHandoffFor(variant, platform)),
+    // The guide starts nothing: VRChat answers "starting", ChilloutVR "already
+    // open"; the `launch-failed` Dashboard variant answers a failed start.
+    launchGame: ({ platform }) =>
+      Promise.resolve(
+        variant === 'launch-failed'
+          ? { ok: false, reason: 'launch-failed' }
+          : { ok: true, state: platform === 'vrchat' ? 'started' : 'already-open' }
+      ),
     getAppStatus: () =>
       Promise.resolve({
         ws: { vrchat: 'live', chilloutvr: 'live' },

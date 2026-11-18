@@ -93,6 +93,8 @@ const vrx = {
   joinInstance: (req: IpcInvoke['join-instance']['req']) => invoke('join-instance', req),
   selfInvite: (req: IpcInvoke['self-invite']['req']) => invoke('self-invite', req),
   getJoinHandoff: (req: IpcInvoke['get-join-handoff']['req']) => invoke('get-join-handoff', req),
+  // A platform only: main owns the link that starts the game.
+  launchGame: (req: IpcInvoke['launch-game']['req']) => invoke('launch-game', req),
   getAppStatus: () => invoke('get-app-status', undefined),
   getLoginItem: () => invoke('get-login-item', undefined),
   getActivity: () => invoke('get-activity', undefined),

@@ -42,6 +42,9 @@
  *   dashboardSections      → the order of every Dashboard section below the numbers (owner,
  *                            2026-10-27; v21). It owns the order: dashboardSectionOrder is kept
  *                            in step (Popular now vs Hot Instances) for older builds.
+ *   dashboardQuickLaunch   → the Dashboard's Quick launch row: one button per platform that
+ *                            starts the game without joining anyone (owner, 2026-11-18;
+ *                            default shown, v31)
  *   dashboardHideEmpty     → Dashboard sections with nothing to show step aside so the rest
  *                            use the space (owner, 2026-10-27; default on, v21)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
@@ -103,7 +106,7 @@ import { ACTIVITY_FILTERS, ACTIVITY_KEEP_FOR } from './activity'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 30 as const
+export const SETTINGS_VERSION = 31 as const
 
 const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -118,6 +121,8 @@ const SettingsSchema = z.object({
    *  Dashboard numbers. Hiding either keeps the Avatars and Inbox pages. */
   dashboardWearingNow: z.boolean().catch(true),
   dashboardInvites: z.boolean().catch(true),
+  /** The Quick launch row: one button per platform that starts the game. */
+  dashboardQuickLaunch: z.boolean().catch(true),
   /** The order of every section below the Dashboard numbers. Unknown or repeated
    *  entries drop and missing ones are appended; a file without it takes the order
    *  from `dashboardSectionOrder` (see `parseSettings`). */
@@ -265,7 +270,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v28 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v29 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -347,7 +352,16 @@ const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   28: (prev) => ({ ...prev }),
   // v29 → v30: `activityKeepFor` is additive. The version boundary stops an
   // older build from stripping a user's "until VRX closes" or a longer choice.
-  29: (prev) => ({ ...prev })
+  29: (prev) => ({ ...prev }),
+  // v30 → v31: `dashboardQuickLaunch` and the `quick-launch` Dashboard section.
+  // A saved section order gets Quick launch at the top (under the numbers),
+  // where a new install shows it; without this it would land at the bottom.
+  30: (prev) => {
+    const sections: unknown = prev.dashboardSections
+    if (!Array.isArray(sections) || sections.includes('quick-launch')) return { ...prev }
+    const saved: unknown[] = sections
+    return { ...prev, dashboardSections: ['quick-launch', ...saved.slice(0, 15)] }
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
