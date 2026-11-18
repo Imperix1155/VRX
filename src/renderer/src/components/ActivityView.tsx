@@ -33,6 +33,7 @@ import { clearInstanceLog, useInstanceVisits } from '../queries/instanceLog'
 import { useFriends } from '../queries/friends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
 import { useActivityPager } from '../hooks/useActivityPager'
+import { useAppliedKeepFor } from '../hooks/useAppliedKeepFor'
 import { useCarriedRows } from '../hooks/useCarriedRows'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
@@ -234,8 +235,9 @@ export default function ActivityView(): React.JSX.Element {
   const listNotReadYet = accountsPending || !readSinceAccounts
 
   // Older saved entries and the ones the list held while this page was open
-  // (`useCarriedRows`) start over after a Clear or a restore and when an
-  // account changes. Older pages also start over when the scope changes; a
+  // (`useCarriedRows`) start over after a Clear or a restore, when an account
+  // changes, and when main applied another Kept choice, which may have deleted
+  // some of them. Older pages also start over when the scope changes; a
   // platform takes part only while the list holds its full allowance (see
   // `olderThanList`).
   const [restarts, setRestarts] = useState(0)
@@ -244,7 +246,8 @@ export default function ActivityView(): React.JSX.Element {
   // Main keeps only the newest per platform, so once older pages are shown,
   // an entry that leaves the list for a newer one would otherwise vanish from
   // the middle of the page.
-  const carried = useCarriedRows(live, activityEntryId, String(restarts))
+  const keptFor = useAppliedKeepFor()
+  const carried = useCarriedRows(live, activityEntryId, `${restarts}|${keptFor}`)
   const olderStart = useMemo(
     () => olderThanList(live ?? [], platforms, ACTIVITY_MAX_ENTRIES_PER_PLATFORM),
     [live, platforms]
@@ -256,6 +259,7 @@ export default function ActivityView(): React.JSX.Element {
       platformFilter,
       filter,
       keepFor === 'session' ? 'session' : 'saved',
+      keptFor,
       olderStart.map((cursor) => cursor.platform).join('+'),
       restarts
     ].join('|'),

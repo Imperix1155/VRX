@@ -9,7 +9,9 @@ import {
   type InstanceVisitPage,
   type InstanceVisitPageRequest
 } from '@shared/instanceLog'
+import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { Platform } from '@shared/types'
+import { useSettingsStore } from '../stores/settings'
 import {
   instanceLogKey,
   mergeVisits,
@@ -82,6 +84,7 @@ afterEach(() => {
   cleanup()
   client.clear()
   ;(window as unknown as { vrx?: unknown }).vrx = undefined
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false, saveError: false })
 })
 
 describe('mergeVisits', () => {
@@ -159,6 +162,25 @@ describe('useInstanceVisits', () => {
     newest = 2
     act(() => boundary?.())
     await waitFor(() => expect(shownIds(view.result.current.visits)).toEqual([2, 1]))
+  })
+
+  it('drops the visits it kept once main applied another Kept choice, not before', async () => {
+    const view = renderHook(() => useInstanceVisits(VRCHAT, true), { wrapper })
+    await waitFor(() => expect(view.result.current.ready).toBe(true))
+    newest += 1
+    await changed()
+    await waitFor(() => expect(view.result.current.visits).toHaveLength(PAGE + 1))
+
+    // Picked here: main still holds every visit, so nothing changes yet.
+    act(() => useSettingsStore.getState().updateSettings({ activityKeepFor: 'session' }))
+    expect(view.result.current.visits).toHaveLength(PAGE + 1)
+
+    // Main applied it and deleted the saved log, then the save answered.
+    newest = 0
+    await changed()
+    act(() => useSettingsStore.getState().markSaved())
+    await waitFor(() => expect(view.result.current.ready).toBe(true))
+    await waitFor(() => expect(view.result.current.visits).toEqual([]))
   })
 
   it('drops the visits it kept when the platforms shown change', async () => {

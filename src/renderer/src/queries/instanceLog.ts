@@ -7,6 +7,7 @@ import type {
   InstanceVisitPerson
 } from '@shared/instanceLog'
 import type { Platform } from '@shared/types'
+import { useAppliedKeepFor } from '../hooks/useAppliedKeepFor'
 import { useCarriedRows } from '../hooks/useCarriedRows'
 
 /** Not persisted in the renderer: main saves the instance log itself. */
@@ -62,8 +63,9 @@ interface OlderPages {
  * The instance log for the platforms in the filter. The first page follows
  * main's change notice; older pages are read on Show older. A visit a newer
  * one pushed off the first page stays listed (`useCarriedRows`). All of it
- * starts over when the scope or an account changes and on `startOver`, so
- * one account's rooms never stay on screen for another.
+ * starts over when the scope or an account changes, when main applied another
+ * Kept choice (`useAppliedKeepFor`) and on `startOver`, so one account's rooms
+ * never stay on screen for another and nothing deleted stays listed.
  */
 export function useInstanceVisits(
   platforms: readonly Platform[],
@@ -79,7 +81,9 @@ export function useInstanceVisits(
       }),
     [client]
   )
-  const key = `${platforms.join('+')}|${resets}`
+  // A Kept choice main applied may have deleted saved visits.
+  const keptFor = useAppliedKeepFor()
+  const key = `${platforms.join('+')}|${resets}|${keptFor}`
   const first = useQuery({
     queryKey: [...instanceLogKey, 'visits', key],
     queryFn: () =>
