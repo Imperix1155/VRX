@@ -53,6 +53,16 @@ export const ACTIVITY_KEEP_DAYS: Record<Exclude<ActivityKeepFor, 'session'>, num
   forever: null
 }
 
+/**
+ * Whether changing the Keep activity for choice from `current` to `next`
+ * deletes anything saved. The choices are listed shortest first, and "until
+ * VRX closes" saves nothing, so every earlier choice is a shorter one. The
+ * Activity page asks before applying such a change.
+ */
+export function deletesSavedHistory(current: ActivityKeepFor, next: ActivityKeepFor): boolean {
+  return ACTIVITY_KEEP_FOR.indexOf(next) < ACTIVITY_KEEP_FOR.indexOf(current)
+}
+
 /** One friend, as the renderer names them to main. */
 export interface ActivityFriendRef {
   platform: Platform

@@ -20,7 +20,7 @@ import { fullFriend } from '../test-utils/friendFixture'
 import ActivityView from './ActivityView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
-const authState = vi.hoisted(() => ({ value: 'authenticated' }))
+const authState = vi.hoisted(() => ({ value: 'authenticated', pending: false }))
 vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: useFriendsMock
@@ -28,12 +28,15 @@ vi.mock('../queries/friends', async (importOriginal) => ({
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => null }))
 vi.mock('../queries/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/auth')>()),
-  useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
-    data: { platform, state: authState.value, accountId: null, displayName: null },
-    isSuccess: true,
-    isFetching: false,
-    isPending: false
-  })
+  useAuthStatus: (platform: 'vrchat' | 'chilloutvr') =>
+    authState.pending
+      ? { data: undefined, isSuccess: false, isFetching: true, isPending: true }
+      : {
+          data: { platform, state: authState.value, accountId: null, displayName: null },
+          isSuccess: true,
+          isFetching: false,
+          isPending: false
+        }
 }))
 
 // jsdom has no ResizeObserver; the segmented control's bubble hook needs one.
@@ -135,6 +138,7 @@ afterEach(() => {
   getActivityPage.mockReset()
   getActivityPage.mockImplementation(() => Promise.resolve({ entries: [], hasMore: false }))
   authState.value = 'authenticated'
+  authState.pending = false
   useFriendsStore.setState({ platformFilter: 'all' })
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
   useUiStore.setState({ activeTab: 'activity' })
@@ -272,6 +276,55 @@ describe('ActivityView', () => {
     ).toBe('true')
   })
 
+  it('says it is loading, never "No activity yet", until the list was read after the sign-in check', async () => {
+    // Launch: the page read an empty list before main knew whose activity to
+    // bring back. Saved rows exist; main hands them over once it knows.
+    authState.pending = true
+    const getActivity = vi.fn(() => Promise.resolve(entries))
+    Object.defineProperty(window, 'vrx', {
+      configurable: true,
+      value: { getActivity, clearActivity, getActivityPage }
+    })
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(activityKey, [])
+    const tree = (): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <ActivityView />
+      </QueryClientProvider>
+    )
+    const view = render(tree())
+    expect(screen.getByText(msg('activity.loading'))).toBeTruthy()
+    expect(screen.queryByText(msg('activity.emptyHeading'))).toBeNull()
+    expect(getActivity).not.toHaveBeenCalled()
+
+    // The sign-in check answers: the list is read again, and the rows show.
+    authState.pending = false
+    view.rerender(tree())
+    expect(screen.queryByText(msg('activity.emptyHeading'))).toBeNull()
+    await waitFor(() => expect(rowTexts()).toHaveLength(4))
+    expect(getActivity).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows "No activity yet" once the list read after the sign-in check is empty', async () => {
+    authState.pending = true
+    Object.defineProperty(window, 'vrx', {
+      configurable: true,
+      value: { getActivity: () => Promise.resolve([]), clearActivity, getActivityPage }
+    })
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(activityKey, [])
+    const tree = (): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <ActivityView />
+      </QueryClientProvider>
+    )
+    const view = render(tree())
+    expect(screen.queryByText(msg('activity.emptyHeading'))).toBeNull()
+    authState.pending = false
+    view.rerender(tree())
+    expect(await screen.findByText(msg('activity.emptyHeading'))).toBeTruthy()
+  })
+
   it('clears through main and empties the list at once', async () => {
     useSettingsStore.setState({ settings: SESSION_ONLY })
     renderView()
@@ -366,6 +419,67 @@ describe('ActivityView', () => {
     expect(
       screen.getByRole('button', {
         name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.1y') })
+      })
+    ).toBeTruthy()
+  })
+
+  it('asks before a shorter choice deletes saved history, and deletes nothing until the answer', () => {
+    renderView()
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.90d') })
+      })
+    )
+    const dialog = screen.getByRole('dialog', { name: msg('activity.keep.title') })
+    const radio = (key: string): HTMLInputElement =>
+      within(dialog).getByRole<HTMLInputElement>('radio', { name: msg(key) })
+    const keptFor = (): string => useSettingsStore.getState().settings.activityKeepFor
+
+    // One arrow key lands here: the pick shows, the setting has not changed.
+    fireEvent.click(radio('activity.keep.options.30d'))
+    expect(radio('activity.keep.options.30d').checked).toBe(true)
+    expect(keptFor()).toBe('90d')
+    expect(
+      within(dialog).getByText(
+        msg('activity.keep.askShorter', { choice: msg('activity.keep.options.30d') })
+      )
+    ).toBeTruthy()
+
+    // Cancel puts the radio back.
+    fireEvent.click(within(dialog).getByRole('button', { name: msg('activity.keep.askCancel') }))
+    expect(radio('activity.keep.options.90d').checked).toBe(true)
+    expect(keptFor()).toBe('90d')
+    expect(within(dialog).queryByText(msg('activity.keep.askConfirm'))).toBeNull()
+
+    // "Until VRX closes" says it takes everything, and only the answer applies it.
+    fireEvent.click(radio('activity.keep.options.session'))
+    expect(within(dialog).getByText(msg('activity.keep.askSession'))).toBeTruthy()
+    expect(keptFor()).toBe('90d')
+    fireEvent.click(within(dialog).getByRole('button', { name: msg('activity.keep.askConfirm') }))
+    expect(keptFor()).toBe('session')
+    expect(within(dialog).queryByText(msg('activity.keep.askSession'))).toBeNull()
+
+    // From nothing saved, every choice is longer and applies at once.
+    fireEvent.click(radio('activity.keep.options.forever'))
+    expect(keptFor()).toBe('forever')
+  })
+
+  it('drops an unanswered shorter pick when the dialog closes', () => {
+    renderView()
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.90d') })
+      })
+    )
+    const dialog = screen.getByRole('dialog', { name: msg('activity.keep.title') })
+    fireEvent.click(
+      within(dialog).getByRole('radio', { name: msg('activity.keep.options.session') })
+    )
+    fireEvent.click(within(dialog).getByRole('button', { name: msg('activity.keep.done') }))
+    expect(useSettingsStore.getState().settings.activityKeepFor).toBe('90d')
+    expect(
+      screen.getByRole('button', {
+        name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.90d') })
       })
     ).toBeTruthy()
   })

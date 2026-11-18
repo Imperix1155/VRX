@@ -184,10 +184,8 @@ function DashboardContent(): React.JSX.Element {
     onBlur: onHotGridBlur
   } = useHotGridFocus(shownHot, fallbackFocusRef)
 
-  // Quick reorder: the right-click menu, and no sheet left open over the
-  // reorder list once the mode starts.
-  const rootRef = useRef<HTMLDivElement>(null)
-  const menu = useReorderMenu(rootRef)
+  // Quick reorder: no sheet left open over the reorder list once the mode
+  // starts. The right-click menu belongs to the whole page (`DashboardView`).
   const reorderOn = useReorderMode().on
   const [wasReorderOn, setWasReorderOn] = useState(reorderOn)
   if (reorderOn !== wasReorderOn) {
@@ -326,7 +324,7 @@ function DashboardContent(): React.JSX.Element {
   ) : null
 
   return (
-    <div ref={rootRef} className="relative" onContextMenu={menu.onContextMenu}>
+    <div className="relative">
       {/* Stat cards row. Player counts live in the top bar (owner, 2026-11-01).
           The source line sits inside it so Popular now keeps its slot. */}
       <div style={{ marginBottom: '26px' }}>
@@ -367,16 +365,29 @@ function DashboardContent(): React.JSX.Element {
       {reorderOn ? <DashboardReorderList /> : null}
 
       <HotInstanceSheet instance={selectedInstance} onClose={closeSheet} />
-      <ReorderMenu point={menu.point} onClose={menu.close} />
     </div>
   )
 }
 
-/** Secondary navigation follows the content in every loading/feature state. */
+/**
+ * Secondary navigation follows the content in every loading/feature state.
+ *
+ * This is also the area a right-click offers "Reorder" on. It is the whole
+ * page, not only the cards: `AppShell` lets it grow to the bottom of the
+ * window, so the empty space under a short Dashboard (few sections, a tall
+ * window, reorder mode's short list) answers a right-click too.
+ */
 export default function DashboardView(): React.JSX.Element {
   const { t } = useTranslation()
+  const pageRef = useRef<HTMLDivElement>(null)
+  const menu = useReorderMenu(pageRef)
   return (
-    <>
+    <div
+      ref={pageRef}
+      className="relative flex-1"
+      data-dashboard-page=""
+      onContextMenu={menu.onContextMenu}
+    >
       <DashboardContent />
       <div className="mt-[var(--space-4)] flex justify-end">
         <button
@@ -391,6 +402,7 @@ export default function DashboardView(): React.JSX.Element {
           {t('settings.dashboard.shortcut')}
         </button>
       </div>
-    </>
+      <ReorderMenu point={menu.point} onClose={menu.close} />
+    </div>
   )
 }

@@ -179,7 +179,13 @@ export default function AppShell(): React.JSX.Element {
           style={{
             overflowX: 'clip',
             overflowY: activeTab === 'settings' ? 'clip' : 'visible',
-            overflowClipMargin: 'var(--space-2)'
+            overflowClipMargin: 'var(--space-2)',
+            // The Dashboard reaches the bottom of the window even when its
+            // cards do not, so a right-click on the empty space below them
+            // still offers "Reorder" (`DashboardView` grows into the rest).
+            ...(activeTab === 'dashboard'
+              ? { minHeight: '100%', display: 'flex', flexDirection: 'column' }
+              : null)
           }}
         >
           <TopBar />

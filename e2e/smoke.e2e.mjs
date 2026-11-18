@@ -282,6 +282,28 @@ describe('VRX smoke test', () => {
     await page.keyboard.press('ArrowUp')
     await expect.poll(async () => (await sections.allInnerTexts()).at(3)).toBe('Hot Instances')
 
+    // The whole page answers a right-click, the empty space under this short
+    // list included: there it offers the way out. Esc folds the menu only.
+    const last = await sections.nth(4).boundingBox()
+    await page.mouse.click(last.x + last.width / 2, 610, { button: 'right' })
+    await page.getByRole('menuitem', { name: 'Done' }).waitFor()
+    await page.keyboard.press('Escape')
+    await page.getByRole('menuitem', { name: 'Done' }).waitFor({ state: 'detached' })
+    expect(await page.locator('[data-dashboard-reorder]').count()).toBe(1)
+
+    // Esc in the middle of a drag puts the tile back and keeps reorder mode
+    // on, and letting go afterwards opens no page.
+    const explore = await nav.getByRole('button', { name: 'Explore', exact: true }).boundingBox()
+    const before = await pages()
+    await page.mouse.move(explore.x + explore.width / 2, explore.y + explore.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(explore.x + explore.width / 2, explore.y - explore.height, { steps: 6 })
+    await page.keyboard.press('Escape')
+    await page.mouse.up()
+    expect(await pages()).toEqual(before)
+    expect(await page.locator('[data-dashboard-reorder]').count()).toBe(1)
+    expect(await page.locator('h1').first().innerText()).toBe('Dashboard')
+
     await page.keyboard.press('Escape')
     await page.locator('[data-dashboard-reorder]').waitFor({ state: 'detached' })
     await page
@@ -294,12 +316,48 @@ describe('VRX smoke test', () => {
     expect(vrx.rendererErrors).toEqual([])
   })
 
-  it('remembers both sign-ins after a restart', async () => {
+  it('remembers both sign-ins and the saved activity after a restart', async () => {
+    // Something for the Activity page to remember. A friend the app has only
+    // just met is learned silently, so repeat the change until a row shows.
+    await openPage('Activity')
+    const cass = fake.state().vrc.friends.find((friend) => friend.displayName === 'Cass Nova')
+    await expect
+      .poll(
+        async () => {
+          if (await vrx.page.getByRole('main').getByText('Cass Nova').count()) return true
+          fake.setVrcFriend({
+            id: cass.id,
+            state: 'offline',
+            location: 'offline',
+            status: 'offline'
+          })
+          fake.setVrcFriend({ id: cass.id, state: 'online', location: 'private', status: 'active' })
+          return false
+        },
+        { interval: 1_000 }
+      )
+      .toBe(true)
+
     const { userData } = vrx
     await vrx.close()
     vrx = await launchVrx({ fakePort: fake.port, userData, keepUserData: true })
     // No welcome setup and no sign-in screen: straight to the app, connected.
     await vrx.page.getByRole('heading', { name: 'Dashboard' }).waitFor()
+
+    // The saved activity is back as soon as the page can be opened. While it
+    // is on its way the page says so; it never claims there is none.
+    await openPage('Activity')
+    const activityPage = async () => {
+      const text = await vrx.page.getByRole('main').innerText()
+      if (text.includes('No activity yet')) return 'empty'
+      return text.includes('Cass Nova') ? 'rows' : 'loading'
+    }
+    let shows = 'loading'
+    await expect
+      .poll(async () => (shows = await activityPage()), { interval: 100 })
+      .not.toBe('loading')
+    expect(shows).toBe('rows')
+
     await waitUntilLive()
     expect(vrx.rendererErrors).toEqual([])
     // The order dragged earlier was saved.

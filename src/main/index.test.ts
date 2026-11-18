@@ -232,12 +232,27 @@ describe('main credential wiring', () => {
       new RegExp(`save: \\(\\w+\\) =>\\s*saveCredential\\(CREDENTIAL_KEYS\\.${key},`)
     )
     expect(source).not.toContain('recordCredentialOwner')
-    expect(source).toMatch(
+    expect(stripComments(source)).toMatch(
       new RegExp(
-        `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)\\s*\\}`
+        `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)`
       )
     )
   })
+
+  it.each(['vrchat', 'chilloutvr'])(
+    "brings %s's saved activity back the moment its account is known",
+    (platform) => {
+      // Saved activity is read per account. Waiting for the friends list to be
+      // read first left the Activity page saying "No activity yet" for many
+      // seconds after every launch. The identity must be set before the read.
+      expect(stripComments(source)).toMatch(
+        new RegExp(
+          `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)\\s*` +
+            `if \\(accountId !== null\\) activityBoundary\\.current\\?\\.hydrate\\('${platform}'\\)\\s*\\}`
+        )
+      )
+    }
+  )
 
   it('never discovers an external session at startup, only from the explicit button', () => {
     const executableSource = stripComments(source)

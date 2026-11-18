@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0-beta.2] - 2026-11-18
+
+The second beta of 1.5.0. It adds a polish pass on top of 1.5.0-beta.1.
+
+### Changed
+
+- "Kept" on the Activity page asks before a shorter choice deletes saved
+  history. Picking a shorter time, or "Until VRX closes", now shows what
+  will be deleted with "Cancel" and "Switch and delete". A longer choice
+  still applies at once.
+- Pressing Esc while you drag a page or a Dashboard section puts it back
+  and keeps reorder mode on. Press Esc again to leave the mode.
+
+### Fixed
+
+- Saved activity shows as soon as VRX knows which account is signed in.
+  After a restart the Activity page no longer says "No activity yet" for a
+  few seconds before your saved history appears.
+- A right-click on the empty space under a short Dashboard offers "Reorder"
+  too, not only a right-click on a card.
+- Cancelling a drag with Esc no longer opens the page you were dragging.
+
+## [1.5.0-dev.3] - 2026-11-18
+
+### Changed
+
+- "Kept" on the Activity page asks before a shorter choice deletes saved
+  history. Picking a shorter time, or "Until VRX closes", now shows what
+  will be deleted with "Cancel" and "Switch and delete". A longer choice
+  still applies at once.
+- Pressing Esc while you drag a page or a Dashboard section puts it back
+  and keeps reorder mode on. Press Esc again to leave the mode.
+
+### Fixed
+
+- Saved activity shows as soon as VRX knows which account is signed in.
+  After a restart the Activity page no longer says "No activity yet" for a
+  few seconds before your saved history appears.
+- A right-click on the empty space under a short Dashboard offers "Reorder"
+  too, not only a right-click on a card.
+- Cancelling a drag with Esc no longer opens the page you were dragging.
+- The VRChat instance log is saved only under the account that was in the
+  game. After switching accounts in VRX, the other account's instances no
+  longer show up in yours.
+- Instances older than your "Kept" choice no longer come back for a while
+  after VRX starts.
+- Restoring a backup also brings back when you last cleared the instance
+  log, so cleared instances stay cleared.
+- After a restore, the Activity page shows the restored history right away
+  instead of keeping rows from before it.
+
 ## [1.5.0-beta.1] - 2026-11-18
 
 The first beta of 1.5.0. It holds everything from dev builds 1.5.0-dev.1 and

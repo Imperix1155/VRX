@@ -27,7 +27,8 @@ import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM } from '@shared/constants'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
 import type { Friend, Platform } from '@shared/types'
 import { asTranslate } from '../i18n/translate'
-import { clearActivity, useActivity } from '../queries/activity'
+import { activityKey, clearActivity, useActivity } from '../queries/activity'
+import { useAuthStatus } from '../queries/auth'
 import { clearInstanceLog, useInstanceVisits } from '../queries/instanceLog'
 import { useFriends } from '../queries/friends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
@@ -205,6 +206,30 @@ export default function ActivityView(): React.JSX.Element {
     [platformFilter]
   )
 
+  // Saved activity belongs to an account, and main learns the account only
+  // when the sign-in check answers, a few seconds after launch. Until the
+  // list has been read after that, an empty list means "not read yet", never
+  // "nothing saved": the page says it is loading instead of "No activity yet".
+  const vrcAuth = useAuthStatus('vrchat')
+  const cvrAuth = useAuthStatus('chilloutvr')
+  const accountsPending = platforms.some((platform) => {
+    const auth = platform === 'vrchat' ? vrcAuth : cvrAuth
+    return auth.data === undefined && auth.isPending
+  })
+  const [readSinceAccounts, setReadSinceAccounts] = useState(!accountsPending)
+  if (accountsPending && readSinceAccounts) setReadSinceAccounts(false)
+  useEffect(() => {
+    if (accountsPending || readSinceAccounts) return
+    let current = true
+    void client.refetchQueries({ queryKey: activityKey }).finally(() => {
+      if (current) setReadSinceAccounts(true)
+    })
+    return () => {
+      current = false
+    }
+  }, [accountsPending, readSinceAccounts, client])
+  const listNotReadYet = accountsPending || !readSinceAccounts
+
   // Entries the list held while this page was open. Main keeps only the newest
   // per platform, so once older pages are shown, an entry that leaves the list
   // for a newer one would otherwise vanish from the middle of the page.
@@ -358,6 +383,8 @@ export default function ActivityView(): React.JSX.Element {
     ) : (
       <p className="text-sm text-[var(--text-dim)]">{t('activity.loading')}</p>
     )
+  } else if (entries.length === 0 && !pager.canShowOlder && listNotReadYet) {
+    content = <p className="text-sm text-[var(--text-dim)]">{t('activity.loading')}</p>
   } else if (entries.length === 0 && !pager.canShowOlder) {
     content = (
       <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
