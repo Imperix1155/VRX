@@ -193,11 +193,13 @@ can delete the `"libc"` lines of packages you did not touch;
 `scripts/lockfile.test.mjs` fails when they are gone.
 [Maintaining](MAINTAINING.md#accept-a-dependency-update) has the fix.
 
-The audit job blocks high and critical advisories, and there is no current
-exception. An exception is allowed only for a development-only advisory with
-no fixed release: verify both, except only that exact advisory in
-[`scripts/audit-policy.mjs`](../scripts/audit-policy.mjs), and record the
-reason and review date in [SECURITY.md](../SECURITY.md) in generic words.
+The audit job blocks high and critical advisories. Current exceptions, if
+any, are listed in [SECURITY.md](../SECURITY.md#audit-policy). An exception is
+allowed only for a development-only advisory with no fixed release: verify
+both, except only that exact advisory in
+[`scripts/audit-policy.mjs`](../scripts/audit-policy.mjs) with a review date,
+and record the reason and that date in SECURITY.md in generic words. An
+exception stops applying after its review date.
 Production exposure or an available fix rules an exception out. Never lower
 the audit threshold or disable the gate; changing the policy needs tests that
 prove non-excepted, production and malformed cases still fail.

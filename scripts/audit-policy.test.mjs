@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { auditFailures } from './audit-policy.mjs'
+import { auditExceptions, auditFailures } from './audit-policy.mjs'
 
 const url = 'https://github.com/advisories/GHSA-ch52-4w7c-c8xp'
 const report = (entries = {}) => {
@@ -30,7 +30,8 @@ const cache = () => ({
   nodes: ['node_modules/http-cache-semantics']
 })
 const full = () => report({ 'http-cache-semantics': cache() })
-const evaluate = (all = full(), prod = report()) => auditFailures(all, prod)
+const inForce = new Date('2026-11-18T12:00:00Z')
+const evaluate = (all = full(), prod = report(), now = inForce) => auditFailures(all, prod, now)
 
 describe('dependency audit policy', () => {
   it('does not exempt GHSA-ch52-4w7c-c8xp, including a cascade parent', () => {
@@ -125,4 +126,72 @@ it('blocks a high advisory reached through a cascade cycle', () => {
   all.vulnerabilities.a = { severity: 'high', via: ['b'] }
   all.vulnerabilities.b = { severity: 'high', via: ['a', 'http-cache-semantics'] }
   expect(evaluate(report(all.vulnerabilities))).toEqual([`http-cache-semantics:${url}`])
+})
+
+describe('the one audit exception', () => {
+  const [exception] = auditExceptions
+  const advisory = (overrides = {}) => ({ severity: 'high', url: exception.url, ...overrides })
+  const finding = (overrides = {}) => ({ severity: 'high', via: [advisory()], ...overrides })
+  const tree = (entry = finding()) =>
+    report({
+      [exception.name]: entry,
+      vite: { severity: 'high', via: [exception.name] }
+    })
+  const blocked = [`${exception.name}:${exception.url}`]
+
+  it('is a single exact package and advisory with a review date', () => {
+    expect(auditExceptions).toEqual([
+      {
+        name: 'picomatch',
+        url: 'https://github.com/advisories/GHSA-fc5q-39xc-vjpf',
+        reviewBy: '2026-12-18'
+      }
+    ])
+  })
+
+  it('lets the advisory and its cascade parents through while it is in force', () => {
+    expect(evaluate(tree())).toEqual([])
+  })
+
+  it('applies through its review date and blocks again the day after', () => {
+    expect(evaluate(tree(), report(), new Date('2026-12-18T23:59:59Z'))).toEqual([])
+    expect(evaluate(tree(), report(), new Date('2026-12-19T00:00:00Z'))).toEqual(blocked)
+  })
+
+  it('still blocks every other advisory beside it', () => {
+    const all = tree()
+    all.vulnerabilities['http-cache-semantics'] = cache()
+    expect(evaluate(report(all.vulnerabilities))).toEqual([`http-cache-semantics:${url}`])
+  })
+
+  it('does not cover the same advisory on another package', () => {
+    expect(evaluate(report({ other: finding() }))).toEqual([`other:${exception.url}`])
+  })
+
+  it('does not cover another advisory on the same package', () => {
+    const other = `${exception.url}/other`
+    const both = finding({ via: [advisory(), advisory({ url: other })] })
+    expect(evaluate(report({ [exception.name]: both }))).toEqual([`${exception.name}:${other}`])
+  })
+
+  it('does not cover a critical rating of the advisory', () => {
+    const critical = finding({ severity: 'critical', via: [advisory({ severity: 'critical' })] })
+    expect(evaluate(report({ [exception.name]: critical }))).toEqual(blocked)
+  })
+
+  it('does not cover the package once it is in the production report', () => {
+    expect(evaluate(tree(), report({ [exception.name]: finding() }))).toEqual([
+      `production:${exception.name}`,
+      ...blocked
+    ])
+    const moderate = report({ [exception.name]: { severity: 'moderate' } })
+    expect(evaluate(tree(), moderate)).toEqual(blocked)
+  })
+
+  it('still fails closed on a malformed report', () => {
+    const bad = tree()
+    bad.metadata.vulnerabilities.total += 1
+    expect(() => evaluate(bad)).toThrow()
+    expect(() => evaluate(tree(), {})).toThrow()
+  })
 })

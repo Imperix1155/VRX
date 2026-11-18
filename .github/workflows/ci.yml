@@ -266,9 +266,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      # No advisory is excluded. Reports remain visible; the policy rejects
-      # high/critical findings and failed or malformed reports rather than
-      # trusting npm's exit code alone.
+      # Reports remain visible; the policy rejects high/critical findings and
+      # failed or malformed reports rather than trusting npm's exit code alone.
+      # The only exceptions are the dated entries SECURITY.md lists.
       - name: Audit dependencies
         run: |
           npm audit --audit-level=high || true

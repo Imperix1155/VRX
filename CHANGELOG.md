@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   threshold" are shorter, so the page still fits the smallest window with
   the new Quick launch row in the list.
 
+### Security
+
+- The dependency check has one dated exception for a development-only build
+  tool that has no fixed release yet. The tool is not part of the installed
+  app. The exception ends on its review date; SECURITY.md has the entry.
+
 ## [1.5.0-dev.1] - 2026-11-15
 
 ### Added
