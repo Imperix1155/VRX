@@ -114,6 +114,11 @@ fails when DESIGN.md names a token or class that doesn't exist, when its
 copied CSS drifts from `main.css`, or when a guide code sample names a
 component that doesn't exist.
 
+`scripts/readme-pages.test.mjs` fails when the README's page list misses a
+sidebar page or an Activity tab, or no longer names the buttons that move
+saved history. When it fails, read the whole README item for that page, not
+only the missing name: the sentences around it are usually what went stale.
+
 ## Verification
 
 For any change to the app, dependencies, build, release or CI:
