@@ -7,6 +7,7 @@ import type {
   InstanceVisitPerson
 } from '@shared/instanceLog'
 import type { Platform } from '@shared/types'
+import { useCarriedRows } from '../hooks/useCarriedRows'
 
 /** Not persisted in the renderer: main saves the instance log itself. */
 export const instanceLogKey = ['instance-log'] as const
@@ -20,13 +21,16 @@ export async function fetchInstanceVisits(
   return window.vrx.getInstanceVisits(request)
 }
 
+/** What tells one visit from another across both platforms. */
+export const visitKey = (visit: InstanceVisit): string => `${visit.platform}:${visit.id}`
+
 /** Newest first; a visit read twice (a refreshed first page and an older
- *  page) is listed once, in its newest form. */
-export function mergeVisits(...lists: ReadonlyArray<readonly InstanceVisit[]>): InstanceVisit[] {
+ *  page) is listed once, in the form of the first list that holds it. */
+export function mergeVisits(...lists: ReadonlyArray<Iterable<InstanceVisit>>): InstanceVisit[] {
   const byKey = new Map<string, InstanceVisit>()
   for (const list of lists) {
     for (const visit of list) {
-      const key = `${visit.platform}:${visit.id}`
+      const key = visitKey(visit)
       if (!byKey.has(key)) byKey.set(key, visit)
     }
   }
@@ -56,9 +60,10 @@ interface OlderPages {
 
 /**
  * The instance log for the platforms in the filter. The first page follows
- * main's change notice; older pages are read on Show older and start over
- * when the scope or an account changes, so one account's rooms never stay on
- * screen for another.
+ * main's change notice; older pages are read on Show older. A visit a newer
+ * one pushed off the first page stays listed (`useCarriedRows`). All of it
+ * starts over when the scope or an account changes and on `startOver`, so
+ * one account's rooms never stay on screen for another.
  */
 export function useInstanceVisits(
   platforms: readonly Platform[],
@@ -96,9 +101,10 @@ export function useInstanceVisits(
     setOlder({ key, visits: [], hasMore: null, busy: false, failed: false })
   }
   const firstVisits = first.data?.visits
+  const carried = useCarriedRows(firstVisits, visitKey, key)
   const visits = useMemo(
-    () => mergeVisits(firstVisits ?? [], older.key === key ? older.visits : []),
-    [firstVisits, older, key]
+    () => mergeVisits(firstVisits ?? [], carried.values(), older.key === key ? older.visits : []),
+    [firstVisits, carried, older, key]
   )
 
   const showOlder = useCallback((): void => {

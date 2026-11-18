@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The Instances tab on the Activity page keeps every instance listed. With
+  "Show older" pressed, each new instance you entered made one older
+  instance drop out of the middle of the list until the page was reopened.
+
 ## [1.5.0-dev.4] - 2026-11-18
 
 ### Fixed
