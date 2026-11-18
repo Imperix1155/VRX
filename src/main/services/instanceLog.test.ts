@@ -12,6 +12,8 @@ interface World {
   onChanged: ReturnType<typeof vi.fn>
   /** VRX's clock, for the moment the log is cleared. */
   setNow: (value: number) => void
+  /** Rooms entered before this are no longer kept; null keeps them all. */
+  setCutoff: (value: number | null) => void
   /** A log over the same saved copy, as a restart would build. */
   log: () => InstanceLog
 }
@@ -19,6 +21,7 @@ interface World {
 function setup(): World {
   let saving = true
   let now = 0
+  let cutoff: number | null = null
   const accounts: Partial<Record<Platform, string>> = {
     vrchat: VRC,
     chilloutvr: 'chilloutvr:me-1'
@@ -35,12 +38,16 @@ function setup(): World {
     setNow: (value) => {
       now = value
     },
+    setCutoff: (value) => {
+      cutoff = value
+    },
     log: () =>
       new InstanceLog({
         database,
         accountKeyFor: (platform) => accounts[platform] ?? null,
         isSaving: () => saving,
         onChanged,
+        keepCutoff: () => cutoff,
         now: () => now
       })
   }
@@ -246,6 +253,21 @@ describe('InstanceLog', () => {
     again.enter('chilloutvr', { instanceId: 'i-1', worldName: 'Museum', at: 1_000 })
     expect(again.page(all).visits).toEqual([])
     expect(again.page(cvr).visits).toEqual([])
+  })
+
+  it('saves no room older than what is kept, however a source tells it', () => {
+    const world = setup()
+    const log = world.log()
+    world.setCutoff(5_000)
+    // A game log read from its first line, with a room from before the limit.
+    log.enter('vrchat', { instanceId: 'wrld_a:1', worldName: 'Too old', at: 1_000 })
+    log.join('vrchat', { platformUserId: 'usr_a', displayName: 'Alice', at: 6_000 })
+    expect(log.page(all).visits).toEqual([])
+    expect(log.met('vrchat', 'usr_a')).toBeNull()
+    log.enter('vrchat', { instanceId: 'wrld_b:2', worldName: 'Kept', at: 5_000 })
+    log.join('vrchat', { platformUserId: 'usr_a', displayName: 'Alice', at: 6_000 })
+    expect(log.page(all).visits.map((visit) => visit.worldName)).toEqual(['Kept'])
+    expect(log.met('vrchat', 'usr_a')).toMatchObject({ times: 1 })
   })
 
   it('removes ended visits past the age limit and keeps the one in progress', () => {

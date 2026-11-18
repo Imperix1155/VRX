@@ -904,6 +904,7 @@ export class HistoryDatabase {
     }
     try {
       let version: number
+      let hasFloors: boolean
       try {
         const row = db.prepare('PRAGMA backup.user_version').get() as
           { user_version?: unknown } | undefined
@@ -919,6 +920,7 @@ export class HistoryDatabase {
           ).map((table) => table.name)
         )
         if (!HISTORY_TABLES.every((table) => tables.has(table))) return 'not-a-backup'
+        hasFloors = tables.has('instance_log_floor')
       } catch {
         return 'not-a-backup'
       }
@@ -927,6 +929,19 @@ export class HistoryDatabase {
       try {
         this.transaction(() => {
           db.exec(RESTORE_SQL)
+          // When each instance log was last cleared comes back with the rows,
+          // so a game log read again brings back nothing the backup had
+          // forgotten. Never a moment still to come, which would stop the
+          // log from being kept at all.
+          db.exec('DELETE FROM instance_log_floor')
+          if (hasFloors) {
+            db.prepare(
+              `INSERT OR REPLACE INTO instance_log_floor (account_key, at)
+               SELECT substr(account_key, 1, ${MAX_TEXT_LENGTH}), MIN(at, ?)
+               FROM backup.instance_log_floor
+               WHERE typeof(account_key) = 'text' AND typeof(at) = 'integer'`
+            ).run((this.options.now ?? Date.now)())
+          }
         })
       } catch {
         return 'failed'

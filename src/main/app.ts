@@ -796,7 +796,8 @@ app
       database: historyDatabase,
       accountKeyFor: historyAccountKeyFor,
       isSaving: isKeepingInstanceLog,
-      onChanged: pushActivityChanged
+      onChanged: pushActivityChanged,
+      keepCutoff: () => activityHistory.cutoff()
     })
     const runningGames = new RunningGames(processNameListerFor(process.platform))
     const vrchatGameLog = new VrchatGameLog({

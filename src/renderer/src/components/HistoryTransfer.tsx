@@ -54,10 +54,14 @@ const buttonClass =
   'rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-[12px] text-[var(--text)] hover:bg-[var(--surface-hover)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors cursor-pointer aria-disabled:cursor-default aria-disabled:opacity-60 aria-disabled:hover:bg-transparent'
 
 export default function HistoryTransfer({
-  saving
+  saving,
+  onRestored
 }: {
   /** False while activity is kept only until VRX closes: nothing to move. */
   saving: boolean
+  /** A restore replaced everything saved: what a page still shows of the
+   *  rows before it is no longer there. */
+  onRestored?: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const [busy, setBusy] = useState<Action | null>(null)
@@ -137,12 +141,13 @@ export default function HistoryTransfer({
     run(
       'restore',
       window.vrx?.restoreHistory,
-      (result) =>
-        result.ok
-          ? t('activity.transfer.restored')
-          : result.reason === 'cancelled'
-            ? ''
-            : t(RESTORE_FAILURE_KEYS[result.reason]),
+      (result) => {
+        if (result.ok) {
+          onRestored?.()
+          return t('activity.transfer.restored')
+        }
+        return result.reason === 'cancelled' ? '' : t(RESTORE_FAILURE_KEYS[result.reason])
+      },
       t('activity.transfer.restoreFailed')
     )
 

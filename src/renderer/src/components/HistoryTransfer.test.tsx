@@ -120,12 +120,25 @@ describe('Move your history', () => {
     expect(restoreHistory).not.toHaveBeenCalled()
   })
 
-  it('restores after the question is answered', async () => {
-    render(<HistoryTransfer saving />)
+  it('restores after the question is answered, and says so to the page', async () => {
+    const onRestored = vi.fn()
+    render(<HistoryTransfer saving onRestored={onRestored} />)
     fireEvent.click(button('activity.transfer.restore'))
     fireEvent.click(button('activity.transfer.restoreConfirm'))
     await waitFor(() => expect(result().textContent).toBe(msg('activity.transfer.restored')))
     expect(restoreHistory).toHaveBeenCalledExactlyOnceWith()
+    expect(onRestored).toHaveBeenCalledOnce()
+  })
+
+  it('tells the page nothing when a restore did not happen', async () => {
+    const onRestored = vi.fn()
+    restoreHistory.mockResolvedValueOnce({ ok: false, reason: 'cancelled' })
+    render(<HistoryTransfer saving onRestored={onRestored} />)
+    fireEvent.click(button('activity.transfer.restore'))
+    fireEvent.click(button('activity.transfer.restoreConfirm'))
+    await waitFor(() => expect(restoreHistory).toHaveBeenCalledOnce())
+    await waitFor(() => expect(button('activity.transfer.restore')).toBeTruthy())
+    expect(onRestored).not.toHaveBeenCalled()
   })
 
   it.each([
