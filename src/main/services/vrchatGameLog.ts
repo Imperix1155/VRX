@@ -384,9 +384,10 @@ export class VrchatGameLog {
               worldName: state.worldName,
               at: event.at
             }
+            // A room the sink knows ends here, whether or not it hears of the
+            // next one.
+            this.leaveRoom(state, event.at)
             state.inRoom = true
-            state.told = false
-            state.held = null
             if (state.user === null) {
               state.held = { room, events: [] }
             } else if (state.user.toLowerCase() === own) {

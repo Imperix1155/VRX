@@ -242,6 +242,24 @@ describe('VrchatGameLog', () => {
       expect(steps).toEqual([])
     })
 
+    it('ends a told room when the next one is held back', async () => {
+      write('output_log_2026-11-15_12-00-00.txt', [
+        ...unnamed,
+        // Straight into another room, where the account is never seen.
+        line('12:20:00', '[Behaviour] Joining wrld_b:2~region(us)'),
+        line('12:20:05', `[Behaviour] OnPlayerJoined Alice (${ALICE})`),
+        line('12:30:00', '[Behaviour] OnLeftRoom')
+      ])
+      await reader().pass()
+      expect(steps).toEqual([
+        'enter wrld_a:1~region(us) Pug Lounge',
+        'join Alice',
+        'join Me',
+        `leave ${ALICE}`,
+        `exit ${at('12:20:00')}`
+      ])
+    })
+
     it('leaves out a room that ends before the account is seen in it', async () => {
       write('output_log_2026-11-15_12-00-00.txt', [
         ...unnamed.slice(0, 3),
