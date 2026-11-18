@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0-dev.4] - 2026-11-18
+
 ### Fixed
 
 - "Bring in from VRCX" saves nothing if you turn saved activity off, sign
