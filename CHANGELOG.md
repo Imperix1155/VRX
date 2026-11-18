@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0-dev.3] - 2026-11-18
+
 ### Changed
 
 - "Kept" on the Activity page asks before a shorter choice deletes saved
@@ -24,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A right-click on the empty space under a short Dashboard offers "Reorder"
   too, not only a right-click on a card.
 - Cancelling a drag with Esc no longer opens the page you were dragging.
-
 - The VRChat instance log is saved only under the account that was in the
   game. After switching accounts in VRX, the other account's instances no
   longer show up in yours.
