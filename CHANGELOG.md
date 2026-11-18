@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The VRChat instance log is saved only under the account that was in the
+  game. After switching accounts in VRX, the other account's instances no
+  longer show up in yours.
+- Instances older than your "Kept" choice no longer come back for a while
+  after VRX starts.
+- Restoring a backup also brings back when you last cleared the instance
+  log, so cleared instances stay cleared.
+- After a restore, the Activity page shows the restored history right away
+  instead of keeping rows from before it.
+
 ## [1.5.0-dev.2] - 2026-11-18
 
 ### Added

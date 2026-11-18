@@ -31,6 +31,9 @@ export interface InstanceLogOptions {
   isSaving: () => boolean
   /** Something the page shows changed. */
   onChanged: () => void
+  /** Rooms entered before this moment are no longer kept (the Keep activity
+   *  for choice); null keeps them all. */
+  keepCutoff?: () => number | null
   now?: () => number
 }
 
@@ -66,8 +69,11 @@ export class InstanceLog {
     if (accountKey === null) return
     const database = this.options.database
     // A room from before the log was last cleared stays forgotten, however
-    // often a source tells it again.
+    // often a source tells it again. So does one older than what is kept:
+    // it would only be removed again at the next tidy-up.
     if (room.at <= database.instanceLogFloor(accountKey)) return
+    const cutoff = this.options.keepCutoff?.() ?? null
+    if (cutoff !== null && room.at < cutoff) return
     const visitId = database.openVisit(accountKey, {
       instanceId: room.instanceId,
       worldName: emptyToNull(room.worldName),
