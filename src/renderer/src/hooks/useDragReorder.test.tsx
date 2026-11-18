@@ -6,7 +6,7 @@
  */
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useDragReorder } from './useDragReorder'
 
 const ROW_HEIGHT = 40
@@ -78,6 +78,9 @@ function stubRows(): void {
     }
   })
 }
+
+/** Lets a `setTimeout(…, 0)` run. */
+const nextTask = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
 function order(): string[] {
   return screen.getAllByRole('button').map((button) => button.textContent ?? '')
@@ -182,7 +185,7 @@ describe('useDragReorder', () => {
     expect(onOrder).toHaveBeenCalledTimes(3)
   })
 
-  it('forgets a press that was held when the list was disabled', () => {
+  it('forgets a press that was held when the list was disabled', async () => {
     const onClick = vi.fn()
     const onOrder = vi.fn()
     stubRows()
@@ -196,6 +199,12 @@ describe('useDragReorder', () => {
     expect(held.style.transform).toBe('')
     fireEvent.pointerUp(held, { pointerId: 1, clientY: 20 + ROW_STEP })
     expect(onOrder).not.toHaveBeenCalled()
+    // That release is not a click: it must not open the row's page.
+    fireEvent.click(held)
+    expect(onClick).not.toHaveBeenCalled()
+    await nextTask()
+    fireEvent.click(held)
+    expect(onClick).toHaveBeenCalledTimes(1)
 
     // The mode starts again: another row drags as usual.
     view.rerender(<List enabled onClick={onClick} onOrder={onOrder} />)
@@ -205,6 +214,50 @@ describe('useDragReorder', () => {
     expect(row.getAttribute('data-dragging')).toBe('true')
     fireEvent.pointerUp(row, { pointerId: 2, clientY: 150 - ROW_STEP })
     expect(order()).toEqual(['a', 'b', 'd', 'c'])
+  })
+
+  it('Esc during a drag puts the row back, takes the key, and the release presses nothing', async () => {
+    const { onClick, onOrder } = setup()
+    const row = screen.getByRole('button', { name: 'a' })
+    fireEvent.pointerDown(row, { pointerId: 1, button: 0, clientY: 20 })
+    fireEvent.pointerMove(row, { pointerId: 1, clientY: 20 + 2 * ROW_STEP })
+    expect(row.getAttribute('data-dragging')).toBe('true')
+
+    // The key is marked as taken, so reorder mode's own Esc leaves the mode on.
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    act(() => {
+      row.dispatchEvent(escape)
+    })
+    expect(escape.defaultPrevented).toBe(true)
+    expect(row.getAttribute('data-dragging')).toBeNull()
+    expect(row.style.transform).toBe('')
+
+    fireEvent.pointerUp(row, { pointerId: 1, clientY: 20 + 2 * ROW_STEP })
+    fireEvent.click(row)
+    expect(onOrder).not.toHaveBeenCalled()
+    expect(onClick).not.toHaveBeenCalled()
+    expect(order()).toEqual(['a', 'b', 'c', 'd'])
+
+    // Afterwards the row is an ordinary row again: it clicks and it drags.
+    await nextTask()
+    fireEvent.click(row)
+    expect(onClick).toHaveBeenCalledWith('a')
+    fireEvent.pointerDown(row, { pointerId: 2, button: 0, clientY: 20 })
+    fireEvent.pointerMove(row, { pointerId: 2, clientY: 20 + ROW_STEP })
+    fireEvent.pointerUp(row, { pointerId: 2, clientY: 20 + ROW_STEP })
+    expect(order()).toEqual(['b', 'a', 'c', 'd'])
+  })
+
+  it('leaves Esc alone when nothing is being dragged', () => {
+    setup()
+    const row = screen.getByRole('button', { name: 'a' })
+    // A press that has not moved yet is not a drag.
+    fireEvent.pointerDown(row, { pointerId: 1, button: 0, clientY: 20 })
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    act(() => {
+      row.dispatchEvent(escape)
+    })
+    expect(escape.defaultPrevented).toBe(false)
   })
 
   it('does nothing while disabled', () => {

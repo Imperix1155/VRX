@@ -556,6 +556,9 @@ app
       log: (level, message, meta) => log[level](message, meta),
       onIdentity: (accountId) => {
         accountSession.setIdentity('vrchat', accountId)
+        // The account is known: its saved activity comes back now, not only
+        // once the friends list has been read, which can be many seconds later.
+        if (accountId !== null) activityBoundary.current?.hydrate('vrchat')
       },
       onSessionBoundary: ({ identityRetained }) => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
@@ -639,6 +642,9 @@ app
       log: (level, message, meta) => log[level](message, meta),
       onIdentity: (accountId) => {
         accountSession.setIdentity('chilloutvr', accountId)
+        // The account is known: its saved activity comes back now, not only
+        // once the friends list has been read, which can be many seconds later.
+        if (accountId !== null) activityBoundary.current?.hydrate('chilloutvr')
       },
       onSessionBoundary: ({ identityRetained }) => {
         // A same-account key rotation changes nothing account-scoped. Clearing
