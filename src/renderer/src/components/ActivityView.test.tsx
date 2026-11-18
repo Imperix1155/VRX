@@ -423,6 +423,67 @@ describe('ActivityView', () => {
     ).toBeTruthy()
   })
 
+  it('asks before a shorter choice deletes saved history, and deletes nothing until the answer', () => {
+    renderView()
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.90d') })
+      })
+    )
+    const dialog = screen.getByRole('dialog', { name: msg('activity.keep.title') })
+    const radio = (key: string): HTMLInputElement =>
+      within(dialog).getByRole<HTMLInputElement>('radio', { name: msg(key) })
+    const keptFor = (): string => useSettingsStore.getState().settings.activityKeepFor
+
+    // One arrow key lands here: the pick shows, the setting has not changed.
+    fireEvent.click(radio('activity.keep.options.30d'))
+    expect(radio('activity.keep.options.30d').checked).toBe(true)
+    expect(keptFor()).toBe('90d')
+    expect(
+      within(dialog).getByText(
+        msg('activity.keep.askShorter', { choice: msg('activity.keep.options.30d') })
+      )
+    ).toBeTruthy()
+
+    // Cancel puts the radio back.
+    fireEvent.click(within(dialog).getByRole('button', { name: msg('activity.keep.askCancel') }))
+    expect(radio('activity.keep.options.90d').checked).toBe(true)
+    expect(keptFor()).toBe('90d')
+    expect(within(dialog).queryByText(msg('activity.keep.askConfirm'))).toBeNull()
+
+    // "Until VRX closes" says it takes everything, and only the answer applies it.
+    fireEvent.click(radio('activity.keep.options.session'))
+    expect(within(dialog).getByText(msg('activity.keep.askSession'))).toBeTruthy()
+    expect(keptFor()).toBe('90d')
+    fireEvent.click(within(dialog).getByRole('button', { name: msg('activity.keep.askConfirm') }))
+    expect(keptFor()).toBe('session')
+    expect(within(dialog).queryByText(msg('activity.keep.askSession'))).toBeNull()
+
+    // From nothing saved, every choice is longer and applies at once.
+    fireEvent.click(radio('activity.keep.options.forever'))
+    expect(keptFor()).toBe('forever')
+  })
+
+  it('drops an unanswered shorter pick when the dialog closes', () => {
+    renderView()
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.90d') })
+      })
+    )
+    const dialog = screen.getByRole('dialog', { name: msg('activity.keep.title') })
+    fireEvent.click(
+      within(dialog).getByRole('radio', { name: msg('activity.keep.options.session') })
+    )
+    fireEvent.click(within(dialog).getByRole('button', { name: msg('activity.keep.done') }))
+    expect(useSettingsStore.getState().settings.activityKeepFor).toBe('90d')
+    expect(
+      screen.getByRole('button', {
+        name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.90d') })
+      })
+    ).toBeTruthy()
+  })
+
   it('offers no Show older while the list holds everything saved', async () => {
     renderView()
     await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(entries.length))

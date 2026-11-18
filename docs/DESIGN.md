@@ -805,7 +805,9 @@ the color is only an echo of the filter.
   Arrow Down move the focused tile, and a polite live region says where it
   went ("Friends: 3 of 9"). A plain click still opens the page. The foot
   gives way to one line, "Drag to move. Settings stays last.", over two
-  buttons, "Reset order" and "Done"; Esc also ends the mode. Hidden pages
+  buttons, "Reset order" and "Done"; Esc also ends the mode. Esc during a
+  drag puts the tile back and keeps the mode on, and the release that
+  follows opens nothing. Hidden pages
   keep their places in the saved order. Reset order puts the sidebar and the
   Dashboard back in their default order, and is dimmed (`aria-disabled`)
   when nothing has moved. Settings → Appearance → Sidebar pages → Order
@@ -1114,7 +1116,9 @@ Top to bottom:
    Dashboard.
 
 **Quick reorder.** A right-click on the Dashboard opens the same one-item
-"Reorder" menu as the sidebar (§8). While reorder mode is on, the sections
+"Reorder" menu as the sidebar (§8). The whole page answers, down to the
+bottom of the window, so the empty space under a short Dashboard does too.
+While reorder mode is on, the sections
 give way to a short list under the numbers
 ([`DashboardReorderList.tsx`](../src/renderer/src/components/DashboardReorderList.tsx)):
 a "REORDER SECTIONS" heading with one line of help, "Reset order" and "Done"
@@ -1659,7 +1663,11 @@ asks neither platform for anything.
   is listed for the whole stay.
 - **Kept** opens "Keep activity for": one line on where it is saved, then
   five radio choices ("Until VRX closes", "30 days", "90 days", "1 year",
-  "Forever") that apply at once. Under a hairline, "Move your history": one
+  "Forever"). A longer choice applies at once. A shorter one deletes saved
+  history, so it asks first, in place of "Move your history": one line
+  saying what is deleted, then "Cancel" and "Switch and delete". The radio
+  shows the pick, and nothing changes until the answer; closing the dialog
+  drops the pick. Under a hairline, "Move your history": one
   line of explanation and three small bordered buttons, "Bring in from
   VRCX", "Back up…" and "Restore…". Restore first asks in place
   ("Restoring replaces everything saved here…") with "Cancel" and "Choose a

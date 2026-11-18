@@ -6,7 +6,7 @@
  */
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ACTIVITY_KEEP_FOR, type ActivityKeepFor } from '@shared/activity'
+import { ACTIVITY_KEEP_FOR, deletesSavedHistory, type ActivityKeepFor } from '@shared/activity'
 import { ACTIVITY_KEEP_LABEL_KEYS } from '../utils/activityText'
 import HistoryTransfer from './HistoryTransfer'
 import LinkedDialog from './LinkedDialog'
@@ -74,9 +74,12 @@ export function ActivityKeepDialog({
           </label>
         ))}
       </div>
-      {asking === null ? (
+      {/* Hidden, not unmounted, while the question shows: a restore or an
+          import that is running keeps its place and its result. */}
+      <div hidden={asking !== null}>
         <HistoryTransfer saving={value !== 'session'} onRestored={onRestored} />
-      ) : (
+      </div>
+      {asking === null ? null : (
         <div
           data-keep-ask=""
           aria-live="polite"
@@ -111,12 +114,6 @@ export function ActivityKeepDialog({
       </div>
     </LinkedDialog>
   )
-}
-
-/** Whether moving from `current` to `next` deletes anything saved: the
- *  choices are listed shortest first, and "until VRX closes" saves nothing. */
-export function deletesSavedHistory(current: ActivityKeepFor, next: ActivityKeepFor): boolean {
-  return ACTIVITY_KEEP_FOR.indexOf(next) < ACTIVITY_KEEP_FOR.indexOf(current)
 }
 
 /** Asked before Clear when activity is saved: it deletes saved entries too. */

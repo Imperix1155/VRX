@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- "Kept" on the Activity page asks before a shorter choice deletes saved
+  history. Picking a shorter time, or "Until VRX closes", now shows what
+  will be deleted with "Cancel" and "Switch and delete". A longer choice
+  still applies at once.
+- Pressing Esc while you drag a page or a Dashboard section puts it back
+  and keeps reorder mode on. Press Esc again to leave the mode.
+
 ### Fixed
+
+- Saved activity shows as soon as VRX knows which account is signed in.
+  After a restart the Activity page no longer says "No activity yet" for a
+  few seconds before your saved history appears.
+- A right-click on the empty space under a short Dashboard offers "Reorder"
+  too, not only a right-click on a card.
+- Cancelling a drag with Esc no longer opens the page you were dragging.
 
 - The VRChat instance log is saved only under the account that was in the
   game. After switching accounts in VRX, the other account's instances no

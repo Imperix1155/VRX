@@ -94,11 +94,10 @@ export function useDragReorder<T extends string>({
   // A drag that ends without a drop: forget the press, and swallow the click
   // its release would send. The listeners sit on the document because the
   // rows may have lost their handlers by then (the mode went off).
-  const abandon = useCallback((): void => {
+  const dropPress = useCallback((): void => {
     const wasDragging = press.current?.active === true
     press.current = null
     suppressClick.current = false
-    setDrag(null)
     if (wasDragging) swallowReleaseClick()
   }, [])
 
@@ -107,8 +106,8 @@ export function useDragReorder<T extends string>({
   // a kept press would refuse every drag the next time the mode starts.
   if (!enabled && drag !== null) setDrag(null)
   useEffect(() => {
-    if (!enabled) abandon()
-  }, [enabled, abandon])
+    if (!enabled) dropPress()
+  }, [enabled, dropPress])
 
   // Esc during a drag cancels the drag, not the mode. Capture phase, so this
   // runs before the mode's own Esc listener and marks the key as taken.
@@ -118,11 +117,12 @@ export function useDragReorder<T extends string>({
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      abandon()
+      dropPress()
+      setDrag(null)
     }
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [dragging, abandon])
+  }, [dragging, dropPress])
 
   const itemProps = (id: T): ReorderItemProps | undefined => {
     if (!enabled) return undefined
