@@ -121,7 +121,10 @@ export default function HistoryTransfer({
           friendsSince + names + visits === 0
             ? t('activity.transfer.importedNothing')
             : t('activity.transfer.imported', { visits, friends: friendsSince, names })
-        return result.olderSkipped ? `${found}\n${t('activity.transfer.importedOlder')}` : found
+        const lines = [found]
+        if (result.olderSkipped) lines.push(t('activity.transfer.importedOlder'))
+        if (result.otherAccountSkipped) lines.push(t('activity.transfer.importedOtherAccount'))
+        return lines.join('\n')
       },
       t('activity.transfer.importFailed')
     )

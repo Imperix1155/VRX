@@ -272,6 +272,107 @@ describe('HistoryDatabase', () => {
   })
 })
 
+describe('the writes of a job that waits (HistoryDatabase.job)', () => {
+  const friendOf = (db: HistoryDatabase): ReturnType<HistoryDatabase['savedFriend']> =>
+    db.savedFriend(VRC, 'usr_a')
+  const visit = { instanceId: 'wrld_a:1', worldName: 'Home', enteredAt: 100, leftAt: 400 }
+  const stay = { platformUserId: 'usr_a', displayName: 'Alice', joinedAt: 150, leftAt: 300 }
+
+  function withFriend(): HistoryDatabase {
+    const db = database()
+    db.saveFriends(VRC, [
+      { platformUserId: 'usr_a', displayName: 'Alice', since: 900, sinceKnown: false, misses: 0 }
+    ])
+    return db
+  }
+
+  it('writes while the job holds', () => {
+    const db = withFriend()
+    const writes = db.job(() => true)
+    let ran = false
+    expect(
+      writes.batch(() => {
+        ran = true
+        expect(writes.importFriendSince(VRC, 'usr_a', 500)).toBe(true)
+        expect(writes.importNameChange(VRC, 'usr_a', 'Al', 450)).toBe(true)
+        expect(writes.importVisit(VRC, visit, [stay])).toBe(true)
+      })
+    ).toBe(true)
+    expect(ran).toBe(true)
+    expect(friendOf(db)).toMatchObject({ since: 500, sinceKnown: true })
+    expect(db.nameChanges(VRC, 'usr_a', 5)).toEqual([{ previousName: 'Al', at: 450 }])
+    expect(db.metFacts(VRC, 'usr_a')).toMatchObject({ times: 1 })
+  })
+
+  it('asks at every write, and writes nothing from the moment the answer is no', () => {
+    const db = withFriend()
+    let holds = true
+    const writes = db.job(() => holds)
+    expect(writes.importFriendSince(VRC, 'usr_a', 500)).toBe(true)
+
+    holds = false
+    let ran = false
+    expect(writes.holds()).toBe(false)
+    expect(writes.batch(() => (ran = true))).toBe(false)
+    expect(ran).toBe(false)
+    expect(writes.importFriendSince(VRC, 'usr_a', 100)).toBe(false)
+    expect(writes.importNameChange(VRC, 'usr_a', 'Al', 450)).toBe(false)
+    expect(writes.importVisit(VRC, visit, [stay])).toBe(false)
+    const copy = join(dir, 'copy.sqlite3')
+    expect(writes.backupTo(copy)).toBe('stopped')
+    expect(writes.restoreFrom(copy)).toBe('stopped')
+
+    expect(readdirSync(dir)).not.toContain('copy.sqlite3')
+    expect(friendOf(db)).toMatchObject({ since: 500 })
+    expect(db.nameChanges(VRC, 'usr_a', 5)).toEqual([])
+    expect(db.metFacts(VRC, 'usr_a')).toBeNull()
+  })
+
+  it('stops part way through a batch when the answer changes inside it', () => {
+    const db = withFriend()
+    let holds = true
+    const writes = db.job(() => holds)
+    writes.batch(() => {
+      expect(writes.importVisit(VRC, visit, [stay])).toBe(true)
+      holds = false
+      expect(writes.importVisit(VRC, { ...visit, enteredAt: 900_000, leftAt: 900_500 }, [])).toBe(
+        false
+      )
+    })
+    expect(db.pageVisits({ accounts: [{ accountKey: VRC, before: null }], limit: 5 })).toHaveLength(
+      1
+    )
+  })
+
+  it('offers these writes nowhere else', () => {
+    // A job that waits must say what has to stay true. Each line below fails
+    // the type check the day its write can be reached without doing so.
+    const db = database()
+    const direct = [
+      // @ts-expect-error reachable only through job()
+      db.importFriendSince,
+      // @ts-expect-error reachable only through job()
+      db.importNameChange,
+      // @ts-expect-error reachable only through job()
+      db.importVisit,
+      // @ts-expect-error reachable only through job()
+      db.backupTo,
+      // @ts-expect-error reachable only through job()
+      db.restoreFrom
+    ]
+    expect(direct).toHaveLength(5)
+    expect(Object.keys(db.job(() => true)).sort()).toEqual([
+      'backupTo',
+      'batch',
+      'holds',
+      'importFriendSince',
+      'importNameChange',
+      'importVisit',
+      'restoreFrom'
+    ])
+  })
+})
+
 describe('account keys', () => {
   it('reads the platform from an account key and refuses unknown ones', () => {
     expect(platformOfAccountKey(VRC)).toBe('vrchat')

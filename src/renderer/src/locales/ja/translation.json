@@ -773,6 +773,7 @@
       "imported": "VRCXから取り込みました。ルーム：{{visits}} · フレンドになった日：{{friends}} · 以前の名前：{{names}}",
       "importedNothing": "VRCXに新しく取り込むものはありませんでした。",
       "importedOlder": "上で選んだ期間より古いルームは取り込んでいません。",
+      "importedOtherAccount": "別のアカウントの可能性があるルームは取り込んでいません。",
       "importSignedOut": "先にVRChatにサインインしてください。",
       "importBusy": "VRCXが開いています。閉じてからもう一度お試しください。",
       "importNotFound": "このパソコンにVRCXの履歴は見つかりませんでした。",
