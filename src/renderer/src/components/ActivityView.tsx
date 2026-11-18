@@ -245,7 +245,7 @@ export default function ActivityView(): React.JSX.Element {
   }
 
   // Older saved entries. They start over when the scope changes, after a
-  // Clear, and when an account changes; a platform takes part only while the
+  // Clear or a restore, and when an account changes; a platform takes part only while the
   // list holds its full allowance (see `olderThanList`).
   const [restarts, setRestarts] = useState(0)
   const startOver = (): void => {
@@ -520,6 +520,12 @@ export default function ActivityView(): React.JSX.Element {
         <ActivityKeepDialog
           value={keepFor}
           onChange={(value) => updateSettings({ activityKeepFor: value })}
+          onRestored={() => {
+            // Everything saved was replaced: drop the rows and older pages
+            // this page still holds from before.
+            startOver()
+            instanceVisits.startOver()
+          }}
           onClose={() => setKeepOpen(false)}
         />
       )}

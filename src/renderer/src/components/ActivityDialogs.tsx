@@ -24,10 +24,13 @@ const buttonClass =
 export function ActivityKeepDialog({
   value,
   onChange,
+  onRestored,
   onClose
 }: {
   value: ActivityKeepFor
   onChange: (value: ActivityKeepFor) => void
+  /** A restore replaced the saved history under the page. */
+  onRestored: () => void
   onClose: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -72,7 +75,7 @@ export function ActivityKeepDialog({
         ))}
       </div>
       {asking === null ? (
-        <HistoryTransfer saving={value !== 'session'} />
+        <HistoryTransfer saving={value !== 'session'} onRestored={onRestored} />
       ) : (
         <div
           data-keep-ask=""

@@ -8,7 +8,8 @@
  * entered, players joining and leaving, leaving the room, the game closing.
  * Nothing else in the file is kept, nothing is ever written to VRChat's
  * folder, and no line is logged. Rows are saved only when the account signed
- * in to the game is the account signed in to VRX.
+ * in to the game is the account signed in to VRX: the file says who signed
+ * in, or, when it never does, the account's own arrival in a room shows it.
  *
  * The whole file is replayed after a restart; `InstanceLog` saves nothing
  * twice.
@@ -32,6 +33,9 @@ const CHUNK_BYTES = 1_048_576
 const MAX_BYTES_PER_PASS = 32 * CHUNK_BYTES
 /** Newest log files looked at. VRChat keeps only a few itself. */
 const MAX_FILES = 8
+/** Most arrivals and leavings held for one room while it is not yet known
+ *  whose game the file is from. A room past this is left out. */
+const MAX_HELD_EVENTS = 4_000
 /** How often the folder is looked at. Local files only; no request is made. */
 export const VRCHAT_LOG_INTERVAL_MS = 5_000
 /** A room with no new log lines for this long gets a "is the game still open" check. */
@@ -161,6 +165,11 @@ interface Fence {
   holds: () => boolean
 }
 
+interface HeldRoom {
+  room: { instanceId: string; worldName: string | null; at: number }
+  events: Array<Extract<VrchatLogEvent, { type: 'joined' | 'left' }>>
+}
+
 interface FileState {
   offset: number
   decoder: StringDecoder
@@ -170,6 +179,11 @@ interface FileState {
   user: string | null
   worldName: string | null
   inRoom: boolean
+  /** The sink was told about the room the file is in. */
+  told: boolean
+  /** A room in a file that never said who signed in, held back until the
+   *  account's own arrival in it shows whose game this is. */
+  held: HeldRoom | null
   /** The time on the last line read. */
   lastAt: number
   /** When the file last grew, on VRX's clock. */
@@ -242,7 +256,6 @@ export class VrchatGameLog {
   }
 
   private async readFiles(fence: Fence): Promise<void> {
-    const { accountId } = fence
     const directory = await this.findDirectory()
     if (directory === null || !fence.holds()) return
     const names = (await readdir(directory))
@@ -264,19 +277,13 @@ export class VrchatGameLog {
       if (!atEnd.reachedEnd) return
       if (!newest) {
         // A game session that is over: a room never left ended with it.
-        if (state.inRoom && this.mayRecord(state, accountId)) {
-          this.options.sink.exit('vrchat', state.lastAt)
-        }
-        state.inRoom = false
+        this.leaveRoom(state, state.lastAt)
         state.done = true
       } else if (state.inRoom && this.now() - state.grewAt >= QUIET_BEFORE_RUNNING_CHECK_MS) {
         state.grewAt = this.now()
         const running = await this.options.isGameRunning()
         if (!fence.holds()) return
-        if (!running) {
-          if (this.mayRecord(state, accountId)) this.options.sink.exit('vrchat', state.lastAt)
-          state.inRoom = false
-        }
+        if (!running) this.leaveRoom(state, state.lastAt)
       }
     }
   }
@@ -291,6 +298,8 @@ export class VrchatGameLog {
         user: null,
         worldName: null,
         inRoom: false,
+        told: false,
+        held: null,
         lastAt: 0,
         grewAt: this.now(),
         done: false
@@ -320,6 +329,8 @@ export class VrchatGameLog {
           user: null,
           worldName: null,
           inRoom: false,
+          told: false,
+          held: null,
           decoder: new StringDecoder('utf8')
         })
       }
@@ -351,50 +362,81 @@ export class VrchatGameLog {
     // A line this long is not one VRX reads; drop its start, keep reading.
     state.carry = rest.length > MAX_LINE_LENGTH ? '' : rest
     const sink = this.options.sink
+    const own = accountId.toLowerCase()
     sink.batch(() => {
       for (const raw of lines) {
         const event = parseVrchatLogLine(raw.endsWith('\r') ? raw.slice(0, -1) : raw)
         if (event === null) continue
         if (event.type === 'user') {
           state.user = event.userId
+          // The file names its user now: nothing is held on a guess any more.
+          state.held = null
           continue
         }
         state.lastAt = event.at
-        const record = this.mayRecord(state, accountId)
         switch (event.type) {
           case 'world-name':
             state.worldName = event.worldName
             break
-          case 'enter':
+          case 'enter': {
+            const room = {
+              instanceId: event.instanceId,
+              worldName: state.worldName,
+              at: event.at
+            }
+            // A room the sink knows ends here, whether or not it hears of the
+            // next one.
+            this.leaveRoom(state, event.at)
             state.inRoom = true
-            if (record) {
-              sink.enter('vrchat', {
-                instanceId: event.instanceId,
-                worldName: state.worldName,
-                at: event.at
-              })
+            if (state.user === null) {
+              state.held = { room, events: [] }
+            } else if (state.user.toLowerCase() === own) {
+              sink.enter('vrchat', room)
+              state.told = true
             }
             state.worldName = null
             break
+          }
           case 'joined':
-            if (record && state.inRoom) sink.join('vrchat', event)
-            break
           case 'left':
-            if (record && state.inRoom) sink.leave('vrchat', event.platformUserId, event.at)
+            if (!state.inRoom) break
+            if (state.told) {
+              this.tell(event)
+              break
+            }
+            if (state.held === null) break
+            if (state.held.events.length >= MAX_HELD_EVENTS) {
+              state.held = null
+              break
+            }
+            state.held.events.push(event)
+            if (event.type === 'joined' && event.platformUserId.toLowerCase() === own) {
+              // The account's own arrival: this is its game, and its room.
+              sink.enter('vrchat', state.held.room)
+              for (const held of state.held.events) this.tell(held)
+              state.held = null
+              state.told = true
+            }
             break
           case 'exit':
-            if (record && state.inRoom) sink.exit('vrchat', event.at)
-            state.inRoom = false
+            this.leaveRoom(state, event.at)
             break
         }
       }
     })
   }
 
-  /** Rows are saved only for the account signed in to both the game and VRX.
-   *  A file that never said who signed in is taken as the VRX account's. */
-  private mayRecord(state: FileState, accountId: string): boolean {
-    return state.user === null || state.user === accountId
+  private tell(event: Extract<VrchatLogEvent, { type: 'joined' | 'left' }>): void {
+    if (event.type === 'joined') this.options.sink.join('vrchat', event)
+    else this.options.sink.leave('vrchat', event.platformUserId, event.at)
+  }
+
+  /** The file's room is over. The sink hears of it only if it knew the room. */
+  private leaveRoom(state: FileState, at: number): void {
+    if (state.told) this.options.sink.exit('vrchat', at)
+    state.inRoom = false
+    state.told = false
+    state.held = null
   }
 
   private async findDirectory(): Promise<string | null> {
