@@ -11,6 +11,11 @@
  *
  * The rows are measured once when the press starts. Nothing is written while
  * the pointer moves: `onReorder` runs only on release or an arrow key.
+ *
+ * Esc while a row is being dragged puts it back and keeps reorder mode on;
+ * the key is taken, so the mode's own Esc waits for the next press. However
+ * a drag ends without a drop (Esc, or the mode going off under it), the
+ * release that follows is not a click: it must not open the row's page.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { clampDrag, dropIndex, moveItem, rowShift, type RowBox } from '../utils/reorder'
@@ -86,15 +91,38 @@ export function useDragReorder<T extends string>({
     setDrag(null)
   }, [])
 
+  // A drag that ends without a drop: forget the press, and swallow the click
+  // its release would send. The listeners sit on the document because the
+  // rows may have lost their handlers by then (the mode went off).
+  const abandon = useCallback((): void => {
+    const wasDragging = press.current?.active === true
+    press.current = null
+    suppressClick.current = false
+    setDrag(null)
+    if (wasDragging) swallowReleaseClick()
+  }, [])
+
   // Leaving reorder mode in the middle of a drag drops the drag, and the press
   // behind it: the rows lose their handlers, so the release never arrives and
   // a kept press would refuse every drag the next time the mode starts.
   if (!enabled && drag !== null) setDrag(null)
   useEffect(() => {
-    if (enabled) return
-    press.current = null
-    suppressClick.current = false
-  }, [enabled])
+    if (!enabled) abandon()
+  }, [enabled, abandon])
+
+  // Esc during a drag cancels the drag, not the mode. Capture phase, so this
+  // runs before the mode's own Esc listener and marks the key as taken.
+  const dragging = drag !== null
+  useEffect(() => {
+    if (!dragging) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      abandon()
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [dragging, abandon])
 
   const itemProps = (id: T): ReorderItemProps | undefined => {
     if (!enabled) return undefined
@@ -185,4 +213,25 @@ export function useDragReorder<T extends string>({
   }
 
   return { draggingId: drag?.id ?? null, itemProps }
+}
+
+/**
+ * Stops the click that the current press sends when it is released, then
+ * steps aside. Used when a drag was abandoned: the pointer is still down, and
+ * its release must not press whatever is under it.
+ */
+function swallowReleaseClick(): void {
+  const swallow = (event: MouseEvent): void => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+  const released = (): void => {
+    document.removeEventListener('pointerup', released, true)
+    document.removeEventListener('pointercancel', released, true)
+    // The click follows the release in the same task; drop the guard after it.
+    setTimeout(() => document.removeEventListener('click', swallow, true), 0)
+  }
+  document.addEventListener('click', swallow, true)
+  document.addEventListener('pointerup', released, true)
+  document.addEventListener('pointercancel', released, true)
 }

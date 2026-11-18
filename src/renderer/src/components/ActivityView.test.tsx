@@ -20,7 +20,7 @@ import { fullFriend } from '../test-utils/friendFixture'
 import ActivityView from './ActivityView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
-const authState = vi.hoisted(() => ({ value: 'authenticated' }))
+const authState = vi.hoisted(() => ({ value: 'authenticated', pending: false }))
 vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: useFriendsMock
@@ -28,12 +28,15 @@ vi.mock('../queries/friends', async (importOriginal) => ({
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => null }))
 vi.mock('../queries/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/auth')>()),
-  useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
-    data: { platform, state: authState.value, accountId: null, displayName: null },
-    isSuccess: true,
-    isFetching: false,
-    isPending: false
-  })
+  useAuthStatus: (platform: 'vrchat' | 'chilloutvr') =>
+    authState.pending
+      ? { data: undefined, isSuccess: false, isFetching: true, isPending: true }
+      : {
+          data: { platform, state: authState.value, accountId: null, displayName: null },
+          isSuccess: true,
+          isFetching: false,
+          isPending: false
+        }
 }))
 
 // jsdom has no ResizeObserver; the segmented control's bubble hook needs one.
@@ -135,6 +138,7 @@ afterEach(() => {
   getActivityPage.mockReset()
   getActivityPage.mockImplementation(() => Promise.resolve({ entries: [], hasMore: false }))
   authState.value = 'authenticated'
+  authState.pending = false
   useFriendsStore.setState({ platformFilter: 'all' })
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
   useUiStore.setState({ activeTab: 'activity' })
@@ -270,6 +274,55 @@ describe('ActivityView', () => {
         .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') })
         .getAttribute('aria-disabled')
     ).toBe('true')
+  })
+
+  it('says it is loading, never "No activity yet", until the list was read after the sign-in check', async () => {
+    // Launch: the page read an empty list before main knew whose activity to
+    // bring back. Saved rows exist; main hands them over once it knows.
+    authState.pending = true
+    const getActivity = vi.fn(() => Promise.resolve(entries))
+    Object.defineProperty(window, 'vrx', {
+      configurable: true,
+      value: { getActivity, clearActivity, getActivityPage }
+    })
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(activityKey, [])
+    const tree = (): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <ActivityView />
+      </QueryClientProvider>
+    )
+    const view = render(tree())
+    expect(screen.getByText(msg('activity.loading'))).toBeTruthy()
+    expect(screen.queryByText(msg('activity.emptyHeading'))).toBeNull()
+    expect(getActivity).not.toHaveBeenCalled()
+
+    // The sign-in check answers: the list is read again, and the rows show.
+    authState.pending = false
+    view.rerender(tree())
+    expect(screen.queryByText(msg('activity.emptyHeading'))).toBeNull()
+    await waitFor(() => expect(rowTexts()).toHaveLength(4))
+    expect(getActivity).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows "No activity yet" once the list read after the sign-in check is empty', async () => {
+    authState.pending = true
+    Object.defineProperty(window, 'vrx', {
+      configurable: true,
+      value: { getActivity: () => Promise.resolve([]), clearActivity, getActivityPage }
+    })
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(activityKey, [])
+    const tree = (): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <ActivityView />
+      </QueryClientProvider>
+    )
+    const view = render(tree())
+    expect(screen.queryByText(msg('activity.emptyHeading'))).toBeNull()
+    authState.pending = false
+    view.rerender(tree())
+    expect(await screen.findByText(msg('activity.emptyHeading'))).toBeTruthy()
   })
 
   it('clears through main and empties the list at once', async () => {

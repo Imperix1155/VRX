@@ -739,6 +739,10 @@
       "title": "Keep activity for",
       "note": "Activity and your instance log are saved on this computer only, for each account. Picking a shorter time deletes what is older.",
       "done": "Done",
+      "askShorter": "Switching to {{choice}} deletes saved activity and instance log entries older than that. It can’t be undone.",
+      "askSession": "Switching to “Until VRX closes” deletes everything saved here, friends list history included. It can’t be undone.",
+      "askCancel": "Cancel",
+      "askConfirm": "Switch and delete",
       "options": {
         "session": "Until VRX closes",
         "30d": "30 days",
