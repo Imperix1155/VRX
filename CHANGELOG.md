@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0-dev.2] - 2026-11-18
+
 ### Added
 
 - Quick launch on the Dashboard: a slim row under the numbers with "Launch
