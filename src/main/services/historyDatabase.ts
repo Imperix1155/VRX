@@ -165,6 +165,65 @@ interface RawFriendRow {
   misses?: unknown
 }
 
+/**
+ * The writes of a job that waits between its steps: bringing VRCX's history
+ * in, a restore, a backup. What such a job checked before it waited (history
+ * is still kept, the same account is signed in) may no longer be true by the
+ * time it writes. So these writes are reachable only through
+ * `HistoryDatabase.job(holds)`, and each one asks `holds()` at the moment it
+ * runs: on a no, nothing is written and the write says so.
+ */
+export interface HistoryJobWrites {
+  /** Whether the job may still write. */
+  holds(): boolean
+  /** Many of the job's writes as one step on disk. False, and `step` never
+   *  ran, when the job no longer holds. */
+  batch(step: () => void): boolean
+  /**
+   * An earlier day a friendship is known to have begun (VRCX saw it). Only a
+   * friend already saved is touched, and only toward an earlier or first-known
+   * day. True when the day was taken.
+   */
+  importFriendSince(accountKey: string, platformUserId: string, since: number): boolean
+  /** A name a saved friend used before, unless that change is already saved.
+   *  True when it was added. */
+  importNameChange(
+    accountKey: string,
+    platformUserId: string,
+    previousName: string,
+    at: number
+  ): boolean
+  /**
+   * A stay in a room that already ended, with everyone who was there. The
+   * room and its people land together or not at all, also inside a `batch`.
+   * A stay already saved (`hasVisitNear`) is left as it is. True when the
+   * room was added.
+   */
+  importVisit(accountKey: string, visit: BroughtInVisit, people: readonly BroughtInStay[]): boolean
+  /** Write a whole copy of the history to a new file (it must not exist yet). */
+  backupTo(path: string): 'saved' | 'failed' | 'stopped'
+  /**
+   * Replace everything saved with the rows of a backup file. All of it lands
+   * or none does. The file is only read; give it a private copy, since SQLite
+   * may write beside a file it opens.
+   */
+  restoreFrom(path: string): 'restored' | 'not-a-backup' | 'newer' | 'failed' | 'stopped'
+}
+
+export interface BroughtInVisit {
+  instanceId: string
+  worldName: string | null
+  enteredAt: number
+  leftAt: number
+}
+
+export interface BroughtInStay {
+  platformUserId: string
+  displayName: string
+  joinedAt: number
+  leftAt: number
+}
+
 export class HistoryDatabase {
   private db: DatabaseSync | null = null
   private storageKind: HistoryStorage = 'memory-unavailable'
@@ -745,11 +804,33 @@ export class HistoryDatabase {
   // ── Brought in from elsewhere, backup and restore ─────────────────────────
 
   /**
-   * An earlier day a friendship is known to have begun (VRCX saw it). Only a
-   * friend already saved is touched, and only toward an earlier or first-known
-   * day. True when the day was taken.
+   * The writes of a job that waits between its steps (`HistoryJobWrites`).
+   * `holds` says whether what the job began under is still true; it is asked
+   * again at every write, with nothing awaited in between.
    */
-  importFriendSince(accountKey: string, platformUserId: string, since: number): boolean {
+  job(holds: () => boolean): HistoryJobWrites {
+    return {
+      holds,
+      batch: (step) => {
+        if (!holds()) return false
+        this.batch(step)
+        return true
+      },
+      importFriendSince: (accountKey, platformUserId, since) =>
+        holds() && this.importFriendSince(accountKey, platformUserId, since),
+      importNameChange: (accountKey, platformUserId, previousName, at) =>
+        holds() && this.importNameChange(accountKey, platformUserId, previousName, at),
+      importVisit: (accountKey, visit, people) =>
+        holds() && this.importVisit(accountKey, visit, people),
+      backupTo: (path) => {
+        if (!holds()) return 'stopped'
+        return this.backupTo(path) ? 'saved' : 'failed'
+      },
+      restoreFrom: (path) => (holds() ? this.restoreFrom(path) : 'stopped')
+    }
+  }
+
+  private importFriendSince(accountKey: string, platformUserId: string, since: number): boolean {
     return (
       this.attempt(
         () =>
@@ -763,9 +844,7 @@ export class HistoryDatabase {
     )
   }
 
-  /** A name a saved friend used before, unless that change is already saved.
-   *  True when it was added. */
-  importNameChange(
+  private importNameChange(
     accountKey: string,
     platformUserId: string,
     previousName: string,
@@ -809,21 +888,10 @@ export class HistoryDatabase {
     )
   }
 
-  /**
-   * A stay in a room that already ended, with everyone who was there. The
-   * room and its people land together or not at all, also inside a `batch`.
-   * A stay already saved (`hasVisitNear`) is left as it is. True when the
-   * room was added.
-   */
-  importVisit(
+  private importVisit(
     accountKey: string,
-    visit: { instanceId: string; worldName: string | null; enteredAt: number; leftAt: number },
-    people: ReadonlyArray<{
-      platformUserId: string
-      displayName: string
-      joinedAt: number
-      leftAt: number
-    }>
+    visit: BroughtInVisit,
+    people: readonly BroughtInStay[]
   ): boolean {
     if (this.hasVisitNear(accountKey, visit.instanceId, visit.enteredAt)) return false
     return (
@@ -876,9 +944,7 @@ export class HistoryDatabase {
     )
   }
 
-  /** Write a whole copy of the history to a new file. False when it failed
-   *  (the file must not exist yet). */
-  backupTo(path: string): boolean {
+  private backupTo(path: string): boolean {
     return (
       this.attempt(() => {
         const db = this.db
@@ -889,12 +955,7 @@ export class HistoryDatabase {
     )
   }
 
-  /**
-   * Replace everything saved with the rows of a backup file. All of it lands
-   * or none does. The file is only read; give it a private copy, since SQLite
-   * may write beside a file it opens.
-   */
-  restoreFrom(path: string): 'restored' | 'not-a-backup' | 'newer' | 'failed' {
+  private restoreFrom(path: string): 'restored' | 'not-a-backup' | 'newer' | 'failed' {
     const db = this.db
     if (db === null) return 'failed'
     try {

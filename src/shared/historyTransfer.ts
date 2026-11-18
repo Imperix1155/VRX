@@ -17,6 +17,9 @@ export type VrcxHistoryImportResult =
       visits: number
       /** VRCX held rooms older than the Keep for choice; they were left out. */
       olderSkipped: boolean
+      /** VRCX holds more than one VRChat account, and rooms it could not tie
+       *  to this one were left out. */
+      otherAccountSkipped: boolean
     }
   | {
       ok: false

@@ -28,7 +28,8 @@ beforeEach(() => {
     friendsSince: 38,
     names: 6,
     visits: 412,
-    olderSkipped: false
+    olderSkipped: false,
+    otherAccountSkipped: false
   }))
   backupHistory = vi.fn<() => Promise<HistoryBackupResult>>(async () => ({ ok: true }))
   restoreHistory = vi.fn<() => Promise<HistoryRestoreResult>>(async () => ({ ok: true }))
@@ -60,7 +61,8 @@ describe('Move your history', () => {
       friendsSince: 38,
       names: 6,
       visits: 412,
-      olderSkipped: true
+      olderSkipped: true,
+      otherAccountSkipped: false
     })
     render(<HistoryTransfer saving />)
     fireEvent.click(button('activity.transfer.importVrcx'))
@@ -72,13 +74,36 @@ describe('Move your history', () => {
     expect(importVrcxHistory).toHaveBeenCalledExactlyOnceWith()
   })
 
+  it('says when rooms were left out because VRCX holds another account too', async () => {
+    importVrcxHistory.mockResolvedValueOnce({
+      ok: true,
+      friendsSince: 38,
+      names: 6,
+      visits: 412,
+      olderSkipped: true,
+      otherAccountSkipped: true
+    })
+    render(<HistoryTransfer saving />)
+    fireEvent.click(button('activity.transfer.importVrcx'))
+    await waitFor(() =>
+      expect(result().textContent).toBe(
+        [
+          msg('activity.transfer.imported', { visits: 412, friends: 38, names: 6 }),
+          msg('activity.transfer.importedOlder'),
+          msg('activity.transfer.importedOtherAccount')
+        ].join('\n')
+      )
+    )
+  })
+
   it('says when VRCX had nothing new', async () => {
     importVrcxHistory.mockResolvedValueOnce({
       ok: true,
       friendsSince: 0,
       names: 0,
       visits: 0,
-      olderSkipped: false
+      olderSkipped: false,
+      otherAccountSkipped: false
     })
     render(<HistoryTransfer saving />)
     fireEvent.click(button('activity.transfer.importVrcx'))

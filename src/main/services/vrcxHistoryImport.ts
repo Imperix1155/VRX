@@ -13,10 +13,19 @@
  * is VRChat only.
  *
  * Bringing the same history in twice adds nothing twice.
+ *
+ * VRCX keeps one game log for every VRChat account used in it. When it holds
+ * more than one account's tables, a room is brought in only when this
+ * account's own arrival or leaving was seen in it; the rest are left out and
+ * the result says so.
+ *
+ * The run waits while the copy is made and between steps. Every write goes
+ * through `HistoryDatabase.job`, which asks again at that moment whether
+ * history is still kept and the same account is still signed in.
  */
 import { DatabaseSync } from 'node:sqlite'
 import type { VrcxHistoryImportResult } from '@shared/historyTransfer'
-import type { HistoryDatabase } from './historyDatabase'
+import type { HistoryDatabase, HistoryJobWrites } from './historyDatabase'
 
 /** The largest VRCX database read for its history. */
 export const MAX_VRCX_HISTORY_DATABASE_BYTES = 4 * 1024 ** 3
@@ -30,7 +39,7 @@ type SnapshotAnswer<T> = { ok: true; value: T } | { ok: false; reason: 'busy' | 
 
 export interface VrcxHistoryImportOptions {
   database: HistoryDatabase
-  /** Whether activity is being saved at all, read again between steps. */
+  /** Whether activity is being saved at all, read again at every write. */
   isKeeping: () => boolean
   /** The signed-in VRChat account's key (`vrchat:<id>`), or null. */
   accountKey: () => string | null
@@ -48,8 +57,15 @@ export interface VrcxHistoryImportOptions {
 }
 
 type ReadOutcome =
-  | { ok: true; friendsSince: number; names: number; visits: number; olderSkipped: boolean }
-  | { ok: false; reason: 'no-history' | 'failed' }
+  | {
+      ok: true
+      friendsSince: number
+      names: number
+      visits: number
+      olderSkipped: boolean
+      otherAccountSkipped: boolean
+    }
+  | { ok: false; reason: 'off' | 'signed-out' | 'no-history' | 'failed' }
 
 interface FoundRoom {
   enteredAt: number
@@ -76,10 +92,16 @@ export async function importVrcxHistory(
   const prefix = vrcxTablePrefix(accountKey.slice(accountKey.indexOf(':') + 1))
   if (prefix === null) return { ok: false, reason: 'signed-out' }
 
+  const writes = options.database.job(
+    () => options.isKeeping() && options.accountKey() === accountKey
+  )
   const answer = await options.readSnapshot<ReadOutcome>(async (snapshotPath) => {
+    // Making the copy took a while. What was true before it is asked again
+    // here, and by `writes` at every write after it.
+    if (!writes.holds()) return stopped(options)
     const source = new DatabaseSync(snapshotPath, { readOnly: true, timeout: 25 })
     try {
-      return await new Import(options, accountKey, prefix, source).run()
+      return await new Import(options, writes, accountKey, prefix, source).run()
     } catch {
       return { ok: false, reason: 'failed' }
     } finally {
@@ -88,6 +110,12 @@ export async function importVrcxHistory(
   }, MAX_VRCX_HISTORY_DATABASE_BYTES)
   if (!answer.ok) return { ok: false, reason: answer.reason === 'busy' ? 'busy' : 'not-found' }
   return answer.value
+}
+
+/** Why a run that may no longer write stopped. */
+function stopped(options: VrcxHistoryImportOptions): ReadOutcome {
+  if (!options.isKeeping()) return { ok: false, reason: 'off' }
+  return { ok: false, reason: options.accountKey() === null ? 'signed-out' : 'failed' }
 }
 
 /**
@@ -106,6 +134,8 @@ class Import {
 
   constructor(
     private readonly options: VrcxHistoryImportOptions,
+    /** The only way this run writes: each write asks again whether it may. */
+    private readonly writes: HistoryJobWrites,
     private readonly accountKey: string,
     private readonly prefix: string,
     private readonly source: DatabaseSync
@@ -143,21 +173,46 @@ class Import {
     if (!hasFriendLog) return { ok: false, reason: 'no-history' }
 
     const friends = await this.friendLog(friendLog)
-    if (friends === null) return { ok: false, reason: 'failed' }
+    if (friends === null) return stopped(this.options)
     let visits = 0
     let olderSkipped = false
+    let otherAccountSkipped = false
     if (hasRooms) {
       const rooms = await this.rooms()
-      if (rooms === null) return { ok: false, reason: 'failed' }
+      if (rooms === null) return stopped(this.options)
       olderSkipped = rooms.olderSkipped
-      const saved = await this.save(rooms.found, hasPeople)
-      if (saved === null) return { ok: false, reason: 'failed' }
-      visits = saved
+      // The game log is one for every account VRCX knows. With another
+      // account's tables beside this one's, a room needs proof it is ours.
+      const saved = await this.save(rooms.found, hasPeople, this.holdsAnotherAccount(friendLog))
+      if (saved === null) return stopped(this.options)
+      visits = saved.added
+      otherAccountSkipped = saved.unproven
     }
-    return { ok: true, friendsSince: friends.since, names: friends.names, visits, olderSkipped }
+    return {
+      ok: true,
+      friendsSince: friends.since,
+      names: friends.names,
+      visits,
+      olderSkipped,
+      otherAccountSkipped
+    }
   }
 
-  /** The day each friend was added, and their earlier names. */
+  /** Whether VRCX holds a friend log for an account other than this one:
+   *  it makes one the first time an account signs in there. */
+  private holdsAnotherAccount(ownFriendLog: string): boolean {
+    const other = this.source
+      .prepare(
+        `SELECT 1 AS found FROM sqlite_master
+         WHERE type = 'table' AND name LIKE '%!_friend!_log!_history' ESCAPE '!' AND name <> ?
+         LIMIT 1`
+      )
+      .get(ownFriendLog) as { found?: unknown } | undefined
+    return other?.found === 1
+  }
+
+  /** The day each friend was added, and their earlier names. Null when the
+   *  run had to stop. */
   private async friendLog(table: string): Promise<{ since: number; names: number } | null> {
     // The newest "added" row per person, unless they were removed after it.
     const added = new Map<string, number | null>()
@@ -194,20 +249,20 @@ class Import {
 
     let since = 0
     let names = 0
-    const database = this.options.database
-    database.batch(() => {
+    const writes = this.writes
+    const wrote = writes.batch(() => {
       for (const [userId, at] of added) {
-        if (at !== null && database.importFriendSince(this.accountKey, userId, at)) since += 1
+        if (at !== null && writes.importFriendSince(this.accountKey, userId, at)) since += 1
       }
       for (const rename of renames) {
         if (
-          database.importNameChange(this.accountKey, rename.userId, rename.previousName, rename.at)
+          writes.importNameChange(this.accountKey, rename.userId, rename.previousName, rename.at)
         ) {
           names += 1
         }
       }
     })
-    return { since, names }
+    return wrote ? { since, names } : null
   }
 
   /** The rooms the user was in, oldest first. Nothing is saved here. */
@@ -266,15 +321,26 @@ class Import {
    * Save the rooms, each together with who was in it, oldest first. A room
    * and its people land in one step on disk or not at all, so a run that
    * stops part way leaves only whole rooms and the next run adds the rest.
-   * Returns how many rooms were added, or null when the run had to stop.
+   *
+   * With `needProof`, a room is saved only when this account's own arrival or
+   * leaving was read in it; `unproven` says some were left out for that.
+   * Returns null when the run had to stop.
    */
-  private async save(rooms: readonly FoundRoom[], withPeople: boolean): Promise<number | null> {
+  private async save(
+    rooms: readonly FoundRoom[],
+    withPeople: boolean,
+    needProof: boolean
+  ): Promise<{ added: number; unproven: boolean } | null> {
     const database = this.options.database
+    const writes = this.writes
     let added = 0
+    let unproven = false
     /** Every room before this one is settled: saved, or already there. */
     let settled = 0
     /** The room whose people are being read; it is always `settled`. */
     let open: FoundRoom | null = null
+    /** Whether this account was seen in the open room. */
+    let proven = false
     let lastSeen = 0
     const stays: Stay[] = []
     const present = new Map<string, { joinedAt: number; displayName: string }>()
@@ -289,7 +355,7 @@ class Import {
           stays.push({ platformUserId, ...stay, leftAt: end })
         }
       }
-      const saved = database.importVisit(
+      const saved = writes.importVisit(
         this.accountKey,
         {
           instanceId: room.instanceId,
@@ -307,12 +373,15 @@ class Import {
         const room = rooms[settled]
         if (room === undefined) continue
         if (room === open) {
-          write(room, true)
+          if (proven || !needProof) write(room, true)
+          else unproven = true
           open = null
           stays.length = 0
           present.clear()
         } else if (!isKnown(room)) {
-          write(room, false)
+          // No one was read in this room, so nothing says whose it was.
+          if (needProof) unproven = true
+          else write(room, false)
         }
       }
     }
@@ -336,13 +405,12 @@ class Import {
 
       for (;;) {
         const rows = read.all(after, from, CHUNK_ROWS) as Array<Record<string, unknown>>
-        database.batch(() => {
+        const wrote = writes.batch(() => {
           for (const row of rows) {
             if (typeof row.id === 'number') after = row.id
             const at = readTime(row.created_at)
             const userId = row.user_id
             if (at === null || typeof userId !== 'string') continue
-            if (userId.toLowerCase() === this.ownId) continue
             const index = roomAt(rooms, at)
             const room = rooms[index]
             // A row for a room already settled came too late to count.
@@ -359,7 +427,13 @@ class Import {
                 continue
               }
               open = room
+              proven = false
               lastSeen = room.enteredAt
+            }
+            // The user's own row is no meeting: it says the room is theirs.
+            if (userId.toLowerCase() === this.ownId) {
+              proven = true
+              continue
             }
             lastSeen = Math.max(lastSeen, at)
             const displayName = typeof row.display_name === 'string' ? row.display_name : ''
@@ -382,6 +456,7 @@ class Import {
             })
           }
         })
+        if (!wrote) return null
         if (rows.length < CHUNK_ROWS) break
         if (!(await this.next())) return null
       }
@@ -390,11 +465,13 @@ class Import {
     // The rooms after the last person seen, and every room when VRCX kept no
     // record of people.
     for (;;) {
-      database.batch(() => settleBefore(Math.min(settled + CHUNK_ROWS, rooms.length)))
+      if (!writes.batch(() => settleBefore(Math.min(settled + CHUNK_ROWS, rooms.length)))) {
+        return null
+      }
       if (settled >= rooms.length) break
       if (!(await this.next())) return null
     }
-    return added
+    return { added, unproven }
   }
 
   /** Whether a table exists as a plain table with these columns. */
@@ -420,7 +497,7 @@ class Import {
    *  still signed in and still keeping history. */
   private async next(): Promise<boolean> {
     await (this.options.pause?.() ?? Promise.resolve())
-    return this.options.isKeeping() && this.options.accountKey() === this.accountKey
+    return this.writes.holds()
   }
 }
 
