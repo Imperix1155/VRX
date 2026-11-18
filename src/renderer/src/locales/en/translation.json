@@ -776,6 +776,7 @@
       "imported": "Brought in from VRCX. Rooms: {{visits}} · Friends since: {{friends}} · Earlier names: {{names}}",
       "importedNothing": "VRCX had nothing new to bring in.",
       "importedOlder": "Rooms older than the time picked above were left out.",
+      "importedOtherAccount": "Rooms that may belong to another VRChat account were left out.",
       "importSignedOut": "Sign in to VRChat first.",
       "importBusy": "VRCX is open. Close it and try again.",
       "importNotFound": "No VRCX history was found on this computer.",

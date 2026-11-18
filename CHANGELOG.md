@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0-beta.3] - 2026-11-18
+
+The third beta of 1.5.0. It adds two fixes to "Bring in from VRCX" on top
+of 1.5.0-beta.2.
+
+### Fixed
+
+- "Bring in from VRCX" saves nothing if you turn saved activity off, sign
+  out of VRChat or switch accounts while it is still reading VRCX's file.
+  Before, a small import could still finish and say it worked. "Back up…"
+  and "Restore…" check the same way right before they write.
+- "Bring in from VRCX" keeps each VRChat account's instances apart. If you
+  used more than one VRChat account in VRCX, only the instances this
+  account was seen in are brought in, and the result says when some were
+  left out. With one account in VRCX, everything is brought in as before.
+
+## [1.5.0-dev.4] - 2026-11-18
+
+### Fixed
+
+- "Bring in from VRCX" saves nothing if you turn saved activity off, sign
+  out of VRChat or switch accounts while it is still reading VRCX's file.
+  Before, a small import could still finish and say it worked. "Back up…"
+  and "Restore…" check the same way right before they write.
+- "Bring in from VRCX" keeps each VRChat account's instances apart. If you
+  used more than one VRChat account in VRCX, only the instances this
+  account was seen in are brought in, and the result says when some were
+  left out. With one account in VRCX, everything is brought in as before.
+
 ## [1.5.0-beta.2] - 2026-11-18
 
 The second beta of 1.5.0. It adds a polish pass on top of 1.5.0-beta.1.

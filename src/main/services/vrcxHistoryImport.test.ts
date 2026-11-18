@@ -215,7 +215,14 @@ describe('importVrcxHistory', () => {
     person('OnPlayerJoined', '', 'Nameless', T0 + 2 * MINUTE)
 
     const result = await importVrcxHistory(options())
-    expect(result).toEqual({ ok: true, friendsSince: 0, names: 0, visits: 1, olderSkipped: false })
+    expect(result).toEqual({
+      ok: true,
+      friendsSince: 0,
+      names: 0,
+      visits: 1,
+      olderSkipped: false,
+      otherAccountSkipped: false
+    })
     const [visit] = visits()
     expect(visit).toMatchObject({
       worldName: 'The Room',
@@ -366,6 +373,174 @@ describe('importVrcxHistory', () => {
     expect(visits()).toHaveLength(2)
   })
 
+  describe('when something changes while the copy of VRCX is made', () => {
+    /** A small VRCX file: one step each, so nothing waits once the read begins. */
+    function small(): void {
+      friend('usr_a', 'Alice', T0 + 90 * MINUTE)
+      friendLogRow('Friend', 'usr_a', T0)
+      friendLogRow('DisplayName', 'usr_a', T0 - MINUTE, { now: 'Alice', before: 'Al' })
+      room(ROOM, T0, 30 * MINUTE)
+      person('OnPlayerJoined', 'usr_a', 'Alice', T0 + MINUTE)
+    }
+    /** The copy takes a while, and `change` happens during it. */
+    function whileCopying(change: () => void): Partial<VrcxHistoryImportOptions> {
+      return {
+        readSnapshot: async (read) => {
+          change()
+          vrcx.close()
+          try {
+            return { ok: true, value: await read(vrcxPath) }
+          } finally {
+            vrcx = new DatabaseSync(vrcxPath)
+          }
+        }
+      }
+    }
+    function expectNothingSaved(key = KEY): void {
+      expect(database.savedFriend(KEY, 'usr_a')).toMatchObject({ sinceKnown: false })
+      expect(database.nameChanges(KEY, 'usr_a', 10)).toEqual([])
+      expect(
+        database.pageVisits({ accounts: [{ accountKey: key, before: null }], limit: 10 })
+      ).toEqual([])
+    }
+
+    it('saves nothing once history is no longer kept', async () => {
+      small()
+      const result = await importVrcxHistory(options(whileCopying(() => (keeping = false))))
+      expect(result).toEqual({ ok: false, reason: 'off' })
+      expectNothingSaved()
+    })
+
+    it('saves nothing once the account signed out', async () => {
+      small()
+      const result = await importVrcxHistory(options(whileCopying(() => (accountKey = null))))
+      expect(result).toEqual({ ok: false, reason: 'signed-out' })
+      expectNothingSaved()
+    })
+
+    it('saves nothing under either account once another one signed in', async () => {
+      small()
+      const other = 'vrchat:usr_other'
+      const result = await importVrcxHistory(options(whileCopying(() => (accountKey = other))))
+      expect(result).toEqual({ ok: false, reason: 'failed' })
+      expectNothingSaved()
+      expectNothingSaved(other)
+    })
+  })
+
+  it('asks again before the rooms of a small import are saved', async () => {
+    friend('usr_a', 'Alice', T0 + 90 * MINUTE)
+    friendLogRow('Friend', 'usr_a', T0)
+    room(ROOM, T0, 30 * MINUTE)
+    person('OnPlayerJoined', 'usr_a', 'Alice', T0 + MINUTE)
+    // History stops being kept after the friend log landed, with no pause
+    // between the two: the rooms are read right after.
+    const result = await importVrcxHistory(
+      options({
+        keepCutoff: () => {
+          keeping = false
+          return null
+        }
+      })
+    )
+    expect(result).toEqual({ ok: false, reason: 'off' })
+    expect(visits()).toEqual([])
+  })
+
+  describe('when VRCX holds more than one VRChat account', () => {
+    const OTHER = 'usr_99999999-8888-7777-6666-555555555555'
+    const THEIRS = 'wrld_bbbb:1'
+    const UNSEEN = 'wrld_cccc:1'
+
+    beforeEach(() => {
+      vrcx.exec(
+        `CREATE TABLE ${vrcxTablePrefix(OTHER)}_friend_log_history (id INTEGER PRIMARY KEY, created_at TEXT, type TEXT, user_id TEXT, display_name TEXT, previous_display_name TEXT)`
+      )
+    })
+
+    it('brings in only the rooms this account was seen in, and says so', async () => {
+      room(ROOM, T0, 30 * MINUTE, 'Mine')
+      person('OnPlayerJoined', ME, 'Me', T0)
+      person('OnPlayerJoined', 'usr_a', 'Alice', T0 + MINUTE)
+      // The other account's evening: its own arrival, never this one's.
+      room(THEIRS, T0 + 60 * MINUTE, 30 * MINUTE, 'Theirs')
+      person('OnPlayerJoined', OTHER, 'Other me', T0 + 60 * MINUTE, 0, THEIRS)
+      person('OnPlayerJoined', 'usr_b', 'Bo', T0 + 61 * MINUTE, 0, THEIRS)
+      // No one was read here at all: nothing says whose room it was.
+      room(UNSEEN, T0 + 120 * MINUTE, 5 * MINUTE, 'Unseen')
+
+      const result = await importVrcxHistory(options())
+      expect(result).toMatchObject({ ok: true, visits: 1, otherAccountSkipped: true })
+      expect(visits().map((visit) => [visit.worldName, visit.people])).toEqual([['Mine', 1]])
+      expect(database.metFacts(KEY, 'usr_a')).toMatchObject({ times: 1 })
+      expect(database.metFacts(KEY, 'usr_b')).toBeNull()
+      expect(database.metFacts(KEY, OTHER)).toBeNull()
+    })
+
+    it('files each account its own rooms', async () => {
+      const otherKey = `vrchat:${OTHER}`
+      room(ROOM, T0, 30 * MINUTE, 'Mine')
+      person('OnPlayerJoined', ME, 'Me', T0)
+      room(THEIRS, T0 + 60 * MINUTE, 30 * MINUTE, 'Theirs')
+      person('OnPlayerJoined', OTHER, 'Other me', T0 + 60 * MINUTE, 0, THEIRS)
+
+      await importVrcxHistory(options())
+      accountKey = otherKey
+      await importVrcxHistory(options())
+      const savedFor = (key: string): Array<string | null> =>
+        database
+          .pageVisits({ accounts: [{ accountKey: key, before: null }], limit: 10 })
+          .map((visit) => visit.worldName)
+      expect(savedFor(KEY)).toEqual(['Mine'])
+      expect(savedFor(otherKey)).toEqual(['Theirs'])
+    })
+
+    it('takes this account leaving as proof too, and counts it as no meeting', async () => {
+      room(ROOM, T0, 0, 'Mine')
+      person('OnPlayerJoined', 'usr_a', 'Alice', T0 + MINUTE)
+      person('OnPlayerLeft', ME.toUpperCase(), 'Me', T0 + 20 * MINUTE)
+
+      const result = await importVrcxHistory(options())
+      expect(result).toMatchObject({ ok: true, visits: 1, otherAccountSkipped: false })
+      const [visit] = visits()
+      expect(visit).toMatchObject({ worldName: 'Mine', people: 1 })
+      expect(database.metFacts(KEY, ME)).toBeNull()
+    })
+
+    it('does not count a row from another room or another time as proof', async () => {
+      room(ROOM, T0, 10 * MINUTE, 'Not mine')
+      // Named for a different room, and after this one ended.
+      person('OnPlayerJoined', ME, 'Me', T0 + MINUTE, 0, THEIRS)
+      person('OnPlayerJoined', ME, 'Me', T0 + 30 * MINUTE)
+
+      const result = await importVrcxHistory(options())
+      expect(result).toMatchObject({ ok: true, visits: 0, otherAccountSkipped: true })
+      expect(visits()).toEqual([])
+    })
+
+    it('says nothing was left out when the only unproven room is one VRX saved itself', async () => {
+      room(UNSEEN, T0, 5 * MINUTE, 'Seen by VRX')
+      database.openVisit(KEY, {
+        instanceId: UNSEEN,
+        worldName: 'Seen by VRX',
+        enteredAt: T0 + 2_000
+      })
+
+      const result = await importVrcxHistory(options())
+      expect(result).toMatchObject({ ok: true, visits: 0, otherAccountSkipped: false })
+      expect(visits()).toHaveLength(1)
+    })
+  })
+
+  it('brings in rooms no one was read in while VRCX holds one account only', async () => {
+    room(ROOM, T0, 5 * MINUTE, 'Alone')
+    await expect(importVrcxHistory(options())).resolves.toMatchObject({
+      ok: true,
+      visits: 1,
+      otherAccountSkipped: false
+    })
+  })
+
   it('reads only tables shaped the way VRCX writes them', async () => {
     room(ROOM, T0, MINUTE)
     vrcx.exec('DROP TABLE gamelog_join_leave')
@@ -376,7 +551,8 @@ describe('importVrcxHistory', () => {
       friendsSince: 0,
       names: 0,
       visits: 0,
-      olderSkipped: false
+      olderSkipped: false,
+      otherAccountSkipped: false
     })
 
     vrcx.exec(`DROP TABLE ${PREFIX}_friend_log_history`)

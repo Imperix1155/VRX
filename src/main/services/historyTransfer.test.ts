@@ -152,6 +152,38 @@ describe('history backup and restore', () => {
     expect(existsSync(join(dir, 'b.sqlite3'))).toBe(false)
   })
 
+  it('writes no backup once history stopped being kept while it waited', async () => {
+    const source = database('old-pc')
+    fill(source)
+    const backup = join(dir, 'b.sqlite3')
+    const options = transfer(source)
+    // The setting changes after the first check, before the copy is written.
+    options.workDirectory = () => {
+      keeping = false
+      return work
+    }
+    await expect(backUpHistory(options, backup)).resolves.toEqual({ ok: false, reason: 'off' })
+    expect(existsSync(backup)).toBe(false)
+    expect(readdirSync(work)).toEqual([])
+  })
+
+  it('restores nothing once history stopped being kept while it waited', async () => {
+    const oldPc = database('old-pc')
+    fill(oldPc)
+    const backup = join(dir, 'backup.sqlite3')
+    await expect(backUpHistory(transfer(oldPc), backup)).resolves.toEqual({ ok: true })
+
+    const target = database('pc')
+    const options = transfer(target)
+    options.workDirectory = () => {
+      keeping = false
+      return work
+    }
+    await expect(restoreHistory(options, backup)).resolves.toEqual({ ok: false, reason: 'off' })
+    expect(options.afterRestore).not.toHaveBeenCalled()
+    expect(target.recentActivity(VRC, 10)).toEqual([])
+  })
+
   it('refuses a file that is not a backup and keeps what is saved', async () => {
     const target = database('pc')
     fill(target)

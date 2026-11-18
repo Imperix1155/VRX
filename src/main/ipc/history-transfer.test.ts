@@ -31,7 +31,8 @@ function setup(overrides: Partial<HistoryTransferHandlerOptions> = {}): {
         friendsSince: 1,
         names: 2,
         visits: 3,
-        olderSkipped: false
+        olderSkipped: false,
+        otherAccountSkipped: false
       })
     ),
     isKeeping: () => true,
@@ -69,7 +70,8 @@ describe('history transfer handlers', () => {
       friendsSince: 1,
       names: 2,
       visits: 3,
-      olderSkipped: false
+      olderSkipped: false,
+      otherAccountSkipped: false
     })
   })
 

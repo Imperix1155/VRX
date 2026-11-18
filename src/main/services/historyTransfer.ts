@@ -11,7 +11,7 @@
 import { copyFile, mkdtemp, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { HistoryBackupResult, HistoryRestoreResult } from '@shared/historyTransfer'
-import type { HistoryDatabase } from './historyDatabase'
+import type { HistoryDatabase, HistoryJobWrites } from './historyDatabase'
 
 /** The largest file a restore reads. */
 export const MAX_HISTORY_BACKUP_BYTES = 4 * 1024 ** 3
@@ -26,6 +26,12 @@ export interface HistoryTransferOptions {
   workDirectory: () => string
   /** Everything in memory starts over from the restored rows. */
   afterRestore: () => void
+}
+
+/** The database's writes, each made only while history is still kept in the
+ *  file. */
+function writes(options: HistoryTransferOptions): HistoryJobWrites {
+  return options.database.job(() => options.isKeeping() && options.database.storage === 'file')
 }
 
 /** The name a backup is offered under: `vrx-history-2026-11-15.sqlite3`. */
@@ -47,7 +53,9 @@ export async function backUpHistory(
   try {
     work = await mkdtemp(join(options.workDirectory(), 'vrx-history-'))
     const copy = join(work, WORK_FILE)
-    if (!options.database.backupTo(copy)) return { ok: false, reason: 'failed' }
+    // Asked again at the write: the setting may have changed while waiting.
+    const saved = writes(options).backupTo(copy)
+    if (saved !== 'saved') return { ok: false, reason: saved === 'stopped' ? 'off' : 'failed' }
     await copyFile(copy, targetPath)
     return { ok: true }
   } catch {
@@ -74,9 +82,10 @@ export async function restoreHistory(
     work = await mkdtemp(join(options.workDirectory(), 'vrx-history-'))
     const copy = join(work, WORK_FILE)
     await copyFile(sourcePath, copy)
-    // The setting may have changed while the file was being copied.
-    if (!options.isKeeping()) return { ok: false, reason: 'off' }
-    const outcome = options.database.restoreFrom(copy)
+    // Asked again at the write: the setting may have changed while the file
+    // was being copied.
+    const outcome = writes(options).restoreFrom(copy)
+    if (outcome === 'stopped') return { ok: false, reason: 'off' }
     if (outcome !== 'restored') return { ok: false, reason: outcome }
     options.afterRestore()
     return { ok: true }

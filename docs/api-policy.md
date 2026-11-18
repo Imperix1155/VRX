@@ -635,6 +635,16 @@ in it is sent anywhere, and none of it costs a request:
   year, or forever. Turning the Activity page off deletes all saved history.
 - The file never leaves the computer except as a backup the user saves
   themselves.
+- History is saved only under the account it belongs to. VRChat's log and
+  VRCX's game log can hold more than one account's rooms: a room is saved
+  for an account only when the log names that account as signed in, or the
+  account's own arrival in the room is read. A VRCX database that holds one
+  account only is brought in whole.
+- A job that waits (bringing VRCX's history in, a restore, a backup) asks
+  again at each write whether history is still kept and the same account is
+  still signed in. The database offers those writes only with that check
+  (`HistoryDatabase.job`), so a check made before a wait is never the last
+  one.
 
 ## Cancellation across sessions
 
