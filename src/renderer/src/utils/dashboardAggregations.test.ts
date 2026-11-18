@@ -826,4 +826,20 @@ describe('dashboardBlocks', () => {
       'popular'
     ])
   })
+
+  it('gives Quick launch a row of its own, splitting a glance row it sits inside', () => {
+    expect(dashboardBlocks(['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'])).toEqual([
+      'quick-launch',
+      ['wearing-now', 'invites'],
+      'popular',
+      'hot'
+    ])
+    expect(dashboardBlocks(['wearing-now', 'quick-launch', 'invites', 'popular', 'hot'])).toEqual([
+      ['wearing-now'],
+      'quick-launch',
+      ['invites'],
+      'popular',
+      'hot'
+    ])
+  })
 })

@@ -70,7 +70,7 @@ export function guideDashboardSections(variant: string | null): {
 } {
   const sections: DashboardSection[] =
     variant === 'reordered'
-      ? ['popular', 'wearing-now', 'hot', 'invites']
+      ? ['popular', 'quick-launch', 'wearing-now', 'hot', 'invites']
       : dashboardSectionsFromOrder(variant === 'hot-first' ? 'hot-first' : 'popular-first')
   return { dashboardSections: sections, dashboardSectionOrder: dashboardSectionOrderOf(sections) }
 }

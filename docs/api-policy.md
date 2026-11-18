@@ -50,6 +50,10 @@ It launches
 the game through local URL schemes, or, when the game is already open, hands
 the Join to that copy (see
 [Joining a game that is already open](#joining-a-game-that-is-already-open)).
+The Dashboard's Quick launch buttons start a game without joining anyone:
+main opens Steam's own link for that game (`steam://rungameid/<app id>`), as
+Play in Steam does, and leaves a game that is already open alone. That is
+local too: neither platform is asked anything.
 When the user presses **Set as home world** on a world sheet and confirms, it
 makes that world their home (see [Home world limits](#home-world-limits)).
 When the user presses **Like** or **Dislike** on a VRChat world sheet, it
@@ -577,6 +581,7 @@ Main also rate-limits the renderer's requests before any network work starts.
 | Roster request           | 12 per 30 seconds                                                                                                                        |
 | Join a friend's instance | 20 per minute; one launch per platform at a time; 3 s cooldown per friend and destination; this also covers the hand-off to an open game |
 | VRChat self-invite       | 20 per minute; one at a time; 3 s cooldown                                                                                               |
+| Quick launch             | 20 per minute; shares the one-launch-per-platform lock with Join; one start per platform per 20 s; no platform request                   |
 | Avatar list              | 30 per minute; concurrent reads share one run                                                                                            |
 | Avatar details           | 60 per minute                                                                                                                            |
 | Avatar switch            | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |

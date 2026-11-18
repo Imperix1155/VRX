@@ -307,14 +307,17 @@ export function pickOnePerPlatform<T extends { platform: Platform }>(
 /** The small Dashboard sections that share a glance row. */
 export type GlanceSection = Extract<DashboardSection, 'wearing-now' | 'invites'>
 
-/** The Dashboard's blocks in order: Popular now and Hot Instances alone, and
- *  each run of neighbouring glance sections as one shared row. */
+/** A Dashboard section that always takes a row of its own. */
+export type SoloSection = Exclude<DashboardSection, GlanceSection>
+
+/** The Dashboard's blocks in order: Quick launch, Popular now and Hot Instances
+ *  alone, and each run of neighbouring glance sections as one shared row. */
 export function dashboardBlocks(
   sections: readonly DashboardSection[]
-): Array<'popular' | 'hot' | GlanceSection[]> {
-  const blocks: Array<'popular' | 'hot' | GlanceSection[]> = []
+): Array<SoloSection | GlanceSection[]> {
+  const blocks: Array<SoloSection | GlanceSection[]> = []
   for (const section of sections) {
-    if (section === 'popular' || section === 'hot') {
+    if (section !== 'wearing-now' && section !== 'invites') {
       blocks.push(section)
       continue
     }

@@ -270,8 +270,15 @@ export const DASHBOARD_SECTION_ORDERS = ['popular-first', 'hot-first'] as const
 export type DashboardSectionOrder = (typeof DASHBOARD_SECTION_ORDERS)[number]
 
 /** Every Dashboard section below the numbers, in the DEFAULT display order
- *  (owner, 2026-10-27). The user can move each one in Settings → Dashboard. */
-export const DASHBOARD_SECTIONS = ['wearing-now', 'invites', 'popular', 'hot'] as const
+ *  (owner, 2026-10-27; Quick launch first, owner, 2026-11-18). The user can
+ *  move each one in Settings → Dashboard. */
+export const DASHBOARD_SECTIONS = [
+  'quick-launch',
+  'wearing-now',
+  'invites',
+  'popular',
+  'hot'
+] as const
 export type DashboardSection = (typeof DASHBOARD_SECTIONS)[number]
 
 /** Every section once: known ones in the given order, missing ones appended. */
@@ -290,8 +297,8 @@ export function normalizeDashboardSections(value: readonly unknown[]): Dashboard
 /** The section list that matches an older Popular now / Hot Instances order. */
 export function dashboardSectionsFromOrder(order: DashboardSectionOrder): DashboardSection[] {
   return order === 'hot-first'
-    ? ['wearing-now', 'invites', 'hot', 'popular']
-    : ['wearing-now', 'invites', 'popular', 'hot']
+    ? ['quick-launch', 'wearing-now', 'invites', 'hot', 'popular']
+    : ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot']
 }
 
 /** Which of Popular now and Hot Instances comes first in a section list. */

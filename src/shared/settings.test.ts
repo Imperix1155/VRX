@@ -29,7 +29,8 @@ describe('settings schema', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -315,7 +316,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -380,7 +382,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -446,7 +449,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -514,7 +518,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -580,7 +585,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -647,7 +653,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -1104,7 +1111,7 @@ describe('Dashboard glance settings', () => {
 describe('Dashboard sections', () => {
   it('takes the order from the older Popular now / Hot Instances choice', () => {
     expect(parseSettings({ version: 20, dashboardSectionOrder: 'hot-first' })).toMatchObject({
-      dashboardSections: ['wearing-now', 'invites', 'hot', 'popular'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'hot', 'popular'],
       dashboardSectionOrder: 'hot-first'
     })
     expect(parseSettings({ version: 20 }).dashboardSections).toEqual([...DASHBOARD_SECTIONS])
@@ -1115,15 +1122,65 @@ describe('Dashboard sections', () => {
       dashboardSections: ['hot', 'invites', 'popular', 'wearing-now'],
       dashboardSectionOrder: 'popular-first'
     })
-    expect(parsed.dashboardSections).toEqual(['hot', 'invites', 'popular', 'wearing-now'])
+    expect(parsed.dashboardSections).toEqual([
+      'hot',
+      'invites',
+      'popular',
+      'wearing-now',
+      'quick-launch'
+    ])
     expect(parsed.dashboardSectionOrder).toBe('hot-first')
+  })
+
+  it('puts Quick launch on top of an order saved before it existed (v30 → v31)', () => {
+    const saved = parseSettings({
+      version: 30,
+      dashboardSections: ['hot', 'invites', 'popular', 'wearing-now']
+    })
+    expect(saved.version).toBe(SETTINGS_VERSION)
+    expect(saved.dashboardSections).toEqual([
+      'quick-launch',
+      'hot',
+      'invites',
+      'popular',
+      'wearing-now'
+    ])
+    expect(saved.dashboardSectionOrder).toBe('hot-first')
+    expect(saved.dashboardQuickLaunch).toBe(true)
+    // A list that already has it keeps the user's place for it.
+    expect(
+      parseSettings({
+        version: 30,
+        dashboardSections: ['popular', 'quick-launch', 'hot', 'invites', 'wearing-now']
+      }).dashboardSections
+    ).toEqual(['popular', 'quick-launch', 'hot', 'invites', 'wearing-now'])
+    // A damaged list still falls back to the default order.
+    expect(parseSettings({ version: 30, dashboardSections: 'popular' }).dashboardSections).toEqual([
+      ...DASHBOARD_SECTIONS
+    ])
+  })
+
+  it('keeps Quick launch off, and its place, when an older build opens the file', () => {
+    let disk: Record<string, unknown> = {
+      version: SETTINGS_VERSION,
+      dashboardQuickLaunch: false,
+      dashboardSections: ['wearing-now', 'quick-launch', 'invites', 'popular', 'hot']
+    }
+    const oldNormalized = { ...disk, version: 30 }
+    Reflect.deleteProperty(oldNormalized, 'dashboardQuickLaunch')
+    if (shouldPersistSettings(disk, 30)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      dashboardQuickLaunch: false,
+      dashboardSections: ['wearing-now', 'quick-launch', 'invites', 'popular', 'hot']
+    })
   })
 
   it('drops unknown and repeated entries and appends missing ones', () => {
     expect(
       parseSettings({ dashboardSections: ['popular', 'nope', 7, 'popular', 'invites'] })
         .dashboardSections
-    ).toEqual(['popular', 'invites', 'wearing-now', 'hot'])
+    ).toEqual(['popular', 'invites', 'quick-launch', 'wearing-now', 'hot'])
     expect(parseSettings({ dashboardSections: 'popular' }).dashboardSections).toEqual([
       ...DASHBOARD_SECTIONS
     ])

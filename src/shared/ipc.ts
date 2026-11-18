@@ -129,6 +129,15 @@ export type DataExportResult =
       reason: 'cancelled' | 'signed-out' | 'not-ready' | 'stale' | 'save-failed' | 'rate-limited'
     }
 
+/**
+ * Quick launch's answer. `started`: the game was asked to start. `starting`: it
+ * was asked moments ago, so nothing more was opened. `already-open`: the game
+ * is running and was left alone.
+ */
+export type GameLaunchResult =
+  | { ok: true; state: 'started' | 'starting' | 'already-open' }
+  | { ok: false; reason: 'launch-failed' | 'cooldown' | 'rate-limited' }
+
 export type InstanceActionResult =
   | {
       ok: true
@@ -300,6 +309,8 @@ export interface IpcInvoke {
   /** What a Join on this platform would do right now, for the dialog's copy.
    *  Main decides again when the Join happens. */
   'get-join-handoff': { req: { platform: Platform }; res: JoinHandoff }
+  /** Quick launch: start the game without joining anyone. Main owns the link. */
+  'launch-game': { req: { platform: Platform }; res: GameLaunchResult }
   'get-app-status': { req: void; res: AppStatus }
   /** What the operating system's startup list says now, for Settings to show
    *  when the Start with your computer choice could not be applied. */

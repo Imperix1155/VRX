@@ -95,7 +95,21 @@ every parent asks for a fixed release itself; then remove it.
 
 [`scripts/audit-policy.mjs`](scripts/audit-policy.mjs) fails CI on any high or
 critical advisory, including production findings, and on a malformed audit
-report. No advisory is excluded, and no branch protection or release approval
-is waived. An exception is allowed only for a development-only advisory with
-no fixed release; [Development](docs/DEVELOPMENT.md#dependency-and-security-changes)
-has the rule.
+report. No branch protection or release approval is waived. An exception is
+allowed only for a development-only advisory with no fixed release;
+[Development](docs/DEVELOPMENT.md#dependency-and-security-changes) has the
+rule.
+
+There is one exception, in `auditExceptions` in that script:
+
+| Package     | Advisory              | Recorded   | Review by  |
+| ----------- | --------------------- | ---------- | ---------- |
+| `picomatch` | `GHSA-fc5q-39xc-vjpf` | 2026-11-18 | 2026-12-18 |
+
+`picomatch` comes in through the build and test tools only. `npm audit
+--omit=dev` reports nothing, so it is not part of the installed app, and no
+fixed release existed when the exception was recorded. It covers that one
+package and advisory at high severity and nothing else. After the review date
+the advisory blocks CI again. Then, or as soon as a fixed release ships, update
+the dependency and delete the entry and this table row; move the date only
+after checking again that both conditions still hold.

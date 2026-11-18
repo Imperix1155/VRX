@@ -116,6 +116,10 @@ vi.mock('./launch', () => ({
     electron.ipcMain.handle('open-bug-report', () => undefined)
   }
 }))
+vi.mock('./game-launch', () => ({
+  registerGameLaunchHandlers: () =>
+    electron.ipcMain.handle('launch-game', () => ({ ok: true, state: 'started' }))
+}))
 vi.mock('./app-background', () => ({
   registerAppBackgroundHandlers: () => {
     electron.ipcMain.handle('get-app-background', () => null)
@@ -216,6 +220,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'join-explore-room',
   'join-instance',
   'join-invite',
+  'launch-game',
   'login',
   'logout',
   'open-bug-report',
@@ -272,6 +277,7 @@ function options(): IpcHandlerOptions {
     inbox: {} as IpcHandlerOptions['inbox'],
     friendActions: {} as IpcHandlerOptions['friendActions'],
     vrOverlayAlerts: { test: async () => undefined },
+    gameLauncher: { start: async () => ({ ok: true, state: 'started' }) },
     explore: {
       setActive: vi.fn(),
       getSnapshot: vi.fn(),

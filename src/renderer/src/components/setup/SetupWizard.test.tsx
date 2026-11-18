@@ -233,10 +233,11 @@ describe('SetupWizard', () => {
     fireEvent.click(button('setup.continue'))
     const summary = screen.getByRole('heading', { name: msg('setup.done.title') }).parentElement
       ?.parentElement as HTMLElement
-    // Hot Instances is off, so the Dashboard shows the other three, in order.
+    // Hot Instances is off, so the Dashboard shows the others, in order.
     expect(
       within(summary).getByText(
         [
+          msg('settings.dashboard.quickLaunch.label'),
           msg('settings.dashboard.wearingNow.label'),
           msg('settings.dashboard.invites.label'),
           msg('settings.dashboard.popular.label')

@@ -283,7 +283,7 @@
     },
     "hotThreshold": {
       "label": "Hot instance threshold",
-      "description": "Minimum friends in one instance before it counts as hot. Used by the Dashboard, the Hot Instances page and alerts.",
+      "description": "Minimum friends in one instance to count as hot, for alerts too.",
       "aria": "Hot instance threshold"
     },
     "allowJoinInstances": {
@@ -505,6 +505,9 @@
       "hot": {
         "label": "Hot Instances"
       },
+      "quickLaunch": {
+        "label": "Quick launch"
+      },
       "wearingNow": {
         "label": "Wearing now"
       },
@@ -513,7 +516,7 @@
       },
       "playersOnline": {
         "label": "Player counts",
-        "description": "How many people are playing each platform, under your friend count at the top."
+        "description": "How many people are playing each platform, under your friend count."
       }
     },
     "persistence": {
@@ -1005,6 +1008,14 @@
       "inviteAria": "{{name}}, {{platform}}: {{action}}, {{age}}. Open Inbox",
       "seeAllInvitesAria_one": "See {{count}} invite in the Inbox",
       "seeAllInvitesAria_other": "See all {{count}} invites in the Inbox"
+    },
+    "quickLaunch": {
+      "heading": "Quick launch",
+      "launch": "Launch {{platform}}",
+      "starting": "Starting {{platform}}…",
+      "alreadyOpen": "{{platform}} is already open",
+      "failed": "Couldn't start {{platform}}. VRX starts it through Steam, so check that Steam and the game are installed.",
+      "busy": "{{platform}} is busy with a Join. Try again in a moment."
     }
   },
   "login": {

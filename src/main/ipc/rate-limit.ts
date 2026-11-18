@@ -84,6 +84,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'self-invite': { max: 20, windowMs: 60_000 },
   // Read once per join dialog open; the answer is a cached local process check.
   'get-join-handoff': { max: 60, windowMs: 60_000 },
+  // A human press on Quick launch; main opens at most one start per 20 s.
+  'launch-game': { max: 20, windowMs: 60_000 },
   // The 7.5s status poll runs eight times/minute; this is a 3x allowance.
   'get-app-status': { max: 24, windowMs: 60_000 },
   // Read when Settings opens Behavior and after its startup choice is saved.
@@ -171,6 +173,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-explore-room':
     case 'join-invite':
     case 'self-invite':
+    case 'launch-game':
     case 'switch-avatar':
     case 'answer-friend-request':
     case 'send-friend-request':

@@ -904,6 +904,7 @@ describe('Settings dependency cards', () => {
         .getAllByRole('listitem')
         .map((row) => row.querySelector('p')?.textContent ?? '')
     expect(names()).toEqual([
+      msg('settings.dashboard.quickLaunch.label'),
       msg('settings.dashboard.wearingNow.label'),
       msg('settings.dashboard.invites.label'),
       msg('settings.dashboard.popular.label'),
@@ -915,14 +916,15 @@ describe('Settings dependency cards', () => {
     })
     fireEvent.click(up)
     expect(useSettingsStore.getState().settings).toMatchObject({
-      dashboardSections: ['wearing-now', 'invites', 'hot', 'popular'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'hot', 'popular'],
       dashboardSectionOrder: 'hot-first'
     })
     expect(
       screen.getByText(
-        i18n.t('settings.dashboard.sections.moved', { name: hot, position: 3, count: 4 })
+        i18n.t('settings.dashboard.sections.moved', { name: hot, position: 4, count: 5 })
       )
     ).toBeTruthy()
+    fireEvent.click(up)
     fireEvent.click(up)
     fireEvent.click(up)
     expect(names()[0]).toBe(hot)
@@ -931,6 +933,7 @@ describe('Settings dependency cards', () => {
     fireEvent.click(up)
     expect(useSettingsStore.getState().settings.dashboardSections).toEqual([
       'hot',
+      'quick-launch',
       'wearing-now',
       'invites',
       'popular'

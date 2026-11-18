@@ -61,10 +61,37 @@ function vulnerabilities(report) {
   return entries
 }
 
-// No advisory is excluded. SECURITY.md records the development-only HTTP cache
-// patch; that patch is not an audit exception.
-export function auditFailures(full, production) {
+// The only advisories the policy lets through. Each entry is one exact package
+// and advisory, at high severity, in a development-only dependency that has no
+// fixed release yet. SECURITY.md records the reason. `reviewBy` is the last day
+// (UTC) the exception applies: after it the advisory blocks again until someone
+// reviews the entry. A critical rating, another package, another advisory and
+// a package that shows up in the production report are never let through.
+export const auditExceptions = [
+  {
+    name: 'picomatch',
+    url: 'https://github.com/advisories/GHSA-fc5q-39xc-vjpf',
+    reviewBy: '2026-12-18'
+  }
+]
+
+function excepted(name, advisory, inProduction, today) {
+  return (
+    advisory.severity === 'high' &&
+    !inProduction.has(name) &&
+    auditExceptions.some(
+      (exception) =>
+        exception.name === name && exception.url === advisory.url && today <= exception.reviewBy
+    )
+  )
+}
+
+// SECURITY.md also records the development-only HTTP cache patch; that patch
+// is not an audit exception.
+export function auditFailures(full, production, now = new Date()) {
+  const today = now.toISOString().slice(0, 10)
   const prodEntries = vulnerabilities(production)
+  const inProduction = new Set(prodEntries.map(([name]) => name))
   const failures = prodEntries
     .filter(([, entry]) => highRisk(entry.severity))
     .map(([name]) => `production:${name}`)
@@ -74,6 +101,7 @@ export function auditFailures(full, production) {
         continue
       }
       if (!highRisk(advisory.severity)) continue
+      if (excepted(name, advisory, inProduction, today)) continue
       failures.push(`${name}:${advisory.url}`)
     }
   }

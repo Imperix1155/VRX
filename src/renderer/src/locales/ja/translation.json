@@ -280,7 +280,7 @@
     },
     "hotThreshold": {
       "label": "ホットインスタンスのしきい値",
-      "description": "ホットと見なす同一インスタンス内の最少フレンド数。ダッシュボード、ホットインスタンスのページ、通知で使われます。",
+      "description": "ホットと見なす最少フレンド数です。通知にも使われます。",
       "aria": "ホットインスタンスのしきい値"
     },
     "allowJoinInstances": {
@@ -502,6 +502,9 @@
       "hot": {
         "label": "ホットインスタンス"
       },
+      "quickLaunch": {
+        "label": "クイック起動"
+      },
       "wearingNow": {
         "label": "着用中"
       },
@@ -510,7 +513,7 @@
       },
       "playersOnline": {
         "label": "プレイヤー数",
-        "description": "各プラットフォームのプレイ人数を、上部のフレンド数の下に表示します。"
+        "description": "各プラットフォームのプレイ人数を上部に表示します。"
       }
     },
     "persistence": {
@@ -997,6 +1000,14 @@
       "inviteAria": "{{name}}、{{platform}}：{{action}}、{{age}}。受信箱を開く",
       "seeAllInvitesAria_one": "受信箱で {{count}} 件の招待を表示",
       "seeAllInvitesAria_other": "受信箱で {{count}} 件の招待をすべて表示"
+    },
+    "quickLaunch": {
+      "heading": "クイック起動",
+      "launch": "{{platform}}を起動",
+      "starting": "{{platform}}を起動中…",
+      "alreadyOpen": "{{platform}}はすでに開いています",
+      "failed": "{{platform}}を起動できませんでした。VRX は Steam から起動するため、Steam とゲームがインストールされているか確認してください。",
+      "busy": "{{platform}}は参加の処理中です。少し待ってから、もう一度お試しください。"
     }
   },
   "login": {
