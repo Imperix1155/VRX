@@ -16,9 +16,10 @@ press a "Use my sign-in from" button (see [Sessions and privacy](#sessions-and-p
 Pages, top to bottom in the sidebar:
 
 - **Dashboard**: friends online, friends in game and hot instances at a glance,
-  then the avatar you're wearing, your latest invites, Popular now worlds and
-  Hot Instances. Sections with nothing to show step aside. Move or hide any
-  section in Settings → Dashboard.
+  then Quick launch buttons that start VRChat or ChilloutVR, the avatar you're
+  wearing, your latest invites, Popular now worlds and Hot Instances. Sections with nothing to show step aside. Move or hide any
+  section in Settings → Dashboard, or right-click the Dashboard and pick
+  Reorder to drag them.
 - **Friends**: one list for both platforms, grouped into Favorites, In-Game,
   Online and Offline, with search and an **Order** control (Name, Recent, World
   or Joinable). Favorites lists the starred friends who are in a game right
@@ -83,6 +84,10 @@ Across the app:
 - **Your look**: Theme (System, Light or Dark), Background glow, your own
   background picture, and which platform's words the instance labels use.
   Settings → Appearance → Sidebar pages hides pages you don't use.
+- **Your order**: right-click the sidebar or the Dashboard, pick Reorder, and
+  drag pages and sections where you want them. Settings always stays last.
+  Reset order puts everything back, and Sidebar pages → Order turns the
+  right-click off.
 - **Welcome setup**: a new install starts with a short setup you can skip at
   any step. Run it again from Settings → About.
 - **Report a bug**: Settings → About opens a GitHub bug report with your VRX

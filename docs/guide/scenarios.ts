@@ -62,14 +62,15 @@ export function alertScopeFor(variant: string): 'everyone' | 'picked' {
 }
 
 /** Dashboard variants that move sections: `hot-first` swaps the two big ones,
- *  `reordered` puts Popular now on top and splits the glance row. */
+ *  `reordered` puts Popular now on top and splits the glance row. The `reorder`
+ *  variant keeps the default order and opens in reorder mode (`scene-renderer`). */
 export function guideDashboardSections(variant: string | null): {
   dashboardSections: DashboardSection[]
   dashboardSectionOrder: 'popular-first' | 'hot-first'
 } {
   const sections: DashboardSection[] =
     variant === 'reordered'
-      ? ['popular', 'wearing-now', 'hot', 'invites']
+      ? ['popular', 'quick-launch', 'wearing-now', 'hot', 'invites']
       : dashboardSectionsFromOrder(variant === 'hot-first' ? 'hot-first' : 'popular-first')
   return { dashboardSections: sections, dashboardSectionOrder: dashboardSectionOrderOf(sections) }
 }

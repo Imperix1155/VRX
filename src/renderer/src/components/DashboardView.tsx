@@ -4,7 +4,9 @@
  * Renders:
  *  - Three stat cards (online / in-game / hot-instances), big VT323 numbers tinted by meaning.
  *  - Every section below in the order the user picked in Settings → Dashboard
- *    (owner, 2026-10-18 and 2026-10-27): the glance sections (the avatar worn
+ *    (owner, 2026-10-18 and 2026-10-27): Quick launch (one button per platform
+ *    that starts the game, `DashboardQuickLaunch`; owner, 2026-11-18), the
+ *    glance sections (the avatar worn
  *    and the latest invite per platform, `DashboardGlance`; neighbours share a
  *    row), Popular now and Hot Instances. Of those two, the FIRST shows picture
  *    cards; the SECOND shows compact bars with the world picture behind them. Each section shows two
@@ -14,8 +16,11 @@
  *    affordance when a member is joinable (VRX-237). "See all" opens the Hot
  *    Instances page, which shows every one.
  *  - Empty state when nothing is hot.
+ *  - Quick reorder (owner, 2026-11-15): a right-click offers "Reorder"; while
+ *    reorder mode is on, `DashboardReorderList` stands in for the sections,
+ *    which stay mounted but hidden so nothing loads again afterwards.
  */
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFriendSummary } from '../hooks/useFriendSummary'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
@@ -37,7 +42,11 @@ import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
 import DashboardGlance from './DashboardGlance'
+import DashboardQuickLaunch from './DashboardQuickLaunch'
 import NotConnectedCard from './NotConnectedCard'
+import DashboardReorderList from './DashboardReorderList'
+import { ReorderMenu } from './ReorderControls'
+import { useReorderMenu, useReorderMode } from '../hooks/useReorderMode'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
@@ -175,6 +184,20 @@ function DashboardContent(): React.JSX.Element {
     onBlur: onHotGridBlur
   } = useHotGridFocus(shownHot, fallbackFocusRef)
 
+  // Quick reorder: the right-click menu, and no sheet left open over the
+  // reorder list once the mode starts.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const menu = useReorderMenu(rootRef)
+  const reorderOn = useReorderMode().on
+  const [wasReorderOn, setWasReorderOn] = useState(reorderOn)
+  if (reorderOn !== wasReorderOn) {
+    setWasReorderOn(reorderOn)
+    if (reorderOn) {
+      clearSelection()
+      dismissExplore()
+    }
+  }
+
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
   }
@@ -187,8 +210,9 @@ function DashboardContent(): React.JSX.Element {
     )
   }
   // Every branch below keeps Popular now in the same slot, a keyed child of
-  // the second child array under one <div>, so React reuses it when friends
-  // finish loading: an Explore sheet opened during the load stays open.
+  // the array inside the sections <div> (always the second child of the root
+  // <div>), so React reuses it when friends finish loading: an Explore sheet
+  // opened during the load stays open. Quick launch is keyed the same way.
   const popularSection = popularNow ? (
     <ExploreDashboardPreviewRoute
       key="popular"
@@ -199,6 +223,17 @@ function DashboardContent(): React.JSX.Element {
     />
   ) : null
 
+  // Quick launch needs no friends data either, so it shows in every state
+  // below, in its place relative to Popular now.
+  const quickLaunchSection = <DashboardQuickLaunch key="quick-launch" platforms={scopedPlatforms} />
+  const sectionsWithoutFriends = sections.flatMap((section) =>
+    section === 'popular'
+      ? [popularSection]
+      : section === 'quick-launch'
+        ? [quickLaunchSection]
+        : []
+  )
+
   if (!hasData) {
     // Loading while ANY scoped query is still pending or holds a placeholder
     // that has not failed (don't flash an error while the other platform may
@@ -207,7 +242,7 @@ function DashboardContent(): React.JSX.Element {
       return (
         <div>
           <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
-          {[popularSection]}
+          <div data-dashboard-sections="">{sectionsWithoutFriends}</div>
         </div>
       )
     }
@@ -225,7 +260,7 @@ function DashboardContent(): React.JSX.Element {
             {t('dashboard.retry')}
           </button>
         </div>
-        {[popularSection]}
+        <div data-dashboard-sections="">{sectionsWithoutFriends}</div>
       </div>
     )
   }
@@ -291,7 +326,7 @@ function DashboardContent(): React.JSX.Element {
   ) : null
 
   return (
-    <div>
+    <div ref={rootRef} className="relative" onContextMenu={menu.onContextMenu}>
       {/* Stat cards row. Player counts live in the top bar (owner, 2026-11-01).
           The source line sits inside it so Popular now keeps its slot. */}
       <div style={{ marginBottom: '26px' }}>
@@ -310,22 +345,29 @@ function DashboardContent(): React.JSX.Element {
       </div>
 
       {/* Every section joins one keyed array in the user's order, so Popular
-          now keeps its slot. Neighbouring glance sections share one row. */}
-      {dashboardBlocks(sections).map((block) =>
-        block === 'popular' ? (
-          popularSection
-        ) : block === 'hot' ? (
-          hotSection
-        ) : (
-          <DashboardGlance
-            key={`glance-${block[0]}`}
-            platforms={scopedPlatforms}
-            sections={block}
-          />
-        )
-      )}
+          now keeps its slot. Neighbouring glance sections share one row.
+          Reorder mode hides them without unmounting them. */}
+      <div hidden={reorderOn} data-dashboard-sections="">
+        {dashboardBlocks(sections).map((block) =>
+          block === 'popular' ? (
+            popularSection
+          ) : block === 'hot' ? (
+            hotSection
+          ) : block === 'quick-launch' ? (
+            quickLaunchSection
+          ) : (
+            <DashboardGlance
+              key={`glance-${block[0]}`}
+              platforms={scopedPlatforms}
+              sections={block}
+            />
+          )
+        )}
+      </div>
+      {reorderOn ? <DashboardReorderList /> : null}
 
       <HotInstanceSheet instance={selectedInstance} onClose={closeSheet} />
+      <ReorderMenu point={menu.point} onClose={menu.close} />
     </div>
   )
 }

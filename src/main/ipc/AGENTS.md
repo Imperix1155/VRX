@@ -62,7 +62,10 @@ services.
   allowlist, account fence, coordinator and hand-off. A place or link in the
   request is never read.
 - **Links.** `open-url` opens only `isAllowedUrl` HTTPS links. Game schemes
-  are reachable only from main-built join paths. `open-logs-folder`,
+  are reachable only from main-built join paths. `launch-game` (Quick launch)
+  takes a platform and nothing else: main builds that game's Steam link,
+  checks it with `isAllowedGameStartUrl`, leaves an open game alone and makes
+  no platform request. `open-logs-folder`,
   `open-bug-report`, `test-vr-alert` and the `*-app-background` channels take
   no input; their results carry typed reasons, never paths or error text.
 - **Local-only channels.** Inbox, Activity, local favorites, alert picks,

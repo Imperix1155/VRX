@@ -84,6 +84,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'self-invite': { max: 20, windowMs: 60_000 },
   // Read once per join dialog open; the answer is a cached local process check.
   'get-join-handoff': { max: 60, windowMs: 60_000 },
+  // A human press on Quick launch; main opens at most one start per 20 s.
+  'launch-game': { max: 20, windowMs: 60_000 },
   // The 7.5s status poll runs eight times/minute; this is a 3x allowance.
   'get-app-status': { max: 24, windowMs: 60_000 },
   // Read when Settings opens Behavior and after its startup choice is saved.
@@ -91,6 +93,11 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   // Read on page open and after each coalesced change push (at most two a
   // second), with headroom for remounts.
   'get-activity': { max: 240, windowMs: 60_000 },
+  'get-activity-page': { max: 120, windowMs: 60_000 },
+  'get-friend-history': { max: 120, windowMs: 60_000 },
+  'get-instance-visits': { max: 120, windowMs: 60_000 },
+  'get-instance-visit-people': { max: 120, windowMs: 60_000 },
+  'clear-instance-log': { max: 20, windowMs: 60_000 },
   // A deliberate button press.
   'clear-activity': { max: 20, windowMs: 60_000 },
   // External links are human-clicked; 30/minute still bounds a click loop.
@@ -141,6 +148,9 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'clear-app-background': { max: 10, windowMs: 60_000 },
   // A deliberate press that opens a native save dialog.
   'export-data': { max: 10, windowMs: 60_000 },
+  'import-vrcx-history': { max: 6, windowMs: 60_000 },
+  'backup-history': { max: 10, windowMs: 60_000 },
+  'restore-history': { max: 6, windowMs: 60_000 },
   // Re-read after each inbox push; pushes are bounded by what the sockets send.
   'get-inbox': { max: 240, windowMs: 60_000 },
   // Human clicks that only hide rows locally.
@@ -163,6 +173,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-explore-room':
     case 'join-invite':
     case 'self-invite':
+    case 'launch-game':
     case 'switch-avatar':
     case 'answer-friend-request':
     case 'send-friend-request':
@@ -180,6 +191,9 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'change-linked-profile':
     case 'test-vr-alert':
     case 'export-data':
+    case 'import-vrcx-history':
+    case 'backup-history':
+    case 'restore-history':
       return { ok: false, reason: 'rate-limited' }
     case 'get-game-favorites':
       return { state: 'rate-limited' }

@@ -4,6 +4,9 @@ import {
   DASHBOARD_SECTIONS,
   dashboardSectionOrderOf,
   withDashboardSectionOrder,
+  mergeShownOrder,
+  normalizeSidebarOrder,
+  SIDEBAR_PAGES,
   type DashboardSection
 } from './types'
 import {
@@ -26,7 +29,8 @@ describe('settings schema', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -52,6 +56,9 @@ describe('settings schema', () => {
       collapsedFriendSections: ['offline'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: false,
@@ -292,6 +299,9 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -306,7 +316,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -354,6 +365,9 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -368,7 +382,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -416,6 +431,9 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -431,7 +449,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -478,6 +497,9 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -496,7 +518,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -540,6 +563,9 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -559,7 +585,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -602,6 +629,9 @@ describe('migration runner', () => {
       collapsedFriendSections: ['in-game', 'online'],
       friendSort: 'name',
       startWithComputer: 'off',
+      activityKeepFor: '90d',
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true,
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: true,
@@ -623,7 +653,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
-      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot'],
+      dashboardQuickLaunch: true,
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -973,7 +1004,7 @@ describe('shouldPersistSettings (rollback safety)', () => {
       activityFilter: 'all'
     })
     expect(
-      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'friends' })
+      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'renamed' })
     ).toMatchObject({ showActivityPage: true, activityFilter: 'all' })
   })
 
@@ -1080,7 +1111,7 @@ describe('Dashboard glance settings', () => {
 describe('Dashboard sections', () => {
   it('takes the order from the older Popular now / Hot Instances choice', () => {
     expect(parseSettings({ version: 20, dashboardSectionOrder: 'hot-first' })).toMatchObject({
-      dashboardSections: ['wearing-now', 'invites', 'hot', 'popular'],
+      dashboardSections: ['quick-launch', 'wearing-now', 'invites', 'hot', 'popular'],
       dashboardSectionOrder: 'hot-first'
     })
     expect(parseSettings({ version: 20 }).dashboardSections).toEqual([...DASHBOARD_SECTIONS])
@@ -1091,15 +1122,65 @@ describe('Dashboard sections', () => {
       dashboardSections: ['hot', 'invites', 'popular', 'wearing-now'],
       dashboardSectionOrder: 'popular-first'
     })
-    expect(parsed.dashboardSections).toEqual(['hot', 'invites', 'popular', 'wearing-now'])
+    expect(parsed.dashboardSections).toEqual([
+      'hot',
+      'invites',
+      'popular',
+      'wearing-now',
+      'quick-launch'
+    ])
     expect(parsed.dashboardSectionOrder).toBe('hot-first')
+  })
+
+  it('puts Quick launch on top of an order saved before it existed (v30 → v31)', () => {
+    const saved = parseSettings({
+      version: 30,
+      dashboardSections: ['hot', 'invites', 'popular', 'wearing-now']
+    })
+    expect(saved.version).toBe(SETTINGS_VERSION)
+    expect(saved.dashboardSections).toEqual([
+      'quick-launch',
+      'hot',
+      'invites',
+      'popular',
+      'wearing-now'
+    ])
+    expect(saved.dashboardSectionOrder).toBe('hot-first')
+    expect(saved.dashboardQuickLaunch).toBe(true)
+    // A list that already has it keeps the user's place for it.
+    expect(
+      parseSettings({
+        version: 30,
+        dashboardSections: ['popular', 'quick-launch', 'hot', 'invites', 'wearing-now']
+      }).dashboardSections
+    ).toEqual(['popular', 'quick-launch', 'hot', 'invites', 'wearing-now'])
+    // A damaged list still falls back to the default order.
+    expect(parseSettings({ version: 30, dashboardSections: 'popular' }).dashboardSections).toEqual([
+      ...DASHBOARD_SECTIONS
+    ])
+  })
+
+  it('keeps Quick launch off, and its place, when an older build opens the file', () => {
+    let disk: Record<string, unknown> = {
+      version: SETTINGS_VERSION,
+      dashboardQuickLaunch: false,
+      dashboardSections: ['wearing-now', 'quick-launch', 'invites', 'popular', 'hot']
+    }
+    const oldNormalized = { ...disk, version: 30 }
+    Reflect.deleteProperty(oldNormalized, 'dashboardQuickLaunch')
+    if (shouldPersistSettings(disk, 30)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      dashboardQuickLaunch: false,
+      dashboardSections: ['wearing-now', 'quick-launch', 'invites', 'popular', 'hot']
+    })
   })
 
   it('drops unknown and repeated entries and appends missing ones', () => {
     expect(
       parseSettings({ dashboardSections: ['popular', 'nope', 7, 'popular', 'invites'] })
         .dashboardSections
-    ).toEqual(['popular', 'invites', 'wearing-now', 'hot'])
+    ).toEqual(['popular', 'invites', 'quick-launch', 'wearing-now', 'hot'])
     expect(parseSettings({ dashboardSections: 'popular' }).dashboardSections).toEqual([
       ...DASHBOARD_SECTIONS
     ])
@@ -1395,5 +1476,104 @@ describe('Start with your computer setting', () => {
     Reflect.deleteProperty(oldNormalized, 'startWithComputer')
     if (shouldPersistSettings(disk, 27)) disk = oldNormalized
     expect(parseSettings(disk)).toMatchObject({ startWithComputer: 'tray' })
+  })
+})
+
+describe('Sidebar order and quick reorder settings', () => {
+  it('defaults to the original order with quick reorder on', () => {
+    expect(DEFAULT_SETTINGS.sidebarOrder).toEqual([...SIDEBAR_PAGES])
+    expect(DEFAULT_SETTINGS.quickReorder).toBe(true)
+    expect(parseSettings({ version: 28 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      sidebarOrder: [...SIDEBAR_PAGES],
+      quickReorder: true
+    })
+  })
+
+  it('never holds Settings: it always sits last, outside the list', () => {
+    expect(SIDEBAR_PAGES).not.toContain('settings')
+    expect(parseSettings({ sidebarOrder: ['settings', 'friends'] }).sidebarOrder).toEqual([
+      'friends',
+      ...SIDEBAR_PAGES.filter((page) => page !== 'friends')
+    ])
+  })
+
+  it('keeps a saved order, drops unknown and repeated pages, and appends missing ones', () => {
+    expect(normalizeSidebarOrder(['avatars', 'friends', 'avatars', 'nope', 7, null])).toEqual([
+      'avatars',
+      'friends',
+      'dashboard',
+      'hot',
+      'activity',
+      'inbox',
+      'explore',
+      'search',
+      'groups'
+    ])
+    for (const bad of ['friends', 7, null, { 0: 'friends' }, new Array(33).fill('friends')]) {
+      expect(parseSettings({ sidebarOrder: bad }).sidebarOrder).toEqual([...SIDEBAR_PAGES])
+    }
+    for (const bad of ['off', 0, null]) {
+      expect(parseSettings({ quickReorder: bad }).quickReorder).toBe(true)
+    }
+    expect(parseSettings({ quickReorder: false }).quickReorder).toBe(false)
+  })
+
+  it('keeps the order and the switch across a v28 round-trip', () => {
+    const order = ['friends', ...SIDEBAR_PAGES.filter((page) => page !== 'friends')]
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 29,
+      sidebarOrder: order,
+      quickReorder: false
+    }
+    const oldNormalized = { ...disk, version: 28 }
+    Reflect.deleteProperty(oldNormalized, 'sidebarOrder')
+    Reflect.deleteProperty(oldNormalized, 'quickReorder')
+    if (shouldPersistSettings(disk, 28)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ sidebarOrder: order, quickReorder: false })
+  })
+
+  it('reorders only the entries on screen and leaves hidden ones in their slots', () => {
+    // b and d are hidden; the shown a, c, e were dragged into e, a, c.
+    expect(mergeShownOrder(['a', 'b', 'c', 'd', 'e'], ['e', 'a', 'c'])).toEqual([
+      'e',
+      'b',
+      'a',
+      'd',
+      'c'
+    ])
+    expect(mergeShownOrder(['a', 'b'], ['b', 'a'])).toEqual(['b', 'a'])
+    // Anything that is not a reorder of real entries changes nothing.
+    expect(mergeShownOrder(['a', 'b'], ['a', 'a'])).toEqual(['a', 'b'])
+    expect(mergeShownOrder(['a', 'b'], ['a', 'x'])).toEqual(['a', 'b'])
+  })
+})
+
+describe('Keep activity for setting', () => {
+  it('keeps 90 days by default, reads each choice, and falls back to 90 days', () => {
+    expect(DEFAULT_SETTINGS.activityKeepFor).toBe('90d')
+    expect(parseSettings({ version: 29 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      activityKeepFor: '90d'
+    })
+    for (const choice of ['session', '30d', '90d', '1y', 'forever'] as const) {
+      expect(parseSettings({ activityKeepFor: choice })).toMatchObject({ activityKeepFor: choice })
+    }
+    for (const bad of [true, '7d', 90, null]) {
+      expect(parseSettings({ activityKeepFor: bad })).toMatchObject({ activityKeepFor: '90d' })
+    }
+  })
+
+  it('keeps the choice across a v29 round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 30,
+      activityKeepFor: 'session'
+    }
+    const oldNormalized = { ...disk, version: 29 }
+    Reflect.deleteProperty(oldNormalized, 'activityKeepFor')
+    if (shouldPersistSettings(disk, 29)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({ activityKeepFor: 'session' })
   })
 })

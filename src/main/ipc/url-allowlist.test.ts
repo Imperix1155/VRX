@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ALL_RELEASES_URL, RELEASES_URL, releasesUrlFor } from '@shared/constants'
-import { isAllowedUrl, isAllowedLaunchUrl } from './url-allowlist'
+import { isAllowedUrl, isAllowedLaunchUrl, isAllowedGameStartUrl } from './url-allowlist'
 
 describe('isAllowedUrl', () => {
   it('allows exact known hosts', () => {
@@ -192,5 +192,42 @@ describe('isAllowedLaunchUrl', () => {
     expect(isAllowedUrl('vrchat://launch?ref=vrchat.com&id=wrld_abc:1')).toBe(false)
     expect(isAllowedUrl('vrchat://evil')).toBe(false)
     expect(isAllowedUrl('chilloutvr://instance/join?instanceId=i%2Babc')).toBe(false)
+  })
+})
+
+describe('isAllowedGameStartUrl', () => {
+  it('allows exactly the two Steam links Quick launch opens', () => {
+    expect(isAllowedGameStartUrl('steam://rungameid/438100')).toBe(true)
+    expect(isAllowedGameStartUrl('steam://rungameid/661130')).toBe(true)
+  })
+
+  it.each([
+    '',
+    'steam://rungameid/730',
+    'steam://rungameid/4381000',
+    'steam://rungameid/438100/',
+    'steam://rungameid/438100//-vr',
+    'steam://rungameid/438100?x=1',
+    'steam://rungameid/438100#x',
+    'steam://rungameid/438100\n',
+    ' steam://rungameid/438100',
+    'STEAM://rungameid/438100',
+    'steam://run/438100',
+    'steam://run/438100//--no-vr/',
+    'steam://install/438100',
+    'steam://open/console',
+    'steam://rungameid/438100 steam://rungameid/661130',
+    'https://store.steampowered.com/app/438100',
+    'vrchat://launch?ref=vrchat.com&id=wrld_example:1',
+    'file:///steam://rungameid/438100'
+  ])('refuses anything else: %j', (url) => {
+    expect(isAllowedGameStartUrl(url)).toBe(false)
+  })
+
+  it('stays out of the web and join allowlists', () => {
+    for (const url of ['steam://rungameid/438100', 'steam://rungameid/661130']) {
+      expect(isAllowedUrl(url)).toBe(false)
+      expect(isAllowedLaunchUrl(url)).toBe(false)
+    }
   })
 })

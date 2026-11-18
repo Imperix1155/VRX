@@ -206,6 +206,90 @@ describe('VRX smoke test', () => {
     await sheet.waitFor({ state: 'detached' })
   })
 
+  it('starts each game from Quick launch with its own Steam link, asking the platforms nothing', async () => {
+    const { page, app } = vrx
+    await openPage('Dashboard')
+    // A test must never start a real game: record the link instead of opening
+    // it, and answer "Steam is installed" where VRX checks first (Windows).
+    await app.evaluate(({ app, shell }) => {
+      globalThis.vrxE2eOpened = []
+      shell.openExternal = async (url) => {
+        globalThis.vrxE2eOpened.push(url)
+      }
+      app.getApplicationNameForProtocol = () => 'Steam'
+    })
+    const opened = () => app.evaluate(() => globalThis.vrxE2eOpened)
+    const writes = () => JSON.stringify(fake.state().writes)
+
+    // One button per signed-in platform, between the numbers and the sections.
+    const vrchat = page.getByRole('button', { name: 'Launch VRChat', exact: true })
+    const chilloutvr = page.getByRole('button', { name: 'Launch ChilloutVR', exact: true })
+    await vrchat.waitFor()
+    await chilloutvr.waitFor()
+    const before = writes()
+
+    await vrchat.click()
+    await page.getByRole('button', { name: 'Starting VRChat…', exact: true }).waitFor()
+    await expect.poll(opened).toEqual(['steam://rungameid/438100'])
+    // A second press while it starts opens nothing more.
+    await page.getByRole('button', { name: 'Starting VRChat…', exact: true }).click()
+
+    await chilloutvr.click()
+    await page.getByRole('button', { name: 'Starting ChilloutVR…', exact: true }).waitFor()
+    await expect.poll(opened).toEqual(['steam://rungameid/438100', 'steam://rungameid/661130'])
+    // Starting a game is local: neither platform was asked to change anything.
+    expect(writes()).toBe(before)
+  })
+
+  it('drags a sidebar page and a Dashboard section into a new order', async () => {
+    const { page } = vrx
+    await openPage('Dashboard')
+    const nav = page.getByRole('navigation', { name: 'Main navigation' })
+    const pages = () => nav.getByRole('button').allInnerTexts()
+    expect((await pages()).slice(0, 3)).toEqual(['Dashboard', 'Friends', 'Hot Instances'])
+
+    // A right-click offers the one-item menu; picking it starts reorder mode.
+    await nav.getByRole('button', { name: 'Friends', exact: true }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Reorder' }).click()
+
+    // Drag Friends below Hot Instances.
+    const friends = await nav.getByRole('button', { name: 'Friends', exact: true }).boundingBox()
+    const x = friends.x + friends.width / 2
+    const y = friends.y + friends.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x, y + 20, { steps: 4 })
+    await page.mouse.move(x, y + friends.height, { steps: 4 })
+    await page.mouse.up()
+    await expect
+      .poll(async () => (await pages()).slice(0, 3))
+      .toEqual(['Dashboard', 'Hot Instances', 'Friends'])
+    // Settings never moves and the drag opened no page.
+    expect((await pages()).at(-1)).toBe('Settings')
+    expect(await page.locator('h1').first().innerText()).toBe('Dashboard')
+
+    // The Dashboard shows its sections as a short list; move the last one up
+    // with the keyboard.
+    const sections = page.locator('[data-dashboard-reorder] [data-reorder-item]')
+    expect(await sections.allInnerTexts()).toEqual([
+      'Quick launch',
+      'Wearing now',
+      'Latest invites',
+      'Popular now',
+      'Hot Instances'
+    ])
+    await sections.nth(4).focus()
+    await page.keyboard.press('ArrowUp')
+    await expect.poll(async () => (await sections.allInnerTexts()).at(3)).toBe('Hot Instances')
+
+    await page.keyboard.press('Escape')
+    await page.locator('[data-dashboard-reorder]').waitFor({ state: 'detached' })
+    await page
+      .getByText(/^Friends online$/)
+      .first()
+      .waitFor()
+  })
+
   it('reported no error in the window', () => {
     expect(vrx.rendererErrors).toEqual([])
   })
@@ -218,5 +302,12 @@ describe('VRX smoke test', () => {
     await vrx.page.getByRole('heading', { name: 'Dashboard' }).waitFor()
     await waitUntilLive()
     expect(vrx.rendererErrors).toEqual([])
+    // The order dragged earlier was saved.
+    const nav = vrx.page.getByRole('navigation', { name: 'Main navigation' })
+    expect((await nav.getByRole('button').allInnerTexts()).slice(0, 3)).toEqual([
+      'Dashboard',
+      'Hot Instances',
+      'Friends'
+    ])
   })
 })

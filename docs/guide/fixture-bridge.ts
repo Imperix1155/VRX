@@ -378,12 +378,162 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     joinInstance: () => Promise.resolve(denied),
     selfInvite: () => Promise.resolve(denied),
     getJoinHandoff: ({ platform }) => Promise.resolve(joinHandoffFor(variant, platform)),
+    // The guide starts nothing: VRChat answers "starting", ChilloutVR "already
+    // open"; the `launch-failed` Dashboard variant answers a failed start.
+    launchGame: ({ platform }) =>
+      Promise.resolve(
+        variant === 'launch-failed'
+          ? { ok: false, reason: 'launch-failed' }
+          : { ok: true, state: platform === 'vrchat' ? 'started' : 'already-open' }
+      ),
     getAppStatus: () =>
       Promise.resolve({
         ws: { vrchat: 'live', chilloutvr: 'live' },
         lastReconcileAt: { vrchat: null, chilloutvr: null }
       }),
     getActivity: () => Promise.resolve(variant === 'empty' ? [] : activityEntries(Date.now())),
+    // A friend's History: that friend's sample entries, and a few older ones
+    // so the dialog shows more than one day. The Activity page gets no older
+    // page: the sample list is shorter than what main keeps in memory.
+    getActivityPage: ({ scope, friends }) => {
+      if (friends === undefined || variant === 'empty') {
+        return Promise.resolve({ entries: [], hasMore: false })
+      }
+      const now = Date.now()
+      const wanted = new Set(friends.map((friend) => `${friend.platform}:${friend.friendId}`))
+      const sample = activityEntries(now).filter((entry) =>
+        wanted.has(`${entry.platform}:${entry.platformUserId}`)
+      )
+      // Older than every sample row, so ids and times agree.
+      const day = 3 * 86_400_000
+      const older = friends
+        .filter((friend) => scope.some((cursor) => cursor.platform === friend.platform))
+        .flatMap((friend, index) =>
+          [
+            { kind: 'offline' as const, worldName: null, ago: day + index * 60_000 },
+            { kind: 'world' as const, worldName: 'Glass Garden Arcade', ago: day + 3_600_000 },
+            { kind: 'online' as const, worldName: 'Aurora Transit Lounge', ago: 9 * day },
+            {
+              kind: 'renamed' as const,
+              worldName: null,
+              ago: (40 / 3) * day,
+              previousName: 'Mossy'
+            },
+            { kind: 'offline' as const, worldName: null, ago: 400 * day }
+          ].map((row, position) => ({
+            id: -(index * 10 + position + 1),
+            kind: row.kind,
+            platform: friend.platform,
+            platformUserId: friend.friendId,
+            displayName: '',
+            worldName: row.worldName,
+            ...('previousName' in row ? { previousName: row.previousName } : {}),
+            at: now - row.ago
+          }))
+        )
+      return Promise.resolve({
+        entries: [...sample, ...older].sort((a, b) => b.at - a.at),
+        hasMore: false
+      })
+    },
+    // Friends since and earlier names: the first account is a friendship
+    // VRX saw begin, a second one was already there when history started.
+    getFriendHistory: ({ friends }) => {
+      const now = Date.now()
+      return Promise.resolve(
+        variant === 'empty'
+          ? []
+          : friends.map((friend, index) => ({
+              platform: friend.platform,
+              friendId: friend.friendId,
+              since: now - (index === 0 ? 212 : 400) * 86_400_000,
+              sinceKnown: index === 0,
+              previousNames:
+                index === 0
+                  ? [
+                      { name: 'Mossy', until: now - 40 * 86_400_000 },
+                      { name: 'Moss in the Machine', until: now - 150 * 86_400_000 }
+                    ]
+                  : [],
+              met: {
+                times: index === 0 ? 37 : 4,
+                togetherMs: (index === 0 ? 52 : 3) * 3_600_000 + 25 * 60_000,
+                lastAt: now - (index === 0 ? 2 : 20) * 86_400_000,
+                lastWorldName:
+                  index === 0 ? 'Aurora Transit Lounge' : 'Glass Garden Arcade (#816332)'
+              }
+            }))
+      )
+    },
+    // The instance log: a room the visitor is in now and a few earlier ones,
+    // the same on both platforms.
+    getInstanceVisits: ({ scope }) => {
+      if (variant === 'empty') return Promise.resolve({ visits: [], hasMore: false })
+      const now = Date.now()
+      const hour = 3_600_000
+      const rows = [
+        {
+          platform: 'vrchat' as const,
+          worldName: 'Aurora Transit Lounge',
+          ago: 0.6,
+          stay: null,
+          people: 14
+        },
+        {
+          platform: 'chilloutvr' as const,
+          worldName: 'Midnight Museum of Small Wonders',
+          ago: 5,
+          stay: 1.4,
+          people: 6
+        },
+        {
+          platform: 'vrchat' as const,
+          worldName: 'Glass Garden Arcade',
+          ago: 26,
+          stay: 2.1,
+          people: 31
+        },
+        { platform: 'chilloutvr' as const, worldName: null, ago: 29, stay: 0.2, people: 0 },
+        {
+          platform: 'vrchat' as const,
+          worldName: 'A World With a Very Long Name That Has to Truncate Somewhere',
+          ago: 75,
+          stay: 0.01,
+          people: 1
+        }
+      ]
+      return Promise.resolve({
+        visits: rows
+          .map((row, index) => ({
+            id: rows.length - index,
+            platform: row.platform,
+            worldName: row.worldName,
+            enteredAt: now - row.ago * hour,
+            leftAt: row.stay === null ? null : now - row.ago * hour + row.stay * hour,
+            current: row.stay === null,
+            people: row.people
+          }))
+          .filter((visit) =>
+            scope.some((cursor) => cursor.platform === visit.platform && cursor.before === null)
+          ),
+        hasMore: false
+      })
+    },
+    getInstanceVisitPeople: ({ platform }) => {
+      const now = Date.now()
+      return Promise.resolve(
+        (platform === 'vrchat'
+          ? ['Iris Circuitbreaker', 'Vale After the Last Train', 'Kai', 'Someone Passing Through']
+          : ['Pixel Orchard', 'Fern', 'Marlow, Archive Keeper']
+        ).map((displayName, index) => ({
+          platformUserId: `guide-visit-${platform}-${index}`,
+          displayName,
+          joinedAt: now - (36 - index * 7) * 60_000,
+          leftAt: index % 2 === 1 ? now - (20 - index * 3) * 60_000 : null
+        }))
+      )
+    },
+    clearInstanceLog: () => Promise.resolve(),
     clearActivity: () => Promise.resolve(),
     onActivityChanged: unsubscribe,
     openUrl: () => Promise.resolve(),
@@ -410,6 +560,10 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         favorites: 31,
         gameFavoritesMissing: false
       }),
+    importVrcxHistory: () =>
+      Promise.resolve({ ok: true, friendsSince: 38, names: 6, visits: 412, olderSkipped: true }),
+    backupHistory: () => Promise.resolve({ ok: true }),
+    restoreHistory: () => Promise.resolve({ ok: true }),
     dismissInboxItem: ({ platform, id }) => {
       inbox = {
         items: inbox.items.filter((item) => !(item.platform === platform && item.id === id))

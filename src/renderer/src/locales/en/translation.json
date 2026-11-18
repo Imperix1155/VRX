@@ -106,6 +106,26 @@
   "boot": {
     "connecting": "Connecting…"
   },
+  "reorder": {
+    "start": "Reorder",
+    "done": "Done",
+    "reset": "Reset order",
+    "resetNote": "Puts the sidebar and the Dashboard back in their original order.",
+    "resetDone": "Order reset",
+    "menuAria": "Order",
+    "sidebarHint": "Drag to move. Settings stays last.",
+    "keysHint": "Drag it, or press the up and down arrow keys to move it.",
+    "dashboardHeading": "Reorder sections",
+    "dashboardHint": "Drag a section, or use the up and down arrow keys.",
+    "sectionOff": "Off",
+    "moved": "{{name}}: {{position}} of {{count}}",
+    "setting": {
+      "open": "Order",
+      "label": "Quick reorder",
+      "description": "Right-click the sidebar or the Dashboard, pick Reorder, then drag things into place.",
+      "start": "Reorder now"
+    }
+  },
   "shell": {
     "subtitle": "Social VR Companion",
     "footer": "Social VR Companion",
@@ -263,7 +283,7 @@
     },
     "hotThreshold": {
       "label": "Hot instance threshold",
-      "description": "Minimum friends in one instance before it counts as hot. Used by the Dashboard, the Hot Instances page and alerts.",
+      "description": "Minimum friends in one instance to count as hot, for alerts too.",
       "aria": "Hot instance threshold"
     },
     "allowJoinInstances": {
@@ -485,6 +505,9 @@
       "hot": {
         "label": "Hot Instances"
       },
+      "quickLaunch": {
+        "label": "Quick launch"
+      },
       "wearingNow": {
         "label": "Wearing now"
       },
@@ -493,7 +516,7 @@
       },
       "playersOnline": {
         "label": "Player counts",
-        "description": "How many people are playing each platform, under your friend count at the top."
+        "description": "How many people are playing each platform, under your friend count."
       }
     },
     "persistence": {
@@ -548,7 +571,7 @@
       },
       "activity": {
         "label": "Activity page",
-        "description": "Friends coming and going while VRX is open. Off hides it and keeps nothing."
+        "description": "Friends coming and going. Off hides it and deletes what was saved."
       },
       "inbox": {
         "label": "Inbox page",
@@ -681,18 +704,24 @@
       "all": "All",
       "online": "Online",
       "world": "Worlds",
-      "offline": "Offline"
+      "offline": "Offline",
+      "friends": "Friends list",
+      "instances": "Instances"
     },
     "online": "Came online",
     "onlineIn": "Came online in {{world}}",
     "joined": "Joined {{world}}",
     "joinedUnknown": "Joined a world",
     "offline": "Went offline",
+    "friendAdded": "Now on your friends list",
+    "friendRemoved": "No longer on your friends list",
+    "renamedFrom": "Changed name from {{previous}}",
+    "renamed": "Changed name",
     "rowAria": "{{name}}, {{platform}}: {{description}}, {{time}}. Open {{name}} in Friends",
     "clear": "Clear",
     "clearAria": "Clear the activity shown",
     "emptyHeading": "No activity yet",
-    "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open.",
+    "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open, and stay after a restart.",
     "filteredEmpty": "Nothing to show with these filters.",
     "loading": "Loading activity…",
     "error": "Couldn’t load activity.",
@@ -701,7 +730,105 @@
       "vrchat": "Connect VRChat to see your friends’ activity here",
       "chilloutvr": "Connect ChilloutVR to see your friends’ activity here",
       "openAccounts": "Go to Accounts"
+    },
+    "showOlder": "Show older",
+    "olderFailed": "Couldn’t load older activity.",
+    "keep": {
+      "button": "Kept: {{choice}}",
+      "buttonAria": "Activity is kept: {{choice}}. Change how long",
+      "title": "Keep activity for",
+      "note": "Activity and your instance log are saved on this computer only, for each account. Picking a shorter time deletes what is older.",
+      "done": "Done",
+      "options": {
+        "session": "Until VRX closes",
+        "30d": "30 days",
+        "90d": "90 days",
+        "1y": "1 year",
+        "forever": "Forever"
+      }
+    },
+    "clearConfirm": {
+      "title": "Clear this activity?",
+      "body": "This also deletes the saved activity for what this page shows, older entries included. It can’t be undone.",
+      "confirm": "Clear",
+      "cancel": "Cancel"
+    },
+    "transfer": {
+      "heading": "Move your history",
+      "hint": "A backup holds both platforms, for moving to a new computer. VRCX keeps VRChat history only; close VRCX before bringing it in.",
+      "importVrcx": "Bring in from VRCX",
+      "backup": "Back up…",
+      "restore": "Restore…",
+      "cancel": "Cancel",
+      "restoreAsk": "Restoring replaces everything saved here with what is in the backup. It can’t be undone.",
+      "restoreConfirm": "Choose a backup…",
+      "working": {
+        "import": "Reading VRCX’s history…",
+        "backup": "Saving the backup…",
+        "restore": "Restoring…"
+      },
+      "off": "Nothing is being saved. Pick a time above first.",
+      "tooMany": "Too many tries. Wait a minute and try again.",
+      "imported": "Brought in from VRCX. Rooms: {{visits}} · Friends since: {{friends}} · Earlier names: {{names}}",
+      "importedNothing": "VRCX had nothing new to bring in.",
+      "importedOlder": "Rooms older than the time picked above were left out.",
+      "importSignedOut": "Sign in to VRChat first.",
+      "importBusy": "VRCX is open. Close it and try again.",
+      "importNotFound": "No VRCX history was found on this computer.",
+      "importNoHistory": "VRCX has no history for this VRChat account.",
+      "importFailed": "That didn’t finish. Try again.",
+      "backedUp": "Backup saved. Keep it private: it holds your friends’ names.",
+      "backupFailed": "The backup couldn’t be saved.",
+      "restored": "History restored.",
+      "restoreNotBackup": "That file isn’t a VRX history backup.",
+      "restoreNewer": "That backup was made by a newer VRX. Update VRX first.",
+      "restoreFailed": "The backup couldn’t be read. Nothing was changed."
     }
+  },
+  "instances": {
+    "hereNow": "You’re here now",
+    "people_one": "{{count, number}} person",
+    "people_other": "{{count, number}} people",
+    "noPeople": "No one else seen",
+    "summary": "{{stay}} · {{people}}",
+    "unknownWorld": "World name not known",
+    "duration": {
+      "hours": "{{hours}} h {{minutes}} min",
+      "minutes": "{{minutes}} min",
+      "under": "Under a minute"
+    },
+    "rowAria": "{{world}}, {{platform}}, {{time}}: {{summary}}. Show who was there",
+    "timeRange": "{{from}} to {{to}}",
+    "stillHere": "still here",
+    "peopleLoading": "Loading…",
+    "peopleFailed": "Couldn’t load who was there.",
+    "peopleEmpty": "No one else was seen in this instance.",
+    "error": "Couldn’t load your instances.",
+    "emptyHeading": "No instances yet",
+    "emptyHint": "The instances you join, and who was there, show up here. VRChat’s come from the game’s own log file on this computer; ChilloutVR’s from your live connection.",
+    "sessionHint": "Nothing is saved while activity is kept only until VRX closes. Change “Kept” to start an instance log.",
+    "clearAria": "Clear the instance log shown",
+    "clearBody": "This deletes the instance log shown here from this computer, who was there included. It can’t be undone."
+  },
+  "history": {
+    "button": "History",
+    "title": "{{name}}: history",
+    "activityHeading": "Activity",
+    "loading": "Loading history…",
+    "error": "Couldn’t load this history.",
+    "emptyHeading": "Nothing saved yet",
+    "emptyHint": "Coming online, joining worlds, going offline and friends list changes are saved here from now on.",
+    "sinceLabel": "Friends since",
+    "sinceBefore": "Before {{date}}, when VRX started keeping history",
+    "sinceWithAge": "{{date}} ({{age}})",
+    "namesLabel": "Earlier names",
+    "nameUntil": "until {{date}}",
+    "showAllNames": "Show all {{count, number}}",
+    "factsAria": "About this friendship",
+    "lastLabel": "Last together",
+    "lastIn": "{{date}} in {{world}}",
+    "timesLabel": "Instances together",
+    "togetherLabel": "Time together"
   },
   "drawer": {
     "close": "Close",
@@ -881,6 +1008,14 @@
       "inviteAria": "{{name}}, {{platform}}: {{action}}, {{age}}. Open Inbox",
       "seeAllInvitesAria_one": "See {{count}} invite in the Inbox",
       "seeAllInvitesAria_other": "See all {{count}} invites in the Inbox"
+    },
+    "quickLaunch": {
+      "heading": "Quick launch",
+      "launch": "Launch {{platform}}",
+      "starting": "Starting {{platform}}…",
+      "alreadyOpen": "{{platform}} is already open",
+      "failed": "Couldn't start {{platform}}. VRX starts it through Steam, so check that Steam and the game are installed.",
+      "busy": "{{platform}} is busy with a Join. Try again in a moment."
     }
   },
   "login": {

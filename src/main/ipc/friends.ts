@@ -1,7 +1,11 @@
 import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Friend, Platform } from '@shared/types'
-import type { FriendRoster, IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import type {
+  FriendRoster,
+  IPlatformAdapter,
+  RosterCompleteness
+} from '../services/adapters/IPlatformAdapter'
 import {
   CircuitOpenError,
   RateLimitError,
@@ -46,7 +50,7 @@ export function registerFriendsHandlers(
   adapters: Map<Platform, IPlatformAdapter>,
   authority: LocationAuthority,
   appStatus: AppStatusService,
-  onRoster?: (platform: Platform, friends: Friend[]) => void
+  onRoster?: (platform: Platform, friends: Friend[], completeness: RosterCompleteness) => void
 ): void {
   const readRoster = createFriendRosterReader(adapters, authority, appStatus, onRoster)
   ipcMain.handle('get-friends', async (event, req: IpcInvoke['get-friends']['req']) => {

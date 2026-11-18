@@ -50,7 +50,10 @@ const en = {
   'appBackground.dialogTitle': 'Choose a background picture',
   'appBackground.dialogFilter': 'Pictures (PNG, JPEG)',
   'dataExport.dialogTitle': 'Save your VRX export',
-  'dataExport.dialogFilter': 'JSON file'
+  'dataExport.dialogFilter': 'JSON file',
+  'historyTransfer.backupTitle': 'Save a backup of your VRX history',
+  'historyTransfer.restoreTitle': 'Choose a VRX history backup',
+  'historyTransfer.dialogFilter': 'VRX history backup'
 } as const
 
 export type MainStringKey = keyof typeof en
@@ -98,7 +101,10 @@ const ja: Record<MainStringKey, string> = {
   'appBackground.dialogTitle': '背景画像を選択',
   'appBackground.dialogFilter': '画像（PNG、JPEG）',
   'dataExport.dialogTitle': 'VRX の書き出しを保存',
-  'dataExport.dialogFilter': 'JSON ファイル'
+  'dataExport.dialogFilter': 'JSON ファイル',
+  'historyTransfer.backupTitle': 'VRX の履歴のバックアップを保存',
+  'historyTransfer.restoreTitle': 'VRX の履歴のバックアップを選択',
+  'historyTransfer.dialogFilter': 'VRX の履歴のバックアップ'
 }
 
 const TABLES: Record<MainLocale, Record<MainStringKey, string>> = { en, ja }

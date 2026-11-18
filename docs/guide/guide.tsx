@@ -422,14 +422,16 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="dashboard"
             title="Dashboard"
-            note="Statistics, then Wearing now and Latest invites side by side, then Popular now and Hot Instances. The first of those two uses picture cards; the second uses bars with the picture behind them."
-            source="DashboardView.tsx · DashboardGlance.tsx · HotInstanceCard.tsx · ExploreWorldCard.tsx"
+            note="Statistics, then Quick launch (one slim button per platform that starts the game), then Wearing now and Latest invites side by side, then Popular now and Hot Instances. The first of those two uses picture cards; the second uses bars with the picture behind them."
+            source="DashboardView.tsx · DashboardQuickLaunch.tsx · DashboardGlance.tsx · HotInstanceCard.tsx · ExploreWorldCard.tsx"
             variant="ready"
             variants={[
               { value: 'ready', label: 'Popular now first' },
               { value: 'hot-first', label: 'Hot Instances first' },
               { value: 'reordered', label: 'Sections moved' },
-              { value: 'needs-code', label: 'VRChat needs a code' }
+              { value: 'reorder', label: 'Reorder mode' },
+              { value: 'needs-code', label: 'VRChat needs a code' },
+              { value: 'launch-failed', label: 'Quick launch fails' }
             ]}
             height="tall"
             paired

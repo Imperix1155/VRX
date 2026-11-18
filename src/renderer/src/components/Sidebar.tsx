@@ -1,4 +1,6 @@
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { mergeShownOrder, type SidebarPage } from '@shared/types'
 import { useUiStore, type ActiveTab } from '../stores/ui'
 import { useSettingsStore } from '../stores/settings'
 import { isPageShown } from '../utils/pages'
@@ -7,6 +9,9 @@ import { useUpdater } from '../hooks/useUpdater'
 import { IconDownload, IconSpinner, IconRestart } from './UpdaterIcons'
 import { useInbox } from '../queries/inbox'
 import { countNewInboxItems, scopeInboxItems } from '../utils/inbox'
+import { useDragReorder } from '../hooks/useDragReorder'
+import { useReorderEscape, useReorderMenu, useReorderMode } from '../hooks/useReorderMode'
+import { GripIcon, ReorderActions, ReorderMenu } from './ReorderControls'
 import {
   IconActivity,
   IconAvatars,
@@ -130,18 +135,20 @@ function useNewInboxCount(): number {
   return countNewInboxItems(scopeInboxItems(data?.items ?? [], platformFilter), seenAt)
 }
 
-const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
-  { id: 'dashboard', icon: IconDashboard },
-  { id: 'friends', icon: IconFriends },
-  { id: 'hot', icon: IconHot },
-  { id: 'activity', icon: IconActivity },
-  { id: 'inbox', icon: IconInbox },
-  { id: 'explore', icon: IconExplore },
-  { id: 'search', icon: IconSearch },
-  { id: 'groups', icon: IconGroups },
-  { id: 'avatars', icon: IconAvatars },
-  { id: 'settings', icon: IconSettings }
-]
+/** Every page's icon. The order comes from the `sidebarOrder` setting; Settings
+ *  is not in it and always sits last (owner, 2026-11-15). */
+const NAV_ICONS: Record<ActiveTab, () => React.JSX.Element> = {
+  dashboard: IconDashboard,
+  friends: IconFriends,
+  hot: IconHot,
+  activity: IconActivity,
+  inbox: IconInbox,
+  explore: IconExplore,
+  search: IconSearch,
+  groups: IconGroups,
+  avatars: IconAvatars,
+  settings: IconSettings
+}
 
 export default function Sidebar(): React.JSX.Element {
   const { t } = useTranslation()
@@ -154,7 +161,9 @@ export default function Sidebar(): React.JSX.Element {
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
   const showSearchPage = useSettingsStore((s) => s.settings.showSearchPage)
   const showGroupsPage = useSettingsStore((s) => s.settings.showGroupsPage)
-  const navItems = NAV_ITEMS.filter(({ id }) =>
+  const sidebarOrder = useSettingsStore((s) => s.settings.sidebarOrder)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const movablePages = sidebarOrder.filter((id) =>
     isPageShown(id, {
       showHotInstancesPage,
       showExplorePage,
@@ -164,6 +173,30 @@ export default function Sidebar(): React.JSX.Element {
       showGroupsPage
     })
   )
+  const navItems: ActiveTab[] = [...movablePages, 'settings']
+
+  // Quick reorder (owner, 2026-11-15): a right-click offers "Reorder"; while
+  // it is on, every page but Settings can be dragged or moved with the arrow
+  // keys. Hidden pages keep their own places in the saved order.
+  const navRef = useRef<HTMLElement>(null)
+  const reorder = useReorderMode()
+  const menu = useReorderMenu(navRef)
+  useReorderEscape()
+  const [announcement, setAnnouncement] = useState('')
+  const { itemProps } = useDragReorder<SidebarPage>({
+    items: movablePages,
+    enabled: reorder.on,
+    onReorder: (next, moved, index) => {
+      updateSettings({ sidebarOrder: mergeShownOrder(sidebarOrder, next) })
+      setAnnouncement(
+        t('reorder.moved', {
+          name: t(`shell.nav.${moved}`),
+          position: index + 1,
+          count: next.length
+        })
+      )
+    }
+  })
   // While the Inbox is open its rows are on screen, so nothing there is new.
   const newInboxCount = useNewInboxCount()
 
@@ -188,32 +221,52 @@ export default function Sidebar(): React.JSX.Element {
       </div>
 
       {/* Nav (§8) */}
-      <nav className="flex flex-col gap-[3px] flex-1" aria-label={t('shell.nav.aria')}>
-        {navItems.map(({ id, icon: Icon }) => {
+      <nav
+        ref={navRef}
+        className="relative flex flex-col gap-[3px] flex-1"
+        aria-label={t('shell.nav.aria')}
+        data-reorder={reorder.on || undefined}
+        onContextMenu={menu.onContextMenu}
+      >
+        {navItems.map((id) => {
+          const Icon = NAV_ICONS[id]
           const isActive = activeTab === id
+          const drag = id === 'settings' ? undefined : itemProps(id)
           return (
             <button
               key={id}
               type="button"
               onClick={() => setActiveTab(id)}
               aria-current={isActive ? 'page' : undefined}
+              aria-describedby={drag ? 'sidebar-reorder-hint' : undefined}
+              ref={drag?.ref}
+              data-dragging={drag?.['data-dragging']}
+              data-reorder-item={drag ? '' : undefined}
+              onPointerDown={drag?.onPointerDown}
+              onPointerMove={drag?.onPointerMove}
+              onPointerUp={drag?.onPointerUp}
+              onPointerCancel={drag?.onPointerCancel}
+              onClickCapture={drag?.onClickCapture}
+              onKeyDown={drag?.onKeyDown}
               className={[
                 'relative flex items-center gap-[12px] px-[11px] py-[9px] rounded-control',
-                'text-[13.5px] font-semibold border border-transparent cursor-pointer',
+                'text-[13.5px] font-semibold border border-transparent',
+                drag ? 'reorder-item' : 'cursor-pointer',
                 'motion-safe:transition-colors',
                 isActive
                   ? 'text-[var(--text)]'
                   : 'text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
               ].join(' ')}
-              style={
-                isActive
+              style={{
+                ...(isActive
                   ? {
                       background: 'var(--control-active-bg)',
                       borderColor: 'var(--control-active-border)',
                       boxShadow: 'var(--control-active-shadow)'
                     }
-                  : undefined
-              }
+                  : undefined),
+                ...drag?.style
+              }}
             >
               {/* Left spine — active only. Echoes the global platform filter:
                   All = existing blue→orange gradient; single platform = solid platform
@@ -240,29 +293,59 @@ export default function Sidebar(): React.JSX.Element {
                   </span>
                 </span>
               ) : null}
+              {drag ? (
+                <GripIcon
+                  className={
+                    id === 'inbox' && !isActive && newInboxCount > 0
+                      ? 'text-[var(--text-faint)]'
+                      : 'ml-auto text-[var(--text-faint)]'
+                  }
+                />
+              ) : null}
             </button>
           )
         })}
+        <ReorderMenu point={menu.point} onClose={menu.close} />
       </nav>
 
-      {/* Footer (§8). While the update button shows, the text keeps clear of
-          it (right-[10px] + w-[36px]); a long prerelease version wraps whole
-          instead of running under the button. */}
-      <div
-        className="relative text-[11px] text-[var(--text-dim)] pt-[12px] mt-[12px] has-[>button]:pr-[46px]"
-        style={{ borderTop: '1px solid var(--sidebar-foot-border)' }}
-      >
-        <SidebarUpdateButton />
-        <span
-          className="font-mono text-[16px] tracking-[1px] text-[var(--text-dim)]"
-          aria-hidden="true"
+      <p aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+
+      {reorder.on ? (
+        // Reorder mode takes the foot's place, so the sidebar keeps its height
+        // at the minimum window: what to do, in words, and the way out.
+        <div
+          className="mt-[12px] flex flex-col gap-[var(--space-2)] pt-[12px]"
+          style={{ borderTop: '1px solid var(--sidebar-foot-border)' }}
+          data-reorder-bar=""
         >
-          VRX
-        </span>
-        <br />
-        {/* Version is build-injected from package.json (never hardcode — it drifts) */}
-        {t('shell.footer')} · <span className="whitespace-nowrap">v{__APP_VERSION__}</span>
-      </div>
+          <p className="px-[2px] text-[11px] text-[var(--text-dim)]">{t('reorder.sidebarHint')}</p>
+          <span id="sidebar-reorder-hint" className="sr-only">
+            {t('reorder.keysHint')}
+          </span>
+          <ReorderActions fill />
+        </div>
+      ) : (
+        /* Footer (§8). While the update button shows, the text keeps clear of
+           it (right-[10px] + w-[36px]); a long prerelease version wraps whole
+           instead of running under the button. */
+        <div
+          className="relative text-[11px] text-[var(--text-dim)] pt-[12px] mt-[12px] has-[>button]:pr-[46px]"
+          style={{ borderTop: '1px solid var(--sidebar-foot-border)' }}
+        >
+          <SidebarUpdateButton />
+          <span
+            className="font-mono text-[16px] tracking-[1px] text-[var(--text-dim)]"
+            aria-hidden="true"
+          >
+            VRX
+          </span>
+          <br />
+          {/* Version is build-injected from package.json (never hardcode — it drifts) */}
+          {t('shell.footer')} · <span className="whitespace-nowrap">v{__APP_VERSION__}</span>
+        </div>
+      )}
     </aside>
   )
 }

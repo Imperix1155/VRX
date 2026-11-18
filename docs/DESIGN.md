@@ -103,10 +103,11 @@ explicit approval.
    on them, then the small chips on the cards. The background shows through
    every pane as blurred color; words stay readable and platform color stays
    the strongest tint on a platform card. Menus and dialogs stay opaque (§3).
-7. **Dashboard layout.** Under the numbers the Dashboard has four sections:
-   Wearing now (the worn avatar per signed-in platform), Latest invites (the
-   newest invite per platform), Popular now and Hot Instances, in that order
-   by default. Settings → Dashboard → Sections moves each one up or down and
+7. **Dashboard layout.** Under the numbers the Dashboard has five sections:
+   Quick launch (one slim button per platform that starts the game), Wearing
+   now (the worn avatar per signed-in platform), Latest invites (the newest
+   invite per platform), Popular now and Hot Instances, in that order by
+   default. Settings → Dashboard → Sections moves each one up or down and
    turns it on or off, all on by default; off only hides the Dashboard section
    (§9.1, §9.8). Wearing now and Latest invites share one glance row while they
    sit next to each other. Of Popular now and Hot Instances, the first shown
@@ -355,7 +356,7 @@ descendants, which would trap the drawer inside the list panel. **Never put a
   Friends search field, the Friends section headers, and the sign-in fields
   inside the welcome setup.
 - `.platform-row` is a row that belongs to one platform: a friend row, an
-  Activity entry, an Inbox row, a Dashboard glance row. It is a
+  Activity entry, an Inbox row, a Dashboard glance row, a Quick launch button. It is a
   `--glass-layer` pane washed in the platform color from the left
   (`--platform-row-tint-strong` falling to `--platform-row-tint-soft`), with a
   1 px platform-tinted border and the 12 px control radius.
@@ -386,6 +387,7 @@ frosted back panel from layer 2.
 | Top-bar counts panel, loading screen card, error screen card         | `.glass .glass-information`                      |
 | Favorites panel and alerts panel in friend details (16 px radius)    | `.glass .glass-information`                      |
 | Edit profile, Identities, Picked friends, Choose destination dialogs | `.glass .glass-frosted .glass-information`       |
+| History, Keep activity for, Clear this activity? dialogs             | `.glass .glass-frosted .glass-information`       |
 | Join confirmation; Unfriend, Block and Unblock confirmation          | `.glass .glass-frosted-heavy .glass-information` |
 
 `.glass-frosted` and `.glass-frosted-heavy` on their own give a 78% and a 94%
@@ -763,9 +765,10 @@ At 1280 x 800 the main region is 984 px wide.
 16 px at the sides. Top to bottom:
 
 1. The wordmark (§1), then "Social VR Companion" in 11 px `--text-faint`.
-2. The page list (`<nav>`, named "Main navigation"), 3 px between items, in
-   this fixed order: Dashboard, Friends, Hot Instances, Activity, Inbox,
-   Explore, Search, Groups, Avatars, Settings.
+2. The page list (`<nav>`, named "Main navigation"), 3 px between items.
+   The default order is Dashboard, Friends, Hot Instances, Activity, Inbox,
+   Explore, Search, Groups, Avatars, Settings. Quick reorder (below) moves
+   every page but Settings, which is always last.
 3. The foot, above a 1 px `--sidebar-foot-border` line: "VRX" in VT323 16 px,
    then "Social VR Companion · v1.4.3" (the version comes from the build).
 
@@ -792,13 +795,30 @@ the color is only an echo of the filter.
   Instances, Activity, Inbox, Explore, Search and Groups. Dashboard, Friends,
   Avatars and Settings always show. If the current page is turned off, the
   app goes to the Dashboard.
+- **Quick reorder.** A right-click on the page list opens a small opaque
+  menu with one item, "Reorder" ("Done" while the mode is on). In reorder
+  mode every page but Settings becomes a tile: `--control-fill`, a 1 px
+  `--border` line and a six-dot grip at its right end (`.reorder-item`). A
+  tile drags up and down inside the list; the dragged tile lifts
+  (`--control-fill-hover`, `--seg-bubble-shadow`) and the tiles it passes
+  slide aside in 160 ms, with no slide under reduced motion. Arrow Up and
+  Arrow Down move the focused tile, and a polite live region says where it
+  went ("Friends: 3 of 9"). A plain click still opens the page. The foot
+  gives way to one line, "Drag to move. Settings stays last.", over two
+  buttons, "Reset order" and "Done"; Esc also ends the mode. Hidden pages
+  keep their places in the saved order. Reset order puts the sidebar and the
+  Dashboard back in their default order, and is dimmed (`aria-disabled`)
+  when nothing has moved. Settings → Appearance → Sidebar pages → Order
+  holds the Quick reorder switch (§9.8); off, a right-click does nothing.
 - **Update button.** Only when an update is available, downloading or ready,
   a 36 px round button sits at the foot's right. On hover or focus it widens
   to 104 px and shows its word: "Update", "Updating…" (or the percent), then
   "Restart". The foot text keeps clear of it.
 
 Source: [`Sidebar.tsx`](../src/renderer/src/components/Sidebar.tsx),
-[`NavIcons.tsx`](../src/renderer/src/components/NavIcons.tsx).
+[`NavIcons.tsx`](../src/renderer/src/components/NavIcons.tsx),
+[`ReorderControls.tsx`](../src/renderer/src/components/ReorderControls.tsx),
+[`useDragReorder.ts`](../src/renderer/src/hooks/useDragReorder.ts).
 
 ### Top bar
 
@@ -1088,14 +1108,42 @@ Top to bottom:
    Hot Instances is on, "Hot instances". Each is a VT323 38 px number over a
    12.5 px label. Three cards are 184 x 95 px each at the minimum window.
 2. **Sections**, in the order set in Settings → Dashboard → Sections. The
-   four sections are "Wearing now", "Latest invites", "Popular now" and
-   "Hot Instances". Each can be turned off.
+   five sections are "Quick launch", "Wearing now", "Latest invites",
+   "Popular now" and "Hot Instances". Each can be turned off.
 3. A quiet "Settings" button at the bottom right. It opens Settings →
    Dashboard.
+
+**Quick reorder.** A right-click on the Dashboard opens the same one-item
+"Reorder" menu as the sidebar (§8). While reorder mode is on, the sections
+give way to a short list under the numbers
+([`DashboardReorderList.tsx`](../src/renderer/src/components/DashboardReorderList.tsx)):
+a "REORDER SECTIONS" heading with one line of help, "Reset order" and "Done"
+at its right, then one `.glass.glass-layer` tile per section, 8 px apart,
+with the section's name and a six-dot grip. A section that is switched off
+shows a neutral "Off" chip and can still be moved, and so can one that is
+empty. Tiles drag and take the arrow keys as in the sidebar. The order is
+the same one Settings → Dashboard → Sections changes. The sections stay
+mounted but hidden, so leaving the mode loads nothing again; an open sheet
+closes when the mode starts.
 
 A section heading is VT323 18 px, uppercase, 2 px letter spacing,
 `--text-dim`, with 24 px above it and 12 px below. Any button for the
 section sits on the same line at the right.
+
+**Quick launch** is one slim row with no visible heading (its heading is
+for screen readers): one `.platform-row` button per platform, equal widths,
+14 px apart, 44 px tall, 26 px above the next section. Each reads "Launch
+VRChat" or "Launch ChilloutVR" (14 px / 600, centered) after a 16 px
+outlined play triangle; the platform's name is the word beside its tint, so
+there is no pill. A platform shows once VRX knows an account for it, and the
+row follows the platform filter; one button fills the row. A press starts
+the game through Steam, exactly as Play there does, and joins nobody. The
+button then reads "Starting VRChat…" for 8 seconds, without the triangle,
+and takes no second press; a game that is already open reads "VRChat is
+already open" for 10 seconds and is left alone. A start that fails puts one
+12 px `--error` line under the row ("Couldn't start VRChat. VRX starts it
+through Steam, so check that Steam and the game are installed."), which
+clears itself after 10 seconds or at the next try.
 
 **Wearing now** and **Latest invites** are the two glance sections. When
 they are neighbors in the order they share one row, two equal columns
@@ -1137,6 +1185,7 @@ with "Retry"; the not-connected card (Appendix B.7); and the same per-platform
 source lines as Friends, worded "…so they are left out here."
 
 Source: [`DashboardView.tsx`](../src/renderer/src/components/DashboardView.tsx),
+[`DashboardQuickLaunch.tsx`](../src/renderer/src/components/DashboardQuickLaunch.tsx),
 [`DashboardGlance.tsx`](../src/renderer/src/components/DashboardGlance.tsx),
 [`ExploreDashboardPreview.tsx`](../src/renderer/src/components/ExploreDashboardPreview.tsx),
 [`HotInstancesHeader.tsx`](../src/renderer/src/components/HotInstancesHeader.tsx).
@@ -1234,8 +1283,10 @@ only and takes no clicks. The list behind stays usable.
    from §9.7. Under the rank it lists the User ID with "Copy link" beside it
    (§9.3). Nothing here is fetched until the button is pressed.
 8. **Foot row**, pinned at the bottom: "Identities" at the left (§10), then
+   "History", a quiet 12 px / 600 text button in `--text-dim` (§9.5), then
    the favorite star and the alerts bell at the right, both 32 px round
-   `.glass` buttons.
+   `.glass` buttons. History is there on all three views of a friend: a
+   VRChat friend, a ChilloutVR friend and a linked person.
 
 **Account-note states.** With "Save notes to my accounts" on in Settings,
 the line under the note says where the note is:
@@ -1573,30 +1624,71 @@ Source: [`auth/CredentialsForm.tsx`](../src/renderer/src/components/auth/Credent
 
 ### §9.5 Activity
 
-A log of friends coming online, joining worlds and going offline while VRX
-is open ([`ActivityView.tsx`](../src/renderer/src/components/ActivityView.tsx)).
-It keeps at most 300 entries per platform.
+A log of friends coming online, joining worlds and going offline, changes to
+your friends list, and the instances you were in
+([`ActivityView.tsx`](../src/renderer/src/components/ActivityView.tsx)). It
+is saved on this computer for each account, for as long as "Kept" says, and
+asks neither platform for anything.
 
 - **Top row.** A segmented control named "Show" with "All", "Online",
-  "Worlds", "Offline", and a quiet "Clear" button at the right. The filter
-  is remembered.
+  "Worlds", "Offline", "Friends list" and "Instances". At the right, two
+  quiet buttons: "Kept: 90 days" (the current choice) and "Clear". The
+  filter is remembered, except Instances.
 - **Entries.** A list with 6 px between entries, newest first. Each is a
   `.platform-row` for its platform, 12 px by 8 px padding:
 
-  | Part        | Detail                                                                                                          |
-  | ----------- | --------------------------------------------------------------------------------------------------------------- |
-  | Avatar      | 24 px                                                                                                           |
-  | Name        | 14 px / 500, one line                                                                                           |
-  | Description | 12 px `--text-dim`: "Came online", "Came online in {world}", "Joined {world}", "Joined a world", "Went offline" |
-  | Platform    | The platform pill, in a 96 px column                                                                            |
-  | Time        | Right aligned in a 104 px column, tabular digits                                                                |
+  | Part        | Detail                                                                                                                                                                                                   |
+  | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Avatar      | 24 px                                                                                                                                                                                                    |
+  | Name        | 14 px / 500, one line                                                                                                                                                                                    |
+  | Description | 12 px `--text-dim`: "Came online", "Came online in {world}", "Joined {world}", "Joined a world", "Went offline", "Now on your friends list", "No longer on your friends list", "Changed name from {old}" |
+  | Platform    | The platform pill, in a 96 px column                                                                                                                                                                     |
+  | Time        | Right aligned in a 104 px column, tabular digits; the date too once it is not today                                                                                                                      |
 
 - An entry for a current friend is a button that opens that friend in
   Friends. Hover adds `--surface-hover`; focus draws an inset ring.
-- **States.** "Loading activity…"; "No activity yet" with "Friends coming
-  online, joining worlds and going offline show up here while VRX is
-  open."; "Nothing to show with these filters."; "Couldn't load activity."
-  with "Retry"; the not-connected card.
+- **Show older.** The list holds the newest 300 entries per platform. Under
+  it, a quiet "Show older" button reads the next saved page; it is not there
+  when nothing older is saved.
+- **Instances.** The same rows for the rooms you were in, both platforms in
+  one list: the world name (14 px / 500), then "{how long} · {n} people" in
+  12 px `--text-dim` ("You're here now" for the current one), the platform
+  pill and the time. A row opens in place to list who was there, each with
+  their own times. VRChat's times come from the game's own log file, so
+  they are exact; on ChilloutVR friends' times are exact and everyone else
+  is listed for the whole stay.
+- **Kept** opens "Keep activity for": one line on where it is saved, then
+  five radio choices ("Until VRX closes", "30 days", "90 days", "1 year",
+  "Forever") that apply at once. Under a hairline, "Move your history": one
+  line of explanation and three small bordered buttons, "Bring in from
+  VRCX", "Back up…" and "Restore…". Restore first asks in place
+  ("Restoring replaces everything saved here…") with "Cancel" and "Choose a
+  backup…". One line under the buttons says what happened in words. The
+  buttons are dimmed, with the reason, while nothing is being saved.
+- **Clear** deletes what the page shows. When that is saved, it asks first
+  ("Clear this activity?").
+- **States.** "Loading activity…"; "No activity yet"; "Nothing to show with
+  these filters."; "Couldn't load activity." with "Retry"; "No instances
+  yet" with where they come from; the not-connected card.
+
+**A friend's History**
+([`FriendHistoryDialog.tsx`](../src/renderer/src/components/FriendHistoryDialog.tsx)),
+opened from "History" in the friend details foot row. Titled "{name}:
+history". The same layout for a VRChat friend, a ChilloutVR friend and a
+linked person:
+
+- **Facts**, per account in platform order (the platform pill heads each
+  block when there are two): "Friends since" (a date and how long ago, or
+  "Before {date}, when VRX started keeping history"), "Last together" (a
+  date and the world), "Instances together", "Time together", and "Earlier
+  names" (the newest three, each with "until {date}", then "Show all").
+  Labels are 12 px `--text-dim`; values 13 px `--text`. A fact with nothing
+  saved is left out, so both platforms show the same rows in the same order
+  whenever they have the same facts.
+- **Activity**: that friend's saved entries in the Activity row layout,
+  without the avatar and name, with "Show older".
+- **States.** "Loading history…"; "Nothing saved yet" with one line on what
+  will be; "Couldn't load this history."
 
 ### §9.6 Inbox
 
@@ -1768,18 +1860,18 @@ setting with more options is a `.setting-card` whose extra rows sit in a
 
 A change applies at once and is saved; there is no Save button.
 
-| Category      | Settings, in order                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Appearance    | **Theme** (Dark, System, Light; default System). **Background glow** (Off, Muted, Standard, Vivid; default Standard). **Background picture** ("Choose picture"; then a thumbnail, "Change picture", "Remove" and **Picture fade**: Low, Medium, High). **Instance labels** (VRChat, Per platform, ChilloutVR). **Sidebar pages**: On/Off for Hot Instances, Activity, Inbox, Explore, Search, Groups in two columns |
-| Dashboard     | **Hide empty sections**. **Player counts**. **Sections**: the four sections in order, each with "↑" and "↓" (24 px round buttons) and On/Off. **Hot instance threshold** (stepper, 1 to 10, default 2)                                                                                                                                                                                                              |
-| Behavior      | **Friend details open from** (Whole card, Avatar only). **Save notes to my accounts**, with **Use my game favorites** under it. **Friends background re-sync** (5m, 10m, 30m, 1h, Manual only; default 1h). **Allow joining friends**, with **Confirm before joining**, **Join in** (VR, Always ask, Desktop) and **When the game is already open** (Go there, Send invite, Off) under it                           |
-| Notifications | **Who alerts you** (Everyone, Picked friends; with Picked friends, a count line and a "Show" link to the Picked friends dialog). **Friend comes online**, **Friend joins a world**, **Friend goes offline**, **Hot instance**, **Invite received**, **Friend request received**: all Off by default. **Alerts in VR**, with **Time on screen** (Short, Medium, Long) and "Send a test" under it                     |
-| Accounts      | Two account cards side by side. **Export your data** ("Export…" saves friends, notes and favorites to a file the user picks; the result reads in words under the description). Then the unofficial-app notice                                                                                                                                                                                                       |
-| About         | **Automatic updates** (channel: Stable, Beta, Dev; On/Off; an action button; "VRX v1.4.3"). **Start with your computer** (Off, On, In the tray; default Off). **Welcome setup** ("Run setup again"). **Found a bug?** ("Report a bug"). **Logs** ("Open logs folder"). **Legal** ("Show" opens Not an official app, Getting help, Platforms and terms, Privacy, License)                                            |
+| Category      | Settings, in order                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Appearance    | **Theme** (Dark, System, Light; default System). **Background glow** (Off, Muted, Standard, Vivid; default Standard). **Background picture** ("Choose picture"; then a thumbnail, "Change picture", "Remove" and **Picture fade**: Low, Medium, High). **Instance labels** (VRChat, Per platform, ChilloutVR). **Sidebar pages**: On/Off for Hot Instances, Activity, Inbox, Explore, Search, Groups in two columns. Its header ends with a small "Order" button that opens an opaque panel above it: **Quick reorder** (On/Off, default On: a right-click on the sidebar or the Dashboard offers "Reorder"), "Reorder now" (starts reorder mode on the Dashboard, with the switch on or off) and "Reset order" |
+| Dashboard     | **Hide empty sections**. **Player counts**. **Sections**: the five sections in order, 2 px apart, each with "↑" and "↓" (24 px round buttons) and On/Off. **Hot instance threshold** (stepper, 1 to 10, default 2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Behavior      | **Friend details open from** (Whole card, Avatar only). **Save notes to my accounts**, with **Use my game favorites** under it. **Friends background re-sync** (5m, 10m, 30m, 1h, Manual only; default 1h). **Allow joining friends**, with **Confirm before joining**, **Join in** (VR, Always ask, Desktop) and **When the game is already open** (Go there, Send invite, Off) under it                                                                                                                                                                                                                                                                                                                       |
+| Notifications | **Who alerts you** (Everyone, Picked friends; with Picked friends, a count line and a "Show" link to the Picked friends dialog). **Friend comes online**, **Friend joins a world**, **Friend goes offline**, **Hot instance**, **Invite received**, **Friend request received**: all Off by default. **Alerts in VR**, with **Time on screen** (Short, Medium, Long) and "Send a test" under it                                                                                                                                                                                                                                                                                                                 |
+| Accounts      | Two account cards side by side. **Export your data** ("Export…" saves friends, notes and favorites to a file the user picks; the result reads in words under the description). Then the unofficial-app notice                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| About         | **Automatic updates** (channel: Stable, Beta, Dev; On/Off; an action button; "VRX v1.4.3"). **Start with your computer** (Off, On, In the tray; default Off). **Welcome setup** ("Run setup again"). **Found a bug?** ("Report a bug"). **Logs** ("Open logs folder"). **Legal** ("Show" opens Not an official app, Getting help, Platforms and terms, Privacy, License)                                                                                                                                                                                                                                                                                                                                        |
 
 A settings action button is 13 px / 500, radius 10 px, 1 px `--border`,
 `--control-fill`, about 30 px tall. Moving a Dashboard section announces
-its new place to screen readers ("Popular now: 2 of 4").
+its new place to screen readers ("Popular now: 3 of 5").
 
 **Account card** ([`AccountCard.tsx`](../src/renderer/src/components/AccountCard.tsx)).
 One per platform, VRChat first, in a two-column grid 24 px apart. Each is
@@ -1956,8 +2048,8 @@ it is saved.
   unchanged. Try again or cancel.").
 
 **Shared dialog frame** ([`LinkedDialog.tsx`](../src/renderer/src/components/LinkedDialog.tsx)).
-Identities, Choose a destination, Picked friends and Edit profile use one
-frame:
+Identities, Choose a destination, Picked friends, Edit profile, a friend's
+History and the Activity page's dialogs use one frame:
 
 - A native modal `<dialog>`, at most 440 px wide (never closer than 16 px to
   the window sides) and never taller than the window less 48 px; long
@@ -2020,7 +2112,7 @@ chrome: `http://127.0.0.1:4173/glass.html?scene=NAME&theme=dark&render=1`.
 - Add `theme=light`, `glow=off`, `glow=muted` or `glow=vivid`, `picture=1`
   for a background picture, and `variant=` for a state (for example
   `variant=cvr-missing` on `friends`, `variant=note-account-conflict` on
-  `drawer`, `variant=hot-first` on `dashboard`). The states are listed in
+  `drawer`, `variant=hot-first`, `variant=reorder` or `variant=launch-failed` on `dashboard`). The states are listed in
   [`docs/guide/scenarios.ts`](guide/scenarios.ts).
 
 Check every change against this list:
