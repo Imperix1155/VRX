@@ -196,6 +196,81 @@ describe('VrchatGameLog', () => {
     expect(steps).toEqual([])
   })
 
+  describe('a file that never says who signed in', () => {
+    const unnamed = [
+      line('12:00:01', '[Behaviour] Entering Room: Pug Lounge'),
+      line('12:00:02', '[Behaviour] Joining wrld_a:1~region(us)'),
+      line('12:00:03', `[Behaviour] OnPlayerJoined Alice (${ALICE})`),
+      line('12:00:04', `[Behaviour] OnPlayerJoined Me (${ME.toUpperCase().replace('USR', 'usr')})`),
+      line('12:00:05', `[Behaviour] OnPlayerLeft Alice (${ALICE})`)
+    ]
+
+    it('tells a room once the account itself is seen arriving in it', async () => {
+      write('output_log_2026-11-15_12-00-00.txt', unnamed.slice(0, 3))
+      const log = reader()
+      await log.pass()
+      // Whose game this is cannot be told yet.
+      expect(steps).toEqual([])
+      write('output_log_2026-11-15_12-00-00.txt', unnamed)
+      await log.pass()
+      expect(steps).toEqual([
+        'enter wrld_a:1~region(us) Pug Lounge',
+        'join Alice',
+        'join Me',
+        `leave ${ALICE}`
+      ])
+    })
+
+    it('tells nothing to an account that never arrives in its rooms', async () => {
+      write('output_log_2026-11-15_12-00-00.txt', [
+        ...unnamed,
+        line('12:10:00', '[Behaviour] OnLeftRoom')
+      ])
+      write('output_log_2026-11-15_13-00-00.txt', unnamed)
+      const log = reader()
+      await log.pass()
+      expect(steps).toHaveLength(9)
+
+      // Another account signs in to VRX: the same files are read for it.
+      steps.length = 0
+      accountId = 'usr_someone-else'
+      log.reset()
+      await log.pass()
+      gameRunning = false
+      now += 61_000
+      await log.pass()
+      expect(steps).toEqual([])
+    })
+
+    it('ends a told room when the next one is held back', async () => {
+      write('output_log_2026-11-15_12-00-00.txt', [
+        ...unnamed,
+        // Straight into another room, where the account is never seen.
+        line('12:20:00', '[Behaviour] Joining wrld_b:2~region(us)'),
+        line('12:20:05', `[Behaviour] OnPlayerJoined Alice (${ALICE})`),
+        line('12:30:00', '[Behaviour] OnLeftRoom')
+      ])
+      await reader().pass()
+      expect(steps).toEqual([
+        'enter wrld_a:1~region(us) Pug Lounge',
+        'join Alice',
+        'join Me',
+        `leave ${ALICE}`,
+        `exit ${at('12:20:00')}`
+      ])
+    })
+
+    it('leaves out a room that ends before the account is seen in it', async () => {
+      write('output_log_2026-11-15_12-00-00.txt', [
+        ...unnamed.slice(0, 3),
+        line('12:01:00', '[Behaviour] OnLeftRoom'),
+        line('12:02:00', `[Behaviour] OnPlayerJoined Me (${ME})`)
+      ])
+      await reader().pass()
+      expect(steps).toEqual([])
+    })
+  })
+
   it('waits while no account is signed in, then reads from the start', async () => {
     write('output_log_2026-11-15_12-00-00.txt', session)
     accountId = null

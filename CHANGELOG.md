@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.0-beta.1] - 2026-11-18
 
 The first beta of 1.5.0. It holds everything from dev builds 1.5.0-dev.1 and
-1.5.0-dev.2, on top of 1.4.5.
+1.5.0-dev.2, on top of 1.4.5, and four fixes to saved history found since.
 
 ### Added
 
@@ -34,6 +34,18 @@ The first beta of 1.5.0. It holds everything from dev builds 1.5.0-dev.1 and
 
 - Settings → Dashboard: the notes under "Player counts" and "Hot instance
   threshold" are shorter, so the page still fits the smallest window.
+
+### Fixed
+
+- The VRChat instance log is saved only under the account that was in the
+  game. After switching accounts in VRX, the other account's instances no
+  longer show up in yours.
+- Instances older than your "Kept" choice no longer come back for a while
+  after VRX starts.
+- Restoring a backup also brings back when you last cleared the instance
+  log, so cleared instances stay cleared.
+- After a restore, the Activity page shows the restored history right away
+  instead of keeping rows from before it.
 
 ### Security
 

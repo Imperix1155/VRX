@@ -222,4 +222,37 @@ describe('history backup and restore', () => {
     // And the database still works afterwards.
     expect(target.recentActivity(VRC, 10)).toHaveLength(1)
   })
+
+  it('brings back when each instance log was last cleared, never a later moment', async () => {
+    const source = database('old-pc')
+    fill(source)
+    source.deleteInstanceLog(VRC, 5_000)
+    const backup = join(dir, 'backup.sqlite3')
+    await backUpHistory(transfer(source), backup)
+
+    // This computer cleared its own log at another moment; the backup wins.
+    const target = database('new-pc')
+    target.deleteInstanceLog(CVR, 9_000)
+    await expect(restoreHistory(transfer(target), backup)).resolves.toEqual({ ok: true })
+    expect(target.instanceLogFloor(VRC)).toBe(5_000)
+    expect(target.instanceLogFloor(CVR)).toBe(0)
+
+    // A backup that claims a moment still to come cannot stop the log.
+    const edited = new DatabaseSync(backup)
+    edited
+      .prepare('UPDATE instance_log_floor SET at = ? WHERE account_key = ?')
+      .run(Date.now() + 86_400_000 * 365, VRC)
+    edited.close()
+    const before = Date.now()
+    await expect(restoreHistory(transfer(target), backup)).resolves.toEqual({ ok: true })
+    expect(target.instanceLogFloor(VRC)).toBeGreaterThanOrEqual(before)
+    expect(target.instanceLogFloor(VRC)).toBeLessThanOrEqual(Date.now())
+
+    // A backup made before that table existed restores as before.
+    const older = new DatabaseSync(backup)
+    older.exec('DROP TABLE instance_log_floor')
+    older.close()
+    await expect(restoreHistory(transfer(target), backup)).resolves.toEqual({ ok: true })
+    expect(target.instanceLogFloor(VRC)).toBe(0)
+  })
 })
