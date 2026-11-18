@@ -26,6 +26,11 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // GitHub's runners, Windows most of all, can be several times slower than
+    // a developer's computer. A component test that renders a full list takes
+    // about 2 s here and has gone past the default 5 s there. CI gets room;
+    // a local run keeps 5 s, so a slow test is still noticed while writing it.
+    testTimeout: process.env.CI ? 15_000 : 5_000,
     // electron-store is loaded for real by the settings-file migration test.
     // Inline it so its `electron` import hits the test mock instead of the
     // unpacked Electron binary.
