@@ -114,6 +114,11 @@ fails when DESIGN.md names a token or class that doesn't exist, when its
 copied CSS drifts from `main.css`, or when a guide code sample names a
 component that doesn't exist.
 
+`scripts/readme-pages.test.mjs` fails when the README's page list misses a
+sidebar page or an Activity tab, or no longer names the buttons that move
+saved history. When it fails, read the whole README item for that page, not
+only the missing name: the sentences around it are usually what went stale.
+
 ## Verification
 
 For any change to the app, dependencies, build, release or CI:
@@ -129,7 +134,10 @@ every file); later runs reuse `.eslintcache`. The full test suite takes about
 a minute and a half. Two warnings at the top of a test run are expected and
 harmless: Vite's note that `vitest.config.ts` isn't ready for its future
 `configLoader: 'native'`, and Node's SQLite `ExperimentalWarning` (the VRCX
-import tests read a SQLite file).
+import tests read a SQLite file). A test may take 5 seconds on your computer
+and 15 in CI (`testTimeout` in `vitest.config.ts`), because CI runners are
+slower; keep a test well under 5 seconds locally instead of raising its own
+limit.
 
 - `verify` does not start the app. After it passes, run `npm run test:e2e`
   for any change that can affect the running app (on Linux without a screen:
@@ -193,11 +201,13 @@ can delete the `"libc"` lines of packages you did not touch;
 `scripts/lockfile.test.mjs` fails when they are gone.
 [Maintaining](MAINTAINING.md#accept-a-dependency-update) has the fix.
 
-The audit job blocks high and critical advisories, and there is no current
-exception. An exception is allowed only for a development-only advisory with
-no fixed release: verify both, except only that exact advisory in
-[`scripts/audit-policy.mjs`](../scripts/audit-policy.mjs), and record the
-reason and review date in [SECURITY.md](../SECURITY.md) in generic words.
+The audit job blocks high and critical advisories. Current exceptions, if
+any, are listed in [SECURITY.md](../SECURITY.md#audit-policy). An exception is
+allowed only for a development-only advisory with no fixed release: verify
+both, except only that exact advisory in
+[`scripts/audit-policy.mjs`](../scripts/audit-policy.mjs) with a review date,
+and record the reason and that date in SECURITY.md in generic words. An
+exception stops applying after its review date.
 Production exposure or an available fix rules an exception out. Never lower
 the audit threshold or disable the gate; changing the policy needs tests that
 prove non-excepted, production and malformed cases still fail.

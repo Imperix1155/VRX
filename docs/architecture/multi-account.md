@@ -106,6 +106,7 @@ All files live under `app.getPath('userData')`.
 | `link-graph.json`  | [`LinkGraphStore`](../../src/main/services/linkGraphStore.ts)        | Installation-wide, account-qualified members        |
 | `credentials.json` | [`credentials.ts`](../../src/main/services/credentials.ts)           | One slot per platform, not per account              |
 | `settings.json`    | [`settings.ts`](../../src/main/services/settings.ts)                 | Global                                              |
+| `history.sqlite3`  | [`historyDatabase.ts`](../../src/main/services/historyDatabase.ts)   | Every row keyed by `accountKey`                     |
 | `image-cache/`     | [`imageDiskStore.ts`](../../src/main/services/imageDiskStore.ts)     | Installation-wide, VRChat API-host pictures         |
 | `vrchat-metadata/` | [`vrcMetadataStore.ts`](../../src/main/services/vrcMetadataStore.ts) | One file per VRChat account (world and group names) |
 
@@ -216,6 +217,26 @@ profiles.
 - The old credential-owner sidecar (`credential-owners.json`) was write-only
   and has been removed. `removeLegacyCredentialOwnerStore` deletes any leftover
   file at startup.
+
+### Saved history
+
+`history.sqlite3` (schema version 1, SQLite) holds the Activity list, the
+friends list history and the instance log.
+
+- Every row carries the `accountKey` it was saved under. Main resolves the
+  signed-in account at the moment of each read or write, so an account only
+  ever sees its own rows and a second account on the same platform starts
+  with an empty history.
+- A session boundary drops the outgoing account's history from memory and
+  ends the room it was in; the saved rows stay and come back when that
+  account signs in again.
+- A damaged file is renamed to `history.corrupt-<time>.sqlite3`, never
+  deleted, and a new file starts. A file written by a newer build is left
+  untouched and the session keeps history in memory only.
+- **Keep activity for** removes rows by age for every account. "Until VRX
+  closes" and turning the Activity page off delete every account's rows.
+- A backup (Activity → Kept → Back up) is a copy of the whole file, every
+  account included. Restoring replaces every account's rows.
 
 ### Settings
 

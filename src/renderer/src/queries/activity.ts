@@ -5,14 +5,39 @@ import {
   type QueryClient,
   type UseQueryResult
 } from '@tanstack/react-query'
-import type { ActivityEntry, ActivityFilter } from '@shared/activity'
+import {
+  matchesActivityFilter,
+  type ActivityEntry,
+  type ActivityFilter,
+  type ActivityFriendRef,
+  type ActivityPage,
+  type ActivityPageRequest,
+  type FriendHistoryFacts
+} from '@shared/activity'
 import type { Platform } from '@shared/types'
 import { queryClient } from './queryClient'
 
-/** Not persisted: only the `friends` namespace survives a restart (cache.ts). */
+/** Not persisted in the renderer: only the `friends` namespace survives a
+ *  restart here (cache.ts). Main saves activity itself. */
 export const activityKey = ['activity'] as const
 
-/** The in-memory activity list main keeps, newest first. Main pushes a change
+/** One page of older saved activity, or of one friend's, straight from main.
+ *  Local only: it reads this computer's history, never a platform. */
+export async function fetchActivityPage(request: ActivityPageRequest): Promise<ActivityPage> {
+  if (typeof window.vrx?.getActivityPage !== 'function') return { entries: [], hasMore: false }
+  return window.vrx.getActivityPage(request)
+}
+
+/** What VRX has saved about a friendship (friends since, earlier names), for
+ *  one friend or a linked person's two accounts. Local only. */
+export async function fetchFriendHistory(
+  friends: ActivityFriendRef[]
+): Promise<FriendHistoryFacts[]> {
+  if (typeof window.vrx?.getFriendHistory !== 'function') return []
+  return window.vrx.getFriendHistory({ friends })
+}
+
+/** The newest activity main keeps per platform, newest first. Main pushes a change
  *  notice; this query never polls and reading it makes no platform request. */
 export function useActivity(): UseQueryResult<ActivityEntry[], Error> {
   return useQuery({
@@ -57,6 +82,9 @@ export function useActivityForFriendsOrder(
 export function subscribeActivity(client: QueryClient): () => void {
   const invalidate = (): void => {
     void client.invalidateQueries({ queryKey: activityKey })
+    // The same notice covers the instance log (a view that is open reads again).
+    void client.invalidateQueries({ queryKey: ['instance-log'] })
+    void client.invalidateQueries({ queryKey: ['friend-history'] })
   }
   const changed = window.vrx?.onActivityChanged?.(invalidate)
   const boundary = window.vrx?.onIdentityBoundary?.(({ platform }) => {
@@ -93,7 +121,7 @@ export async function clearActivity(client: QueryClient, scope: ActivityClearSco
     entries?.filter(
       (entry) =>
         !scope.platforms.includes(entry.platform) ||
-        (scope.filter !== 'all' && entry.kind !== scope.filter)
+        !matchesActivityFilter(entry.kind, scope.filter)
     )
   )
 }

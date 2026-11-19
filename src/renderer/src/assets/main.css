@@ -1280,6 +1280,38 @@ body::after {
   --glass-edge: var(--tint-cvr-border);
 }
 
+/*
+ * Quick reorder (owner, 2026-11-15). While reorder mode is on, every movable
+ * sidebar page and Dashboard section is a tile that can be dragged: a faint
+ * fill and hairline mark it, the row under the pointer lifts, and the rows it
+ * passes slide aside. `useDragReorder` sets the transforms inline; the rules
+ * live here, unlayered, so the slide wins over a row's own Tailwind
+ * transition utility.
+ */
+.reorder-item {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  background-color: var(--control-fill);
+  border-color: var(--border);
+}
+.reorder-item:hover {
+  background-color: var(--control-fill-hover);
+}
+.reorder-item[data-dragging='true'] {
+  z-index: 2;
+  cursor: grabbing;
+  color: var(--text);
+  background-color: var(--control-fill-hover);
+  box-shadow: var(--seg-bubble-shadow);
+  transition: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .reorder-item[data-dragging='false'] {
+    transition: transform 160ms ease;
+  }
+}
+
 /**
  * §9 Dashboard hot-instance grid (VRX-199). Max TWO columns that FILL the row;
  * container-query responsive so a narrow pane drops to one column and a lone card

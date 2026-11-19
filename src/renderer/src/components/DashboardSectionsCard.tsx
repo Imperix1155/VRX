@@ -2,7 +2,8 @@
  * Settings → Dashboard "Sections" card (owner, 2026-10-27): every section
  * below the Dashboard numbers in its Dashboard order, each with move up/down
  * and an On/Off switch. One card instead of a row per section keeps the page
- * inside the 900x670 window.
+ * inside the 900x670 window. Quick launch (owner, 2026-11-18) is a section
+ * like the others.
  *
  * The list (`dashboardSections`) owns the order; every move also writes
  * `dashboardSectionOrder` so an older build still shows Popular now and Hot
@@ -54,7 +55,9 @@ export default function DashboardSectionsCard(): React.JSX.Element {
           {t('settings.dashboard.sections.description')}
         </p>
       </div>
-      <ol aria-labelledby={headingId} className="setting-children">
+      {/* Five rows: a tighter gap than other child lists keeps the whole
+          page inside the 900x670 window. */}
+      <ol aria-labelledby={headingId} className="setting-children gap-[var(--space-0-5)]">
         {sections.map((section, index) => {
           const { labelKey, setting } = SECTION_SETTINGS[section]
           const name = t(labelKey)

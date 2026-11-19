@@ -270,8 +270,15 @@ export const DASHBOARD_SECTION_ORDERS = ['popular-first', 'hot-first'] as const
 export type DashboardSectionOrder = (typeof DASHBOARD_SECTION_ORDERS)[number]
 
 /** Every Dashboard section below the numbers, in the DEFAULT display order
- *  (owner, 2026-10-27). The user can move each one in Settings → Dashboard. */
-export const DASHBOARD_SECTIONS = ['wearing-now', 'invites', 'popular', 'hot'] as const
+ *  (owner, 2026-10-27; Quick launch first, owner, 2026-11-18). The user can
+ *  move each one in Settings → Dashboard. */
+export const DASHBOARD_SECTIONS = [
+  'quick-launch',
+  'wearing-now',
+  'invites',
+  'popular',
+  'hot'
+] as const
 export type DashboardSection = (typeof DASHBOARD_SECTIONS)[number]
 
 /** Every section once: known ones in the given order, missing ones appended. */
@@ -290,8 +297,8 @@ export function normalizeDashboardSections(value: readonly unknown[]): Dashboard
 /** The section list that matches an older Popular now / Hot Instances order. */
 export function dashboardSectionsFromOrder(order: DashboardSectionOrder): DashboardSection[] {
   return order === 'hot-first'
-    ? ['wearing-now', 'invites', 'hot', 'popular']
-    : ['wearing-now', 'invites', 'popular', 'hot']
+    ? ['quick-launch', 'wearing-now', 'invites', 'hot', 'popular']
+    : ['quick-launch', 'wearing-now', 'invites', 'popular', 'hot']
 }
 
 /** Which of Popular now and Hot Instances comes first in a section list. */
@@ -310,6 +317,48 @@ export function withDashboardSectionOrder(
   return sections.map((section) =>
     section === 'hot' ? 'popular' : section === 'popular' ? 'hot' : section
   )
+}
+
+// ─── Sidebar order (owner, 2026-11-15) ───────────────────────────────────────
+/** Every sidebar page the user can move, in the DEFAULT display order. Settings
+ *  is not here: it always sits last, so a muddled order can never lose it. */
+export const SIDEBAR_PAGES = [
+  'dashboard',
+  'friends',
+  'hot',
+  'activity',
+  'inbox',
+  'explore',
+  'search',
+  'groups',
+  'avatars'
+] as const
+export type SidebarPage = (typeof SIDEBAR_PAGES)[number]
+
+/** Every movable page once: known ones in the given order, missing ones appended. */
+export function normalizeSidebarOrder(value: readonly unknown[]): SidebarPage[] {
+  const known = new Set<string>(SIDEBAR_PAGES)
+  const out: SidebarPage[] = []
+  for (const item of value) {
+    if (typeof item === 'string' && known.has(item) && !out.includes(item as SidebarPage)) {
+      out.push(item as SidebarPage)
+    }
+  }
+  for (const page of SIDEBAR_PAGES) if (!out.includes(page)) out.push(page)
+  return out
+}
+
+/**
+ * A whole list after the user reordered only the entries on screen. Hidden
+ * entries keep their own slots; the shown ones take the remaining slots in
+ * their new order. `shown` must hold entries of `full`; anything else leaves
+ * `full` as it was.
+ */
+export function mergeShownOrder<T>(full: readonly T[], shown: readonly T[]): T[] {
+  const moved = new Set(shown)
+  if (moved.size !== shown.length || shown.some((item) => !full.includes(item))) return [...full]
+  const queue = [...shown]
+  return full.map((item) => (moved.has(item) ? (queue.shift() ?? item) : item))
 }
 
 // ─── Friends-list presence sections (VRX-67) ─────────────────────────────────

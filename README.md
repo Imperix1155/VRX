@@ -9,16 +9,18 @@ weight. Live presence comes from each platform's own live connection, not from
 polling.
 
 VRX never writes VRCX or CVRX data. It reads their saved sign-in only when you
-press a "Use my sign-in from" button (see [Sessions and privacy](#sessions-and-privacy)).
+press a "Use my sign-in from" button, and VRCX's saved history only when you
+press "Bring in from VRCX" (see [Sessions and privacy](#sessions-and-privacy)).
 
 ## What it does
 
 Pages, top to bottom in the sidebar:
 
 - **Dashboard**: friends online, friends in game and hot instances at a glance,
-  then the avatar you're wearing, your latest invites, Popular now worlds and
-  Hot Instances. Sections with nothing to show step aside. Move or hide any
-  section in Settings → Dashboard.
+  then Quick launch buttons that start VRChat or ChilloutVR, the avatar you're
+  wearing, your latest invites, Popular now worlds and Hot Instances. Sections with nothing to show step aside. Move or hide any
+  section in Settings → Dashboard, or right-click the Dashboard and pick
+  Reorder to drag them.
 - **Friends**: one list for both platforms, grouped into Favorites, In-Game,
   Online and Offline, with search and an **Order** control (Name, Recent, World
   or Joinable). Favorites lists the starred friends who are in a game right
@@ -30,8 +32,16 @@ Pages, top to bottom in the sidebar:
 - **Hot Instances**: every instance where at least two of your friends are
   together (you can change the number), most friends first.
 - **Activity**: friends coming online, joining worlds and going offline on
-  both platforms, newest first. It comes from the live connection VRX already
-  has, so it adds no requests, and it is kept only while VRX is open.
+  both platforms, newest first, under **All**, **Online**, **Worlds** and
+  **Offline**. **Friends list** shows a new friend, someone no longer on your
+  list and a friend's new name. **Instances** is a log of the instances you
+  were in, how long you stayed and who was there. It all stays after a
+  restart, with **Show older** for what the list no longer holds. **Kept**
+  picks how long: until VRX closes, 30 days, 90 days (the default), 1 year or
+  forever. A shorter choice asks before it deletes anything, and turning the
+  Activity page off in Settings → Appearance → Sidebar pages deletes what
+  was saved. None of this adds a request to either platform (see
+  [Sessions and privacy](#sessions-and-privacy)).
 - **Inbox**: invites, invite requests and friend requests from both platforms
   that arrive while VRX is open. Accept or decline friend requests right there.
   An invite that names its instance has a **Join** button, which takes you
@@ -56,6 +66,15 @@ Across the app:
   VRX favorite and, if you want, also adds the friend or world to one of your
   VRChat favorite groups or ChilloutVR categories. Turn the account part off
   in Settings → Behavior.
+- **Friend history**: a small **History** button in a friend's details shows
+  friends since, earlier names, when you were last together, how many
+  instances you shared and for how long, and that friend's saved activity.
+- **Move your history**: Activity → Kept. **Back up…** saves everything VRX
+  remembers, for both platforms, to one file, and **Restore…** brings it back
+  on another computer. **Bring in from VRCX** adds VRCX's saved VRChat
+  history; close VRCX first. If you used more than one VRChat account in
+  VRCX, only the instances VRCX saw this account join are brought in, and VRX
+  says when some were left out. VRCX keeps no ChilloutVR history.
 - **Notes**: a friend's note is saved to your VRChat or ChilloutVR account as
   well as in VRX, so it matches the game. Turn that off in Settings → Behavior.
 - **Copy link**: a quiet button beside the ID under Show more (worlds, hot
@@ -83,6 +102,10 @@ Across the app:
 - **Your look**: Theme (System, Light or Dark), Background glow, your own
   background picture, and which platform's words the instance labels use.
   Settings → Appearance → Sidebar pages hides pages you don't use.
+- **Your order**: right-click the sidebar or the Dashboard, pick Reorder, and
+  drag pages and sections where you want them. Settings always stays last.
+  Reset order puts everything back, and Sidebar pages → Order turns the
+  right-click off.
 - **Welcome setup**: a new install starts with a short setup you can skip at
   any step. Run it again from Settings → About.
 - **Report a bug**: Settings → About opens a GitHub bug report with your VRX
@@ -145,6 +168,12 @@ a problem.
   the pictures it loaded from VRChat (for up to 14 days) and of world and group
   names (for up to a day) in its private app files. Signing out of VRChat in
   VRX deletes them.
+- Saved history (Activity, friends list changes and the instance log) is one
+  file in VRX's private app files, kept apart for each account. It never
+  leaves your computer unless you save a backup, which holds your friends'
+  names, so keep it private. It is built from what VRX already receives, from
+  VRChat's own log files on your computer and, when you press "Bring in from
+  VRCX", from a private copy of VRCX's file. VRX only reads those files.
 - Friends set to Ask Me or Do Not Disturb keep their location hidden
   everywhere in VRX, notifications included.
 - VRX has no telemetry or analytics. It talks to VRChat, ChilloutVR and GitHub

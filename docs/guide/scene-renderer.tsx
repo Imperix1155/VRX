@@ -262,6 +262,8 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
   if (name === 'settings' && variant === 'read-error') {
     useSettingsStore.setState({ loadFallback: true })
   }
+  // Quick reorder: the Dashboard's `reorder` variant opens in reorder mode.
+  useUiStore.getState().setReorderMode(name === 'dashboard' && variant === 'reorder')
   useUiStore
     .getState()
     .setActiveTab(

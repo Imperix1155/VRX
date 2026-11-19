@@ -22,6 +22,7 @@ import { z } from 'zod'
 import { INSTANCE_CACHE_TTL_MS } from '@shared/constants'
 import type { AdapterRequestOptions } from '../BaseAdapter'
 import { AuthError, RateLimitError, RequestCancelledError, RequestQueueFullError } from '../errors'
+import { extractCvrPlatformUserId } from './cvrPlatformUserId'
 import type { CvrFetcher } from './fetchCvrFriends'
 
 // ─── Raw API shape (defensive) ────────────────────────────────────────────────
@@ -51,6 +52,8 @@ const rawCvrInstanceDetailSchema = z
       .catch(null)
       .optional(),
     currentPlayerCount: z.number().int().nonnegative().nullable().catch(null).optional(),
+    /** Who is in the instance. Enrichment: anything unexpected reads as "not told". */
+    members: z.array(z.unknown()).nullable().catch(null).optional(),
     /** Numeric on the WS wire, PascalCase string on `GET /instances/{id}` — parseCvrPrivacy takes both. */
     instanceSettingPrivacy: z.union([z.string(), z.number()]).nullable().catch(null).optional()
   })
@@ -60,6 +63,25 @@ const rawCvrInstanceDetailSchema = z
    * Normalization reads only the named fields.
    */
   .passthrough()
+
+const rawMemberSchema = z.object({ id: z.string(), name: z.string() }).passthrough()
+/** Most members kept from one read. */
+const MAX_MEMBERS = 200
+
+/** Each member is read on its own: one odd entry is skipped, not the list. */
+function parseMembers(raw: unknown[] | null | undefined): ResolvedCvrInstance['members'] {
+  if (raw == null) return null
+  const members: NonNullable<ResolvedCvrInstance['members']> = []
+  for (const item of raw.slice(0, MAX_MEMBERS)) {
+    const parsed = rawMemberSchema.safeParse(item)
+    if (!parsed.success) continue
+    const id = extractCvrPlatformUserId(parsed.data.id)
+    const displayName = parsed.data.name.trim()
+    if (!id.ok || displayName === '') continue
+    members.push({ platformUserId: id.platformUserId, displayName })
+  }
+  return members
+}
 
 // ─── Result type ──────────────────────────────────────────────────────────────
 
@@ -79,6 +101,8 @@ export interface ResolvedCvrInstance {
   /** Hosting group image/icon URL. */
   groupImageUrl: string | null
   playerCount: number | null
+  /** Who was in the instance when it was read, or null when the API did not say. */
+  members: Array<{ platformUserId: string; displayName: string }> | null
   /** Raw privacy value for parseCvrPrivacy (getInstanceDetails); null when absent. */
   privacy: string | number | null
 }
@@ -193,6 +217,7 @@ export function createCvrInstanceResolver(options: {
         groupName: hasGroup ? groupNameRaw : null,
         groupImageUrl: hasGroup ? (rawGroup.image ?? null) : null,
         playerCount: raw.currentPlayerCount ?? null,
+        members: parseMembers(raw.members),
         privacy: raw.instanceSettingPrivacy ?? null
       }
       if (requestGeneration === generation) {

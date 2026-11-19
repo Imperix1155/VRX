@@ -90,14 +90,15 @@ in-app "What's new" screen.
 - **deb**: run `sudo apt remove vrx`.
 - **AppImage**: delete the file.
 
-Updating or uninstalling keeps your settings and saved sign-ins, so they come
-back if you install VRX again. To remove saved sign-ins, sign out of each platform in
+Updating or uninstalling keeps your settings, saved sign-ins and saved
+history, so they come back if you install VRX again. To remove saved sign-ins, sign out of each platform in
 Settings → Accounts before you uninstall. To remove everything VRX keeps,
 delete these folders after uninstalling:
 
-- **Windows**: `%APPDATA%\vrx` (settings, sign-ins, cached pictures and logs)
-  and `%LOCALAPPDATA%\vrx-updater` (downloaded updates).
-- **Linux**: `~/.config/vrx` (settings, sign-ins and cached pictures),
+- **Windows**: `%APPDATA%\vrx` (settings, sign-ins, saved history, cached
+  pictures and logs) and `%LOCALAPPDATA%\vrx-updater` (downloaded updates).
+- **Linux**: `~/.config/vrx` (settings, sign-ins, saved history and cached
+  pictures),
   `~/.config/VRX` (logs) and `~/.cache/vrx-updater` (downloaded updates).
 
 ## Report a problem

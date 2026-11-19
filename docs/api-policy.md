@@ -50,6 +50,10 @@ It launches
 the game through local URL schemes, or, when the game is already open, hands
 the Join to that copy (see
 [Joining a game that is already open](#joining-a-game-that-is-already-open)).
+The Dashboard's Quick launch buttons start a game without joining anyone:
+main opens Steam's own link for that game (`steam://rungameid/<app id>`), as
+Play in Steam does, and leaves a game that is already open alone. That is
+local too: neither platform is asked anything.
 When the user presses **Set as home world** on a world sheet and confirms, it
 makes that world their home (see [Home world limits](#home-world-limits)).
 When the user presses **Like** or **Dislike** on a VRChat world sheet, it
@@ -130,7 +134,13 @@ before it saves anything.
   reports incomplete coverage instead of reading further.
 - **No VRCX or CVRX writes.** VRX never writes to VRCX, CVRX, or game folders.
   "Use my sign-in from this PC" opens VRCX, CVRX, and game files read-only and
-  runs only when the user presses that button.
+  runs only when the user presses that button. "Bring in from VRCX" reads a
+  private copy of VRCX's database, read-only, only on that button press. The
+  instance log reads VRChat's own log files read-only (see
+  [Saved history](#saved-history)).
+- **No requests for history.** Saved history is built only from what VRX
+  already receives and from files on the user's computer. It never adds a
+  request to either platform.
 - **No invented data.** Unknown or missing values degrade to a safe default.
   Missing data is never a status, a removal, or a join target.
 
@@ -571,6 +581,7 @@ Main also rate-limits the renderer's requests before any network work starts.
 | Roster request           | 12 per 30 seconds                                                                                                                        |
 | Join a friend's instance | 20 per minute; one launch per platform at a time; 3 s cooldown per friend and destination; this also covers the hand-off to an open game |
 | VRChat self-invite       | 20 per minute; one at a time; 3 s cooldown                                                                                               |
+| Quick launch             | 20 per minute; shares the one-launch-per-platform lock with Join; one start per platform per 20 s; no platform request                   |
 | Avatar list              | 30 per minute; concurrent reads share one run                                                                                            |
 | Avatar details           | 60 per minute                                                                                                                            |
 | Avatar switch            | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                                                                |
@@ -589,10 +600,51 @@ Main also rate-limits the renderer's requests before any network work starts.
 | World lists              | 60 per minute                                                                                                                            |
 | Players online, groups   | 30 per minute each                                                                                                                       |
 | Join from Explore        | 20 per minute; one launch per platform at a time; 3 s cooldown per destination                                                           |
+| Saved history reads      | 120 per minute each (older activity, a friend's history, instances, who was there); local file only, no platform request                 |
+| Bring in from VRCX       | 6 per minute; one history move at a time                                                                                                 |
+| History backup, restore  | 10 and 6 per minute; one history move at a time                                                                                          |
 
 The full table is `IPC_RATE_LIMIT_BUDGETS` in
 [`rate-limit.ts`](../src/main/ipc/rate-limit.ts). Every join also respects the
 **Allow joining friends** setting.
+
+## Saved history
+
+VRX keeps a history on the user's computer, as VRCX does: the Activity list,
+friends list changes (added, no longer a friend, a new name, friends since)
+and an instance log (the rooms the user was in and who was there). It is one
+file, `history.sqlite3`, in VRX's own data folder, keyed by account. Nothing
+in it is sent anywhere, and none of it costs a request:
+
+| History              | VRChat source                                                                | ChilloutVR source                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Activity             | The live socket events VRX already receives                                  | The live socket lists VRX already receives                                                        |
+| Friends list changes | The roster reads VRX already makes, and the socket's friend events           | The roster reads VRX already makes                                                                |
+| Instance log         | The game's own `output_log` files on this computer, read-only, as VRCX reads | The live socket's presence list, plus the one instance read VRX already makes for the user's room |
+| Bring in from VRCX   | A private read-only copy of VRCX's database, on a button press               | Not offered: VRCX keeps no ChilloutVR history                                                     |
+| Back up and restore  | A file the user picks; both platforms                                        | Same file                                                                                         |
+
+- VRChat's log gives exact arrival and leaving times. ChilloutVR has no such
+  log, so friends' times are exact (the socket reports them) and everyone
+  else is listed from the moment the room was read until the user leaves.
+- A friend is recorded as removed only after two complete friends lists
+  without them, or when the platform's own event says so. A partial list
+  never removes anyone.
+- **Keep activity for** (Activity → Kept) sets how long the Activity list and
+  the instance log stay: until VRX closes, 30 days, 90 days (the default), 1
+  year, or forever. Turning the Activity page off deletes all saved history.
+- The file never leaves the computer except as a backup the user saves
+  themselves.
+- History is saved only under the account it belongs to. VRChat's log and
+  VRCX's game log can hold more than one account's rooms: a room is saved
+  for an account only when the log names that account as signed in, or the
+  account's own arrival in the room is read. A VRCX database that holds one
+  account only is brought in whole.
+- A job that waits (bringing VRCX's history in, a restore, a backup) asks
+  again at each write whether history is still kept and the same account is
+  still signed in. The database offers those writes only with that check
+  (`HistoryDatabase.job`), so a check made before a wait is never the last
+  one.
 
 ## Cancellation across sessions
 

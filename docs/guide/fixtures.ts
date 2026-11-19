@@ -281,6 +281,23 @@ export function activityEntries(now: number): ActivityEntry[] {
       ago: 22
     },
     {
+      kind: 'renamed',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-vale',
+      displayName: 'Vale After the Last Train',
+      worldName: null,
+      previousName: 'Vale of Platform Nine',
+      ago: 27
+    },
+    {
+      kind: 'added',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-fern',
+      displayName: 'Fern',
+      worldName: null,
+      ago: 29
+    },
+    {
       kind: 'online',
       platform: 'vrchat',
       platformUserId: 'usr-guide-kai',

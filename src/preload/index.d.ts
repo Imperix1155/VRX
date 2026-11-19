@@ -108,15 +108,37 @@ type VrxBridge = {
   getJoinHandoff: (
     req: IpcInvoke['get-join-handoff']['req']
   ) => Promise<IpcInvoke['get-join-handoff']['res']>
+  launchGame: (req: IpcInvoke['launch-game']['req']) => Promise<IpcInvoke['launch-game']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   getLoginItem: () => Promise<IpcInvoke['get-login-item']['res']>
-  /** The in-memory activity list; reading it makes no platform request. */
+  /** The newest activity per platform; reading it makes no platform request. */
   getActivity: () => Promise<IpcInvoke['get-activity']['res']>
-  /** Forget only what the Activity page shows: its platforms and kind. */
+  /** One page of older saved activity, or of one friend's. Local only. */
+  getActivityPage: (
+    req: IpcInvoke['get-activity-page']['req']
+  ) => Promise<IpcInvoke['get-activity-page']['res']>
+  /** What VRX has saved about a friendship: friends since, earlier names. */
+  getFriendHistory: (
+    req: IpcInvoke['get-friend-history']['req']
+  ) => Promise<IpcInvoke['get-friend-history']['res']>
+  /** One page of the instance log: the rooms the user was in. Local only. */
+  getInstanceVisits: (
+    req: IpcInvoke['get-instance-visits']['req']
+  ) => Promise<IpcInvoke['get-instance-visits']['res']>
+  /** Who was there during one visit. Local only. */
+  getInstanceVisitPeople: (
+    req: IpcInvoke['get-instance-visit-people']['req']
+  ) => Promise<IpcInvoke['get-instance-visit-people']['res']>
+  /** Forget these platforms' instance log. */
+  clearInstanceLog: (
+    req: IpcInvoke['clear-instance-log']['req']
+  ) => Promise<IpcInvoke['clear-instance-log']['res']>
+  /** Forget only what the Activity page shows: its platforms and kind, saved
+   *  entries included. */
   clearActivity: (
     req: IpcInvoke['clear-activity']['req']
   ) => Promise<IpcInvoke['clear-activity']['res']>
-  /** The activity list changed (coalesced). Returns an unsubscribe. */
+  /** The activity list or the instance log changed (coalesced). Returns an unsubscribe. */
   onActivityChanged: (callback: () => void) => () => void
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
   openLogsFolder: () => Promise<IpcInvoke['open-logs-folder']['res']>
@@ -128,6 +150,9 @@ type VrxBridge = {
   chooseAppBackground: () => Promise<IpcInvoke['choose-app-background']['res']>
   clearAppBackground: () => Promise<IpcInvoke['clear-app-background']['res']>
   exportData: () => Promise<IpcInvoke['export-data']['res']>
+  importVrcxHistory: () => Promise<IpcInvoke['import-vrcx-history']['res']>
+  backupHistory: () => Promise<IpcInvoke['backup-history']['res']>
+  restoreHistory: () => Promise<IpcInvoke['restore-history']['res']>
   /** The inbox: rows the sockets delivered while VRX was open. */
   getInbox: () => Promise<IpcInvoke['get-inbox']['res']>
   /** Hide a row in VRX only; nothing reaches the platform. */

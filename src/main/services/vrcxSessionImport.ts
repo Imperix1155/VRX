@@ -370,8 +370,15 @@ async function requireWalDatabaseHeader(handle: Awaited<ReturnType<typeof open>>
   }
 }
 
-function assertSourceBounds(main: SourceFileVersion): void {
-  if (main.size > BigInt(MAX_VRCX_DATABASE_BYTES)) throw new RejectedSnapshotError()
+function assertSourceBounds(main: SourceFileVersion, maxBytes: number): void {
+  if (main.size > BigInt(maxBytes)) throw new RejectedSnapshotError()
+}
+
+/** What to do with the private snapshot: the largest source accepted, and the
+ *  one read made from the copy. */
+interface SnapshotPlan<T> {
+  maxBytes: number
+  read: (snapshotPath: string) => T | Promise<T>
 }
 
 async function normalizeSnapshotForRead(handle: Awaited<ReturnType<typeof open>>): Promise<void> {
@@ -391,10 +398,11 @@ async function requireOnlySnapshotDatabase(path: string): Promise<void> {
   }
 }
 
-async function readCookieStorageFromSnapshot(
+async function readFromSnapshot<T>(
   sourcePath: string,
-  snapshotRoot: string
-): Promise<unknown> {
+  snapshotRoot: string,
+  plan: SnapshotPlan<T>
+): Promise<T> {
   const snapshotDirectory = await mkdtemp(join(snapshotRoot, 'snapshot-'))
   const snapshotPath = join(snapshotDirectory, 'VRCX.sqlite3')
   let sourceHandle: Awaited<ReturnType<typeof open>> | undefined
@@ -416,7 +424,7 @@ async function readCookieStorageFromSnapshot(
     if (beforeJournal !== null && beforeJournal.size > 0n) {
       throw new TransientSnapshotError()
     }
-    assertSourceBounds(beforeMain)
+    assertSourceBounds(beforeMain, plan.maxBytes)
     await requireWalDatabaseHeader(sourceHandle)
 
     const copiedSnapshot = await copyOpenFile(sourceHandle, snapshotPath, Number(beforeMain.size))
@@ -461,7 +469,7 @@ async function readCookieStorageFromSnapshot(
     await requireOnlySnapshotDatabase(snapshotDirectory)
     const beforeSnapshotRoot = await sourceDirectoryVersion(snapshotRoot)
     const beforeSnapshotDirectory = await sourceDirectoryVersion(snapshotDirectory)
-    const result = readCookieStorage(snapshotPath)
+    const result = await plan.read(snapshotPath)
     const afterSnapshot = await sourceFileVersion(snapshotPath)
     const afterSnapshotHandle = await sourceHandleVersion(snapshotHandle)
     await requireOnlySnapshotDatabase(snapshotDirectory)
@@ -479,20 +487,21 @@ async function readCookieStorageFromSnapshot(
   }
 }
 
-async function readCookieStorageWithRetry(
+async function readSnapshotWithRetry<T>(
   databasePath: string,
-  snapshotRoot: string
-): Promise<unknown> {
+  snapshotRoot: string,
+  plan: SnapshotPlan<T>
+): Promise<T> {
   try {
-    return await readCookieStorageFromSnapshot(databasePath, snapshotRoot)
+    return await readFromSnapshot(databasePath, snapshotRoot, plan)
   } catch (error) {
     if (!isRetryableSnapshotError(error)) throw error
     await delay(LOCK_RETRY_DELAY_MS)
-    return readCookieStorageFromSnapshot(databasePath, snapshotRoot)
+    return readFromSnapshot(databasePath, snapshotRoot, plan)
   }
 }
 
-async function readCookieStorageInTemporaryRoot(databasePath: string): Promise<unknown> {
+async function readInTemporaryRoot<T>(databasePath: string, plan: SnapshotPlan<T>): Promise<T> {
   const sourceDirectory = await realpath(dirname(databasePath))
   const tempPath = await realpath(app.getPath('temp'))
   if (isAtOrBelow(sourceDirectory, tempPath) || isAtOrBelow(tempPath, sourceDirectory)) {
@@ -506,7 +515,7 @@ async function readCookieStorageInTemporaryRoot(databasePath: string): Promise<u
     if (isAtOrBelow(sourceDirectory, resolvedSnapshotRoot)) throw new RejectedSnapshotError()
     await chmod(snapshotRoot, 0o700)
     await createSnapshotMarker(snapshotRoot)
-    return await readCookieStorageWithRetry(databasePath, snapshotRoot)
+    return await readSnapshotWithRetry(databasePath, snapshotRoot, plan)
   } finally {
     await removeSnapshotPath(snapshotRoot)
   }
@@ -574,7 +583,12 @@ function cookieHeader(cookies: VrcxCookie[]): string | null {
 async function importVrcxSessionOnce(): Promise<string | null> {
   const databasePath = join(app.getPath('appData'), 'VRCX', 'VRCX.sqlite3')
   try {
-    const cookies = decodeCookies(await readCookieStorageInTemporaryRoot(databasePath))
+    const cookies = decodeCookies(
+      await readInTemporaryRoot(databasePath, {
+        maxBytes: MAX_VRCX_DATABASE_BYTES,
+        read: readCookieStorage
+      })
+    )
     if (cookies === null) return null
     return cookieHeader(cookies)
   } catch {
@@ -597,4 +611,26 @@ export function importVrcxSession(): Promise<string | null> {
   })
   importInFlight = operation
   return operation
+}
+
+/** Why a VRCX snapshot could not be read. `busy`: VRCX is open and has
+ *  changes it has not finished saving. `unavailable`: no usable file. */
+export type VrcxSnapshotFailure = 'busy' | 'unavailable'
+
+/**
+ * Run one read against a private, read-only snapshot of VRCX's database, for
+ * the "Bring in my VRCX history" button. The same careful copy the sign-in
+ * import uses: VRCX's own files are never opened for writing and never
+ * changed, and the copy is removed afterwards.
+ */
+export async function readVrcxDatabaseSnapshot<T>(
+  read: (snapshotPath: string) => T | Promise<T>,
+  maxBytes: number
+): Promise<{ ok: true; value: T } | { ok: false; reason: VrcxSnapshotFailure }> {
+  const databasePath = join(app.getPath('appData'), 'VRCX', 'VRCX.sqlite3')
+  try {
+    return { ok: true, value: await readInTemporaryRoot(databasePath, { maxBytes, read }) }
+  } catch (error) {
+    return { ok: false, reason: error instanceof TransientSnapshotError ? 'busy' : 'unavailable' }
+  }
 }

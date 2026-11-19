@@ -42,11 +42,20 @@
  *   dashboardSections      → the order of every Dashboard section below the numbers (owner,
  *                            2026-10-27; v21). It owns the order: dashboardSectionOrder is kept
  *                            in step (Popular now vs Hot Instances) for older builds.
+ *   dashboardQuickLaunch   → the Dashboard's Quick launch row: one button per platform that
+ *                            starts the game without joining anyone (owner, 2026-11-18;
+ *                            default shown, v31)
  *   dashboardHideEmpty     → Dashboard sections with nothing to show step aside so the rest
  *                            use the space (owner, 2026-10-27; default on, v21)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
+ *   sidebarOrder           → the order of the sidebar pages; Settings always stays last
+ *                            (owner, 2026-11-15; v29)
+ *   quickReorder           → right-click the sidebar or the Dashboard to drag things into
+ *                            place (owner, 2026-11-15; default on, v29)
  *   showActivityPage       → the Activity page and its in-memory record (owner, 2026-10-27; default on)
  *   activityFilter         → which kind the Activity page lists (owner, 2026-10-27; all)
+ *   activityKeepFor        → how long activity stays saved on this computer (owner,
+ *                            2026-11-15; default 90 days, v30). `session` saves nothing.
  *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v20)
  *   notifyInvites, notifyFriendRequests → inbox alerts (owner, 2026-10-27; opt-in like every alert, v20)
  *   vrOverlayAlerts, vrOverlayAlertDuration → the same alerts in the VR headset through
@@ -76,6 +85,8 @@ import {
   dashboardSectionOrderOf,
   dashboardSectionsFromOrder,
   normalizeDashboardSections,
+  normalizeSidebarOrder,
+  SIDEBAR_PAGES,
   DRAWER_OPENERS,
   FRIEND_ALERT_SCOPES,
   FRIEND_LIST_SECTIONS,
@@ -89,13 +100,13 @@ import {
   VR_ALERT_DURATIONS,
   VRCHAT_OPEN_GAME_JOINS
 } from './types'
-import { ACTIVITY_FILTERS } from './activity'
+import { ACTIVITY_FILTERS, ACTIVITY_KEEP_FOR } from './activity'
 
 /** Additive-at-the-same-version fields can be silently stripped and rewritten by
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 28 as const
+export const SETTINGS_VERSION = 31 as const
 
 const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -110,6 +121,8 @@ const SettingsSchema = z.object({
    *  Dashboard numbers. Hiding either keeps the Avatars and Inbox pages. */
   dashboardWearingNow: z.boolean().catch(true),
   dashboardInvites: z.boolean().catch(true),
+  /** The Quick launch row: one button per platform that starts the game. */
+  dashboardQuickLaunch: z.boolean().catch(true),
   /** The order of every section below the Dashboard numbers. Unknown or repeated
    *  entries drop and missing ones are appended; a file without it takes the order
    *  from `dashboardSectionOrder` (see `parseSettings`). */
@@ -121,6 +134,16 @@ const SettingsSchema = z.object({
   /** Sections with nothing to show (no invites, no hot instances) step aside and
    *  the first shown section takes the picture cards. Off shows their empty states. */
   dashboardHideEmpty: z.boolean().catch(true),
+  /** The order of the sidebar pages. Settings is not in it and always sits last.
+   *  Unknown or repeated entries drop and missing ones are appended. */
+  sidebarOrder: z
+    .array(z.unknown())
+    .max(32)
+    .transform(normalizeSidebarOrder)
+    .catch([...SIDEBAR_PAGES]),
+  /** A right-click on the sidebar or the Dashboard offers to reorder them by
+   *  dragging. Off leaves that to Settings. */
+  quickReorder: z.boolean().catch(true),
   /** Optional sidebar pages. Hiding a page keeps its Dashboard section and alerts. */
   showHotInstancesPage: z.boolean().catch(true),
   showExplorePage: z.boolean().catch(true),
@@ -128,6 +151,9 @@ const SettingsSchema = z.object({
   showActivityPage: z.boolean().catch(true),
   /** Which kind the Activity page lists. Filters the view only; nothing is lost. */
   activityFilter: z.enum(ACTIVITY_FILTERS).catch('all'),
+  /** How long activity stays saved on this computer. `session` saves nothing
+   *  and removes what was saved; a shorter choice removes what is older. */
+  activityKeepFor: z.enum(ACTIVITY_KEEP_FOR).catch('90d'),
   /** The Inbox page. Hiding it keeps its alerts, which have their own switches. */
   showInboxPage: z.boolean().catch(true),
   /** The Search page (people and worlds on both platforms). */
@@ -244,7 +270,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v27 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v29 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -320,7 +346,22 @@ const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   26: (prev) => ({ ...prev }),
   // v27 → v28: `startWithComputer` is additive. The version boundary stops an
   // older build from stripping the choice while the computer still starts VRX.
-  27: (prev) => ({ ...prev })
+  27: (prev) => ({ ...prev }),
+  // v28 → v29: `sidebarOrder` and `quickReorder` are additive. The version
+  // boundary stops an older build from stripping the user's order or their Off.
+  28: (prev) => ({ ...prev }),
+  // v29 → v30: `activityKeepFor` is additive. The version boundary stops an
+  // older build from stripping a user's "until VRX closes" or a longer choice.
+  29: (prev) => ({ ...prev }),
+  // v30 → v31: `dashboardQuickLaunch` and the `quick-launch` Dashboard section.
+  // A saved section order gets Quick launch at the top (under the numbers),
+  // where a new install shows it; without this it would land at the bottom.
+  30: (prev) => {
+    const sections: unknown = prev.dashboardSections
+    if (!Array.isArray(sections) || sections.includes('quick-launch')) return { ...prev }
+    const saved: unknown[] = sections
+    return { ...prev, dashboardSections: ['quick-launch', ...saved.slice(0, 15)] }
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

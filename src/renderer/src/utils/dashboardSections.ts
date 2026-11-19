@@ -3,7 +3,11 @@ import type { DashboardSection } from '@shared/types'
 
 type ShowSetting = keyof Pick<
   Settings,
-  'dashboardWearingNow' | 'dashboardInvites' | 'dashboardPopularNow' | 'hotInstancesEnabled'
+  | 'dashboardQuickLaunch'
+  | 'dashboardWearingNow'
+  | 'dashboardInvites'
+  | 'dashboardPopularNow'
+  | 'hotInstancesEnabled'
 >
 
 /** Each Dashboard section's name and the setting that shows it, for
@@ -11,6 +15,10 @@ type ShowSetting = keyof Pick<
 export const SECTION_SETTINGS: Readonly<
   Record<DashboardSection, { labelKey: string; setting: ShowSetting }>
 > = {
+  'quick-launch': {
+    labelKey: 'settings.dashboard.quickLaunch.label',
+    setting: 'dashboardQuickLaunch'
+  },
   'wearing-now': {
     labelKey: 'settings.dashboard.wearingNow.label',
     setting: 'dashboardWearingNow'
