@@ -2,6 +2,8 @@
 // Checks that every relative Markdown link in the committed docs points at a
 // file or folder that exists, and that every `#anchor` matches a heading in
 // the target file. External links (http, https, mailto) are not fetched.
+// Markdown under `.cursor/` is skipped: those files are optional copied skills
+// and name other skills this repository does not include.
 //
 //   npm run docs:links          # print broken links, exit 1 if any
 //
@@ -130,15 +132,21 @@ function linkProblem(file, target, anchorsFor) {
   return null
 }
 
+/** Optional agent skills. A refresh may link to a skill this repo left out. */
+function isOptionalAgentSkill(file) {
+  return file.startsWith('.cursor/')
+}
+
 /** Returns `{ file, target, problem }` for each broken relative link. */
 export function findBrokenLinks(files = trackedMarkdown()) {
+  const docs = files.filter((file) => !isOptionalAgentSkill(file))
   const anchorCache = new Map()
   const anchorsFor = (path) => {
     if (!anchorCache.has(path))
       anchorCache.set(path, anchorsOf(readFileSync(join(ROOT, path), 'utf8')))
     return anchorCache.get(path)
   }
-  return files.flatMap((file) =>
+  return docs.flatMap((file) =>
     linkTargets(readFileSync(join(ROOT, file), 'utf8')).flatMap((target) => {
       const problem = linkProblem(file, target, anchorsFor)
       return problem ? [{ file, target, problem }] : []

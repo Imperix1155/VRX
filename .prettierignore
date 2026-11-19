@@ -8,3 +8,6 @@ tsconfig.*.json
 # Prettier's HTML reprinter can alter whitespace-sensitive rendering (VRX-236).
 docs/design.html
 docs/glass.html
+# Vendored optional agent skills. Prettier rewrites quotes, emphasis markers
+# and list spacing, which would drift from the upstream copy on every refresh.
+.cursor/skills/
