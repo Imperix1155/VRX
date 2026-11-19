@@ -8,6 +8,13 @@
 
 <!-- Optional, e.g. Closes VRX-XX. Leave blank if there is no issue. -->
 
+## Model and harness
+
+<!-- An AI agent fills both lines. A human leaves them blank. -->
+
+- Model:
+- Harness:
+
 ## Checklist
 
 - [ ] Branched from `dev` and targets `dev` (release PRs target `main`); branch named `imperix/vrx-XX-slug`, `imperix/<slug>` or a tool's own prefix

@@ -10,9 +10,8 @@ uploader.
 This repository uses the [DOX framework](https://github.com/agent0ai/dox).
 Read this contract and every nearer `AGENTS.md` on the path to each file you
 edit. The closest contract owns local details; no child weakens DOX or the
-security rules below. The code is the source of truth: read current source
-instead of trusting another session's memory, an old plan or chat. A past
-plan never overrides a current contract.
+security rules below. The code is the source of truth. Read the current source.
+A past plan, chat or another session's memory never overrides this contract.
 
 A fresh clone holds everything a contributor, human or agent, needs. Personal
 skills, model choices, device permissions, trackers and orchestration are
@@ -131,6 +130,10 @@ Never push to `main`, `beta` or `dev` directly. Name branches
 `imperix/vrx-XX-slug` (with an issue) or `imperix/<slug>`; a tool's own prefix
 is fine. Write Conventional Commits.
 
+When an AI agent opens a pull request, state the model in the description.
+State the harness or tooling, for example Cursor Cloud Agent, Claude Code or
+Codex.
+
 An authorized implementation task includes branch commits, pushes, PRs and
 review fixes unless it was limited to local work. Merging, publishing and
 replacing an installed app need an explicit owner grant covering those
@@ -140,11 +143,10 @@ feedback is not merge authority.
 Pin third-party GitHub Actions to full SHAs with exact version comments. Keep
 checkout credential persistence off unless the job pushes.
 
-Comments cite tracker issues (`VRX-51`), audit rounds (`audit W5`) and past
-reviewers. They are history labels; you don't need to look them up, and the
-code and contracts are the record. When a test file you are adding to grows
-past about 2,000 lines, split it into topic files
-(`VrcAdapter.login.test.ts`) with shared fixtures in `__testutils__`.
+Comments cite issues (`VRX-51`), audit rounds (`audit W5`) and reviewers as
+history labels only. The code and contracts are the record. Split a test file
+past about 2,000 lines into topic files (`VrcAdapter.login.test.ts`) with
+shared fixtures in `__testutils__`.
 
 ## Verification and done
 
@@ -199,8 +201,8 @@ catalog; history belongs in version control. Update in the same PR:
 - Setup, stack, commands, links: `README.md` and `docs/DEVELOPMENT.md`.
 
 Report docs you left unchanged on purpose. Don't duplicate a procedure; link
-its owner. Keep every root-to-leaf contract chain below 32 KiB so agents with
-bounded instruction loading get every rule.
+its owner. Keep every root-to-leaf contract chain below 32 KiB so every rule
+still fits.
 
 ## Child DOX Index
 
