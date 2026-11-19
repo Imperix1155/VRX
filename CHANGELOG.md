@@ -7,7 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-19
+
+Saved history, quick reorder and quick launch, on top of 1.4.5.
+
+### Added
+
+- Saved history, on both platforms. Activity now remembers after a restart,
+  with "Show older" for what the list no longer holds and "Kept" to pick how
+  long: until VRX closes, 30 days, 90 days (the default), 1 year or forever.
+  A shorter choice asks before it deletes anything. Everything stays on your
+  computer, and neither platform is asked for anything extra.
+- Friends list history: Activity gets a "Friends list" tab that shows a new
+  friend, someone no longer on your list, and a friend's new name with the
+  old one.
+- An instance log: the "Instances" tab in Activity lists the instances you
+  were in, how long you stayed and who was there. VRChat's comes from the
+  game's own log file on your computer, which VRX only reads. ChilloutVR's
+  comes from your live connection, so friends' times are exact and everyone
+  else is listed for the whole stay.
+- A small "History" button in a friend's side card, on a VRChat friend, a
+  ChilloutVR friend and a linked profile. It shows friends since, earlier
+  names, when you were last together, how many instances you shared and for
+  how long, and that friend's saved activity.
+- Move your history (Activity → Kept): "Back up…" saves everything VRX
+  remembers to one file and "Restore…" brings it back on another computer.
+  "Bring in from VRCX" adds VRCX's saved VRChat history. VRX only reads
+  VRCX's file, from a private copy, when you press the button. VRCX has to be
+  closed, and it keeps no ChilloutVR history. If you used more than one
+  VRChat account in VRCX, only the instances this account was seen in are
+  brought in, and the result says when some were left out.
+- Quick reorder: right-click the sidebar or the Dashboard and pick Reorder,
+  then drag the sidebar pages and the Dashboard sections where you want
+  them. The arrow keys move them too. Settings always stays last in the
+  sidebar. Esc puts back a row you are dragging, "Done" or Esc ends
+  reordering, and "Reset order" puts everything back. Settings → Appearance
+  → Sidebar pages → Order turns the right-click off.
+- Quick launch on the Dashboard: "Launch VRChat" and "Launch ChilloutVR"
+  start that game through Steam, the same as pressing Play there, without
+  joining anyone. A game that is already open is left alone, and VRX says
+  so. Settings → Dashboard → Sections turns the row off or moves it.
+
+### Changed
+
+- Settings → Dashboard: the notes under "Player counts" and "Hot instance
+  threshold" are shorter, so the page still fits the smallest window.
+
 ### Fixed
+
+Found after the last test builds (1.5.0-dev.4 and 1.5.0-beta.3):
 
 - The Instances tab on the Activity page keeps every instance listed. With
   "Show older" pressed, each new instance you entered made one older
@@ -15,6 +63,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - After a shorter "Kept" choice deletes saved history, the Activity page
   stops showing the older rows it had already loaded. Before, they stayed
   on screen until the page was reopened.
+
+### Security
+
+- The dependency check has one dated exception for a development-only build
+  tool that has no fixed release yet. The tool is not part of the installed
+  app. The exception ends on its review date; SECURITY.md has the entry.
+
+## [1.5.0-beta.3] - 2026-11-18
+
+The third beta of 1.5.0. It adds two fixes to "Bring in from VRCX" on top
+of 1.5.0-beta.2.
+
+### Fixed
+
+- "Bring in from VRCX" saves nothing if you turn saved activity off, sign
+  out of VRChat or switch accounts while it is still reading VRCX's file.
+  Before, a small import could still finish and say it worked. "Back up…"
+  and "Restore…" check the same way right before they write.
+- "Bring in from VRCX" keeps each VRChat account's instances apart. If you
+  used more than one VRChat account in VRCX, only the instances this
+  account was seen in are brought in, and the result says when some were
+  left out. With one account in VRCX, everything is brought in as before.
 
 ## [1.5.0-dev.4] - 2026-11-18
 
@@ -28,6 +98,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   used more than one VRChat account in VRCX, only the instances this
   account was seen in are brought in, and the result says when some were
   left out. With one account in VRCX, everything is brought in as before.
+
+## [1.5.0-beta.2] - 2026-11-18
+
+The second beta of 1.5.0. It adds a polish pass on top of 1.5.0-beta.1.
+
+### Changed
+
+- "Kept" on the Activity page asks before a shorter choice deletes saved
+  history. Picking a shorter time, or "Until VRX closes", now shows what
+  will be deleted with "Cancel" and "Switch and delete". A longer choice
+  still applies at once.
+- Pressing Esc while you drag a page or a Dashboard section puts it back
+  and keeps reorder mode on. Press Esc again to leave the mode.
+
+### Fixed
+
+- Saved activity shows as soon as VRX knows which account is signed in.
+  After a restart the Activity page no longer says "No activity yet" for a
+  few seconds before your saved history appears.
+- A right-click on the empty space under a short Dashboard offers "Reorder"
+  too, not only a right-click on a card.
+- Cancelling a drag with Esc no longer opens the page you were dragging.
 
 ## [1.5.0-dev.3] - 2026-11-18
 
@@ -57,6 +149,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   log, so cleared instances stay cleared.
 - After a restore, the Activity page shows the restored history right away
   instead of keeping rows from before it.
+
+## [1.5.0-beta.1] - 2026-11-18
+
+The first beta of 1.5.0. It holds everything from dev builds 1.5.0-dev.1 and
+1.5.0-dev.2, on top of 1.4.5, and four fixes to saved history found since.
+
+### Added
+
+- Saved history, on both platforms. Activity now remembers after a restart,
+  with "Kept" to pick how long. It has a "Friends list" tab (new friends,
+  people no longer on your list, new names) and an "Instances" tab (where
+  you were, how long, and who was there). A friend's side card gets a small
+  "History" button. Activity → Kept can back up and restore your history,
+  and bring in VRCX's saved VRChat history. Everything stays on your
+  computer, and neither platform is asked for anything extra.
+- Quick reorder: right-click the sidebar or the Dashboard and pick Reorder,
+  then drag the sidebar pages and the Dashboard sections where you want
+  them. Settings always stays last in the sidebar. "Reset order" puts
+  everything back, and Settings → Appearance → Sidebar pages → Order turns
+  the right-click off.
+- Quick launch on the Dashboard: "Launch VRChat" and "Launch ChilloutVR"
+  start that game through Steam, the same as pressing Play there, without
+  joining anyone. Settings → Dashboard → Sections turns the row off.
+
+### Changed
+
+- Settings → Dashboard: the notes under "Player counts" and "Hot instance
+  threshold" are shorter, so the page still fits the smallest window.
+
+### Fixed
+
+- The VRChat instance log is saved only under the account that was in the
+  game. After switching accounts in VRX, the other account's instances no
+  longer show up in yours.
+- Instances older than your "Kept" choice no longer come back for a while
+  after VRX starts.
+- Restoring a backup also brings back when you last cleared the instance
+  log, so cleared instances stay cleared.
+- After a restore, the Activity page shows the restored history right away
+  instead of keeping rows from before it.
+
+### Security
+
+- The dependency check has one dated exception for a development-only build
+  tool that has no fixed release yet. The tool is not part of the installed
+  app. The exception ends on its review date; SECURITY.md has the entry.
 
 ## [1.5.0-dev.2] - 2026-11-18
 
