@@ -4,7 +4,7 @@
  * going offline, newest first, with the same row on both platforms.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, within, waitFor } from '@testing-library/react'
+import { act, render, screen, cleanup, fireEvent, within, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ActivityEntry, ActivityPage, ActivityPageRequest } from '@shared/activity'
 import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM } from '@shared/constants'
@@ -344,6 +344,27 @@ describe('ActivityView', () => {
     expect(clear.getAttribute('aria-disabled')).toBe('true')
     fireEvent.click(clear)
     expect(clearActivity).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps an entry a newer one pushed off the list, until a Clear', async () => {
+    useSettingsStore.setState({ settings: SESSION_ONLY })
+    const first = entries[0]
+    if (first === undefined) throw new Error('no entries')
+    let list = entries
+    Object.defineProperty(window, 'vrx', {
+      configurable: true,
+      value: { getActivity: () => Promise.resolve(list), clearActivity, getActivityPage }
+    })
+    renderView()
+    // Main keeps only the newest: a new entry arrives and the oldest leaves.
+    list = [{ ...first, id: 5, at: now }, ...entries.slice(0, 3)]
+    await act(() => client.refetchQueries({ queryKey: activityKey }))
+    await waitFor(() => expect(rowTexts()).toHaveLength(5))
+    expect(rowTexts().some((text) => text.includes('Former Friend'))).toBe(true)
+
+    list = []
+    fireEvent.click(screen.getByRole('button', { name: msg('activity.clearAria') }))
+    await waitFor(() => expect(screen.getByText(msg('activity.emptyHeading'))).toBeTruthy())
   })
 
   it('clears only what is on screen: the filtered platform and the shown kind', async () => {
