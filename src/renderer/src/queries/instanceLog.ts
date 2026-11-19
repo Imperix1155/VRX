@@ -105,7 +105,10 @@ export function useInstanceVisits(
     setOlder({ key, visits: [], hasMore: null, busy: false, failed: false })
   }
   const firstVisits = first.data?.visits
-  const carried = useCarriedRows(firstVisits, visitKey, key)
+  // `key` is also the query key, so a Kept change, Clear or account change
+  // replaces this page with a new read. Retention is named too: if a later
+  // edit stops replacing the page, the same choice still reseeds it.
+  const carried = useCarriedRows(firstVisits, visitKey, { replaced: key, retained: keptFor })
   const visits = useMemo(
     () => mergeVisits(firstVisits ?? [], carried.values(), older.key === key ? older.visits : []),
     [firstVisits, carried, older, key]

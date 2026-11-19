@@ -158,13 +158,13 @@ export function useSettingsPersistence(): void {
           useSettingsStore.getState().setSettings(saved)
           useSettingsStore.setState({ loadFallback: false })
         } else {
-          useSettingsStore.getState().markSaved()
+          useSettingsStore.getState().answerSave(snapshot, 'saved')
         }
       })
       .catch(() => {
-        if (!cancelled && useSettingsStore.getState().settings === snapshot) {
-          useSettingsStore.setState({ saveError: true, saving: false })
-        }
+        // Main applied this snapshot before the write failed. A newer edit is
+        // a different object, so this answer does not cover it.
+        if (!cancelled) useSettingsStore.getState().answerSave(snapshot, 'failed')
       })
     return () => {
       cancelled = true

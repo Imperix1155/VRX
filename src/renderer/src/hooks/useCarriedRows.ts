@@ -11,33 +11,70 @@
  * first page's rows here and shows them between the first page and the older
  * pages. A row seen again is kept in its newest form.
  *
- * A new `resetKey` drops them: a Clear, a restore, another scope, another
- * account. What the first page holds at that moment is not kept either, since
- * it may be exactly what was just cleared or replaced; the list still shows it
- * for as long as the first page does.
+ * Every reset goes through `CarriedReset`, so a caller cannot drop these rows
+ * without saying what happens to the page:
+ *
+ * - `replaced` (a Clear, a restore, another scope, another account) drops them
+ *   and does not seed the page showing then. That page may be exactly what was
+ *   just cleared. The next different page is the seed, so the caller publishes
+ *   one (a new read, or the rows the clear left). The list still shows the
+ *   current page for as long as that page does.
+ * - `retained` (another Kept choice, while this page is still the list) drops
+ *   them and seeds that same page, even when the array did not change. The
+ *   next arrival then cannot drop a row that was never carried.
+ *
+ * When both change in one render, `replaced` wins: the page is about to be
+ * replaced, and seeding it would keep rows the replacement discards.
  */
 import { useState } from 'react'
 
+export interface CarriedReset {
+  replaced: string
+  retained: string
+}
+
 interface Carried<T, K> {
-  resetKey: string
+  replaced: string
+  retained: string
   /** The first page these rows were last taken from. */
   from: readonly T[] | undefined
   rows: ReadonlyMap<K, T>
 }
 
+function seedPage<T, K>(page: readonly T[] | undefined, keyOf: (row: T) => K): Map<K, T> {
+  const rows = new Map<K, T>()
+  if (page !== undefined) {
+    for (const row of page) rows.set(keyOf(row), row)
+  }
+  return rows
+}
+
 export function useCarriedRows<T, K>(
   firstPage: readonly T[] | undefined,
   keyOf: (row: T) => K,
-  resetKey: string
+  reset: CarriedReset
 ): ReadonlyMap<K, T> {
   const [state, setState] = useState<Carried<T, K>>(() => ({
-    resetKey,
+    replaced: reset.replaced,
+    retained: reset.retained,
     from: undefined,
     rows: new Map()
   }))
   let next = state
-  if (next.resetKey !== resetKey) {
-    next = { resetKey, from: firstPage, rows: new Map() }
+  if (next.replaced !== reset.replaced) {
+    next = {
+      replaced: reset.replaced,
+      retained: reset.retained,
+      from: firstPage,
+      rows: new Map()
+    }
+  } else if (next.retained !== reset.retained) {
+    next = {
+      replaced: reset.replaced,
+      retained: reset.retained,
+      from: firstPage,
+      rows: seedPage(firstPage, keyOf)
+    }
   } else if (next.from !== firstPage) {
     let rows = next.rows
     if (firstPage !== undefined && firstPage.length > 0) {
@@ -45,7 +82,7 @@ export function useCarriedRows<T, K>(
       for (const row of firstPage) added.set(keyOf(row), row)
       rows = added
     }
-    next = { resetKey, from: firstPage, rows }
+    next = { replaced: reset.replaced, retained: reset.retained, from: firstPage, rows }
   }
   // Adjusted while rendering, so the list never paints a frame without them.
   if (next !== state) setState(next)
