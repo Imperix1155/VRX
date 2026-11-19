@@ -23,6 +23,8 @@ describe('packaged application file boundary', () => {
     'scripts/generate-app-icons.mjs',
     'out/credential-probe/index.js',
     '.codex/session.json',
+    '.cursor/skills/poteto-mode/SKILL.md',
+    '.cursor/skills/PSTACK-LICENSE',
     '.superpowers/notes.md',
     '.fallow/cache.bin',
     '.fallow/graph-cache.bin',

@@ -42,4 +42,8 @@ describe('check-doc-links', () => {
   it('finds no broken relative links in the committed docs', () => {
     expect(findBrokenLinks()).toEqual([])
   })
+
+  it('skips optional agent skills under .cursor', () => {
+    expect(findBrokenLinks(['.cursor/skills/not-vendored/SKILL.md', 'docs/DESIGN.md'])).toEqual([])
+  })
 })
