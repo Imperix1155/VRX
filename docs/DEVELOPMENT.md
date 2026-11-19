@@ -40,24 +40,24 @@ UI, use the [design guide](#design-guide) and its sample data instead.
 
 ## Commands
 
-| Command                                                            | What it does                                                                  |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| `npm run dev`                                                      | Runs the app with hot reload.                                                 |
-| `npm run verify`                                                   | The full gate: lint, format check, tests, build. Stops at the first failure.  |
-| `npm start`                                                        | Runs the last `npm run build` without a dev server.                           |
-| `npm run lint`                                                     | ESLint, zero warnings allowed.                                                |
-| `npm run format` / `format:check`                                  | Prettier: fix, or check only.                                                 |
-| `npm test` / `test:watch` / `test:coverage`                        | Vitest: once, watching, or with coverage.                                     |
-| `npm run test:e2e`                                                 | Starts the built app against fake platforms and uses it. Needs a build.       |
-| `npm run typecheck`                                                | Both TypeScript 7 projects (main and renderer).                               |
-| `npm run build`                                                    | Typecheck, bundle, then assert the renderer entry chunk.                      |
-| `npm run build:win` / `build:linux` / `build:mac` / `build:unpack` | Package for one OS, or an unpacked folder.                                    |
-| `npm run guide:dev` / `guide:build` / `guide:preview`              | The [design guide](#design-guide).                                            |
-| `npm run docs:links`                                               | Checks every relative link and `#heading` in the committed Markdown.          |
-| `npm run secrets:check`                                            | Scans tracked files for credentials and personal paths (`npm test` does too). |
-| `npm run design:tokens` / `design:tokens:check`                    | Regenerate, or check, the token tables in `DESIGN.md` from `main.css`.        |
-| `npm run icons:generate` / `icons:check`                           | Regenerate, or check, the app and tray icons ([App icon](APP-ICON.md)).       |
-| `npm run test:credential-persistence-*`                            | CI's saved-session probes. Never run them against real user data.             |
+| Command                                                            | What it does                                                                        |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `npm run dev`                                                      | Runs the app with hot reload.                                                       |
+| `npm run verify`                                                   | The full gate: lint, format check, tests, build. Stops at the first failure.        |
+| `npm start`                                                        | Runs the last `npm run build` without a dev server.                                 |
+| `npm run lint`                                                     | ESLint, zero warnings allowed.                                                      |
+| `npm run format` / `format:check`                                  | Prettier: fix, or check only.                                                       |
+| `npm test` / `test:watch` / `test:coverage`                        | Vitest: once, watching, or with coverage.                                           |
+| `npm run test:e2e`                                                 | Starts the built app against fake platforms and uses it. Needs a build.             |
+| `npm run typecheck`                                                | Both TypeScript 7 projects (main and renderer).                                     |
+| `npm run build`                                                    | Typecheck, bundle, then assert the renderer entry chunk.                            |
+| `npm run build:win` / `build:linux` / `build:mac` / `build:unpack` | Package for one OS, or an unpacked folder.                                          |
+| `npm run guide:dev` / `guide:build` / `guide:preview`              | The [design guide](#design-guide).                                                  |
+| `npm run docs:links`                                               | Checks every relative link and `#heading` in committed Markdown outside `.cursor/`. |
+| `npm run secrets:check`                                            | Scans tracked files for credentials and personal paths (`npm test` does too).       |
+| `npm run design:tokens` / `design:tokens:check`                    | Regenerate, or check, the token tables in `DESIGN.md` from `main.css`.              |
+| `npm run icons:generate` / `icons:check`                           | Regenerate, or check, the app and tray icons ([App icon](APP-ICON.md)).             |
+| `npm run test:credential-persistence-*`                            | CI's saved-session probes. Never run them against real user data.                   |
 
 TypeScript: `npm run typecheck` uses the TypeScript 7 compiler (`tsc` from
 `@typescript/native`). ESLint and the design-token scanner use the TypeScript
@@ -157,8 +157,8 @@ limit.
   `npm run lint`, to prove the generated `coverage/` folder doesn't break
   linting.
 - Documentation-only changes need `npm run format:check`, `npm run docs:links`
-  (every relative link and heading anchor resolves; `npm test` runs it too), a
-  check that each named file exists, a comparison of each factual
+  (every relative link and heading anchor outside `.cursor/` resolves; `npm test`
+  runs it too), a check that each named file exists, a comparison of each factual
   claim against the code, and `git diff --check`. Rule or policy changes also
   need realistic scenarios showing the new wording works. Required PR CI still
   runs.

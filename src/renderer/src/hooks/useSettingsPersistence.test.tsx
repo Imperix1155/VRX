@@ -82,9 +82,11 @@ afterEach(() => {
   vi.useRealTimers()
   useSettingsStore.setState({
     settings: DEFAULT_SETTINGS,
+    acknowledgedSettings: DEFAULT_SETTINGS,
     dirty: false,
     hydrated: false,
-    loadFallback: false
+    loadFallback: false,
+    saveError: false
   })
   Reflect.deleteProperty(window, 'vrx')
 })

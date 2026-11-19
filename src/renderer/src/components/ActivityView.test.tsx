@@ -140,7 +140,12 @@ afterEach(() => {
   authState.value = 'authenticated'
   authState.pending = false
   useFriendsStore.setState({ platformFilter: 'all' })
-  useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
+  useSettingsStore.setState({
+    settings: DEFAULT_SETTINGS,
+    acknowledgedSettings: DEFAULT_SETTINGS,
+    dirty: false,
+    saveError: false
+  })
   useUiStore.setState({ activeTab: 'activity' })
   useProfileSelection.setState({ target: null })
   Reflect.deleteProperty(window, 'vrx')
@@ -503,6 +508,70 @@ describe('ActivityView', () => {
         name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.90d') })
       })
     ).toBeTruthy()
+  })
+
+  it('keeps the oldest full-page entry when Kept changes and a newer one arrives', async () => {
+    const full: ActivityEntry[] = Array.from(
+      { length: ACTIVITY_MAX_ENTRIES_PER_PLATFORM },
+      (_, index) => ({
+        id: 1_000 - index,
+        kind: 'online',
+        platform: 'vrchat',
+        platformUserId:
+          index === ACTIVITY_MAX_ENTRIES_PER_PLATFORM - 1 ? 'usr_oldest' : alice.platformUserId,
+        displayName: index === ACTIVITY_MAX_ENTRIES_PER_PLATFORM - 1 ? 'Oldest Friend' : 'Alice',
+        worldName: null,
+        at: now - index * 1_000
+      })
+    )
+    const oldestId = 1_000 - (ACTIVITY_MAX_ENTRIES_PER_PLATFORM - 1)
+    let list = full
+    Object.defineProperty(window, 'vrx', {
+      configurable: true,
+      value: { getActivity: () => Promise.resolve(list), clearActivity, getActivityPage }
+    })
+    renderView(full)
+    await waitFor(() =>
+      expect(screen.getAllByRole('listitem')).toHaveLength(ACTIVITY_MAX_ENTRIES_PER_PLATFORM)
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: msg('activity.keep.buttonAria', { choice: msg('activity.keep.options.90d') })
+      })
+    )
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: msg('activity.keep.title') })).getByRole('radio', {
+        name: msg('activity.keep.options.1y')
+      })
+    )
+    // The save has answered: main has applied the longer choice and deleted nothing.
+    act(() => useSettingsStore.getState().markSaved())
+
+    list = [
+      {
+        id: 1_001,
+        kind: 'online',
+        platform: 'vrchat',
+        platformUserId: 'usr_newest',
+        displayName: 'Brand New',
+        worldName: null,
+        at: now
+      },
+      ...full.slice(0, -1)
+    ]
+    await act(() => client.refetchQueries({ queryKey: activityKey }))
+
+    await waitFor(() => expect(screen.getByText('Brand New')).toBeTruthy())
+    // The reader started strictly below this entry, so Show older cannot bring it back.
+    expect(getActivityPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: [{ platform: 'vrchat', beforeId: oldestId }],
+        filter: 'all'
+      })
+    )
+    expect(screen.getByText('Oldest Friend')).toBeTruthy()
+    expect(screen.getAllByRole('listitem')).toHaveLength(ACTIVITY_MAX_ENTRIES_PER_PLATFORM + 1)
   })
 
   it('offers no Show older while the list holds everything saved', async () => {

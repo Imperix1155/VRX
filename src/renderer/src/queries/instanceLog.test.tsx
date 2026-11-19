@@ -84,7 +84,12 @@ afterEach(() => {
   cleanup()
   client.clear()
   ;(window as unknown as { vrx?: unknown }).vrx = undefined
-  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false, saveError: false })
+  useSettingsStore.setState({
+    settings: DEFAULT_SETTINGS,
+    acknowledgedSettings: DEFAULT_SETTINGS,
+    dirty: false,
+    saveError: false
+  })
 })
 
 describe('mergeVisits', () => {
@@ -181,6 +186,22 @@ describe('useInstanceVisits', () => {
     act(() => useSettingsStore.getState().markSaved())
     await waitFor(() => expect(view.result.current.ready).toBe(true))
     await waitFor(() => expect(view.result.current.visits).toEqual([]))
+  })
+
+  it('keeps a full first page when Kept changes and a newer visit arrives', async () => {
+    newest = PAGE
+    const view = renderHook(() => useInstanceVisits(VRCHAT, true), { wrapper })
+    await waitFor(() => expect(shownIds(view.result.current.visits)).toEqual(range(PAGE, 1)))
+
+    act(() => useSettingsStore.getState().updateSettings({ activityKeepFor: '1y' }))
+    act(() => useSettingsStore.getState().markSaved())
+    await waitFor(() => expect(shownIds(view.result.current.visits)).toEqual(range(PAGE, 1)))
+
+    newest = PAGE + 1
+    await changed()
+    await waitFor(() => expect(shownIds(view.result.current.visits)).toContain(1))
+    expect(shownIds(view.result.current.visits)[0]).toBe(PAGE + 1)
+    expect(view.result.current.visits).toHaveLength(PAGE + 1)
   })
 
   it('drops the visits it kept when the platforms shown change', async () => {
