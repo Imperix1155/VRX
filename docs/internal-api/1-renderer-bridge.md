@@ -8,7 +8,7 @@ Rule: the global is declared optional (`vrx?: VrxBridge`) because unit tests, Pr
 
 | Symbol | File | Purpose |
 | --- | --- | --- |
-| `VrxBridge` | [`index.d.ts`](../../src/preload/index.d.ts) | The bridge type: 73 invoke methods (both `getAvatar` and `getKeptAvatar` call `get-avatar`), one notify method and eight subscriptions, all derived from `@shared/ipc`. The design guide's fixture bridge implements the same type with synthetic data ([design guide fixtures](8-design-guide.md#8-design-guide-fixtures-docsguide)). |
+| `VrxBridge` | [`index.d.ts`](../../src/preload/index.d.ts) | The bridge type: 74 invoke methods (both `getAvatar` and `getKeptAvatar` call `get-avatar`), one notify method and eight subscriptions, all derived from `@shared/ipc`. The design guide's fixture bridge implements the same type with synthetic data ([design guide fixtures](8-design-guide.md#8-design-guide-fixtures-docsguide)). |
 | `window.vrx` | [`index.ts`](../../src/preload/index.ts) | Exposed with `contextBridge.exposeInMainWorld` when context isolation is on. If exposure throws, preload writes to the devtools console, a documented exception to the electron-log rule. A non-isolated window is dev-only. |
 | `rate_limited` errors | [`index.ts`](../../src/preload/index.ts) | The private `invoke` wrapper turns Electron's `Error invoking remote method '<channel>': Error: rate_limited` into `Error('rate_limited')`. Other rejections pass through. The renderer query client never retries this error. |
 | `notifyRendererHydrated()` | [`index.ts`](../../src/preload/index.ts) | Sends `renderer-hydrated` once settings-backed document attributes are applied. Main shows the window when this and `ready-to-show` have both arrived, or 3 s after `ready-to-show`. |
@@ -34,6 +34,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `launchGame` | [`components/DashboardQuickLaunch.tsx`](../../src/renderer/src/components/DashboardQuickLaunch.tsx), once per press on a Quick launch button |
 | `setExploreActive`, `getExplore`, `getExploreImage`, `getExploreWorld`, `cancelExploreWorld`, `onExploreChanged` | [`hooks/useExploreCoordinator.ts`](../../src/renderer/src/hooks/useExploreCoordinator.ts), [`queries/explore.ts`](../../src/renderer/src/queries/explore.ts), [`hooks/useExploreWorldSelection.ts`](../../src/renderer/src/hooks/useExploreWorldSelection.ts) |
 | `getAppStatus` | [`queries/appStatus.ts`](../../src/renderer/src/queries/appStatus.ts) (`useConnectionHealth`, read by `TopBar`), every 7.5 s while the window shows; `useLiveFriendEvents` writes pushed `connection` events into it in between. It reads main's local snapshot and makes no platform request. |
+| `getPerformance` | [`PerformanceSettings.tsx`](../../src/renderer/src/components/PerformanceSettings.tsx), every 2 s while Settings → Performance is mounted. Local only. |
 | `getLoginItem` | [`queries/loginItem.ts`](../../src/renderer/src/queries/loginItem.ts) (`useLoginItemProblem`, read by Settings → About once the choice is saved) |
 | `getSettings`, `saveSettings` | [`hooks/useSettingsPersistence.ts`](../../src/renderer/src/hooks/useSettingsPersistence.ts) |
 | `getUpdaterState`, `checkForUpdates`, `downloadUpdate`, `installUpdate`, `onUpdaterStateChanged` | [`hooks/useUpdater.ts`](../../src/renderer/src/hooks/useUpdater.ts) |

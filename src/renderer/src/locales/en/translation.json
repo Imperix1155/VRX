@@ -477,6 +477,38 @@
     "about": {
       "heading": "About"
     },
+    "performance": {
+      "heading": "Performance",
+      "description": "Numbers from this computer, updated while this page is open. Copy report pastes an English snapshot for an issue. Nothing is sent.",
+      "workingSet": "Working set",
+      "workingSetNote": "Memory in RAM for each process. Shared memory counts in each process that uses it.",
+      "windowReady": "Window ready",
+      "firstRender": "First render",
+      "startupNote": "From when the VRX process started.",
+      "notYet": "Not yet",
+      "mainHeap": "Main JS heap",
+      "rendererHeap": "Renderer JS heap",
+      "sockets": "Sockets",
+      "processes": "Processes",
+      "process": "Process",
+      "memory": "Memory",
+      "cpu": "CPU",
+      "cpuNote": "CPU needs one more reading. This page measures only while it is open.",
+      "cpuInterval": "Share of one core over the last {{seconds}} s.",
+      "measuring": "Measuring",
+      "copy": "Copy report",
+      "copied": "Report copied",
+      "copyFailed": "Couldn't copy the report.",
+      "unavailable": "Couldn't read performance.",
+      "refreshFailed": "Couldn't refresh. These numbers are from {{time}}.",
+      "kind": {
+        "browser": "Main",
+        "renderer": "Renderer",
+        "gpu": "GPU",
+        "utility": "Utility",
+        "other": "Other"
+      }
+    },
     "boolean": {
       "on": "On",
       "off": "Off"

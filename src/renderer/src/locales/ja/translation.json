@@ -474,6 +474,38 @@
     "about": {
       "heading": "情報"
     },
+    "performance": {
+      "heading": "性能",
+      "description": "このパソコンで測った数値です。このページを開いている間だけ更新します。報告をコピーすると、Issue に貼れる英語の記録になります。どこにも送信しません。",
+      "workingSet": "ワーキングセット",
+      "workingSetNote": "各プロセスが RAM に置いているメモリです。共有しているメモリは、使っているプロセスごとに数えます。",
+      "windowReady": "ウィンドウ準備",
+      "firstRender": "最初の描画",
+      "startupNote": "VRX のプロセスが始まってからの時間です。",
+      "notYet": "まだありません",
+      "mainHeap": "メインの JS ヒープ",
+      "rendererHeap": "レンダラーの JS ヒープ",
+      "sockets": "ソケット",
+      "processes": "プロセス",
+      "process": "プロセス",
+      "memory": "メモリ",
+      "cpu": "CPU",
+      "cpuNote": "CPU はもう一度測るまで出ません。このページを開いている間だけ測ります。",
+      "cpuInterval": "直近 {{seconds}} 秒の、1コアに対する使用率です。",
+      "measuring": "測定中",
+      "copy": "報告をコピー",
+      "copied": "報告をコピーしました",
+      "copyFailed": "報告をコピーできませんでした。",
+      "unavailable": "性能を読み取れませんでした。",
+      "refreshFailed": "更新できませんでした。表示は {{time}} の数値です。",
+      "kind": {
+        "browser": "メイン",
+        "renderer": "レンダラー",
+        "gpu": "GPU",
+        "utility": "ユーティリティ",
+        "other": "その他"
+      }
+    },
     "boolean": {
       "on": "オン",
       "off": "オフ"
