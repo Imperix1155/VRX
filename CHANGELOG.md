@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this computer, or also mute while your VRChat status is Ask Me or Do Not
   Disturb. ChilloutVR has no status for that. VRX does not change your
   status, and a timed mute stays in force across a restart until it ends.
+- The Activity page can narrow the list by a name, a world or a platform,
+  and by a date: Today, the last 7 days, the last 30 days, All, or two dates
+  you pick. The search waits a moment while you type. Show and Show older
+  stay inside that search and those dates. It is read on this computer only.
 
 ### Fixed
 

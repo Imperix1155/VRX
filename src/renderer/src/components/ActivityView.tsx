@@ -14,16 +14,18 @@
  * Clear forgets only what that scope shows. A row opens that friend's details
  * on the Friends page.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   ACTIVITY_FILTERS,
+  ACTIVITY_SEARCH_MAX_LENGTH,
   matchesActivityFilter,
   type ActivityEntry,
-  type ActivityFilter
+  type ActivityFilter,
+  type ActivityListQuery
 } from '@shared/activity'
-import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM } from '@shared/constants'
+import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM, SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
 import type { Friend, Platform } from '@shared/types'
 import { asTranslate } from '../i18n/translate'
@@ -56,6 +58,11 @@ import PlatformPill from './PlatformPill'
 import InstanceVisitList from './InstanceVisitList'
 import SegmentedControl from './SegmentedControl'
 import { initialOf } from '../utils/initialOf'
+import {
+  ACTIVITY_DATE_PRESETS,
+  activityDateBounds,
+  type ActivityDatePreset
+} from '../utils/activityRange'
 
 /** The page's tabs: the Activity list's kinds, then the instance log. */
 const INSTANCES = 'instances'
@@ -68,6 +75,13 @@ const FILTER_LABEL_KEYS: Record<ActivityTab, string> = {
   offline: 'activity.kinds.offline',
   friends: 'activity.kinds.friends',
   instances: 'activity.kinds.instances'
+}
+const DATE_LABEL_KEYS: Record<ActivityDatePreset, string> = {
+  today: 'activity.range.today',
+  '7d': 'activity.range.7d',
+  '30d': 'activity.range.30d',
+  all: 'activity.range.all',
+  custom: 'activity.range.custom'
 }
 
 function friendKey(platform: Friend['platform'], platformUserId: string): string {
@@ -258,29 +272,77 @@ export default function ActivityView(): React.JSX.Element {
     [live, platforms]
   )
   const knownIds = useMemo(() => new Set(carried.keys()), [carried])
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [search, setSearch] = useState('')
+  const [appliedSearch, setAppliedSearch] = useState('')
+  const [datePreset, setDatePreset] = useState<ActivityDatePreset>('all')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const updateSearch = (value: string): void => {
+    setSearch(value)
+    if (value.trim() === '') setAppliedSearch('')
+  }
+  useEffect(() => {
+    const trimmed = search.trim()
+    if (trimmed === '') return
+    const timeout = window.setTimeout(() => setAppliedSearch(trimmed), SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timeout)
+  }, [search])
+  const bounds = activityDateBounds(datePreset, new Date(), customFrom, customTo)
+  const listQuery = useMemo<ActivityListQuery | undefined>(() => {
+    const text = appliedSearch.trim()
+    if (text === '' && bounds.from === undefined && bounds.to === undefined) return undefined
+    return {
+      ...(text === '' ? {} : { text }),
+      ...(bounds.from === undefined ? {} : { from: bounds.from }),
+      ...(bounds.to === undefined ? {} : { to: bounds.to })
+    }
+  }, [appliedSearch, bounds.from, bounds.to])
+  const filtering = listQuery !== undefined
+  const queryStart = useMemo(
+    () => platforms.map((platform) => ({ platform, beforeId: null })),
+    [platforms]
+  )
+  // One stamp for every page, filtered or not. It moves when main applies a
+  // Keep for choice, when a change notice refreshes the list (a new row, or a
+  // world name on a row that already has an id), and after a Clear or restore.
+  const historyStamp = `${keptFor}|${activity.dataUpdatedAt}|${restarts}`
   const pager = useActivityPager({
-    restartKey: [
-      live === undefined ? 'waiting' : 'ready',
-      platformFilter,
-      filter,
-      keepFor === 'session' ? 'session' : 'saved',
-      keptFor,
-      olderStart.map((cursor) => cursor.platform).join('+'),
-      restarts
-    ].join('|'),
-    start: olderStart,
+    restartKey: filtering
+      ? [
+          'query',
+          platformFilter,
+          filter,
+          listQuery.text ?? '',
+          listQuery.from ?? '',
+          listQuery.to ?? '',
+          historyStamp
+        ].join('|')
+      : [
+          'list',
+          live === undefined ? 'waiting' : 'ready',
+          platformFilter,
+          filter,
+          keepFor === 'session' ? 'session' : 'saved',
+          olderStart.map((cursor) => cursor.platform).join('+'),
+          historyStamp
+        ].join('|'),
+    start: filtering ? queryStart : olderStart,
     filter,
-    known: knownIds
+    ...(filtering ? { query: listQuery, revealFirst: true } : { known: knownIds })
   })
 
   const entries = useMemo(
     () =>
-      mergeActivity(pager.entries, carried.values(), live ?? []).filter(
+      (filtering
+        ? pager.entries
+        : mergeActivity(pager.entries, carried.values(), live ?? [])
+      ).filter(
         (entry) =>
           (platformFilter === 'all' || entry.platform === platformFilter) &&
           matchesActivityFilter(entry.kind, filter)
       ),
-    [pager.entries, carried, live, platformFilter, filter]
+    [filtering, pager.entries, carried, live, platformFilter, filter]
   )
   const hasAnyInScope =
     (live ?? []).some((entry) => platformFilter === 'all' || entry.platform === platformFilter) ||
@@ -288,7 +350,7 @@ export default function ActivityView(): React.JSX.Element {
   // The instance log is its own list under the same header. Which list is
   // open is not saved: the page opens on the Activity list.
   const [showInstances, setShowInstances] = useState(false)
-  const instanceVisits = useInstanceVisits(platforms, showInstances)
+  const instanceVisits = useInstanceVisits(platforms, showInstances, listQuery)
   const shownCount = showInstances ? instanceVisits.visits.length : entries.length
   const [keepOpen, setKeepOpen] = useState(false)
   const [clearOpen, setClearOpen] = useState(false)
@@ -331,6 +393,34 @@ export default function ActivityView(): React.JSX.Element {
     )
   }
 
+  const noMatches = (
+    <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
+      <p className="text-sm font-semibold text-[var(--text-dim)]">{t('activity.noMatches')}</p>
+      <p className="mt-[var(--space-1)] max-w-[52ch] text-balance text-xs text-[var(--text-dim)]">
+        {t('activity.noMatchesHint')}
+      </p>
+    </div>
+  )
+  const activityList = (
+    <ol className="flex flex-col gap-[6px]">
+      {entries.map((entry) => {
+        const at = new Date(entry.at)
+        const time = formatActivityTime(at, now, formats)
+        return (
+          <li key={entry.id} className={`platform-row platform-row--${entry.platform}`}>
+            <ActivityRow
+              entry={entry}
+              friend={friendsByKey.get(friendKey(entry.platform, entry.platformUserId))}
+              time={time}
+              dateTime={at.toISOString()}
+              onOpen={openFriend}
+            />
+          </li>
+        )
+      })}
+    </ol>
+  )
+
   let content: React.JSX.Element
   if (showInstances) {
     if (!instanceVisits.ready) {
@@ -349,7 +439,9 @@ export default function ActivityView(): React.JSX.Element {
         <p className="text-sm text-[var(--text-dim)]">{t('activity.loading')}</p>
       )
     } else if (instanceVisits.visits.length === 0) {
-      content = (
+      content = filtering ? (
+        noMatches
+      ) : (
         <div className="glass glass-layer flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
           <p className="text-sm font-semibold text-[var(--text-dim)]">
             {t('instances.emptyHeading')}
@@ -361,6 +453,27 @@ export default function ActivityView(): React.JSX.Element {
       )
     } else {
       content = <InstanceVisitList visits={instanceVisits.visits} now={now} formats={formats} />
+    }
+  } else if (filtering) {
+    if (listNotReadYet || !pager.ready) {
+      content = <p className="text-sm text-[var(--text-dim)]">{t('activity.loading')}</p>
+    } else if (pager.status === 'failed' && entries.length === 0) {
+      content = (
+        <div className="flex items-center gap-[var(--space-3)]">
+          <p className="text-sm text-[var(--error)]">{t('activity.error')}</p>
+          <button
+            type="button"
+            onClick={pager.retry}
+            className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+          >
+            {t('activity.retry')}
+          </button>
+        </div>
+      )
+    } else if (entries.length === 0 && !pager.canShowOlder) {
+      content = noMatches
+    } else {
+      content = activityList
     }
   } else if (activity.data === undefined) {
     content = activity.isError ? (
@@ -399,70 +512,122 @@ export default function ActivityView(): React.JSX.Element {
       </div>
     )
   } else {
-    content = (
-      <ol className="flex flex-col gap-[6px]">
-        {entries.map((entry) => {
-          const at = new Date(entry.at)
-          const time = formatActivityTime(at, now, formats)
-          return (
-            <li key={entry.id} className={`platform-row platform-row--${entry.platform}`}>
-              <ActivityRow
-                entry={entry}
-                friend={friendsByKey.get(friendKey(entry.platform, entry.platformUserId))}
-                time={time}
-                dateTime={at.toISOString()}
-                onOpen={openFriend}
-              />
-            </li>
-          )
-        })}
-      </ol>
-    )
+    content = activityList
   }
 
   return (
     <section aria-label={t('shell.nav.activity')}>
-      <div className="mb-[12px] flex flex-wrap items-center justify-between gap-[var(--space-2)]">
-        <SegmentedControl
-          values={ACTIVITY_TABS}
-          active={showInstances ? INSTANCES : filter}
-          labelKeys={FILTER_LABEL_KEYS}
-          ariaLabel={t('activity.filterAria')}
-          onChange={(value) => {
-            setShowInstances(value === INSTANCES)
-            if (value !== INSTANCES) updateSettings({ activityFilter: value })
-          }}
-        />
-        <div className="flex items-center gap-[var(--space-1)]">
-          {/* How long activity stays saved: the choice in words, and the
-              button that changes it (owner, 2026-11-15). */}
-          <button
-            type="button"
-            onClick={() => setKeepOpen(true)}
-            aria-label={t('activity.keep.buttonAria', {
-              choice: t(ACTIVITY_KEEP_LABEL_KEYS[keepFor])
-            })}
-            className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
-          >
-            {t('activity.keep.button', { choice: t(ACTIVITY_KEEP_LABEL_KEYS[keepFor]) })}
-          </button>
-          <button
-            type="button"
-            // Not `disabled`: once the list it cleared is empty, a disabled
-            // button would drop keyboard focus to the page.
-            aria-disabled={shownCount === 0}
-            onClick={() => {
-              if (shownCount === 0) return
-              // Saved activity is deleted for good, so ask first. With nothing
-              // saved, Clear acts at once as it always did.
-              if (keepFor === 'session' && !showInstances) clearShown()
-              else setClearOpen(true)
+      <div className="mb-[12px] flex flex-col gap-[var(--space-2)]">
+        <div className="flex flex-wrap items-center justify-between gap-[var(--space-2)]">
+          <SegmentedControl
+            values={ACTIVITY_TABS}
+            active={showInstances ? INSTANCES : filter}
+            labelKeys={FILTER_LABEL_KEYS}
+            ariaLabel={t('activity.filterAria')}
+            onChange={(value) => {
+              setShowInstances(value === INSTANCES)
+              if (value !== INSTANCES) updateSettings({ activityFilter: value })
             }}
-            aria-label={t(showInstances ? 'instances.clearAria' : 'activity.clearAria')}
-            className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent motion-safe:transition-colors"
-          >
-            {t('activity.clear')}
-          </button>
+          />
+          <div className="flex items-center gap-[var(--space-1)]">
+            {/* How long activity stays saved: the choice in words, and the
+              button that changes it (owner, 2026-11-15). */}
+            <button
+              type="button"
+              onClick={() => setKeepOpen(true)}
+              aria-label={t('activity.keep.buttonAria', {
+                choice: t(ACTIVITY_KEEP_LABEL_KEYS[keepFor])
+              })}
+              className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] motion-safe:transition-colors"
+            >
+              {t('activity.keep.button', { choice: t(ACTIVITY_KEEP_LABEL_KEYS[keepFor]) })}
+            </button>
+            <button
+              type="button"
+              // Not `disabled`: once the list it cleared is empty, a disabled
+              // button would drop keyboard focus to the page.
+              aria-disabled={shownCount === 0 || filtering}
+              aria-label={
+                filtering
+                  ? t('activity.clearFiltered')
+                  : t(showInstances ? 'instances.clearAria' : 'activity.clearAria')
+              }
+              onClick={() => {
+                if (shownCount === 0 || filtering) return
+                // Saved activity is deleted for good, so ask first. With nothing
+                // saved, Clear acts at once as it always did.
+                if (keepFor === 'session' && !showInstances) clearShown()
+                else setClearOpen(true)
+              }}
+              className="canvas-text rounded-control px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:bg-transparent motion-safe:transition-colors"
+            >
+              {t('activity.clear')}
+            </button>
+          </div>
+        </div>
+        <div role="search" className="relative">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={search}
+            maxLength={ACTIVITY_SEARCH_MAX_LENGTH}
+            onChange={(event) => updateSearch(event.target.value)}
+            aria-label={t('activity.search.aria')}
+            placeholder={t('activity.search.placeholder')}
+            className="glass-layer w-full rounded-control border border-[var(--border)] py-[var(--space-2)] pr-[var(--space-10)] pl-[var(--space-3)] text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] hover:bg-[color-mix(in_srgb,var(--glass-layer),var(--text)_8%)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
+          />
+          {search.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                updateSearch('')
+                searchInputRef.current?.focus()
+              }}
+              aria-label={t('activity.search.clear')}
+              className="absolute top-1/2 right-[var(--space-2)] grid h-[24px] w-[24px] -translate-y-1/2 place-items-center rounded-control text-base leading-none text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+          <SegmentedControl
+            values={ACTIVITY_DATE_PRESETS}
+            active={datePreset}
+            labelKeys={DATE_LABEL_KEYS}
+            ariaLabel={t('activity.range.aria')}
+            onChange={setDatePreset}
+          />
+          {datePreset === 'custom' && (
+            <>
+              <label
+                htmlFor="activity-from"
+                className="flex items-center gap-[var(--space-1)] text-xs text-[var(--text-dim)]"
+              >
+                {t('activity.range.from')}
+                <input
+                  id="activity-from"
+                  type="date"
+                  value={customFrom}
+                  onChange={(event) => setCustomFrom(event.target.value)}
+                  className="glass-layer rounded-control border border-[var(--border)] bg-transparent px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)]"
+                />
+              </label>
+              <label
+                htmlFor="activity-to"
+                className="flex items-center gap-[var(--space-1)] text-xs text-[var(--text-dim)]"
+              >
+                {t('activity.range.to')}
+                <input
+                  id="activity-to"
+                  type="date"
+                  value={customTo}
+                  onChange={(event) => setCustomTo(event.target.value)}
+                  className="glass-layer rounded-control border border-[var(--border)] bg-transparent px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)]"
+                />
+              </label>
+            </>
+          )}
         </div>
       </div>
       {content}
@@ -483,7 +648,7 @@ export default function ActivityView(): React.JSX.Element {
         </div>
       )}
       {!showInstances &&
-        live !== undefined &&
+        (filtering ? pager.ready && entries.length > 0 : live !== undefined) &&
         (pager.canShowOlder || pager.status === 'failed') && (
           <div className="mt-[var(--space-3)] flex items-center justify-center gap-[var(--space-3)]">
             {pager.status === 'failed' ? (

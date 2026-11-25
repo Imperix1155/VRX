@@ -1638,6 +1638,22 @@ asks neither platform for anything.
   "Worlds", "Offline", "Friends list" and "Instances". At the right, two
   quiet buttons: "Kept: 90 days" (the current choice) and "Clear". The
   filter is remembered, except Instances.
+- **Search.** Under that row, a field: "Names, worlds, platforms". It
+  matches a friend's name (the name on the entry, their current name, and
+  earlier names VRX has saved), a world or instance name, and the platform
+  name (VRChat, ChilloutVR, VRC, CVR). The list updates after a short pause
+  while typing. Clearing the field applies at once.
+- **Dates.** A segmented control named "Dates": "Today", "Last 7 days",
+  "Last 30 days", "All" and "Custom". All is the default and leaves the
+  list as it was. The others include the first and last moment of each
+  day, and the last 7 and 30 days include today. Custom shows "From" and
+  "To" date fields. Search, dates and Show apply together. "Show older"
+  reads the next matching page. While a search or dates are narrowing the
+  list, Clear is off, so it cannot delete rows the list is hiding.
+- **No matches.** When a search or a date range is on and nothing matches:
+  "No matches", and "Nothing in this list matches the search or the dates."
+  This is separate from "Nothing to show with these filters." and from
+  "No activity yet".
 - **Entries.** A list with 6 px between entries, newest first. Each is a
   `.platform-row` for its platform, 12 px by 8 px padding:
 

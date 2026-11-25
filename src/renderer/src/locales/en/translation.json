@@ -754,6 +754,24 @@
     "emptyHeading": "No activity yet",
     "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open, and stay after a restart.",
     "filteredEmpty": "Nothing to show with these filters.",
+    "search": {
+      "placeholder": "Names, worlds, platforms",
+      "aria": "Search activity",
+      "clear": "Clear search"
+    },
+    "range": {
+      "aria": "Dates",
+      "today": "Today",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "all": "All",
+      "custom": "Custom",
+      "from": "From",
+      "to": "To"
+    },
+    "noMatches": "No matches",
+    "noMatchesHint": "Nothing in this list matches the search or the dates.",
+    "clearFiltered": "Clear is off while a search or dates are narrowing the list",
     "loading": "Loading activity…",
     "error": "Couldn’t load activity.",
     "retry": "Retry",

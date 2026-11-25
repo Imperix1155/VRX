@@ -220,7 +220,7 @@ profiles.
 
 ### Saved history
 
-`history.sqlite3` (schema version 1, SQLite) holds the Activity list, the
+`history.sqlite3` (schema version 2, SQLite) holds the Activity list, the
 friends list history and the instance log.
 
 - Every row carries the `accountKey` it was saved under. Main resolves the
