@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Settings → Performance is now a closed section on About. The Performance
+  tab is gone. The readings are the same, and they update only while that
+  section is open. A leftover choice of the old tab opens About.
+
 ### Added
 
 - The sidebar Do not disturb button can be hidden in Settings → Appearance,

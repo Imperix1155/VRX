@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useUiStore } from './ui'
+import { useUiStore, type SettingsCategory } from './ui'
 import type { ActiveTab } from './ui'
 
 describe('useUiStore', () => {
@@ -28,6 +28,13 @@ describe('useUiStore', () => {
     expect(useUiStore.getState().drawerOpen).toBe(true)
     useUiStore.getState().setDrawerOpen(false)
     expect(useUiStore.getState().drawerOpen).toBe(false)
+  })
+
+  it('a leftover performance category opens About', () => {
+    useUiStore.setState({
+      settingsCategory: 'performance' as unknown as SettingsCategory
+    })
+    expect(useUiStore.getState().settingsCategory).toBe('about')
   })
 
   it('toggleDrawer flips the drawer state', () => {

@@ -66,7 +66,12 @@ function staleOrUnavailable(view: PerformanceView): PerformanceView {
   return { status: 'unavailable' }
 }
 
-export default function PerformanceSettings(): React.JSX.Element {
+export default function PerformanceSettings({
+  active = true
+}: {
+  /** False while the About disclosure is closed, so this section does not poll. */
+  active?: boolean
+}): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const viewRef = useRef<PerformanceView>({ status: 'pending' })
   const attempt = useRef(0)
@@ -79,6 +84,7 @@ export default function PerformanceSettings(): React.JSX.Element {
 
   useQuery({
     queryKey: ['performance'],
+    enabled: active,
     queryFn: async (): Promise<PerformanceSnapshot | null> => {
       const ticket = ++attempt.current
       const finish = (next: PerformanceView): void => {
@@ -98,7 +104,7 @@ export default function PerformanceSettings(): React.JSX.Element {
         throw error
       }
     },
-    refetchInterval: PERFORMANCE_POLL_MS,
+    refetchInterval: active ? PERFORMANCE_POLL_MS : false,
     refetchIntervalInBackground: false,
     retry: false,
     networkMode: 'always',
@@ -158,11 +164,7 @@ export default function PerformanceSettings(): React.JSX.Element {
         : t('settings.performance.copy')
 
   return (
-    <section className="settings-cards" aria-labelledby="settings-performance-heading">
-      <h2 id="settings-performance-heading" className="sr-only">
-        {t('settings.performance.heading')}
-      </h2>
-
+    <>
       <div className="setting-card setting-row">
         <div>
           <p className="text-sm font-medium text-[var(--text)]">
@@ -293,6 +295,6 @@ export default function PerformanceSettings(): React.JSX.Element {
           </table>
         </div>
       ) : null}
-    </section>
+    </>
   )
 }

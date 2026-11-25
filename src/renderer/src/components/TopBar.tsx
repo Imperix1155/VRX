@@ -40,8 +40,7 @@ const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   behavior: 'settings.behavior.heading',
   notifications: 'settings.notifications.heading',
   accounts: 'settings.accounts.heading',
-  about: 'settings.about.heading',
-  performance: 'settings.performance.heading'
+  about: 'settings.about.heading'
 }
 
 // Linux keeps the live dot steady (2026-10-28). Each pulse frame redraws the

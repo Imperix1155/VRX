@@ -509,7 +509,7 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="settings"
             title="Settings"
-            note="Six categories, each fitting the default window without scrolling. The page sits on a frosted panel and each setting is a compact layered card. Try Appearance (theme, glow, Choose picture), Dashboard (Sections), Behavior (collapsing parent cards) and About."
+            note="Six categories, each fitting the default window without scrolling. The page sits on a frosted panel and each setting is a compact layered card. Try Appearance (theme, glow, Choose picture), Dashboard (Sections), Behavior (collapsing parent cards) and About, where Performance stays closed until you open it."
             source="SettingsView.tsx · DashboardSectionsCard.tsx · PickedFriendsDialog.tsx"
             variants={[
               { value: 'ready', label: 'Ready' },

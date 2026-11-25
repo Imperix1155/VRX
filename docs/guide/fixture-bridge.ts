@@ -392,8 +392,8 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         ws: { vrchat: 'live', chilloutvr: 'live' },
         lastReconcileAt: { vrchat: null, chilloutvr: null }
       }),
-    // Sample numbers for Settings → Performance. The guide does not measure
-    // the machine it is open on.
+    // Sample numbers for Settings → About → Performance. The guide does not
+    // measure the machine it is open on.
     getPerformance: () =>
       Promise.resolve({
         version: '1.5.0',
