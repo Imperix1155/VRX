@@ -26,6 +26,8 @@ export interface OwnProfileServiceOptions {
   adapters: ReadonlyMap<Platform, OwnProfileAdapter>
   clock?: () => number
   log?: OwnProfileLog
+  /** A profile VRX just read or saved. Not a new request. */
+  onProfile?: (profile: OwnProfile) => void
 }
 
 interface PlatformState {
@@ -99,6 +101,7 @@ export class OwnProfileService {
         const profile = answered ?? withChanges(current.profile, changes)
         state.profile = profile
         state.readAt = this.clock()
+        this.options.onProfile?.(profile)
         return { ok: true, profile }
       } catch (error) {
         // Part of a Save may have gone through (ChilloutVR sends a field per
@@ -135,6 +138,7 @@ export class OwnProfileService {
       assertRequestLease(state.lease)
       state.profile = profile
       state.readAt = this.clock()
+      this.options.onProfile?.(profile)
       return { ok: true, profile }
     } catch (error) {
       return { ok: false, reason: this.failure(adapter.platform, error) }

@@ -350,3 +350,21 @@ describe('Sidebar update button (VRX-113)', () => {
     expect(updaterState.install).toHaveBeenCalledOnce()
   })
 })
+
+describe('Sidebar Do not disturb', () => {
+  it('starts a three hour mute and turns it off again', () => {
+    render(<Sidebar />)
+    fireEvent.click(
+      screen.getByRole('button', { name: i18n.t('settings.doNotDisturb.sidebar.open') })
+    )
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: i18n.t('settings.doNotDisturb.threeHours') })
+    )
+    expect(useSettingsStore.getState().settings.doNotDisturb).toBe('3h')
+    expect(useSettingsStore.getState().settings.doNotDisturbUntil).not.toBeNull()
+    const off = screen.getByRole('button', { name: /Turn off/ })
+    fireEvent.click(off)
+    expect(useSettingsStore.getState().settings.doNotDisturb).toBe('off')
+    expect(useSettingsStore.getState().settings.doNotDisturbUntil).toBeNull()
+  })
+})

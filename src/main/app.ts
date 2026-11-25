@@ -50,7 +50,8 @@ import {
   flushPendingSettingsSave,
   getSettingsSnapshot,
   isSettingsFallback,
-  loadSettings
+  loadSettings,
+  saveSettings
 } from './services/settings'
 import {
   CREDENTIAL_KEYS,
@@ -119,6 +120,9 @@ import {
   isInboxAlertEnabled
 } from './friendNotifications'
 import { createVrOverlayAlerts } from './vrOverlayAlerts'
+import { alertsMuted, gateAlert } from '@shared/doNotDisturb'
+import { DoNotDisturbGameWatch } from './doNotDisturbWatch'
+import type { OwnStatus } from '@shared/ownProfile'
 import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
 import { RosterCatchUp } from './rosterCatchUp'
@@ -547,6 +551,9 @@ app
       directory: join(app.getPath('userData'), VRC_METADATA_DIRECTORY),
       log: (message, meta) => log.warn(message, meta)
     })
+    // The signed-in VRChat status, from replies and user-update VRX already
+    // receives. Cleared at a session boundary. ChilloutVR has no status.
+    let ownAlertStatus: OwnStatus | null = null
     const vrcAdapter = new VrcAdapter(vrcCredentials, vrcAdmission, {
       metadataStore: vrcMetadataStore,
       captureRosterRevision: () => locationAuthority.captureSeedRevision('vrchat'),
@@ -554,6 +561,9 @@ app
       // can retry instead of waiting for the OS default (~1-2 min).
       socketFactory: createVrcSocket,
       log: (level, message, meta) => log[level](message, meta),
+      onOwnStatus: (status: OwnStatus) => {
+        ownAlertStatus = status
+      },
       onIdentity: (accountId) => {
         accountSession.setIdentity('vrchat', accountId)
         // The account is known: its saved activity comes back now, not only
@@ -561,6 +571,7 @@ app
         if (accountId !== null) activityBoundary.current?.hydrate('vrchat')
       },
       onSessionBoundary: ({ identityRetained }) => {
+        ownAlertStatus = null
         friendAlertBoundary.current?.resetPlatform('vrchat')
         // The same account after a data-path 401 keeps its activity and inbox.
         activityBoundary.current?.resetPlatform('vrchat', { keepEntries: identityRetained })
@@ -704,10 +715,24 @@ app
       },
       logFailure: () => log.warn('VR alert failed')
     })
-    const showAlert = (alert: NativeAlert): void => {
-      showFriendAlert(alert)
-      vrOverlayAlerts.notify(alert)
-    }
+    const showAlert = gateAlert<NativeAlert>({
+      // One gate for desktop notifications and XSOverlay. The Settings test
+      // button calls vrOverlayAlerts.test and stays available.
+      muted: () => {
+        const settings = getSettingsSnapshot()
+        return alertsMuted({
+          doNotDisturb: settings.doNotDisturb,
+          doNotDisturbUntil: settings.doNotDisturbUntil,
+          doNotDisturbFollowStatus: settings.doNotDisturbFollowStatus,
+          ownStatus: ownAlertStatus,
+          now: Date.now()
+        })
+      },
+      deliver: (alert) => {
+        showFriendAlert(alert)
+        vrOverlayAlerts.notify(alert)
+      }
+    })
 
     const friendAlerts = new FriendAlerts({
       notify: showAlert,
@@ -806,6 +831,29 @@ app
       keepCutoff: () => activityHistory.cutoff()
     })
     const runningGames = new RunningGames(processNameListerFor(process.platform))
+    const endDoNotDisturb = (): void => {
+      const current = getSettingsSnapshot()
+      if (current.doNotDisturb === 'off' && current.doNotDisturbUntil === null) return
+      const patch = { doNotDisturb: 'off' as const, doNotDisturbUntil: null }
+      void saveSettings(patch).catch(() => undefined)
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send('do-not-disturb-changed', patch)
+      }
+    }
+    const doNotDisturbWatch = new DoNotDisturbGameWatch({
+      choice: () => getSettingsSnapshot().doNotDisturb,
+      until: () => getSettingsSnapshot().doNotDisturbUntil,
+      endOnGameStart: () => getSettingsSnapshot().doNotDisturbEndOnGameStart,
+      now: () => Date.now(),
+      runningPlatforms: async () => {
+        const running = new Set<Platform>()
+        if (await runningGames.isRunning('vrchat')) running.add('vrchat')
+        if (await runningGames.isRunning('chilloutvr')) running.add('chilloutvr')
+        return running
+      },
+      end: endDoNotDisturb
+    })
+    doNotDisturbWatch.sync()
     const vrchatGameLog = new VrchatGameLog({
       directories: vrchatLogDirectories(process.platform, app.getPath('home')),
       accountId: () => historyAccountKeyFor('vrchat')?.slice('vrchat:'.length) ?? null,
@@ -979,7 +1027,11 @@ app
         ['vrchat', vrcAdapter],
         ['chilloutvr', cvrAdapter]
       ]),
-      log: (message, meta) => log.warn(message, meta)
+      log: (message, meta) => log.warn(message, meta),
+      onProfile: (profile) => {
+        if (profile.platform === 'vrchat' && profile.status !== null)
+          ownAlertStatus = profile.status
+      }
     })
     ownProfileBoundary.current = ownProfile
     // Friend notes on the user's own accounts: a check when a drawer opens,
@@ -1227,6 +1279,7 @@ app
         restore: (sourcePath) => restoreHistory(historyTransfer, sourcePath)
       },
       onSettingsApplied: (saved) => {
+        doNotDisturbWatch.sync()
         applyWindowTheme(saved.theme)
         applyUpdaterSettings(saved)
         loginItem.follow(saved.startWithComputer !== 'off')
@@ -1380,6 +1433,7 @@ app
         })
       }
       clearInterval(activityPruneTimer)
+      doNotDisturbWatch.stop()
       vrchatGameLog.stop()
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'

@@ -68,6 +68,10 @@ describe('settings schema', () => {
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
       vrOverlayAlertDuration: 'medium',
+      doNotDisturb: 'off',
+      doNotDisturbUntil: null,
+      doNotDisturbEndOnGameStart: false,
+      doNotDisturbFollowStatus: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
@@ -240,6 +244,31 @@ describe('settings schema', () => {
     expect(invalid.notifyFriendOffline).toBe(false)
   })
 
+  it('do not disturb ships off, and a bad value falls back to off', () => {
+    expect(parseSettings({}).doNotDisturb).toBe('off')
+    expect(parseSettings({}).doNotDisturbUntil).toBeNull()
+    expect(parseSettings({}).doNotDisturbEndOnGameStart).toBe(false)
+    expect(parseSettings({}).doNotDisturbFollowStatus).toBe(false)
+    expect(parseSettings({ doNotDisturb: 'forever' }).doNotDisturb).toBe('off')
+    expect(parseSettings({ doNotDisturbUntil: 'later' }).doNotDisturbUntil).toBeNull()
+    const until = 1_700_000_000_000
+    expect(
+      parseSettings({
+        version: 31,
+        doNotDisturb: 'until-off',
+        doNotDisturbUntil: until,
+        doNotDisturbEndOnGameStart: true,
+        doNotDisturbFollowStatus: true
+      })
+    ).toMatchObject({
+      version: SETTINGS_VERSION,
+      doNotDisturb: 'until-off',
+      doNotDisturbUntil: until,
+      doNotDisturbEndOnGameStart: true,
+      doNotDisturbFollowStatus: true
+    })
+  })
+
   it('hot-instance notifications: quiet default — ships OFF, invalid falls back off (VRX-205)', () => {
     expect(parseSettings({ theme: 'dark' }).notifyHotInstance).toBe(false)
     expect(parseSettings({ notifyHotInstance: true }).notifyHotInstance).toBe(true)
@@ -336,6 +365,10 @@ describe('migration runner', () => {
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
       vrOverlayAlertDuration: 'medium',
+      doNotDisturb: 'off',
+      doNotDisturbUntil: null,
+      doNotDisturbEndOnGameStart: false,
+      doNotDisturbFollowStatus: false,
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -402,6 +435,10 @@ describe('migration runner', () => {
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
       vrOverlayAlertDuration: 'medium',
+      doNotDisturb: 'off',
+      doNotDisturbUntil: null,
+      doNotDisturbEndOnGameStart: false,
+      doNotDisturbFollowStatus: false,
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -469,6 +506,10 @@ describe('migration runner', () => {
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
       vrOverlayAlertDuration: 'medium',
+      doNotDisturb: 'off',
+      doNotDisturbUntil: null,
+      doNotDisturbEndOnGameStart: false,
+      doNotDisturbFollowStatus: false,
       setupPending: false,
       backgroundPictureFade: 'medium',
       friendAlertScope: 'everyone',
@@ -538,6 +579,10 @@ describe('migration runner', () => {
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
       vrOverlayAlertDuration: 'medium',
+      doNotDisturb: 'off',
+      doNotDisturbUntil: null,
+      doNotDisturbEndOnGameStart: false,
+      doNotDisturbFollowStatus: false,
       setupPending: false,
       drawerOpener: 'card',
       confirmJoin: true,
@@ -605,6 +650,10 @@ describe('migration runner', () => {
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
       vrOverlayAlertDuration: 'medium',
+      doNotDisturb: 'off',
+      doNotDisturbUntil: null,
+      doNotDisturbEndOnGameStart: false,
+      doNotDisturbFollowStatus: false,
       setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
@@ -673,6 +722,10 @@ describe('migration runner', () => {
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
       vrOverlayAlertDuration: 'medium',
+      doNotDisturb: 'off',
+      doNotDisturbUntil: null,
+      doNotDisturbEndOnGameStart: false,
+      doNotDisturbFollowStatus: false,
       setupPending: false,
       joinOpenGame: true,
       vrchatOpenGameJoin: 'go',
@@ -1322,6 +1375,10 @@ describe('Optional pages and first-run setup', () => {
       notifyFriendRequests: false,
       vrOverlayAlerts: false,
       vrOverlayAlertDuration: 'medium',
+      doNotDisturb: 'off',
+      doNotDisturbUntil: null,
+      doNotDisturbEndOnGameStart: false,
+      doNotDisturbFollowStatus: false,
       setupPending: false
     })
     expect(shouldPersistSettings({ version: 13, showExplorePage: false }, 12)).toBe(false)

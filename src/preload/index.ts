@@ -205,6 +205,15 @@ const vrx = {
     ipcRenderer.on('navigate-to-dashboard', listener)
     return () => ipcRenderer.removeListener('navigate-to-dashboard', listener)
   },
+  /** Main ended Do not disturb because a game started. Returns an unsubscribe. */
+  onDoNotDisturbChanged: (callback: (event: IpcEvents['do-not-disturb-changed']) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: IpcEvents['do-not-disturb-changed']
+    ): void => callback(payload)
+    ipcRenderer.on('do-not-disturb-changed', listener)
+    return () => ipcRenderer.removeListener('do-not-disturb-changed', listener)
+  },
   /** Live updater state pushes from main (VRX-113). Returns an unsubscribe. */
   onUpdaterStateChanged: (callback: (event: IpcEvents['updater:state-changed']) => void) => {
     const listener = (

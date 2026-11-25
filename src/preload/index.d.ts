@@ -225,6 +225,10 @@ type VrxBridge = {
   onNavigateToDashboard: (
     callback: (event: IpcEvents['navigate-to-dashboard']) => void
   ) => () => void
+  /** Main ended Do not disturb because a game started. Returns an unsubscribe. */
+  onDoNotDisturbChanged: (
+    callback: (event: IpcEvents['do-not-disturb-changed']) => void
+  ) => () => void
   /** Live updater state pushes from main (VRX-113). Returns an unsubscribe. */
   onUpdaterStateChanged: (
     callback: (event: IpcEvents['updater:state-changed']) => void

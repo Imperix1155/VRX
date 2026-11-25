@@ -525,6 +525,11 @@ export interface IpcEvents {
   /** A hot-instance alert click: open Hot Instances with this platform in view. */
   'navigate-to-dashboard': { platform: Platform }
   'updater:state-changed': UpdaterSnapshot
+  /** Main ended Do not disturb because a game started. */
+  'do-not-disturb-changed': {
+    doNotDisturb: Settings['doNotDisturb']
+    doNotDisturbUntil: Settings['doNotDisturbUntil']
+  }
 }
 
 /**

@@ -31,6 +31,7 @@ import { useUiStore } from '../stores/ui'
 import { useUpdater } from '../hooks/useUpdater'
 import { ISSUES_URL, releasesUrlFor } from '@shared/constants'
 import AccountCard from './AccountCard'
+import { DoNotDisturbCard } from './DoNotDisturbCard'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
 import Toggle from './Toggle'
@@ -1190,6 +1191,8 @@ export default function SettingsView(): React.JSX.Element {
             <h2 id="settings-notifications-heading" className="sr-only">
               {t('settings.notifications.heading')}
             </h2>
+
+            <DoNotDisturbCard />
 
             {/* Every alert in one card (as in the welcome setup), so the page
                 switches below still fit the 900x670 window. Who alerts you

@@ -212,7 +212,11 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 ### Session status: `GET /auth/user` with the cookie
 
 - **Assumes:** the same two 200 branches as sign-in. The current-user branch may
-  carry `onlineFriends`, `activeFriends` and `offlineFriends` id arrays.
+  carry `onlineFriends`, `activeFriends` and `offlineFriends` id arrays, and an
+  optional `status` string (`join me`, `active`, `ask me`, `busy`). A missing
+  or unexpected `status` does not fail the session check. A known word is
+  remembered for Do not disturb's "Follow my status" switch. VRX does not
+  request this field on its own.
 - **Parses and reacts:**
 
   | Reply                                                   | VRX state                                                 |
@@ -703,9 +707,12 @@ or write has been captured yet.
 | Other self, content and notification | Any                           | Dropped after decoding                                          |
 | Anything else                        | Any                           | Dropped                                                         |
 
-- **Dropped types:** `user-update`, `user-location`, `user-badge-assigned`,
+- **Dropped types:** `user-location`, `user-badge-assigned`,
   `content-refresh`, `see-notification` and `notification-v2*` are recognized
-  but not routed.
+  but not routed. `user-update` is not routed either. When `content.user.status`
+  is one of `join me`, `active`, `ask me` or `busy` (the community websocket
+  guide), VRX remembers that word for Do not disturb. Any other shape changes
+  nothing and still emits no event.
 - **Inbox (Source-derived, VRCX and the Notification schema):** a
   `notification` needs string `id`, `type` and `senderUserId`.
   `senderUsername` is optional. An invite's `details.worldName` is read whether

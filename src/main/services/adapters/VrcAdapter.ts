@@ -65,9 +65,14 @@ import {
   type OwnAvatarsPage
 } from './AvatarLibraryAdapter'
 import { parseVrcAvatar, parseVrcAvatarPage } from './vrchat/parseAvatars'
-import type { OwnProfile, OwnProfileChanges } from '@shared/ownProfile'
+import type { OwnProfile, OwnProfileChanges, OwnStatus } from '@shared/ownProfile'
 import { OwnProfileDataError, type OwnProfileAdapter } from './OwnProfileAdapter'
-import { parseVrcOwnProfile, vrcOwnProfileBody, vrcOwnUserBody } from './vrchat/parseOwnProfile'
+import {
+  parseVrcOwnProfile,
+  vrcOwnProfileBody,
+  vrcOwnStatus,
+  vrcOwnUserBody
+} from './vrchat/parseOwnProfile'
 import { SocialDataError, type SocialActionAdapter } from './SocialActionAdapter'
 import { isVrcBlocked, parseVrcBlockList, type VrcBlockList } from './vrchat/parseBlocked'
 import { RELATIONSHIP_CACHE_MS } from '@shared/socialActions'
@@ -156,6 +161,8 @@ export interface VrcLiveWiring {
   onSessionBoundary?: (boundary: { identityRetained: boolean }) => void
   /** Publishes the current platform identity after adapter state settles. */
   onIdentity?: (accountId: string | null) => void
+  /** A known VRChat status from a reply or `user-update` VRX already received. */
+  onOwnStatus?: (status: OwnStatus) => void
   /**
    * Launch-to-launch copy of world and group names for one account. `load`
    * runs synchronously when an account is published, so the first roster is
@@ -189,6 +196,8 @@ const vrcUserIdSchema = z
 const currentUserSchema = z.object({
   id: vrcUserIdSchema,
   displayName: z.string(),
+  // Optional. A missing or unexpected status must not fail the session check.
+  status: z.string().nullish().catch(undefined),
   // Optional optimization evidence: drift must not invalidate an otherwise
   // valid identity, nor turn missing buckets into synthetic offline presence.
   onlineFriends: z.array(z.string()).optional().catch(undefined),
@@ -564,6 +573,7 @@ export class VrcAdapter
     this.authPersistencePending = false
     this.adoptStoredMetadata()
     this.live?.onIdentity?.(this.accountId)
+    this.noteOwnStatus(parsed.data.status)
     this.restartPipeline()
     return { ok: true }
   }
@@ -650,6 +660,7 @@ export class VrcAdapter
     this.authPersistencePending = false
     this.adoptStoredMetadata()
     this.live?.onIdentity?.(this.accountId)
+    this.noteOwnStatus(parsed.data.status)
     this.restartPipeline()
     return { ok: true }
   }
@@ -926,6 +937,7 @@ export class VrcAdapter
       }
       this.adoptStoredMetadata()
       this.live?.onIdentity?.(this.accountId)
+      this.noteOwnStatus(parsed.data.status)
       // A token-exchange 401 stops the pipeline until this check confirms the session.
       if (establishedByThisStatus || this.pipeline === null) this.restartPipeline()
       this.rememberAuthBuckets(parsed.data, generation, startedAt, bucketRevision)
@@ -2142,6 +2154,10 @@ export class VrcAdapter
       onUpgradeRateLimited: (retryAfter) => this.admission.rateLimited(retryAfter),
       cooldownUntil: () => this.admission.cooldownUntil,
       tokenProvider: () => this.pipelineToken(),
+      onOwnStatus: (status) => {
+        if (generation !== this.sessionGeneration) return
+        this.live?.onOwnStatus?.(status)
+      },
       onEvent: (event) => {
         if (generation !== this.sessionGeneration) return
         this.authBucketRevision += 1
@@ -2758,10 +2774,17 @@ export class VrcAdapter
       if (parsed.success && generation === this.sessionGeneration) {
         this.displayName = parsed.data.displayName
         this.accountId = parsed.data.id
+        this.noteOwnStatus(parsed.data.status)
       }
     } catch {
       /* non-fatal */
     }
+  }
+
+  /** A known status word from a reply VRX already read. Unknown words change nothing. */
+  private noteOwnStatus(status: unknown): void {
+    const parsed = vrcOwnStatus(status)
+    if (parsed !== null) this.live?.onOwnStatus?.(parsed)
   }
 
   private status(state: AuthStatus['state'], twoFactorMethod?: TwoFactorMethod): AuthStatus {
