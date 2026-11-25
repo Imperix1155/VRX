@@ -13,6 +13,8 @@ vi.mock('electron', () => ({
 }))
 vi.mock('./security', () => ({ isTrustedIpcSender: vi.fn(() => trusted.value) }))
 
+import type { AutoBackupRestoreResult } from '@shared/autoBackup'
+import { inHistoryTurn } from '../services/historyTransfer'
 import {
   registerHistoryTransferHandlers,
   type HistoryTransferHandlerOptions
@@ -126,6 +128,31 @@ describe('history transfer handlers', () => {
     await importing
     await restoring
     expect(order).toEqual(['import starts', 'import ends', 'restore'])
+  })
+
+  it('holds a scheduled restore until the import in progress finishes', async () => {
+    let finishImport: () => void = () => undefined
+    const { call } = setup({
+      importVrcx: () =>
+        new Promise((resolve) => {
+          finishImport = () => resolve({ ok: false, reason: 'no-history' })
+        })
+    })
+    const importing = call('import-vrcx-history')
+    let ran = false
+    const scheduled = inHistoryTurn<AutoBackupRestoreResult>(
+      async () => {
+        ran = true
+        return { ok: true }
+      },
+      { ok: false, reason: 'failed' }
+    )
+    await Promise.resolve()
+    expect(ran).toBe(false)
+    finishImport()
+    await importing
+    await scheduled
+    expect(ran).toBe(true)
   })
 
   it('answers failed when a step throws, and the next press still runs', async () => {

@@ -16,6 +16,19 @@ import type { HistoryDatabase, HistoryJobWrites } from './historyDatabase'
 /** The largest file a restore reads. */
 export const MAX_HISTORY_BACKUP_BYTES = 4 * 1024 ** 3
 
+/**
+ * One history change at a time: a VRCX import, a manual backup, a manual
+ * restore, and a scheduled backup or restore. A later one waits, so an import
+ * cannot keep writing after a restore has replaced the rows.
+ */
+let historyTurn: Promise<unknown> = Promise.resolve()
+
+export function inHistoryTurn<T>(run: () => Promise<T>, failed: T): Promise<T> {
+  const turn = historyTurn.then(run).catch(() => failed)
+  historyTurn = turn
+  return turn
+}
+
 const WORK_FILE = 'history.sqlite3'
 
 export interface HistoryTransferOptions {

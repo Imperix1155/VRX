@@ -125,6 +125,16 @@ const vrx = {
   importVrcxHistory: () => invoke('import-vrcx-history', undefined),
   backupHistory: () => invoke('backup-history', undefined),
   restoreHistory: () => invoke('restore-history', undefined),
+  getAutoBackup: () => invoke('get-auto-backup', undefined),
+  chooseAutoBackupFolder: () => invoke('choose-auto-backup-folder', undefined),
+  resetAutoBackupFolder: () => invoke('reset-auto-backup-folder', undefined),
+  restoreAutoBackup: (req: IpcInvoke['restore-auto-backup']['req']) =>
+    invoke('restore-auto-backup', req),
+  onAutoBackupChanged: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('auto-backup-changed', listener)
+    return () => ipcRenderer.removeListener('auto-backup-changed', listener)
+  },
   getInbox: () => invoke('get-inbox', undefined),
   joinInvite: (req: IpcInvoke['join-invite']['req']) => invoke('join-invite', req),
   dismissInboxItem: (req: IpcInvoke['dismiss-inbox-item']['req']) =>

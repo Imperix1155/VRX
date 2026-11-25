@@ -636,6 +636,20 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       }),
     backupHistory: () => Promise.resolve({ ok: true }),
     restoreHistory: () => Promise.resolve({ ok: true }),
+    getAutoBackup: () =>
+      Promise.resolve({
+        usingDefaultFolder: true,
+        folderName: 'backups',
+        lastBackupAt: null,
+        lastError: null,
+        copies: []
+      }),
+    chooseAutoBackupFolder: () =>
+      Promise.resolve({ ok: true, usingDefaultFolder: false, folderName: 'Backups' }),
+    resetAutoBackupFolder: () =>
+      Promise.resolve({ ok: true, usingDefaultFolder: true, folderName: 'backups' }),
+    restoreAutoBackup: () => Promise.resolve({ ok: true }),
+    onAutoBackupChanged: unsubscribe,
     dismissInboxItem: ({ platform, id }) => {
       inbox = {
         items: inbox.items.filter((item) => !(item.platform === platform && item.id === id))

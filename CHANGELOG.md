@@ -20,20 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and by a date: Today, the last 7 days, the last 30 days, All, or two dates
   you pick. The search waits a moment while you type. Show and Show older
   stay inside that search and those dates. It is read on this computer only.
+- Settings → Performance, after About. It shows VRX's memory, CPU and startup
+  time, measured on this computer, and only while that page is open. Copy
+  report puts a text snapshot on the clipboard. Nothing is sent.
+- Automatic local backups, off by default. While VRX is open it keeps a copy
+  of history, settings, notes, stars and linked people on this computer.
+  Nothing is uploaded.
 
 ### Fixed
 
 - Settings → Performance keeps the last numbers when a refresh fails, says
   when that reading was taken, and the copied report includes that same line.
-
-### Added
-
-- Settings → Performance, after About. It shows VRX's memory, CPU and startup
-  time, measured on this computer, and only while that page is open. Copy
-  report puts a text snapshot on the clipboard. Nothing is sent.
-
-### Fixed
-
 - A settings save that did not stick no longer makes the next Kept choice
   take effect early. History is read again only after that choice's own save
   has been answered, so visits the new choice deletes do not stay listed.

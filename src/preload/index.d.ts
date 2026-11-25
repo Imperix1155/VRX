@@ -154,6 +154,15 @@ type VrxBridge = {
   importVrcxHistory: () => Promise<IpcInvoke['import-vrcx-history']['res']>
   backupHistory: () => Promise<IpcInvoke['backup-history']['res']>
   restoreHistory: () => Promise<IpcInvoke['restore-history']['res']>
+  /** Scheduled local backups. The answers carry a folder name, never a path. */
+  getAutoBackup: () => Promise<IpcInvoke['get-auto-backup']['res']>
+  chooseAutoBackupFolder: () => Promise<IpcInvoke['choose-auto-backup-folder']['res']>
+  resetAutoBackupFolder: () => Promise<IpcInvoke['reset-auto-backup-folder']['res']>
+  restoreAutoBackup: (
+    req: IpcInvoke['restore-auto-backup']['req']
+  ) => Promise<IpcInvoke['restore-auto-backup']['res']>
+  /** A scheduled backup, its folder, or a restore changed. Returns an unsubscribe. */
+  onAutoBackupChanged: (callback: () => void) => () => void
   /** The inbox: rows the sockets delivered while VRX was open. */
   getInbox: () => Promise<IpcInvoke['get-inbox']['res']>
   /** Hide a row in VRX only; nothing reaches the platform. */

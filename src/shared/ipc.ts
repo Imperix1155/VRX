@@ -49,6 +49,11 @@ import type {
   HistoryRestoreResult,
   VrcxHistoryImportResult
 } from './historyTransfer'
+import type {
+  AutoBackupFolderResult,
+  AutoBackupRestoreResult,
+  AutoBackupStatus
+} from './autoBackup'
 import type { AnswerFriendRequest, FriendActionResult, SendFriendRequest } from './friendActions'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type {
@@ -373,6 +378,14 @@ export interface IpcInvoke {
   /** Replace the saved history with a backup the user picks in a native
    *  dialog. The renderer asks first; main owns the dialog and the path. */
   'restore-history': { req: void; res: HistoryRestoreResult }
+  /** What the scheduled local backups last did. No path. */
+  'get-auto-backup': { req: void; res: AutoBackupStatus }
+  /** Pick a folder for those copies. Cancel leaves the stored folder as it was. */
+  'choose-auto-backup-folder': { req: void; res: AutoBackupFolderResult }
+  /** Go back to VRX's own backup folder. A failed save leaves the old folder. */
+  'reset-auto-backup-folder': { req: void; res: AutoBackupFolderResult }
+  /** Replace saved history with one scheduled copy. The id is the copy's name. */
+  'restore-auto-backup': { req: { id: string }; res: AutoBackupRestoreResult }
   /** Invites and requests that arrived while VRX was open. */
   'get-inbox': { req: void; res: InboxSnapshot }
   /** Join the instance an invite row leads to. Main looks the row up itself:
@@ -520,6 +533,8 @@ export interface IpcEvents {
   'linked-profiles-changed': void
   /** The activity list or the instance log changed; coalesced, carries nothing. */
   'activity-changed': void
+  /** A scheduled backup, its folder, or a restore changed. Read `get-auto-backup` again. */
+  'auto-backup-changed': void
   /** The inbox changed; read it again with `get-inbox`. */
   'inbox-changed': void
   'friend-event': FriendEvent

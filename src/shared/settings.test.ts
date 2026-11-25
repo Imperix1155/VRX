@@ -82,7 +82,10 @@ describe('settings schema', () => {
       joinOpenGame: true,
       vrchatOpenGameJoin: 'go',
       autoUpdate: false,
-      updateChannel: 'stable'
+      updateChannel: 'stable',
+      autoBackup: false,
+      autoBackupInterval: 'daily',
+      autoBackupKeep: 5
     })
   })
 
@@ -381,7 +384,10 @@ describe('migration runner', () => {
       vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
-      allowJoinInstances: true
+      allowJoinInstances: true,
+      autoBackup: false,
+      autoBackupInterval: 'daily',
+      autoBackupKeep: 5
     })
   })
 
@@ -451,7 +457,10 @@ describe('migration runner', () => {
       vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
-      allowJoinInstances: true
+      allowJoinInstances: true,
+      autoBackup: false,
+      autoBackupInterval: 'daily',
+      autoBackupKeep: 5
     })
   })
 
@@ -521,7 +530,10 @@ describe('migration runner', () => {
       vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
-      allowJoinInstances: true
+      allowJoinInstances: true,
+      autoBackup: false,
+      autoBackupInterval: 'daily',
+      autoBackupKeep: 5
     })
   })
 
@@ -591,7 +603,10 @@ describe('migration runner', () => {
       vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
-      allowJoinInstances: true
+      allowJoinInstances: true,
+      autoBackup: false,
+      autoBackupInterval: 'daily',
+      autoBackupKeep: 5
     })
   })
 
@@ -661,7 +676,10 @@ describe('migration runner', () => {
       vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
-      allowJoinInstances: true
+      allowJoinInstances: true,
+      autoBackup: false,
+      autoBackupInterval: 'daily',
+      autoBackupKeep: 5
     })
   })
 
@@ -731,7 +749,10 @@ describe('migration runner', () => {
       vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
-      allowJoinInstances: true
+      allowJoinInstances: true,
+      autoBackup: false,
+      autoBackupInterval: 'daily',
+      autoBackupKeep: 5
     })
   })
 
@@ -1632,5 +1653,64 @@ describe('Keep activity for setting', () => {
     Reflect.deleteProperty(oldNormalized, 'activityKeepFor')
     if (shouldPersistSettings(disk, 29)) disk = oldNormalized
     expect(parseSettings(disk)).toMatchObject({ activityKeepFor: 'session' })
+  })
+})
+
+describe('automatic backup settings', () => {
+  it('stays off, daily, and keeps 5 when the values are missing or invalid', () => {
+    expect(parseSettings({})).toMatchObject({
+      autoBackup: false,
+      autoBackupInterval: 'daily',
+      autoBackupKeep: 5
+    })
+    expect(
+      parseSettings({
+        autoBackup: 'yes',
+        autoBackupInterval: 'hourly',
+        autoBackupKeep: 0
+      })
+    ).toMatchObject({
+      autoBackup: false,
+      autoBackupInterval: 'daily',
+      autoBackupKeep: 5
+    })
+    for (const bad of [true, 21, -1, 1.5, '5', null]) {
+      expect(parseSettings({ autoBackupKeep: bad }).autoBackupKeep).toBe(5)
+    }
+    expect(parseSettings({ autoBackupKeep: 1 }).autoBackupKeep).toBe(1)
+    expect(parseSettings({ autoBackupKeep: 20 }).autoBackupKeep).toBe(20)
+  })
+
+  it('keeps an explicit On, every 3 days, and 2 copies', () => {
+    expect(
+      parseSettings({
+        version: 31,
+        autoBackup: true,
+        autoBackupInterval: '3d',
+        autoBackupKeep: 2
+      })
+    ).toMatchObject({
+      version: SETTINGS_VERSION,
+      autoBackup: true,
+      autoBackupInterval: '3d',
+      autoBackupKeep: 2
+    })
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 32,
+      autoBackup: true,
+      autoBackupInterval: '3d',
+      autoBackupKeep: 2
+    }
+    const oldNormalized = { ...disk, version: 31 }
+    Reflect.deleteProperty(oldNormalized, 'autoBackup')
+    Reflect.deleteProperty(oldNormalized, 'autoBackupInterval')
+    Reflect.deleteProperty(oldNormalized, 'autoBackupKeep')
+    if (shouldPersistSettings(disk, 31)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({
+      autoBackup: true,
+      autoBackupInterval: '3d',
+      autoBackupKeep: 2
+    })
   })
 })

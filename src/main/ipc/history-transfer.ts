@@ -4,6 +4,7 @@ import type {
   HistoryRestoreResult,
   VrcxHistoryImportResult
 } from '@shared/historyTransfer'
+import { inHistoryTurn } from '../services/historyTransfer'
 import { isTrustedIpcSender } from './security'
 
 export interface HistoryTransferHandlerOptions {
@@ -29,21 +30,14 @@ export interface HistoryTransferHandlerOptions {
  * restore never lands in the middle of an import.
  */
 export function registerHistoryTransferHandlers(options: HistoryTransferHandlerOptions): void {
-  let last: Promise<unknown> = Promise.resolve()
-  const inTurn = <T>(run: () => Promise<T>, failed: T): Promise<T> => {
-    const turn = last.then(run).catch(() => failed)
-    last = turn
-    return turn
-  }
-
   ipcMain.handle('import-vrcx-history', (event): Promise<VrcxHistoryImportResult> => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-    return inTurn(() => options.importVrcx(), { ok: false, reason: 'failed' })
+    return inHistoryTurn(() => options.importVrcx(), { ok: false, reason: 'failed' })
   })
 
   ipcMain.handle('backup-history', (event): Promise<HistoryBackupResult> => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-    return inTurn(
+    return inHistoryTurn(
       async (): Promise<HistoryBackupResult> => {
         if (!options.isKeeping()) return { ok: false, reason: 'off' }
         const target = await options.pickBackupTarget(event)
@@ -56,7 +50,7 @@ export function registerHistoryTransferHandlers(options: HistoryTransferHandlerO
 
   ipcMain.handle('restore-history', (event): Promise<HistoryRestoreResult> => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-    return inTurn(
+    return inHistoryTurn(
       async (): Promise<HistoryRestoreResult> => {
         if (!options.isKeeping()) return { ok: false, reason: 'off' }
         const source = await options.pickBackupSource(event)

@@ -105,6 +105,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'open-url': { max: 30, windowMs: 60_000 },
   // Settings hydrate once per renderer load, with ample reload/remount headroom.
   'get-settings': { max: 12, windowMs: 30_000 },
+  // The Accounts card reads this on open and after each change push.
+  'get-auto-backup': { max: 30, windowMs: 60_000 },
   // Every settings mutation persists; two changes/second allows rapid controls.
   'save-settings': { max: 120, windowMs: 60_000 },
   // Drawer reads can follow rapid roster navigation without blocking the user.
@@ -152,6 +154,11 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'import-vrcx-history': { max: 6, windowMs: 60_000 },
   'backup-history': { max: 10, windowMs: 60_000 },
   'restore-history': { max: 6, windowMs: 60_000 },
+  // Choosing a folder opens a native dialog. Resetting it is the same kind of press.
+  'choose-auto-backup-folder': { max: 10, windowMs: 60_000 },
+  'reset-auto-backup-folder': { max: 10, windowMs: 60_000 },
+  // Restoring history is a deliberate press, same budget as a manual restore.
+  'restore-auto-backup': { max: 6, windowMs: 60_000 },
   // Re-read after each inbox push; pushes are bounded by what the sockets send.
   'get-inbox': { max: 240, windowMs: 60_000 },
   // Human clicks that only hide rows locally.
@@ -195,6 +202,9 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'import-vrcx-history':
     case 'backup-history':
     case 'restore-history':
+    case 'choose-auto-backup-folder':
+    case 'reset-auto-backup-folder':
+    case 'restore-auto-backup':
       return { ok: false, reason: 'rate-limited' }
     case 'get-game-favorites':
       return { state: 'rate-limited' }
