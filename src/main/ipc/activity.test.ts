@@ -131,6 +131,17 @@ describe('activity handlers', () => {
         { platform: 'chilloutvr', friendId: 'friend-1' }
       ]
     })
+
+    handlers.get('get-activity-page')!(event, {
+      scope: [{ platform: 'vrchat', beforeId: null }],
+      filter: 'world',
+      query: { text: '  Night  ', from: 10, to: 20, extra: true }
+    })
+    expect(feed.page).toHaveBeenLastCalledWith({
+      scope: [{ platform: 'vrchat', beforeId: null }],
+      filter: 'world',
+      query: { text: 'Night', from: 10, to: 20 }
+    })
   })
 
   const vrc = (beforeId: unknown): unknown => [{ platform: 'vrchat', beforeId }]
@@ -175,7 +186,17 @@ describe('activity handlers', () => {
         friends: [{ platform: 'vrchat', friendId: 'a'.repeat(129) }]
       }
     ],
-    ['a request that is not a plain object', Object.create({ scope: vrc(null) }) as unknown]
+    ['a request that is not a plain object', Object.create({ scope: vrc(null) }) as unknown],
+    ['a search that is not text', { scope: vrc(null), filter: 'all', query: { text: 1 } }],
+    [
+      'a search that is too long',
+      { scope: vrc(null), filter: 'all', query: { text: 'a'.repeat(101) } }
+    ],
+    [
+      'a date that is not a whole moment',
+      { scope: vrc(null), filter: 'all', query: { from: 1.5 } }
+    ],
+    ['a date that is text', { scope: vrc(null), filter: 'all', query: { to: '2026-01-01' } }]
   ])('refuses a page request with %s and reads nothing', (_label, request) => {
     expect(() => handlers.get('get-activity-page')!(event, request)).toThrow(
       'Invalid get-activity-page request'
@@ -232,6 +253,14 @@ describe('activity handlers', () => {
         { platform: 'chilloutvr', before: 1_700_000_000_000 }
       ]
     })
+    handlers.get('get-instance-visits')!(event, {
+      scope: [{ platform: 'vrchat', before: null }],
+      query: { text: 'Lounge', from: 5, to: 9 }
+    })
+    expect(instanceLog.page).toHaveBeenLastCalledWith({
+      scope: [{ platform: 'vrchat', before: null }],
+      query: { text: 'Lounge', from: 5, to: 9 }
+    })
     handlers.get('get-instance-visit-people')!(event, { platform: 'vrchat', visitId: 7 })
     expect(instanceLog.people).toHaveBeenCalledExactlyOnceWith('vrchat', 7)
     handlers.get('clear-instance-log')!(event, { platforms: ['chilloutvr'] })
@@ -244,6 +273,10 @@ describe('activity handlers', () => {
     ['get-instance-visits', { scope: [{ platform: 'steam', before: null }] }],
     ['get-instance-visits', { scope: [{ platform: 'vrchat', before: '5' }] }],
     ['get-instance-visits', { scope: [{ platform: 'vrchat' }] }],
+    [
+      'get-instance-visits',
+      { scope: [{ platform: 'vrchat', before: null }], query: { from: 1.2 } }
+    ],
     [
       'get-instance-visits',
       {

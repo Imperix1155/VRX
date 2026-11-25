@@ -1,3 +1,4 @@
+import { matchesActivityFilter, matchesActivityListQuery } from '@shared/activity'
 import type { UpdaterSnapshot } from '@shared/ipc'
 import type { AuthStatus, Platform } from '@shared/types'
 import type { AvatarItem } from '@shared/avatarLibrary'
@@ -416,9 +417,37 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     // A friend's History: that friend's sample entries, and a few older ones
     // so the dialog shows more than one day. The Activity page gets no older
     // page: the sample list is shorter than what main keeps in memory.
-    getActivityPage: ({ scope, friends }) => {
-      if (friends === undefined || variant === 'empty') {
-        return Promise.resolve({ entries: [], hasMore: false })
+    getActivityPage: ({ scope, friends, query, filter }) => {
+      if (variant === 'empty') return Promise.resolve({ entries: [], hasMore: false })
+      if (friends === undefined) {
+        if (query === undefined) return Promise.resolve({ entries: [], hasMore: false })
+        const now = Date.now()
+        const sample = activityEntries(now)
+        const names = new Map<string, string[]>()
+        for (const entry of sample) {
+          const key = `${entry.platform}:${entry.platformUserId}`
+          const stored = names.get(key) ?? []
+          stored.push(entry.displayName)
+          if (entry.previousName !== undefined) stored.push(entry.previousName)
+          names.set(key, stored)
+        }
+        return Promise.resolve({
+          entries: sample.filter(
+            (entry) =>
+              scope.some(
+                (cursor) =>
+                  cursor.platform === entry.platform &&
+                  (cursor.beforeId === null || entry.id < cursor.beforeId)
+              ) &&
+              matchesActivityFilter(entry.kind, filter) &&
+              matchesActivityListQuery(
+                entry,
+                query,
+                names.get(`${entry.platform}:${entry.platformUserId}`) ?? []
+              )
+          ),
+          hasMore: false
+        })
       }
       const now = Date.now()
       const wanted = new Set(friends.map((friend) => `${friend.platform}:${friend.friendId}`))
@@ -488,7 +517,7 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     },
     // The instance log: a room the visitor is in now and a few earlier ones,
     // the same on both platforms.
-    getInstanceVisits: ({ scope }) => {
+    getInstanceVisits: ({ scope, query }) => {
       if (variant === 'empty') return Promise.resolve({ visits: [], hasMore: false })
       const now = Date.now()
       const hour = 3_600_000
@@ -534,8 +563,23 @@ export function createFixtureBridge(variant: string): FixtureBridge {
             current: row.stay === null,
             people: row.people
           }))
-          .filter((visit) =>
-            scope.some((cursor) => cursor.platform === visit.platform && cursor.before === null)
+          .filter(
+            (visit) =>
+              scope.some(
+                (cursor) => cursor.platform === visit.platform && cursor.before === null
+              ) &&
+              matchesActivityListQuery(
+                {
+                  displayName: '',
+                  worldName: visit.worldName,
+                  platform: visit.platform,
+                  at: visit.enteredAt
+                },
+                query,
+                visit.platform === 'vrchat'
+                  ? ['Iris Circuitbreaker', 'Vale After the Last Train', 'Kai']
+                  : ['Pixel Orchard', 'Fern', 'Marlow, Archive Keeper']
+              )
           ),
         hasMore: false
       })
