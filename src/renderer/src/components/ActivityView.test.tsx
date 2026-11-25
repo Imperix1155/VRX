@@ -7,7 +7,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { act, render, screen, cleanup, fireEvent, within, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ActivityEntry, ActivityPage, ActivityPageRequest } from '@shared/activity'
-import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM } from '@shared/constants'
+import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM, SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
 import { translate as msg } from '../i18n/translate'
@@ -17,6 +17,7 @@ import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
 import { useProfileSelection } from '../stores/profileSelection'
 import { fullFriend } from '../test-utils/friendFixture'
+import { activityDateBounds } from '../utils/activityRange'
 import ActivityView from './ActivityView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
@@ -655,6 +656,170 @@ describe('ActivityView', () => {
         .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearAria') })
         .getAttribute('aria-disabled')
     ).toBe('true')
+  })
+
+  it('asks main for a debounced search, inclusive dates and the kind, and pages within them', async () => {
+    vi.useFakeTimers()
+    try {
+      const night = entries[1]!
+      const older: ActivityEntry = {
+        ...night,
+        id: 1,
+        worldName: 'Older Market',
+        at: night.at - 10_000
+      }
+      getActivityPage.mockImplementation((request: ActivityPageRequest) => {
+        const before = request.scope.some((cursor) => cursor.beforeId !== null)
+        if (request.query?.text === 'Night' && !before) {
+          return Promise.resolve({ entries: [night], hasMore: true })
+        }
+        if (request.query?.text === 'Night') {
+          return Promise.resolve({ entries: [older], hasMore: false })
+        }
+        return Promise.resolve({ entries: [], hasMore: false })
+      })
+      renderView()
+      const field = screen.getByRole('textbox', { name: msg('activity.search.aria') })
+      fireEvent.change(field, { target: { value: 'Ni' } })
+      await act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS - 1))
+      expect(getActivityPage).not.toHaveBeenCalled()
+      fireEvent.change(field, { target: { value: 'Night' } })
+      await act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS))
+      expect(getActivityPage).toHaveBeenCalledWith({
+        scope: [
+          { platform: 'vrchat', beforeId: null },
+          { platform: 'chilloutvr', beforeId: null }
+        ],
+        filter: 'all',
+        query: { text: 'Night' }
+      })
+      expect(screen.getByText(msg('activity.joined', { world: 'Night Market' }))).toBeTruthy()
+      expect(screen.queryByText('Former Friend')).toBeNull()
+
+      const show = screen.getByRole('radiogroup', { name: msg('activity.filterAria') })
+      fireEvent.click(within(show).getByRole('radio', { name: msg('activity.kinds.world') }))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(getActivityPage).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filter: 'world', query: { text: 'Night' } })
+      )
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      fireEvent.click(screen.getByRole('button', { name: msg('activity.showOlder') }))
+      expect(screen.getByText(msg('activity.joined', { world: 'Older Market' }))).toBeTruthy()
+
+      fireEvent.change(field, { target: { value: 'zzzz-no-such-friend' } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS)
+      })
+      expect(screen.getByText(msg('activity.noMatches'))).toBeTruthy()
+      expect(screen.queryAllByRole('listitem')).toHaveLength(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('sends today as an inclusive local day and leaves Clear off while dates narrow the list', async () => {
+    getActivityPage.mockResolvedValue({ entries: [], hasMore: false })
+    renderView()
+    fireEvent.click(screen.getByRole('radio', { name: msg('activity.range.today') }))
+    const bounds = activityDateBounds('today', new Date(), '', '')
+    await waitFor(() =>
+      expect(getActivityPage).toHaveBeenCalledWith({
+        scope: [
+          { platform: 'vrchat', beforeId: null },
+          { platform: 'chilloutvr', beforeId: null }
+        ],
+        filter: 'all',
+        query: bounds
+      })
+    )
+    expect(screen.getByText(msg('activity.noMatches'))).toBeTruthy()
+    expect(
+      screen
+        .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearFiltered') })
+        .getAttribute('aria-disabled')
+    ).toBe('true')
+  })
+
+  it('drops a search match after a shorter Keep for choice is applied', async () => {
+    const match = entries[1]!
+    let deleted = false
+    getActivityPage.mockImplementation(() =>
+      Promise.resolve({ entries: deleted ? [] : [match], hasMore: !deleted })
+    )
+    renderView()
+    fireEvent.change(screen.getByRole('textbox', { name: msg('activity.search.aria') }), {
+      target: { value: 'Night' }
+    })
+    await waitFor(() => {
+      expect(screen.getByText(msg('activity.joined', { world: 'Night Market' }))).toBeTruthy()
+      expect(screen.queryByText('Former Friend')).toBeNull()
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: msg('activity.showOlder') })).toBeTruthy()
+    )
+
+    act(() => useSettingsStore.getState().updateSettings({ activityKeepFor: '30d' }))
+    expect(screen.getByText(msg('activity.joined', { world: 'Night Market' }))).toBeTruthy()
+
+    deleted = true
+    act(() => useSettingsStore.getState().markSaved())
+    await waitFor(() =>
+      expect(screen.queryByText(msg('activity.joined', { world: 'Night Market' }))).toBeNull()
+    )
+    expect(screen.getByText(msg('activity.noMatches'))).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('activity.showOlder') })).toBeNull()
+  })
+
+  it('shows a world name that arrives while a search is active', async () => {
+    const match = { ...entries[1]!, worldName: 'Aurora Transit' }
+    getActivityPage.mockResolvedValue({ entries: [], hasMore: false })
+    renderView()
+    fireEvent.change(screen.getByRole('textbox', { name: msg('activity.search.aria') }), {
+      target: { value: 'Aurora' }
+    })
+    await waitFor(() => expect(screen.getByText(msg('activity.noMatches'))).toBeTruthy())
+
+    getActivityPage.mockResolvedValue({ entries: [match], hasMore: false })
+    act(() => {
+      client.setQueryData(
+        activityKey,
+        entries.map((entry) => (entry.id === match.id ? match : entry))
+      )
+    })
+    await waitFor(() =>
+      expect(screen.getByText(msg('activity.joined', { world: 'Aurora Transit' }))).toBeTruthy()
+    )
+    expect(screen.queryByText(msg('activity.noMatches'))).toBeNull()
+  })
+
+  it('reads the open list again when history changes and no search is on', async () => {
+    const full: ActivityEntry[] = Array.from(
+      { length: ACTIVITY_MAX_ENTRIES_PER_PLATFORM },
+      (_, index) => ({
+        id: 800 - index,
+        kind: 'online' as const,
+        platform: 'vrchat' as const,
+        platformUserId: alice.platformUserId,
+        displayName: 'Alice',
+        worldName: null,
+        at: now - index * 1_000
+      })
+    )
+    renderView(full)
+    await waitFor(() => expect(getActivityPage).toHaveBeenCalled())
+    const before = getActivityPage.mock.calls.length
+    act(() => {
+      client.setQueryData(
+        activityKey,
+        full.map((entry, index) => (index === 0 ? { ...entry, worldName: 'Filled In' } : entry))
+      )
+    })
+    await waitFor(() => expect(getActivityPage.mock.calls.length).toBeGreaterThan(before))
   })
 
   it('asks to connect a single filtered platform that is signed out', () => {

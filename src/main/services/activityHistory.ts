@@ -99,7 +99,10 @@ export class ActivityHistory implements ActivityStore {
         accounts,
         kinds: activityKindsOf(request.filter),
         friends,
-        limit
+        limit,
+        text: request.query?.text ?? null,
+        from: request.query?.from ?? null,
+        to: request.query?.to ?? null
       })
     )
   }
