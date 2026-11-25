@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Platform } from '@shared/types'
 import { DO_NOT_DISTURB_MS } from '@shared/doNotDisturb'
+import { RunningGames } from './services/gameHandoff'
 import { DoNotDisturbGameWatch } from './doNotDisturbWatch'
 
 const NOW = 1_700_000_000_000
@@ -87,6 +88,35 @@ describe('DoNotDisturbGameWatch', () => {
     watch.sync()
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(calls).toBeGreaterThanOrEqual(2)
+    expect(end).not.toHaveBeenCalled()
+    watch.stop()
+  })
+
+  it('baselines from a fresh process list, not a cache taken before the game started', async () => {
+    let now = 0
+    const list = vi
+      .fn<() => Promise<string[] | null>>()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue(['vrchat.exe'])
+    const games = new RunningGames(list, () => now)
+    await games.runningPlatforms()
+    now = 500
+    const end = vi.fn()
+    const watch = new DoNotDisturbGameWatch({
+      choice: () => 'until-off',
+      until: () => null,
+      endOnGameStart: () => true,
+      now: () => NOW,
+      runningPlatforms: (fresh) => {
+        if (!fresh) now += 5_000
+        return games.runningPlatforms({ fresh })
+      },
+      end,
+      intervalMs: 1
+    })
+    watch.sync()
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(list.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(end).not.toHaveBeenCalled()
     watch.stop()
   })

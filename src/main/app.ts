@@ -845,7 +845,7 @@ app
       until: () => getSettingsSnapshot().doNotDisturbUntil,
       endOnGameStart: () => getSettingsSnapshot().doNotDisturbEndOnGameStart,
       now: () => Date.now(),
-      runningPlatforms: () => runningGames.runningPlatforms(),
+      runningPlatforms: (fresh) => runningGames.runningPlatforms({ fresh }),
       end: endDoNotDisturb
     })
     doNotDisturbWatch.sync()

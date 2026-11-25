@@ -108,10 +108,11 @@ export class RunningGames {
 
   /**
    * Games whose process was listed, or `null` when the list could not be read.
-   * A failure is not cached and is not an empty list.
+   * A failure is not cached and is not an empty list. `fresh` skips the 2 s
+   * cache so a baseline is a list taken now, not one from before a game started.
    */
-  async runningPlatforms(): Promise<ReadonlySet<Platform> | null> {
-    const names = await this.names()
+  async runningPlatforms(options?: { fresh?: boolean }): Promise<ReadonlySet<Platform> | null> {
+    const names = await this.names(options?.fresh === true)
     if (names === null) return null
     const running = new Set<Platform>()
     for (const platform of ['vrchat', 'chilloutvr'] as const) {
@@ -120,8 +121,8 @@ export class RunningGames {
     return running
   }
 
-  private async names(): Promise<ReadonlySet<string> | null> {
-    if (this.cached && this.clock() - this.cached.at < PROCESS_CHECK_TTL_MS) {
+  private async names(fresh = false): Promise<ReadonlySet<string> | null> {
+    if (!fresh && this.cached && this.clock() - this.cached.at < PROCESS_CHECK_TTL_MS) {
       return this.cached.names
     }
     if (this.inFlight) return this.inFlight

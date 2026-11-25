@@ -23,7 +23,8 @@ export class DoNotDisturbGameWatch {
       until: () => number | null
       endOnGameStart: () => boolean
       now: () => number
-      runningPlatforms: () => Promise<ReadonlySet<Platform> | null>
+      /** `fresh` is true for the baseline, which must not reuse a cached list. */
+      runningPlatforms: (fresh: boolean) => Promise<ReadonlySet<Platform> | null>
       end: () => void
       intervalMs?: number
     }
@@ -73,7 +74,7 @@ export class DoNotDisturbGameWatch {
     }
     let running: ReadonlySet<Platform> | null
     try {
-      running = await this.options.runningPlatforms()
+      running = await this.options.runningPlatforms(this.seen === null)
     } catch {
       running = null
     }

@@ -59,6 +59,20 @@ describe('RunningGames', () => {
     expect(list).toHaveBeenCalledTimes(3)
   })
 
+  it('a fresh read does not reuse a cached list from before a game started', async () => {
+    let now = 0
+    const list = vi
+      .fn<() => Promise<string[] | null>>()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(['vrchat.exe'])
+    const games = new RunningGames(list, () => now)
+    await expect(games.runningPlatforms()).resolves.toEqual(new Set())
+    now = 500
+    await expect(games.runningPlatforms()).resolves.toEqual(new Set())
+    await expect(games.runningPlatforms({ fresh: true })).resolves.toEqual(new Set(['vrchat']))
+    expect(list).toHaveBeenCalledTimes(2)
+  })
+
   it('reports a process list that cannot be read as unknown', async () => {
     if (process.platform === 'win32') return
     await expect(processNameListerFor('win32')()).resolves.toBeNull()
