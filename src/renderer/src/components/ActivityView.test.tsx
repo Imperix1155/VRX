@@ -745,34 +745,81 @@ describe('ActivityView', () => {
     ).toBe('true')
   })
 
-  it('reads a filtered page again after Kept is applied and after a world name fills in', async () => {
+  it('drops a search match after a shorter Keep for choice is applied', async () => {
+    const match = entries[1]!
+    let deleted = false
+    getActivityPage.mockImplementation(() =>
+      Promise.resolve({ entries: deleted ? [] : [match], hasMore: !deleted })
+    )
+    renderView()
+    fireEvent.change(screen.getByRole('textbox', { name: msg('activity.search.aria') }), {
+      target: { value: 'Night' }
+    })
+    await waitFor(() => {
+      expect(screen.getByText(msg('activity.joined', { world: 'Night Market' }))).toBeTruthy()
+      expect(screen.queryByText('Former Friend')).toBeNull()
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: msg('activity.showOlder') })).toBeTruthy()
+    )
+
+    act(() => useSettingsStore.getState().updateSettings({ activityKeepFor: '30d' }))
+    expect(screen.getByText(msg('activity.joined', { world: 'Night Market' }))).toBeTruthy()
+
+    deleted = true
+    act(() => useSettingsStore.getState().markSaved())
+    await waitFor(() =>
+      expect(screen.queryByText(msg('activity.joined', { world: 'Night Market' }))).toBeNull()
+    )
+    expect(screen.getByText(msg('activity.noMatches'))).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('activity.showOlder') })).toBeNull()
+  })
+
+  it('shows a world name that arrives while a search is active', async () => {
+    const match = { ...entries[1]!, worldName: 'Aurora Transit' }
     getActivityPage.mockResolvedValue({ entries: [], hasMore: false })
     renderView()
     fireEvent.change(screen.getByRole('textbox', { name: msg('activity.search.aria') }), {
       target: { value: 'Aurora' }
     })
-    await waitFor(() => expect(getActivityPage).toHaveBeenCalled())
-    const beforeKeep = getActivityPage.mock.calls.length
+    await waitFor(() => expect(screen.getByText(msg('activity.noMatches'))).toBeTruthy())
 
-    act(() => useSettingsStore.getState().updateSettings({ activityKeepFor: '30d' }))
-    expect(getActivityPage.mock.calls.length).toBe(beforeKeep)
-
-    act(() => useSettingsStore.getState().markSaved())
-    await waitFor(() => expect(getActivityPage.mock.calls.length).toBeGreaterThan(beforeKeep))
-
-    const beforeName = getActivityPage.mock.calls.length
-    const named = entries.map((entry) =>
-      entry.id === entries[1]!.id ? { ...entry, worldName: 'Aurora Transit' } : entry
-    )
-    getActivityPage.mockResolvedValue({
-      entries: [named.find((entry) => entry.worldName === 'Aurora Transit')!],
-      hasMore: false
-    })
+    getActivityPage.mockResolvedValue({ entries: [match], hasMore: false })
     act(() => {
-      client.setQueryData(activityKey, named)
+      client.setQueryData(
+        activityKey,
+        entries.map((entry) => (entry.id === match.id ? match : entry))
+      )
     })
-    await waitFor(() => expect(getActivityPage.mock.calls.length).toBeGreaterThan(beforeName))
-    expect(screen.getByText(msg('activity.joined', { world: 'Aurora Transit' }))).toBeTruthy()
+    await waitFor(() =>
+      expect(screen.getByText(msg('activity.joined', { world: 'Aurora Transit' }))).toBeTruthy()
+    )
+    expect(screen.queryByText(msg('activity.noMatches'))).toBeNull()
+  })
+
+  it('reads the open list again when history changes and no search is on', async () => {
+    const full: ActivityEntry[] = Array.from(
+      { length: ACTIVITY_MAX_ENTRIES_PER_PLATFORM },
+      (_, index) => ({
+        id: 800 - index,
+        kind: 'online' as const,
+        platform: 'vrchat' as const,
+        platformUserId: alice.platformUserId,
+        displayName: 'Alice',
+        worldName: null,
+        at: now - index * 1_000
+      })
+    )
+    renderView(full)
+    await waitFor(() => expect(getActivityPage).toHaveBeenCalled())
+    const before = getActivityPage.mock.calls.length
+    act(() => {
+      client.setQueryData(
+        activityKey,
+        full.map((entry, index) => (index === 0 ? { ...entry, worldName: 'Filled In' } : entry))
+      )
+    })
+    await waitFor(() => expect(getActivityPage.mock.calls.length).toBeGreaterThan(before))
   })
 
   it('asks to connect a single filtered platform that is signed out', () => {

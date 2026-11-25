@@ -303,6 +303,10 @@ export default function ActivityView(): React.JSX.Element {
     () => platforms.map((platform) => ({ platform, beforeId: null })),
     [platforms]
   )
+  // One stamp for every page, filtered or not. It moves when main applies a
+  // Keep for choice, when a change notice refreshes the list (a new row, or a
+  // world name on a row that already has an id), and after a Clear or restore.
+  const historyStamp = `${keptFor}|${activity.dataUpdatedAt}|${restarts}`
   const pager = useActivityPager({
     restartKey: filtering
       ? [
@@ -312,22 +316,16 @@ export default function ActivityView(): React.JSX.Element {
           listQuery.text ?? '',
           listQuery.from ?? '',
           listQuery.to ?? '',
-          // The choice main has applied. A shorter one deletes rows, so the
-          // filtered pages read again only after that answer, as the unfiltered
-          // list does. `dataUpdatedAt` also moves when a world name fills in
-          // on an entry that already has an id.
-          keptFor,
-          activity.dataUpdatedAt,
-          restarts
+          historyStamp
         ].join('|')
       : [
+          'list',
           live === undefined ? 'waiting' : 'ready',
           platformFilter,
           filter,
           keepFor === 'session' ? 'session' : 'saved',
-          keptFor,
           olderStart.map((cursor) => cursor.platform).join('+'),
-          restarts
+          historyStamp
         ].join('|'),
     start: filtering ? queryStart : olderStart,
     filter,

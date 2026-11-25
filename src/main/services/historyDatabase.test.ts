@@ -2,6 +2,7 @@ import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { activityLikePattern } from '@shared/activity'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   HISTORY_FILE_NAME,
@@ -494,6 +495,103 @@ describe('activity search and dates', () => {
         )
         .all(VRC, CVR, 1, 9_000, 100) as Array<{ detail: string }>
       expect(plan.map((step) => step.detail).join('\n')).toContain('activity_by_account_time')
+    } finally {
+      raw.close()
+    }
+  })
+
+  it('gathers matching names once and searches 50,000 rows quickly', () => {
+    const db = database()
+    const rows = 50_000
+    db.batch(() => {
+      for (let id = 1; id <= rows; id += 1) {
+        const other = id % 100 === 0
+        db.insertActivity(
+          row(id, {
+            platformUserId: other ? 'usr_b' : 'usr_a',
+            displayName: other ? 'Bea' : 'Ada',
+            worldName: id === rows ? 'Night Market' : null,
+            at: id
+          })
+        )
+      }
+    })
+    db.insertNameChange(VRC, 'usr_a', 'Old Ada', 1)
+
+    const search = (text: string): { ids: number[]; ms: number } => {
+      const started = performance.now()
+      const found = db.pageActivity({
+        accounts: [{ accountKey: VRC, beforeId: null }],
+        kinds: null,
+        friends: null,
+        limit: 10,
+        text
+      })
+      return { ids: found.map((entry) => entry.id), ms: performance.now() - started }
+    }
+    const ada = search('ada')
+    const earlier = search('old ada')
+    const world = search('night')
+    const miss = search('zzzz')
+    expect(ada.ids).toHaveLength(10)
+    expect(ada.ids[0]).toBe(rows - 1)
+    expect(earlier.ids).toEqual(ada.ids)
+    expect(world.ids).toEqual([rows])
+    expect(miss.ids).toEqual([])
+    expect(ada.ms, `name search ${ada.ms.toFixed(0)} ms`).toBeLessThan(2_000)
+    expect(miss.ms, `miss search ${miss.ms.toFixed(0)} ms`).toBeLessThan(2_000)
+
+    db.close()
+    const raw = new DatabaseSync(path, { readOnly: true })
+    try {
+      const pattern = activityLikePattern('ada')
+      const plan = (
+        raw
+          .prepare(
+            `EXPLAIN QUERY PLAN
+             SELECT id FROM activity
+             WHERE (account_key = ?)
+               AND (
+                 IFNULL(world_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+                 OR (CASE WHEN account_key LIKE 'chilloutvr:%' THEN 'chilloutvr cvr' ELSE 'vrchat vrc' END)
+                   LIKE ? ESCAPE '\\' COLLATE NOCASE
+                 OR (account_key, user_id) IN (
+                   SELECT named.account_key, named.user_id FROM activity AS named
+                   WHERE named.account_key IN (?)
+                     AND (
+                       named.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+                       OR IFNULL(named.previous_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+                     )
+                   UNION
+                   SELECT roster.account_key, roster.user_id FROM friend_roster AS roster
+                   WHERE roster.account_key IN (?)
+                     AND roster.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+                   UNION
+                   SELECT earlier.account_key, earlier.user_id FROM friend_names AS earlier
+                   WHERE earlier.account_key IN (?)
+                     AND earlier.previous_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+                 )
+               )
+             ORDER BY id DESC LIMIT ?`
+          )
+          .all(
+            VRC,
+            pattern,
+            pattern,
+            VRC,
+            pattern,
+            pattern,
+            VRC,
+            pattern,
+            VRC,
+            pattern,
+            10
+          ) as Array<{ detail: string }>
+      )
+        .map((step) => step.detail)
+        .join('\n')
+      expect(plan, plan).not.toContain('CORRELATED')
+      expect(plan).toContain('LIST SUBQUERY')
     } finally {
       raw.close()
     }
