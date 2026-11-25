@@ -42,7 +42,9 @@ export default function AlertPickRow({
     for (const platform of PLATFORMS) {
       const ids = accounts.filter((a) => a.platform === platform).map((a) => a.platformUserId)
       if (ids.length === 0) continue
-      reason ??= await setPicks(platform, picks[platform].accountId, ids, next)
+      // A failure on one platform must not skip the other.
+      const result = await setPicks(platform, picks[platform].accountId, ids, next)
+      reason ??= result
     }
     setSaving(false)
     if (reason !== null) {

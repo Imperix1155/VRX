@@ -157,7 +157,9 @@ function WithPicks(view: ViewProps): React.JSX.Element {
         .filter((account) => account.platform === platform)
         .map((account) => account.platformUserId)
       if (ids.length === 0) continue
-      reason ??= await setFriendAlert(platform, picks[platform].accountId, ids, change)
+      // A failure on one platform must not skip the other.
+      const next = await setFriendAlert(platform, picks[platform].accountId, ids, change)
+      reason ??= next
     }
     setSaving(false)
     if (reason !== null) {

@@ -337,6 +337,33 @@ describe('AlertPickRow', () => {
     expect(stored.vrchat.has('usr_alex')).toBe(true)
   })
 
+  it('still updates the other platform when the first pick save is refused', async () => {
+    setAlertPick.mockImplementationOnce(async () => ({ ok: false, reason: 'stale' }))
+    withClient(
+      <AlertPickRow
+        accounts={[friend('vrchat', 'usr_alex', 'Alex'), friend('chilloutvr', 'cvr_alex', 'Alex')]}
+        name="Alex"
+      />
+    )
+    const toggle = screen.getByRole('radiogroup', {
+      name: msg('drawer.alerts.aria', { name: 'Alex' })
+    })
+    await waitFor(() =>
+      expect(
+        within(toggle)
+          .getByRole('radio', { name: msg('settings.boolean.off') })
+          .getAttribute('aria-disabled')
+      ).not.toBe('true')
+    )
+    fireEvent.click(within(toggle).getByRole('radio', { name: msg('settings.boolean.off') }))
+    await screen.findByText(msg('drawer.alerts.saveFailed'))
+    await waitFor(() => expect(setAlertPick).toHaveBeenCalledTimes(2))
+    expect(setAlertPick).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ platform: 'chilloutvr', friendIds: ['cvr_alex'], picked: false })
+    )
+  })
+
   it('never keeps picks that main reports for a different account', async () => {
     const getAlertPicks = vi.fn(async () => ({
       friendIds: ['usr_new'],
@@ -506,6 +533,46 @@ describe('FriendDrawer alerts bell', () => {
     rerender(panel('usr_bea', 'Bea'))
     fireEvent.click(bell('bellOn', 'Bea'))
     expect(screen.queryByText(msg('drawer.alerts.saveFailed'))).toBeNull()
+  })
+
+  it('saves the other platform after the first alert save is refused', async () => {
+    const setFriendAlert = vi.fn(async ({ platform }: { platform: Platform }) =>
+      platform === 'vrchat'
+        ? { ok: false as const, reason: 'stale' as const }
+        : { ok: true as const }
+    )
+    Object.assign(window.vrx ?? {}, { setFriendAlert })
+    withScope('everyone')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <FriendAlertBell
+          accounts={[
+            friend('vrchat', 'usr_alex', 'Alex'),
+            friend('chilloutvr', 'cvr_alex', 'Alex')
+          ]}
+          name="Alex"
+          drawerOpen
+          onLeave={() => undefined}
+        />
+      </QueryClientProvider>
+    )
+    fireEvent.click(bell('bellOn', 'Alex'))
+    const online = screen.getByRole('checkbox', {
+      name: msg('drawer.alerts.kinds.aria', {
+        kind: msg('drawer.alerts.kinds.online'),
+        name: 'Alex'
+      })
+    })
+    await waitFor(() => expect(online.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(online)
+    await screen.findByText(msg('drawer.alerts.saveFailed'))
+    await waitFor(() =>
+      expect(setFriendAlert.mock.calls.map((call) => call[0].platform)).toEqual([
+        'vrchat',
+        'chilloutvr'
+      ])
+    )
   })
 
   it('folds on Esc without closing the drawer, then Esc closes the drawer', () => {
