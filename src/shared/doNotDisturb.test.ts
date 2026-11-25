@@ -65,6 +65,26 @@ describe('alertsMuted', () => {
     expect(vr).toEqual(['friend'])
   })
 
+  it('lets a bypass through a mute and still drops a type that is off', () => {
+    const desktop: string[] = []
+    const vr: string[] = []
+    const deliver = (alert: string): void => {
+      desktop.push(alert)
+      vr.push(alert)
+    }
+    const muted = gateAlert({
+      muted: () => true,
+      bypassesMute: (alert) => alert === 'bypass-online',
+      allowed: (alert) => alert !== 'bypass-offline',
+      deliver
+    })
+    expect(muted('bypass-online')).toBe(true)
+    expect(muted('bypass-offline')).toBe(false)
+    expect(muted('friend')).toBe(false)
+    expect(desktop).toEqual(['bypass-online'])
+    expect(vr).toEqual(['bypass-online'])
+  })
+
   it('mutes while the signed-in VRChat status is Ask Me or Do Not Disturb, and only when that switch is on', () => {
     const base = {
       doNotDisturb: 'off' as const,

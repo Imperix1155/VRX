@@ -437,10 +437,18 @@ export interface IpcInvoke {
     }
     res: AccountNoteSyncResult
   }
-  /** The signed-in account's friends picked for alerts. Local only. */
+  /** The signed-in account's friends picked for alerts, plus each friend's
+   *  turned-off alert types and Do not disturb bypasses. Local only. */
   'get-alert-picks': {
     req: { platform: Platform }
-    res: { friendIds: string[]; revision?: { platformAccountId: string; epoch: number } }
+    res: {
+      friendIds: string[]
+      /** Friends whose alerts still go out during Do not disturb. */
+      bypassFriendIds: string[]
+      /** Types a friend turned off. A missing friend still has every type on. */
+      optOuts: Record<string, Array<'online' | 'in-game' | 'offline' | 'hot-instance'>>
+      revision?: { platformAccountId: string; epoch: number }
+    }
   }
   /** Pick or unpick friends for alerts in one write; echo the read's revision. */
   'set-alert-pick': {
@@ -450,6 +458,18 @@ export interface IpcInvoke {
       picked: boolean
       revision: { platformAccountId: string; epoch: number }
     }
+    res:
+      | { ok: true }
+      | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'full' | 'rate-limited' }
+  }
+  /** Turn one alert type, or Do not disturb bypass, on or off for these friends. */
+  'set-friend-alert': {
+    req: {
+      platform: Platform
+      friendIds: string[]
+      revision: { platformAccountId: string; epoch: number }
+      enabled: boolean
+    } & ({ kind: 'type'; type: 'online' | 'in-game' | 'offline' } | { kind: 'bypass' })
     res:
       | { ok: true }
       | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'full' | 'rate-limited' }

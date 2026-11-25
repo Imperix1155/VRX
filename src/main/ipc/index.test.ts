@@ -265,6 +265,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'set-explore-active',
   'set-favorite-friend',
   'set-favorite-world',
+  'set-friend-alert',
   'set-friend-note',
   'set-game-favorite',
   'set-home-world',

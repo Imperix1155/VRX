@@ -1,18 +1,24 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useContext, useEffect, useId, useRef, useState } from 'react'
+import { QueryClientContext } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { Friend } from '@shared/types'
-import { useAlertPicks } from '../queries/alertPicks'
+import type { Platform } from '@shared/types'
+import { useAlertPicks, useSetFriendAlert } from '../queries/alertPicks'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import AlertPickRow from './AlertPickRow'
+import Toggle from './Toggle'
 
 /** Friend alert kinds in Settings → Notifications order (quoted keys for the
  *  i18n key-existence scan). */
 const KINDS = [
-  { setting: 'notifyFriendOnline', key: 'drawer.alerts.kinds.online' },
-  { setting: 'notifyFriendInGame', key: 'drawer.alerts.kinds.inGame' },
-  { setting: 'notifyFriendOffline', key: 'drawer.alerts.kinds.offline' }
+  { type: 'online', setting: 'notifyFriendOnline', key: 'drawer.alerts.kinds.online' },
+  { type: 'in-game', setting: 'notifyFriendInGame', key: 'drawer.alerts.kinds.inGame' },
+  { type: 'offline', setting: 'notifyFriendOffline', key: 'drawer.alerts.kinds.offline' }
 ] as const
+
+type FriendAlertKind = (typeof KINDS)[number]['type']
+const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
 
 /** Bell glyph (18×18, stroke 1.8, NavIcons dialect). On adds sound waves and
  *  Off adds a slash, so the state never rests on color alone. */
@@ -72,9 +78,40 @@ export default function FriendAlertBell({
   const [open, setOpen] = useState(false)
   if (open && !drawerOpen) setOpen(false)
   if (accounts.length === 0) return null
-  const view = { accounts, name, onLeave, open, setOpen }
-  // Picks are read only while they decide anything.
-  return pickedOnly ? <WithPicks {...view} /> : <BellView {...view} picked={null} />
+  return (
+    <AlertChoices
+      accounts={accounts}
+      name={name}
+      onLeave={onLeave}
+      open={open}
+      setOpen={setOpen}
+      pickedOnly={pickedOnly}
+    />
+  )
+}
+
+/** The friends list can render this bell before a query client exists. Defaults
+ *  match a friend whose choices were never saved: every type on, no bypass. */
+function AlertChoices(view: ViewProps): React.JSX.Element {
+  const client = useContext(QueryClientContext)
+  if (client === undefined) return <Defaults {...view} />
+  return <WithPicks {...view} />
+}
+
+function Defaults(view: ViewProps): React.JSX.Element {
+  return (
+    <BellView
+      {...view}
+      picked={view.pickedOnly ? false : null}
+      typeOn={() => true}
+      bypassOn={false}
+      writable={false}
+      saving={false}
+      failure={null}
+      onType={() => undefined}
+      onBypass={() => undefined}
+    />
+  )
 }
 
 interface ViewProps {
@@ -83,14 +120,62 @@ interface ViewProps {
   onLeave: () => void
   open: boolean
   setOpen: (open: boolean) => void
+  pickedOnly: boolean
 }
 
 function WithPicks(view: ViewProps): React.JSX.Element {
   const vrchat = useAlertPicks('vrchat')
   const chilloutvr = useAlertPicks('chilloutvr')
+  const setFriendAlert = useSetFriendAlert()
+  const [failure, setFailure] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const picks = { vrchat, chilloutvr }
-  const picked = view.accounts.some((a) => picks[a.platform].picked.has(a.platformUserId))
-  return <BellView {...view} picked={picked} />
+  const picked = view.accounts.some((account) =>
+    picks[account.platform].picked.has(account.platformUserId)
+  )
+  const writable = view.accounts.every((account) => picks[account.platform].writable)
+  const typeOn = (type: FriendAlertKind): boolean =>
+    view.accounts.some((account) => {
+      const opted = picks[account.platform].optOuts.get(account.platformUserId)
+      return opted === undefined || !opted.has(type)
+    })
+  const bypassOn = view.accounts.some((account) =>
+    picks[account.platform].bypass.has(account.platformUserId)
+  )
+
+  const save = async (
+    change:
+      | { kind: 'type'; type: FriendAlertKind; enabled: boolean }
+      | { kind: 'bypass'; enabled: boolean }
+  ): Promise<void> => {
+    setFailure(null)
+    setSaving(true)
+    let reason: string | null = null
+    for (const platform of PLATFORMS) {
+      const ids = view.accounts
+        .filter((account) => account.platform === platform)
+        .map((account) => account.platformUserId)
+      if (ids.length === 0) continue
+      reason ??= await setFriendAlert(platform, picks[platform].accountId, ids, change)
+    }
+    setSaving(false)
+    if (reason !== null)
+      setFailure(reason === 'full' ? 'drawer.alerts.full' : 'drawer.alerts.saveFailed')
+  }
+
+  return (
+    <BellView
+      {...view}
+      picked={view.pickedOnly ? picked : null}
+      typeOn={typeOn}
+      bypassOn={bypassOn}
+      writable={writable}
+      saving={saving}
+      failure={failure}
+      onType={(type, enabled) => void save({ kind: 'type', type, enabled })}
+      onBypass={(enabled) => void save({ kind: 'bypass', enabled })}
+    />
+  )
 }
 
 /** `picked` is null while every friend can alert (no picks apply). */
@@ -100,8 +185,25 @@ function BellView({
   onLeave,
   open,
   setOpen,
-  picked
-}: ViewProps & { picked: boolean | null }): React.JSX.Element {
+  pickedOnly,
+  picked,
+  typeOn,
+  bypassOn,
+  writable,
+  saving,
+  failure,
+  onType,
+  onBypass
+}: ViewProps & {
+  picked: boolean | null
+  typeOn: (type: FriendAlertKind) => boolean
+  bypassOn: boolean
+  writable: boolean
+  saving: boolean
+  failure: string | null
+  onType: (type: FriendAlertKind, enabled: boolean) => void
+  onBypass: (enabled: boolean) => void
+}): React.JSX.Element {
   const { t } = useTranslation()
   const settings = useSettingsStore((s) => s.settings)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -109,9 +211,9 @@ function BellView({
   const panelId = useId()
   const headingId = useId()
 
-  const pickedOnly = picked !== null
-  const kindsOn = KINDS.filter((kind) => settings[kind.setting])
-  const on = kindsOn.length > 0 && picked !== false
+  const hintId = useId()
+  const friendCanAlert = KINDS.some((kind) => settings[kind.setting] && typeOn(kind.type))
+  const on = friendCanAlert && picked !== false
 
   // The bell rings when it opens and whenever this friend starts alerting.
   // A new key remounts the glyph, which restarts the CSS animation.
@@ -206,28 +308,54 @@ function BellView({
         </div>
 
         <div className="alert-bell-step flex flex-col gap-[var(--space-2)]" style={step(2)}>
-          {kindsOn.length === 0 ? (
-            <p className="text-[12px] text-[var(--text-dim)]">{t('drawer.alerts.allOff')}</p>
-          ) : (
-            <ul aria-label={t('drawer.alerts.kinds.label')} className="flex flex-wrap gap-[6px]">
-              {KINDS.map((kind) => {
-                const kindOn = settings[kind.setting]
-                return (
-                  <li
-                    key={kind.setting}
-                    data-kind-on={kindOn}
-                    className="alert-bell-kind glass-chip inline-flex h-[24px] items-center gap-[5px] rounded-[9px] border px-[var(--space-2)] text-[11px] font-semibold"
-                  >
-                    <span aria-hidden="true">{kindOn ? '✓' : '–'}</span>
-                    {t(kind.key)}
-                    <span className="sr-only">
-                      {t(kindOn ? 'drawer.alerts.kinds.on' : 'drawer.alerts.kinds.off')}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
+          <div
+            role="group"
+            aria-label={t('drawer.alerts.kinds.label')}
+            className="flex flex-wrap gap-[6px]"
+          >
+            {KINDS.map((kind) => {
+              const kindOn = typeOn(kind.type)
+              return (
+                <button
+                  key={kind.setting}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={kindOn}
+                  aria-describedby={hintId}
+                  aria-label={t('drawer.alerts.kinds.aria', { kind: t(kind.key), name })}
+                  data-kind-on={kindOn}
+                  disabled={!writable || saving}
+                  onClick={() => onType(kind.type, !kindOn)}
+                  className="alert-bell-kind glass-chip inline-flex h-[24px] cursor-pointer items-center gap-[5px] rounded-[9px] border bg-transparent px-[var(--space-2)] text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] disabled:cursor-default"
+                >
+                  <span aria-hidden="true">{kindOn ? '✓' : '–'}</span>
+                  {t(kind.key)}
+                </button>
+              )
+            })}
+          </div>
+          <p id={hintId} className="text-[12px] text-[var(--text-dim)]">
+            {t('drawer.alerts.kinds.hint')}
+          </p>
+          {failure !== null && (
+            <p role="alert" className="text-[12px] text-[var(--text-dim)]">
+              {t(failure)}
+            </p>
           )}
+          <div
+            className="flex items-center justify-between gap-[var(--space-3)] rounded-control border bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)]"
+            style={{ borderColor: 'var(--border)' }}
+          >
+            <p className="min-w-0 text-[13px] text-[var(--text)]">
+              {t('drawer.alerts.bypass.label')}
+            </p>
+            <Toggle
+              checked={bypassOn}
+              disabled={!writable || saving}
+              ariaLabel={t('drawer.alerts.bypass.aria', { name })}
+              onChange={onBypass}
+            />
+          </div>
           <button
             type="button"
             onClick={openSettings}

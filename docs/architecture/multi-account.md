@@ -154,7 +154,8 @@ Each namespace is an `AccountScoped<T>` envelope (`schemaVersion`, `platform`,
 | `favoriteWorlds`                     | 100 worlds (name, picture address, added at) | Yes            |
 | `tags`                               | 5,000 friends, 25 tags of 64 characters each | No             |
 | `socialPrefs`                        | Notification flags and followed friend ids   | Followed ids   |
-| `perFriendOptOuts`                   | 5,000 friends                                | No             |
+| `perFriendOptOuts`                   | 5,000 friends                                | Yes            |
+| `doNotDisturbBypass`                 | 5,000 friends                                | Yes            |
 | `instanceHistory`, `activityHistory` | 200-entry ring type                          | Writes refused |
 
 Friend notes, note sync, favorites and alert picks are wired. The notes IPC
@@ -164,8 +165,10 @@ apart from one on both (then the user picks). `favorites` and
 `favoriteWorlds` are VRX's own stars; favorites saved to the platform account
 (VRChat favorite groups, ChilloutVR categories) live in the account and are
 held only in memory by `GameFavoritesService`. Alert picks live in
-`socialPrefs.followedFriendIds`; the notification flags in that namespace stay
-unused. A
+`socialPrefs.followedFriendIds`. `perFriendOptOuts` holds the alert types a
+friend turned off (a missing friend still has every type on). `doNotDisturbBypass`
+holds the friends whose enabled alerts still go out during Do not disturb.
+The notification flags in `socialPrefs` stay unused. A
 read that fails validation or names a different account returns nothing.
 
 A file this build cannot read (damaged JSON or the wrong shape) is renamed to
@@ -247,9 +250,9 @@ another account does not change settings.
 
 - An account switcher, saved accounts per platform, or an add-account flow.
 - Per-account credential slots.
-- Per-account settings. Only `socialPrefs.followedFriendIds` (alert picks) is
-  used; its notification flags and the `perFriendOptOuts` namespace exist but
-  nothing reads or writes them.
+- Per-account settings. `socialPrefs.followedFriendIds` (alert picks),
+  `perFriendOptOuts` and `doNotDisturbBypass` are the per-friend alert choices.
+  The notification flags in `socialPrefs` are still unused.
 - Tags and history. `Friend.isFavorite`, `favoriteGroupIds` and
   `linkedPersonId` are placeholders that adapters always set to defaults;
   favorites come from the `favorites` IPC instead.

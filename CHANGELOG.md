@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The sidebar Do not disturb button can be hidden in Settings → Appearance,
+  under Sidebar pages. Hiding it leaves Do not disturb as it is. It stays in
+  Settings → Notifications.
+- A friend's Alerts panel can turn Comes online, Joins a world and Goes
+  offline on or off for that friend. Each starts on, so alerts keep working
+  as they do now. An alert still needs its switch on in Settings →
+  Notifications. Bypass Do not disturb, off until you turn it on, lets that
+  friend's enabled alerts through while Do not disturb is on, including
+  Follow my status. Other friends, and invites and requests, stay quiet.
+
 ## [1.6.0-dev.1] - 2026-11-25
 
 Dev test build. It has everything in 1.5.0 plus the changes below.

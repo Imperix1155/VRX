@@ -52,7 +52,8 @@ interface KnownInstanceCount {
 }
 
 interface FriendAlertsOptions {
-  notify: (alert: FriendAlert) => void
+  /** Only `false` means the alert was not shown. Other results count as shown. */
+  notify: (alert: FriendAlert) => unknown
   clock: () => number
   isEnabled: (type: FriendAlertType) => boolean
   /** Whether this friend's own alerts may fire (the picked-friends scope). Hot
@@ -393,7 +394,10 @@ export class FriendAlerts {
     if (displayName == null || displayName.trim() === '') return false
 
     if (!this.withinRateLimit(platform, type)) return false
-    this.options.notify({ type, platform, platformUserId, displayName, worldName })
+    const delivered =
+      this.options.notify({ type, platform, platformUserId, displayName, worldName }) !== false
+    if (!delivered) return false
+    this.markEmitted(platform, type)
     return true
   }
 
@@ -407,29 +411,42 @@ export class FriendAlerts {
     // rather than being cached in the engine.
     if (!this.options.isEnabled('hot-instance')) return
     if (!this.withinRateLimit(platform, 'hot-instance')) return
-    this.options.notify({
-      type: 'hot-instance',
-      platform,
-      instanceId,
-      friendCount,
-      worldName
-    })
+    const delivered =
+      this.options.notify({
+        type: 'hot-instance',
+        platform,
+        instanceId,
+        friendCount,
+        worldName
+      }) !== false
+    if (!delivered) return
+    this.markEmitted(platform, 'hot-instance')
   }
 
-  private withinRateLimit(platform: Platform, type: FriendAlertType): boolean {
-    if (this.options.rateLimited === false || !RATE_LIMITED_TYPES.has(type)) return true
-
+  /** The open window, or null when this alert is not limited. Does not record a send. */
+  private openWindow(platform: Platform, type: FriendAlertType): number[] | null {
+    if (this.options.rateLimited === false || !RATE_LIMITED_TYPES.has(type)) return null
     const bucket = `${platform}:${type}`
     const now = this.options.clock()
     const cutoff = now - RATE_LIMIT_WINDOW_MS
     const recent = (this.emittedAt.get(bucket) ?? []).filter((timestamp) => timestamp > cutoff)
     this.emittedAt.set(bucket, recent)
+    return recent
+  }
+
+  private withinRateLimit(platform: Platform, type: FriendAlertType): boolean {
+    const recent = this.openWindow(platform, type)
+    if (recent === null) return true
     if (recent.length >= RATE_LIMIT_COUNT) {
       this.dropped[type] += 1
       return false
     }
-    recent.push(now)
     return true
+  }
+
+  /** Count a send that was actually shown. A gate that drops the alert does not. */
+  private markEmitted(platform: Platform, type: FriendAlertType): void {
+    this.openWindow(platform, type)?.push(this.options.clock())
   }
 
   private rememberName(friend: Friend): void {

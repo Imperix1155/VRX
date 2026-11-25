@@ -1034,7 +1034,7 @@ describe('Accounts sign-in from this PC', () => {
 describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)', () => {
   it('puts every page switch in Appearance, in sidebar order, and setup in About', () => {
     renderSettings()
-    const pages = ['hot', 'activity', 'inbox', 'explore', 'search', 'groups']
+    const pages = ['hot', 'activity', 'inbox', 'explore', 'search', 'groups', 'doNotDisturb']
     const card = document.querySelector<HTMLElement>('[data-sidebar-pages]')!
     expect(
       within(card)
@@ -1065,6 +1065,24 @@ describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)'
     act(() => useUiStore.setState({ settingsCategory: 'about' }))
     expect(screen.getByRole('button', { name: msg('settings.setup.run') })).toBeTruthy()
     expect(screen.queryByRole('radiogroup', { name: msg('settings.pages.hot.label') })).toBeNull()
+  })
+
+  it('hides the sidebar Do not disturb button without changing the mute', () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        doNotDisturb: 'until-off',
+        doNotDisturbUntil: 1_700_000_000_000
+      },
+      dirty: false
+    })
+    renderSettings()
+    const group = screen.getByRole('radiogroup', { name: msg('settings.pages.doNotDisturb.label') })
+    fireEvent.click(within(group).getByRole('radio', { name: msg('settings.boolean.off') }))
+    const settings = useSettingsStore.getState().settings
+    expect(settings.showSidebarDoNotDisturb).toBe(false)
+    expect(settings.doNotDisturb).toBe('until-off')
+    expect(settings.doNotDisturbUntil).toBe(1_700_000_000_000)
   })
 
   it('turns the Hot Instances and Explore pages off independently', () => {

@@ -434,7 +434,45 @@ describe('FriendDrawer alerts bell', () => {
     withClient(<FriendDrawer friend={friend('vrchat', 'usr_alex', 'Alex')} onClose={vi.fn()} />)
     await act(async () => {})
     fireEvent.click(bell('bellOff', 'Alex'))
-    expect(screen.getByText(msg('drawer.alerts.allOff'))).toBeTruthy()
+    expect(screen.getByText(msg('drawer.alerts.kinds.hint'))).toBeTruthy()
+    expect(
+      screen
+        .getByRole('checkbox', {
+          name: msg('drawer.alerts.kinds.aria', {
+            kind: msg('drawer.alerts.kinds.online'),
+            name: 'Alex'
+          })
+        })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+  })
+
+  it('turns Comes online off for this friend', async () => {
+    const setFriendAlert = vi.fn(async () => ({ ok: true as const }))
+    Object.assign(window.vrx ?? {}, { setFriendAlert })
+    withScope('picked')
+    withClient(<FriendDrawer friend={friend('vrchat', 'usr_alex', 'Alex')} onClose={vi.fn()} />)
+    await waitFor(() => expect(bell('bellOn', 'Alex')).toBeTruthy())
+    fireEvent.click(bell('bellOn', 'Alex'))
+    const online = screen.getByRole('checkbox', {
+      name: msg('drawer.alerts.kinds.aria', {
+        kind: msg('drawer.alerts.kinds.online'),
+        name: 'Alex'
+      })
+    })
+    await waitFor(() => expect(online.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(online)
+    await waitFor(() =>
+      expect(setFriendAlert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platform: 'vrchat',
+          friendIds: ['usr_alex'],
+          kind: 'type',
+          type: 'online',
+          enabled: false
+        })
+      )
+    )
   })
 
   it('folds on Esc without closing the drawer, then Esc closes the drawer', () => {
@@ -442,7 +480,7 @@ describe('FriendDrawer alerts bell', () => {
     withClient(<FriendDrawer friend={friend('chilloutvr', 'cvr_mika', 'Mika')} onClose={onClose} />)
     const button = bell('bellOff', 'Mika')
     fireEvent.click(button)
-    fireEvent.keyDown(screen.getByText(msg('drawer.alerts.allOff')), { key: 'Escape' })
+    fireEvent.keyDown(screen.getByText(msg('drawer.alerts.kinds.hint')), { key: 'Escape' })
     expect(button.getAttribute('aria-expanded')).toBe('false')
     expect(document.activeElement).toBe(button)
     expect(onClose).not.toHaveBeenCalled()

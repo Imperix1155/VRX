@@ -205,6 +205,9 @@ type VrxBridge = {
   setAlertPick: (
     req: IpcInvoke['set-alert-pick']['req']
   ) => Promise<IpcInvoke['set-alert-pick']['res']>
+  setFriendAlert: (
+    req: IpcInvoke['set-friend-alert']['req']
+  ) => Promise<IpcInvoke['set-friend-alert']['res']>
   /** Favorite friends and worlds, kept only in VRX (per signed-in account). */
   getFavoriteFriends: (
     req: IpcInvoke['get-favorite-friends']['req']

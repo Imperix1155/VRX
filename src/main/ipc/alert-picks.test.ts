@@ -25,7 +25,8 @@ describe('alert picks handlers', () => {
       friendIds: ['usr_a'],
       revision: { platformAccountId: 'usr_me', epoch: 1 }
     })),
-    set: vi.fn(() => ({ ok: true }))
+    set: vi.fn(() => ({ ok: true })),
+    setFriendAlert: vi.fn(() => ({ ok: true }))
   }
 
   beforeEach(() => {
@@ -33,6 +34,7 @@ describe('alert picks handlers', () => {
     trusted.value = true
     picks.list.mockClear()
     picks.set.mockClear()
+    picks.setFriendAlert.mockClear()
     registerAlertPicksHandlers(picks as unknown as FriendAlertPicks)
   })
 
@@ -44,8 +46,12 @@ describe('alert picks handlers', () => {
     expect(() =>
       handlers.get('set-alert-pick')!(event, { platform: 'vrchat', friendIds: ['usr_a'] })
     ).toThrow('Untrusted IPC sender')
+    expect(() =>
+      handlers.get('set-friend-alert')!(event, { platform: 'vrchat', friendIds: ['usr_a'] })
+    ).toThrow('Untrusted IPC sender')
     expect(picks.list).not.toHaveBeenCalled()
     expect(picks.set).not.toHaveBeenCalled()
+    expect(picks.setFriendAlert).not.toHaveBeenCalled()
   })
 
   it('rejects an unknown platform', () => {
@@ -66,5 +72,18 @@ describe('alert picks handlers', () => {
       revision
     })
     expect(picks.set).toHaveBeenCalledWith('vrchat', ['usr_a'], true, revision)
+    handlers.get('set-friend-alert')!(event, {
+      platform: 'vrchat',
+      friendIds: ['usr_a'],
+      kind: 'bypass',
+      enabled: true,
+      revision
+    })
+    expect(picks.setFriendAlert).toHaveBeenCalledWith(
+      'vrchat',
+      ['usr_a'],
+      expect.objectContaining({ kind: 'bypass', enabled: true }),
+      revision
+    )
   })
 })

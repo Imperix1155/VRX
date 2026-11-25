@@ -119,6 +119,7 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   // Alert picks follow the same human-paced drawer and Settings use as notes.
   'get-alert-picks': { max: 90, windowMs: 60_000 },
   'set-alert-pick': { max: 60, windowMs: 60_000 },
+  'set-friend-alert': { max: 60, windowMs: 60_000 },
   // Favorites: the Friends list, drawer and Explore read them; stars are clicks.
   'get-favorite-friends': { max: 90, windowMs: 60_000 },
   'set-favorite-friend': { max: 60, windowMs: 60_000 },
@@ -192,6 +193,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'set-friend-note':
     case 'sync-friend-note':
     case 'set-alert-pick':
+    case 'set-friend-alert':
     case 'set-favorite-friend':
     case 'set-favorite-world':
     case 'set-game-favorite':

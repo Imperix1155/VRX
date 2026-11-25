@@ -1,8 +1,11 @@
 import { Notification as NativeNotification } from 'electron'
 import type { InboxItem, InboxKind } from '@shared/inbox'
+import { alertsMuted, gateAlert } from '@shared/doNotDisturb'
+import type { OwnStatus } from '@shared/ownProfile'
 import type { Settings } from '@shared/settings'
 import type { Platform } from '@shared/types'
 import type { FriendAlert, FriendAlertType } from './services/friendAlerts'
+import type { FriendAlertPicks } from './services/friendAlertPicks'
 import { mt } from './i18n'
 
 const INSTANCE_LABEL_SUFFIX = /\s*\(#[^)]*\)\s*$/
@@ -168,6 +171,48 @@ export function isFriendAlertIncluded(settings: Settings, isPicked: () => boolea
 /** Invites and invite requests share one switch; friend requests have their own. */
 export function isInboxAlertEnabled(kind: InboxKind, settings: Settings): boolean {
   return kind === 'friend-request' ? settings.notifyFriendRequests : settings.notifyInvites
+}
+
+/**
+ * The one delivery gate for desktop notifications and the VR overlay.
+ * A friend's own type switch and the global switch both have to be on.
+ * Do not disturb, including Follow my status, still drops the alert unless
+ * that friend bypasses it, and a bypass never revives a type that is off.
+ * The Settings test button does not use this.
+ */
+export function createShowAlert(options: {
+  getSettings: () => Settings
+  ownStatus: () => OwnStatus | null
+  now: () => number
+  picks: FriendAlertPicks
+  deliver: (alert: NativeAlert) => void
+}): (alert: NativeAlert) => boolean {
+  return gateAlert({
+    muted: () => {
+      const settings = options.getSettings()
+      return alertsMuted({
+        doNotDisturb: settings.doNotDisturb,
+        doNotDisturbUntil: settings.doNotDisturbUntil,
+        doNotDisturbFollowStatus: settings.doNotDisturbFollowStatus,
+        ownStatus: options.ownStatus(),
+        now: options.now()
+      })
+    },
+    allowed: (alert) => {
+      const settings = options.getSettings()
+      if (alert.type === 'inbox') return isInboxAlertEnabled(alert.item.kind, settings)
+      if (alert.type === 'hot-instance') return isFriendAlertEnabled(alert.type, settings)
+      return (
+        isFriendAlertEnabled(alert.type, settings) &&
+        options.picks.isTypeEnabled(alert.platform, alert.platformUserId, alert.type)
+      )
+    },
+    bypassesMute: (alert) =>
+      alert.type !== 'inbox' &&
+      alert.type !== 'hot-instance' &&
+      options.picks.bypassesDoNotDisturb(alert.platform, alert.platformUserId),
+    deliver: options.deliver
+  })
 }
 
 /** Read the current snapshot at dispatch. The Dashboard's Hot Instances switch

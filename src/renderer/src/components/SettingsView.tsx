@@ -202,7 +202,8 @@ function SwitchRow({
 /** The hideable sidebar pages as one compact two-column card: the page name
  *  beside its On/Off, with the longer note behind the name (depth on demand). */
 function SidebarPagesCard({
-  pages
+  pages,
+  after
 }: {
   pages: ReadonlyArray<{
     labelKey: string
@@ -211,6 +212,7 @@ function SidebarPagesCard({
     checked: boolean
     onChange: (checked: boolean) => void
   }>
+  after?: React.ReactNode
 }): React.JSX.Element {
   const { t } = useTranslation()
   const noteId = useId()
@@ -253,6 +255,7 @@ function SidebarPagesCard({
           </div>
         ))}
       </div>
+      {after}
     </div>
   )
 }
@@ -823,6 +826,7 @@ export default function SettingsView(): React.JSX.Element {
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
   const showSearchPage = useSettingsStore((s) => s.settings.showSearchPage)
   const showGroupsPage = useSettingsStore((s) => s.settings.showGroupsPage)
+  const showSidebarDoNotDisturb = useSettingsStore((s) => s.settings.showSidebarDoNotDisturb)
   const playersOnline = useSettingsStore((s) => s.settings.dashboardPlayersOnline)
   const notifyInvites = useSettingsStore((s) => s.settings.notifyInvites)
   const notifyFriendRequests = useSettingsStore((s) => s.settings.notifyFriendRequests)
@@ -955,6 +959,24 @@ export default function SettingsView(): React.JSX.Element {
                   onChange: (checked) => updateSettings({ showGroupsPage: checked })
                 }
               ]}
+              after={
+                <div className="mt-[var(--space-2)] flex items-center justify-between gap-[var(--space-3)]">
+                  <div className="min-w-0">
+                    <p className="text-sm text-[var(--text)]">
+                      {t('settings.pages.doNotDisturb.short')}
+                    </p>
+                    <p id={`${noteId}-dnd`} className="text-xs text-[var(--text-dim)]">
+                      {t('settings.pages.doNotDisturb.description')}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={showSidebarDoNotDisturb}
+                    ariaLabel={t('settings.pages.doNotDisturb.label')}
+                    ariaDescribedBy={`${noteId}-dnd`}
+                    onChange={(checked) => updateSettings({ showSidebarDoNotDisturb: checked })}
+                  />
+                </div>
+              }
             />
           </section>
         )}
