@@ -1,7 +1,9 @@
 import type { AdapterEvent, Friend, InstanceInfo, Platform } from '@shared/types'
 import {
   activityKindsOf,
+  activitySearchText,
   matchesActivityFilter,
+  matchesActivityListQuery,
   type ActivityEntry,
   type ActivityFilter,
   type ActivityKind,
@@ -419,12 +421,19 @@ export class ActivityFeed {
       request.friends === undefined
         ? null
         : new Set(request.friends.map((friend) => `${friend.platform}\u0000${friend.friendId}`))
+    const storedNames =
+      activitySearchText(request.query?.text) === null ? null : namesStoredIn(this.list())
     return this.list()
       .filter(
         (entry) =>
           isBefore(entry) &&
           matchesActivityFilter(entry.kind, request.filter) &&
-          (friends === null || friends.has(`${entry.platform}\u0000${entry.platformUserId}`))
+          (friends === null || friends.has(`${entry.platform}\u0000${entry.platformUserId}`)) &&
+          matchesActivityListQuery(
+            entry,
+            request.query,
+            storedNames?.get(`${entry.platform}\u0000${entry.platformUserId}`)
+          )
       )
       .slice(0, ACTIVITY_PAGE_SIZE + 1)
   }
@@ -443,6 +452,19 @@ export class ActivityFeed {
     }
     return platformEntries
   }
+}
+
+/** Names saved on this friend's entries: the name at the time, and the one before a rename. */
+function namesStoredIn(entries: readonly ActivityEntry[]): Map<string, string[]> {
+  const names = new Map<string, string[]>()
+  for (const entry of entries) {
+    const key = `${entry.platform}\u0000${entry.platformUserId}`
+    const stored = names.get(key) ?? []
+    stored.push(entry.displayName)
+    if (entry.previousName !== undefined) stored.push(entry.previousName)
+    names.set(key, stored)
+  }
+  return names
 }
 
 /** The renderer's copy: the backfill location stays in main. */

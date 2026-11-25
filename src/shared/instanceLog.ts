@@ -4,6 +4,7 @@
  * from the game's own log file on this computer; ChilloutVR's from the live
  * connection VRX already holds. One shape for both platforms.
  */
+import type { ActivityListQuery } from './activity'
 import type { Platform } from './types'
 
 /** One stay in one room. */
@@ -30,6 +31,8 @@ export interface InstanceVisitCursor {
 
 export interface InstanceVisitPageRequest {
   scope: InstanceVisitCursor[]
+  /** Search and dates. Absent matches every visit in the scope. */
+  query?: ActivityListQuery
 }
 
 export interface InstanceVisitPage {

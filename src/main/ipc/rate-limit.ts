@@ -88,6 +88,7 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'launch-game': { max: 20, windowMs: 60_000 },
   // The 7.5s status poll runs eight times/minute; this is a 3x allowance.
   'get-app-status': { max: 24, windowMs: 60_000 },
+  'get-performance': { max: 40, windowMs: 60_000 },
   // Read when Settings opens Behavior and after its startup choice is saved.
   'get-login-item': { max: 60, windowMs: 60_000 },
   // Read on page open and after each coalesced change push (at most two a

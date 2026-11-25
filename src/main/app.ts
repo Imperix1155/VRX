@@ -19,6 +19,7 @@ import { WorldRatingService } from './services/worldRatingService'
 import type { WorldRatingAdapter } from './services/adapters/WorldRatingAdapter'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { LoginItem } from './services/loginItem'
+import { startupTiming } from './services/startupTiming'
 import { DATA_EXPORT_FAVORITES_WAIT_MS } from './services/dataExport'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import { GameLauncher } from './services/gameLauncher'
@@ -171,6 +172,7 @@ const rendererRecoveries = new WeakMap<WebContents, RendererRecovery>()
 
 const onRendererHydrated = (event: IpcMainEvent): void => {
   if (!isTrustedIpcSender(event.senderFrame)) return
+  startupTiming.noteFirstRender(Date.now())
   rendererHydrationGates.get(event.sender)?.hydrated()
 }
 
@@ -229,7 +231,10 @@ function createWindow(): BrowserWindow {
     }
   })
   rendererHydrationGates.set(mainWindow.webContents, showGate)
-  mainWindow.once('ready-to-show', () => showGate.ready())
+  mainWindow.once('ready-to-show', () => {
+    startupTiming.noteWindowReady(Date.now())
+    showGate.ready()
+  })
   mainWindow.on('hide', () => exploreWindowService?.setActive([]))
   mainWindow.on('minimize', () => exploreWindowService?.setActive([]))
   mainWindow.once('closed', () => {
@@ -412,6 +417,10 @@ app.on('second-instance', () => {
 app
   .whenReady()
   .then(() => {
+    const createdAt = (
+      process as NodeJS.Process & { getCreationTime?: () => number }
+    ).getCreationTime?.()
+    startupTiming.rememberProcessStart(typeof createdAt === 'number' ? createdAt : Number.NaN)
     // Structured logging first, so anything below is captured (VRX-15).
     initLogger()
     // Same source as the renderer's navigator.language, so dialogs, tray and

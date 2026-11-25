@@ -109,14 +109,15 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
   })
 
-  it('the category list reads appearance/dashboard/behavior/notifications/accounts/about', () => {
+  it('the category list reads appearance/dashboard/behavior/notifications/accounts/about/performance', () => {
     expect([...SETTINGS_CATEGORIES]).toEqual([
       'appearance',
       'dashboard',
       'behavior',
       'notifications',
       'accounts',
-      'about'
+      'about',
+      'performance'
     ])
   })
 
@@ -986,7 +987,16 @@ describe('Accounts sign-in from this PC', () => {
     expect(
       await screen.findByRole('button', { name: msg('settings.accounts.import.chilloutvr') })
     ).toBeTruthy()
-    expect(screen.queryAllByRole('radiogroup')).toHaveLength(0)
+    // The old startup-import choice is gone. The only radios are the backup
+    // switch, which stays off until someone turns it on.
+    const groups = screen.queryAllByRole('radiogroup')
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.getAttribute('aria-label')).toBe(msg('settings.autoBackup.aria'))
+    expect(
+      within(groups[0]!)
+        .getByRole('radio', { name: msg('settings.boolean.off') })
+        .getAttribute('aria-checked')
+    ).toBe('true')
   })
 })
 

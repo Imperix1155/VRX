@@ -13,6 +13,7 @@ import type {
   ActivityEntry,
   ActivityFilter,
   ActivityFriendRef,
+  ActivityListQuery,
   ActivityPageCursor
 } from '@shared/activity'
 import { fetchActivityPage } from '../queries/activity'
@@ -30,6 +31,8 @@ export interface ActivityPagerOptions {
   start: readonly ActivityPageCursor[]
   filter: ActivityFilter
   friends?: readonly ActivityFriendRef[]
+  /** Search and dates. Absent reads the scope as it stands. */
+  query?: ActivityListQuery
   /** Ids shown elsewhere (the live list): never counted as something new. */
   known?: ReadonlySet<number>
   /** Show the first page without a press (a friend's History). */
@@ -64,7 +67,7 @@ function emptyState(key: string): PagerState {
 }
 
 export function useActivityPager(options: ActivityPagerOptions): ActivityPager {
-  const { restartKey, start, filter, friends, known, revealFirst = false } = options
+  const { restartKey, start, filter, friends, query, known, revealFirst = false } = options
   const [state, setState] = useState<PagerState>(() => emptyState(restartKey))
   // A restart shows the empty state in the same render, before any effect.
   if (state.key !== restartKey) setState(emptyState(restartKey))
@@ -74,9 +77,9 @@ export function useActivityPager(options: ActivityPagerOptions): ActivityPager {
   const run = useRef(0)
   const cursors = useRef<ActivityPageCursor[]>([])
   const reading = useRef(false)
-  const latest = useRef({ filter, friends, known, start })
+  const latest = useRef({ filter, friends, known, start, query })
   useEffect(() => {
-    latest.current = { filter, friends, known, start }
+    latest.current = { filter, friends, known, start, query }
   })
 
   /** Read ahead until a page holds something new, or nothing older is left. */
@@ -89,10 +92,12 @@ export function useActivityPager(options: ActivityPagerOptions): ActivityPager {
       let found: ActivityEntry[] = []
       let more = true
       for (let attempt = 0; more && found.length === 0 && attempt < MAX_EMPTY_PAGES; attempt++) {
+        const requested = latest.current.query
         const page = await fetchActivityPage({
           scope: cursors.current,
           filter: latest.current.filter,
-          ...(latest.current.friends === undefined ? {} : { friends: [...latest.current.friends] })
+          ...(latest.current.friends === undefined ? {} : { friends: [...latest.current.friends] }),
+          ...(requested === undefined ? {} : { query: requested })
         })
         if (mine !== run.current) return
         cursors.current = advanceCursors(cursors.current, page.entries)

@@ -29,8 +29,9 @@ through `@shared`.
 - `socialActions.ts`: the profile's Unfriend, Block and Unblock vocabulary,
   the relationship result, and the action pause and cache times.
 - `linkedProfiles.ts`: versioned linked-person values, changes, and snapshots.
-- `activity.ts`: Activity entry values and the page's Show filter. Entries
-  carry no location, only a world name that is null for hidden worlds.
+- `activity.ts`: Activity entry values, the page's Show filter, and the
+  search and date window (`ActivityListQuery`). Entries carry no location,
+  only a world name that is null for hidden worlds.
 - `joinability.ts` and `hotInstanceKey.ts`: the shared privacy, joinability,
   hot-membership, and hot-grouping predicates.
 - `backgroundPicture.ts`: which background pictures main refuses and which

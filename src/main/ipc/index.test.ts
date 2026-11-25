@@ -84,6 +84,10 @@ vi.mock('./instance', () => ({
 vi.mock('./app-status', () => ({
   registerAppStatusHandlers: () => electron.ipcMain.handle('get-app-status', () => ({ ok: true }))
 }))
+vi.mock('./performance', () => ({
+  registerPerformanceHandlers: () =>
+    electron.ipcMain.handle('get-performance', () => ({ ok: true }))
+}))
 vi.mock('./data-export', () => ({
   registerDataExportHandlers: () =>
     electron.ipcMain.handle('export-data', () => ({ ok: false, reason: 'cancelled' }))
@@ -229,6 +233,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-login-item',
   'get-my-groups',
   'get-own-profile',
+  'get-performance',
   'get-players-online',
   'get-profile',
   'get-profile-groups',

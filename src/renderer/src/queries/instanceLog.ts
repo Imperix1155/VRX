@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import type { ActivityListQuery } from '@shared/activity'
 import type {
   InstanceVisit,
   InstanceVisitPage,
@@ -69,7 +70,8 @@ interface OlderPages {
  */
 export function useInstanceVisits(
   platforms: readonly Platform[],
-  enabled: boolean
+  enabled: boolean,
+  query?: ActivityListQuery
 ): InstanceVisitsView {
   const client = useQueryClient()
   const [resets, setResets] = useState(0)
@@ -83,11 +85,19 @@ export function useInstanceVisits(
   )
   // A Kept choice main applied may have deleted saved visits.
   const keptFor = useAppliedKeepFor()
-  const key = `${platforms.join('+')}|${resets}|${keptFor}`
+  const queryKey =
+    query === undefined ? '' : `${query.text ?? ''}|${query.from ?? ''}|${query.to ?? ''}`
+  const key =
+    queryKey === ''
+      ? `${platforms.join('+')}|${resets}|${keptFor}`
+      : `${platforms.join('+')}|${resets}|${keptFor}|${queryKey}`
   const first = useQuery({
     queryKey: [...instanceLogKey, 'visits', key],
     queryFn: () =>
-      fetchInstanceVisits({ scope: platforms.map((platform) => ({ platform, before: null })) }),
+      fetchInstanceVisits({
+        scope: platforms.map((platform) => ({ platform, before: null })),
+        ...(query === undefined ? {} : { query })
+      }),
     staleTime: Infinity,
     gcTime: 0,
     retry: false,
@@ -125,7 +135,7 @@ export function useInstanceVisits(
         before: mine.length === 0 ? null : Math.min(...mine.map((visit) => visit.enteredAt))
       }
     })
-    fetchInstanceVisits({ scope }).then(
+    fetchInstanceVisits({ scope, ...(query === undefined ? {} : { query }) }).then(
       (page) =>
         setOlder((current) =>
           current.key !== key
@@ -143,7 +153,7 @@ export function useInstanceVisits(
           current.key !== key ? current : { ...current, busy: false, failed: true }
         )
     )
-  }, [older.busy, older.key, key, platforms, visits])
+  }, [older.busy, older.key, key, platforms, visits, query])
 
   return {
     visits,

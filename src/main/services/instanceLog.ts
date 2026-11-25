@@ -153,7 +153,10 @@ export class InstanceLog {
     // One more than a page, to know whether more are saved.
     const rows = this.options.database.pageVisits({
       accounts,
-      limit: INSTANCE_VISIT_PAGE_SIZE + 1
+      limit: INSTANCE_VISIT_PAGE_SIZE + 1,
+      text: request.query?.text ?? null,
+      from: request.query?.from ?? null,
+      to: request.query?.to ?? null
     })
     const visits: InstanceVisit[] = []
     for (const row of rows.slice(0, INSTANCE_VISIT_PAGE_SIZE)) {

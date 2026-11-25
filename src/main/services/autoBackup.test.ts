@@ -22,7 +22,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parseSettings } from '@shared/settings'
 import type { AutoBackupInterval } from '@shared/autoBackup'
 import type { HistoryRestoreResult } from '@shared/historyTransfer'
-import { HISTORY_FILE_NAME, HistoryDatabase } from './historyDatabase'
+import { HISTORY_FILE_NAME, HISTORY_SCHEMA_VERSION, HistoryDatabase } from './historyDatabase'
 import { restoreHistory, type HistoryTransferOptions } from './historyTransfer'
 import { createAutoBackup, type AutoBackup, type AutoBackupOptions } from './autoBackup'
 
@@ -81,6 +81,25 @@ function namesIn(file: string): string[] {
 
 function liveNames(): string[] {
   return database.recentActivity(ACCOUNT, 10).map((entry) => entry.displayName)
+}
+
+/** Schema 2 is the account-and-time index. A snapshot has to carry it. */
+function historySchema(file: string): { version: number; indexes: string[] } {
+  const db = new DatabaseSync(file, { readOnly: true })
+  try {
+    const version = db.prepare('PRAGMA user_version').get() as { user_version?: unknown }
+    const indexes = (
+      db
+        .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'activity'`)
+        .all() as Array<{ name?: unknown }>
+    ).map((index) => String(index.name))
+    return {
+      version: typeof version.user_version === 'number' ? version.user_version : -1,
+      indexes
+    }
+  } finally {
+    db.close()
+  }
 }
 
 function backupFolder(): string {
@@ -194,6 +213,15 @@ describe('scheduled local backups', () => {
       expect(db.prepare('SELECT display_name FROM activity').all()).toEqual([
         { display_name: 'Kept' }
       ])
+      expect(db.prepare('PRAGMA user_version').get()).toEqual({
+        user_version: HISTORY_SCHEMA_VERSION
+      })
+      const indexes = (
+        db
+          .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'activity'`)
+          .all() as Array<{ name?: unknown }>
+      ).map((index) => index.name)
+      expect(indexes).toContain('activity_by_account_time')
     } finally {
       db.close()
     }
@@ -275,6 +303,12 @@ describe('scheduled local backups', () => {
     writeFileSync(join(planted, HISTORY_FILE_NAME), 'not-the-pre-restore-copy')
     await expect(backups.restore(id)).resolves.toEqual({ ok: true })
     expect(liveNames()).toEqual(['Original'])
+    const restored = historySchema(join(userData, HISTORY_FILE_NAME))
+    const copied = historySchema(join(backupFolder(), id, HISTORY_FILE_NAME))
+    expect(restored.version).toBe(HISTORY_SCHEMA_VERSION)
+    expect(copied.version).toBe(HISTORY_SCHEMA_VERSION)
+    expect(restored.indexes).toContain('activity_by_account_time')
+    expect(copied.indexes).toContain('activity_by_account_time')
 
     const safety = readdirSync(backupFolder()).filter((name) =>
       /^vrx-safety-\d{8}T\d{9}Z$/.test(name)

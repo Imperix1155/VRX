@@ -40,7 +40,8 @@ const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   behavior: 'settings.behavior.heading',
   notifications: 'settings.notifications.heading',
   accounts: 'settings.accounts.heading',
-  about: 'settings.about.heading'
+  about: 'settings.about.heading',
+  performance: 'settings.performance.heading'
 }
 
 // Linux keeps the live dot steady (2026-10-28). Each pulse frame redraws the
@@ -314,7 +315,7 @@ export default function TopBar(): React.JSX.Element {
       {activeTab === 'settings' ? (
         <>
           {/* Settings keeps the count on the title row, where every view shows
-              it, and gives its six-category nav a row of its own: side by side
+              it, and gives its category nav a row of its own: side by side
               they do not fit the default 900px window (§8). */}
           <div className="ml-auto">{counts}</div>
           {/* CONTEXTUAL SLOT (owner, VRX-186): Settings has no use for a
@@ -327,6 +328,7 @@ export default function TopBar(): React.JSX.Element {
               labelKeys={CATEGORY_LABEL_KEYS}
               ariaLabel={t('settings.categories.aria')}
               onChange={setSettingsCategory}
+              dense
             />
           </div>
         </>
