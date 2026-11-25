@@ -412,6 +412,37 @@
         "aria": "フレンドリクエストが届いたときに通知"
       }
     },
+    "doNotDisturb": {
+      "label": "取り込み中",
+      "description": "デスクトップと VR の通知をすべて止めます。",
+      "aria": "取り込み中",
+      "off": "オフ",
+      "oneHour": "1時間",
+      "threeHours": "3時間",
+      "untilOff": "解除まで",
+      "untilOffDetail": "自分で解除するまでオンです。",
+      "underAMinute": "まもなく終わります。",
+      "minutes_one": "残り{{count}}分。",
+      "minutes_other": "残り{{count}}分。",
+      "hours_one": "残り{{count}}時間。",
+      "hours_other": "残り{{count}}時間。",
+      "hoursMinutes_one": "残り{{hours}}時間{{minutes}}分。",
+      "hoursMinutes_other": "残り{{hours}}時間{{minutes}}分。",
+      "endOnGameStart": {
+        "label": "ゲームの起動で解除",
+        "description": "このパソコンで VRChat または ChilloutVR が起動したら、取り込み中を解除します。",
+        "aria": "ゲームの起動で取り込み中を解除"
+      },
+      "followStatus": {
+        "label": "自分のステータスに合わせる",
+        "description": "VRChat のステータスが Ask Me または Do Not Disturb のあいだも通知を止めます。ChilloutVR にこのステータスはありません。VRX はステータスを変更しません。",
+        "aria": "VRChat のステータスが Ask Me または Do Not Disturb のあいだ通知を止める"
+      },
+      "sidebar": {
+        "open": "取り込み中。長さを選びます。",
+        "turnOff": "取り込み中。{{detail}}解除します。"
+      }
+    },
     "vrAlerts": {
       "label": "VR での通知",
       "description": "上の通知を XSOverlay でヘッドセットにも表示します。",

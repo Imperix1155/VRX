@@ -415,6 +415,37 @@
         "aria": "Friend request received: notify me"
       }
     },
+    "doNotDisturb": {
+      "label": "Do not disturb",
+      "description": "Mute every desktop alert and every VR alert.",
+      "aria": "Do not disturb",
+      "off": "Off",
+      "oneHour": "1 hour",
+      "threeHours": "3 hours",
+      "untilOff": "Until off",
+      "untilOffDetail": "On until you turn it off.",
+      "underAMinute": "Less than a minute left.",
+      "minutes_one": "{{count}} minute left.",
+      "minutes_other": "{{count}} minutes left.",
+      "hours_one": "{{count}} hour left.",
+      "hours_other": "{{count}} hours left.",
+      "hoursMinutes_one": "{{hours}} hour {{minutes}} min left.",
+      "hoursMinutes_other": "{{hours}} hours {{minutes}} min left.",
+      "endOnGameStart": {
+        "label": "End when a game starts",
+        "description": "Turn this off when VRChat or ChilloutVR starts on this computer.",
+        "aria": "End Do not disturb when a game starts"
+      },
+      "followStatus": {
+        "label": "Follow my status",
+        "description": "Also mute while your VRChat status is Ask Me or Do Not Disturb. ChilloutVR has no status for this. VRX does not change your status.",
+        "aria": "Mute alerts while my VRChat status is Ask Me or Do Not Disturb"
+      },
+      "sidebar": {
+        "open": "Do not disturb. Choose how long.",
+        "turnOff": "Do not disturb. {{detail}} Turn off."
+      }
+    },
     "vrAlerts": {
       "label": "Alerts in VR",
       "description": "Also show the alerts above in your headset with XSOverlay.",

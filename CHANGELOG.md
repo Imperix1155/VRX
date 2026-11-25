@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Do not disturb, in Settings → Notifications and on the sidebar. It mutes
+  every desktop alert and every VR alert for 1 hour, 3 hours, or until you
+  turn it off, and it shows how long is left. Two optional switches, both
+  off unless you turn them on, end it when VRChat or ChilloutVR starts on
+  this computer, or also mute while your VRChat status is Ask Me or Do Not
+  Disturb. ChilloutVR has no status for that. VRX does not change your
+  status, and a timed mute stays in force across a restart until it ends.
 - The Activity page can narrow the list by a name, a world or a platform,
   and by a date: Today, the last 7 days, the last 30 days, All, or two dates
   you pick. The search waits a moment while you type. Show and Show older
@@ -24,9 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Settings → Performance keeps the last numbers when a refresh fails, says
   when that reading was taken, and the copied report includes that same line.
-
-### Fixed
-
 - A settings save that did not stick no longer makes the next Kept choice
   take effect early. History is read again only after that choice's own save
   has been answered, so visits the new choice deletes do not stay listed.

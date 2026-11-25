@@ -12,6 +12,7 @@ import { countNewInboxItems, scopeInboxItems } from '../utils/inbox'
 import { useDragReorder } from '../hooks/useDragReorder'
 import { useReorderEscape, useReorderMenu, useReorderMode } from '../hooks/useReorderMode'
 import { GripIcon, ReorderActions, ReorderMenu } from './ReorderControls'
+import { SidebarDoNotDisturb } from './DoNotDisturbCard'
 import {
   IconActivity,
   IconAvatars,
@@ -307,6 +308,8 @@ export default function Sidebar(): React.JSX.Element {
         })}
         <ReorderMenu point={menu.point} onClose={menu.close} />
       </nav>
+
+      {reorder.on ? null : <SidebarDoNotDisturb />}
 
       <p aria-live="polite" className="sr-only">
         {announcement}

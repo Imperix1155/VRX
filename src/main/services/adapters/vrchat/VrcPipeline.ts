@@ -24,8 +24,10 @@
  *
  * Invites, invite requests and friend requests (`notification`) feed the
  * inbox, and `hide-notification`, `response-notification` and
- * `clear-notification` remove them again. Other notification, self and group
- * events are decoded (so drift is visible in logs) but not routed.
+ * `clear-notification` remove them again. A `user-update` with a known
+ * `user.status` is remembered for Do not disturb and is not routed.
+ * Other notification, self and group events are decoded (so drift is
+ * visible in logs) but not routed.
  */
 import { z } from 'zod'
 import { VRC_PIPELINE_URL } from '@shared/constants'
@@ -38,6 +40,8 @@ import {
 } from '../ReconnectingPipeline'
 import { normalize, rawFriendSchema } from './fetchFriends'
 import { notificationIdOf, parseVrcNotification } from './parseNotification'
+import { vrcStatusFromUserUpdate } from './parseOwnProfile'
+import type { OwnStatus } from '@shared/ownProfile'
 import { parseLocation } from './parseLocation'
 import { toBucketSets } from './parsePresence'
 
@@ -51,6 +55,8 @@ export interface VrcPipelineDeps extends PipelineReconnectOptions {
    */
   tokenProvider: () => Promise<string | null>
   onEvent: (event: AdapterEvent) => void
+  /** Known status on a `user-update`. The event itself stays unrouted. */
+  onOwnStatus?: (status: OwnStatus) => void
   /** Opens a socket. Injected so tests never touch the network. */
   socketFactory: (url: string) => PipelineSocket
   sleepFn?: (ms: number, signal?: AbortSignal) => Promise<void>
@@ -120,6 +126,7 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
   private readonly tokenProvider: () => Promise<string | null>
   private readonly socketFactory: (url: string) => PipelineSocket
   private readonly clock: () => number
+  private readonly onOwnStatus: ((status: OwnStatus) => void) | undefined
   /** People a `friend-delete` just removed, with when; a `friend-add` clears one. */
   private readonly removedAt = new Map<string, number>()
 
@@ -128,6 +135,7 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
     this.tokenProvider = deps.tokenProvider
     this.socketFactory = deps.socketFactory
     this.clock = deps.now ?? Date.now
+    this.onOwnStatus = deps.onOwnStatus
   }
 
   protected prepareConnection(): Promise<string | null> {
@@ -250,7 +258,12 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
         // invites or friend requests. Logged so drift stays visible.
         this.log('debug', 'pipeline: notification event not routed', { type })
         return null
-      case 'user-update':
+      case 'user-update': {
+        const status = vrcStatusFromUserUpdate(content)
+        if (status !== undefined) this.onOwnStatus?.(status)
+        this.log('debug', 'pipeline: self/content event ignored', { type })
+        return null
+      }
       case 'user-location':
       case 'user-badge-assigned':
       case 'content-refresh':
