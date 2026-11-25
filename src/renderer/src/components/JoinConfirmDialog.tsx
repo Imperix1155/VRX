@@ -28,6 +28,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { ExploreRoom } from '@shared/explore'
 import type { Friend, JoinHandoff, JoinMode, JoinModePreference, Platform } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
@@ -270,6 +271,7 @@ function DirectJoinConfirmDialog(): React.JSX.Element | null {
                 ? t('joinConfirm.peopleCount', { count: explore.room.occupancy.value })
                 : t('explore.countUnknown')}
             </p>
+            <InstanceWords room={explore.room} />
             <div>
               <button
                 type="button"
@@ -367,6 +369,15 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   ) : (
     <FriendJoinConfirmDialog />
   )
+}
+
+/** Category and vibe words for a VRChat room. Absent when the room has neither. */
+function InstanceWords({ room }: { room: ExploreRoom }): React.JSX.Element | null {
+  const words = [room.instanceCategory, ...room.instanceVibes].filter(
+    (part): part is string => part !== null
+  )
+  if (words.length === 0) return null
+  return <p className="text-xs text-[var(--text-dim)]">{words.join(' · ')}</p>
 }
 
 /** Focusable descendants of the panel, excluding disabled, aria-disabled, and

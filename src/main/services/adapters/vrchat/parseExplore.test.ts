@@ -456,7 +456,9 @@ describe('VRChat Explore parsers', () => {
     expect(titled).toMatchObject({
       instanceTitle: 'Friday lobby',
       instanceDescription: 'Bring a chair.',
-      spokenLanguage: 'pt-BR'
+      spokenLanguage: 'pt-BR',
+      instanceCategory: null,
+      instanceVibes: []
     })
     const encoded = JSON.stringify(titled)
     expect(encoded).not.toContain('icat_')

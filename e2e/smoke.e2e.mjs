@@ -131,6 +131,7 @@ describe('VRX smoke test', () => {
     await sheet.getByText('Friday Hangout').waitFor()
     await sheet.getByText('Everyone is welcome.').waitFor()
     await sheet.getByText(/Language: .*Portuguese/).waitFor() // the fake sends pt-BR
+    await sheet.getByText('Hangout · adventure').waitFor()
 
     const like = sheet.getByRole('button', { name: 'Like Sunset Lounge', exact: true })
     const liked = sheet.getByRole('button', { name: /^Liked\. Clear your rating/ })

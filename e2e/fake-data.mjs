@@ -25,11 +25,18 @@ const cvrWorlds = {
   [CW2]: { name: 'Neon Arcade' }
 }
 
-/** What a VRChat room may say about itself. The Explore sheet shows all three. */
+/** Spec example ids from `InstanceCategoryID` and `InstanceVibeID` at `bfafa918`. */
+const HANGOUT_ID = 'icat_44bc6a70-493f-4f84-8a3b-1f290c864c2a'
+const ADVENTURE_ID = 'ivib_2d8445c4-f47b-4635-b565-467fc32c4003'
+
+/** What a VRChat room may say about itself. The Explore sheet shows these words. */
 const ROOM_DETAILS = {
   displayName: 'Friday Hangout',
   description: 'Everyone is welcome.',
-  dominantLanguage: 'pt-BR'
+  dominantLanguage: 'pt-BR',
+  categoryId: HANGOUT_ID,
+  displayVibeId: ADVENTURE_ID,
+  vibeIds: [ADVENTURE_ID]
 }
 
 function st(S) {
@@ -121,6 +128,23 @@ export async function handle(ctx) {
       )
     }
     // Explore / search worlds
+    if (p === '/instanceOptions' && m === 'GET') {
+      return (
+        json(res, 200, {
+          categories: [
+            {
+              deleted: false,
+              iconUrl: 'vrchat://category_hangout',
+              id: HANGOUT_ID,
+              name: 'Hangout',
+              order: 0
+            }
+          ],
+          vibes: [{ deleted: false, id: ADVENTURE_ID, title: 'adventure' }]
+        }),
+        true
+      )
+    }
     if (p === '/worlds/active')
       return (json(res, 200, [vrcWorld(W1), vrcWorld(W2), vrcWorld(W3)]), true)
     if (p === '/worlds/favorites') {
