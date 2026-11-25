@@ -27,18 +27,21 @@ Dev test build. It has everything in 1.5.0 plus the changes below.
   you pick. The search waits a moment while you type. Show and Show older
   stay inside that search and those dates. Clear stays off while a search
   or dates narrow the list. It is read on this computer only.
-- Settings → Performance, after About. It shows VRX's memory, CPU and startup
-  time, measured on this computer, and only while that page is open. Copy
-  report puts a text snapshot on the clipboard. Nothing is sent.
+- Settings → Performance, after About. It shows VRX's memory and CPU,
+  measured on this computer, and only while that page is open. Startup time
+  is recorded as VRX opens. Copy report puts an English snapshot on the
+  clipboard. Nothing is sent.
 - Automatic local backups, in Settings → Accounts, off until you turn them
   on. While VRX is open it keeps a copy of history, settings, notes, stars
   and linked people on this computer. You pick daily, every 3 days, or
   weekly. You also pick how many copies to keep, and the folder. Restore…
   keeps a copy of what you have now, then puts saved history back. Restore
-  does not change settings or notes. A copy is still kept when history is
-  off. Nothing is
-  uploaded, and sign-in details are not in the copy. Keep the folder
-  private: it holds your friends' names.
+  does not change settings, notes, stars, or linked people. A copy is still kept
+  when the Activity page is off, or when Kept is "Until VRX closes". That
+  copy has no history, so Restore cannot use it. While activity is not
+  being saved, Restore does nothing. Nothing is uploaded, and sign-in
+  details are not in the copy. Keep the folder private: it holds your
+  friends' names.
 
 ### Fixed
 
