@@ -4,7 +4,11 @@ import { VrcAdapter } from './VrcAdapter'
 import type { ExploreRequestContext } from './ExploreAdapter'
 import { ExploreDataError } from './ExploreAdapter'
 import { ApiAdmissionController } from './ApiAdmissionController'
-import { AuthError, RateLimitError } from './errors'
+import { AuthError, RateLimitError, RequestCancelledError } from './errors'
+import {
+  INSTANCE_OPTIONS_CACHE_MS,
+  INSTANCE_OPTIONS_FAILURE_CACHE_MS
+} from './vrchat/instanceOptions'
 import {
   instantAdmission,
   jsonResponse,
@@ -327,6 +331,138 @@ describe('VrcAdapter Explore capability', () => {
       'https://api.vrchat.cloud/api/1/instanceOptions',
       `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`
     ])
+  })
+
+  it('keeps instance options for 24 hours and refetches when that cache ends', async () => {
+    expect(INSTANCE_OPTIONS_CACHE_MS).toBe(24 * 60 * 60 * 1000)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1_700_000_000_000)
+    const roomId = 'public-room'
+    const roomBody = {
+      worldId,
+      instanceId: roomId,
+      id: `${worldId}:${roomId}`,
+      location: `${worldId}:${roomId}`
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ categories: [], vibes: [] }))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+      .mockResolvedValueOnce(jsonResponse({ categories: [], vibes: [] }))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(store(), instantAdmission())
+    markVrcSessionEstablished(adapter)
+    const read = (): ReturnType<VrcAdapter['getExploreRoom']> =>
+      adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+
+    await read()
+    vi.setSystemTime(Date.now() + INSTANCE_OPTIONS_CACHE_MS - 1)
+    await read()
+    vi.setSystemTime(Date.now() + 1)
+    await read()
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.vrchat.cloud/api/1/instanceOptions',
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`,
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`,
+      'https://api.vrchat.cloud/api/1/instanceOptions',
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`
+    ])
+  })
+
+  it('retries a failed instance-options read after 60 seconds', async () => {
+    expect(INSTANCE_OPTIONS_FAILURE_CACHE_MS).toBe(60_000)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(1_700_000_000_000)
+    const roomId = 'public-room'
+    const roomBody = {
+      worldId,
+      instanceId: roomId,
+      id: `${worldId}:${roomId}`,
+      location: `${worldId}:${roomId}`
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('no', { status: 500 }))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+      .mockResolvedValueOnce(jsonResponse({ categories: [], vibes: [] }))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(store(), instantAdmission())
+    markVrcSessionEstablished(adapter)
+    const read = (): ReturnType<VrcAdapter['getExploreRoom']> =>
+      adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+
+    await read()
+    vi.setSystemTime(Date.now() + INSTANCE_OPTIONS_FAILURE_CACHE_MS - 1)
+    await read()
+    vi.setSystemTime(Date.now() + 1)
+    await read()
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.vrchat.cloud/api/1/instanceOptions',
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`,
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`,
+      'https://api.vrchat.cloud/api/1/instanceOptions',
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`
+    ])
+  })
+
+  it('does not keep an instance-options reply that arrives after the session ends', async () => {
+    const roomId = 'public-room'
+    const hangout = 'icat_44bc6a70-493f-4f84-8a3b-1f290c864c2a'
+    const roomBody = {
+      worldId,
+      instanceId: roomId,
+      id: `${worldId}:${roomId}`,
+      location: `${worldId}:${roomId}`,
+      categoryId: hangout
+    }
+    let releaseLate: ((response: Response) => void) | undefined
+    let optionsReads = 0
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).endsWith('/instanceOptions')) {
+        optionsReads += 1
+        if (optionsReads === 1) {
+          return new Promise<Response>((resolve) => {
+            releaseLate = resolve
+          })
+        }
+        return Promise.resolve(jsonResponse({ categories: [], vibes: [] }))
+      }
+      return Promise.resolve(jsonResponse(roomBody))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(store(), instantAdmission())
+    markVrcSessionEstablished(adapter)
+    const first = adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+    await vi.waitFor(() => expect(releaseLate).toBeTypeOf('function'))
+
+    const internal = adapter as unknown as { bumpSessionGeneration(): void }
+    internal.bumpSessionGeneration()
+    releaseLate!(
+      jsonResponse({
+        categories: [
+          {
+            deleted: false,
+            iconUrl: 'vrchat://category_hangout',
+            id: hangout,
+            name: 'Hangout',
+            order: 0
+          }
+        ],
+        vibes: []
+      })
+    )
+
+    await expect(first).rejects.toBeInstanceOf(RequestCancelledError)
+    const second = await adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+    expect(second).toMatchObject({ instanceCategory: null, instanceVibes: [] })
+    expect(JSON.stringify(second)).not.toContain('Hangout')
+    expect(optionsReads).toBe(2)
   })
 
   it('does not invalidate a replacement session for an old lease auth error', async () => {
