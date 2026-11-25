@@ -397,6 +397,9 @@ export function parseVrcExploreRoom(
     instanceTitle: instanceCopy(raw, 'displayName', EXPLORE_INSTANCE_TITLE_MAX),
     instanceDescription: instanceCopy(raw, 'description', EXPLORE_INSTANCE_DESCRIPTION_MAX),
     spokenLanguage: spokenLanguage(raw),
+    // Names arrive later, from the instance-options catalog. Ids stay out of this object.
+    instanceCategory: null,
+    instanceVibes: [],
     occupancy,
     capacity,
     full: typeof raw.full === 'boolean' ? raw.full : null,

@@ -65,6 +65,8 @@ function room(
     instanceTitle: null,
     instanceDescription: null,
     spokenLanguage: null,
+    instanceCategory: null,
+    instanceVibes: [],
     action
   }
 }
@@ -499,6 +501,28 @@ describe('ExploreView', () => {
     expect(screen.getByText('Bring a chair.')).toBeTruthy()
     expect(screen.getByText('Language: Brazilian Portuguese')).toBeTruthy()
     expect(screen.queryByText('pt-BR')).toBeNull()
+    expect(screen.queryByText('Hangout')).toBeNull()
+  })
+
+  it('shows a room category and vibes as plain text, and hides a raw id', () => {
+    const selected = world('vrchat', 'vrc', 'VRC World')
+    const named = {
+      ...room('vrchat', { state: 'available', selectionRef: 'a' }, selected.worldId),
+      instanceCategory: 'Hangout',
+      instanceVibes: ['adventure', 'cozy']
+    }
+    setup({
+      worlds: [selected],
+      sheet: {
+        ...source('vrchat', [selected]),
+        world: selected,
+        rooms: [named],
+        roomsComplete: true
+      }
+    })
+    const line = screen.getByText('Hangout · adventure · cozy')
+    expect(line.className).not.toContain('glass-chip')
+    expect(screen.queryByText(/icat_|ivib_/)).toBeNull()
   })
 
   it('names room access like every other instance and says when a count is unknown', () => {

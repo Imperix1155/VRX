@@ -37,7 +37,8 @@ The sample accounts: VRChat `tester` / `password`, ChilloutVR
 world), Brick Lane (on the website), Cass Nova (offline), Dex Both (private) and
 Echo Hush. ChilloutVR friends are Gale Wind, Dex Both CVR and Hollow Pine.
 The VRChat worlds are Fake World, Sunset Lounge and Quiet Library. Every
-VRChat room is titled "Friday Hangout".
+VRChat room is titled "Friday Hangout", in the Hangout category, with the
+adventure vibe.
 
 ## Add a test
 

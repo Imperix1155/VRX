@@ -202,6 +202,8 @@ const exploreRoom: ExploreRoom = {
   instanceTitle: null,
   instanceDescription: null,
   spokenLanguage: null,
+  instanceCategory: null,
+  instanceVibes: [],
   action: { state: 'available', selectionRef: 'explore-selection-ref' }
 }
 
@@ -1068,6 +1070,24 @@ describe('a game that is already open', () => {
     expect(joinInstance).toHaveBeenCalledWith(
       expect.objectContaining({ platform: 'vrchat', mode: 'desktop' })
     )
+  })
+
+  it('the Explore dialog shows a VRChat category and vibes as plain text', () => {
+    withHandoff({ vrchat: 'launch', chilloutvr: 'launch' })
+    render(
+      <ExploreTestSurface
+        room={{
+          ...exploreRoom,
+          instanceCategory: 'Hangout',
+          instanceVibes: ['adventure', 'cozy']
+        }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+    const line = within(dialog).getByText('Hangout · adventure · cozy')
+    expect(line.className).not.toContain('glass-chip')
+    expect(within(dialog).queryByText(/icat_|ivib_/)).toBeNull()
   })
 
   it('the Explore dialog also keeps the picker hidden until the answer', async () => {

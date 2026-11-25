@@ -1545,12 +1545,16 @@ in the shared sheet frame (§9.3):
   - The instance name, plain text above the pill and count (14 px / 600,
     one line, truncated). It is never a chip. The name is already clipped
     to 80 code points before it reaches the row.
-  - A dim 12 px line under the pill: the region, then "Language: {name}",
-    then the group name, separated by " · ", the whole line truncated.
-    The name comes from `languageTagLabel` for the room's BCP-47 tag, so
-    `pt-BR` reads "Brazilian Portuguese" in English and the Japanese name
-    in Japanese. A tag the runtime cannot name falls back the way that
-    helper does. A missing or ill-formed tag adds no language words.
+  - A dim 12 px line under the pill: the category name, then up to three
+    vibe words, then the region, then "Language: {name}", then the group
+    name, separated by " · ", the whole line truncated. The category and
+    the vibes are the words VRChat sent (`Hangout`, `adventure`). They are
+    plain text, never chips. A missing catalog, an unknown id, or a
+    ChilloutVR room adds none of those words. The language name comes from
+    `languageTagLabel` for the room's BCP-47 tag, so `pt-BR` reads
+    "Brazilian Portuguese" in English and the Japanese name in Japanese. A
+    tag the runtime cannot name falls back the way that helper does. A
+    missing or ill-formed tag adds no language words.
   - The description under that, dim 12 px, at most two lines
     (`line-clamp-2`). It is already clipped to 280 code points.
     ChilloutVR rooms have no instance name, description or language, so
@@ -1569,7 +1573,10 @@ in the shared sheet frame (§9.3):
   room, so its Room size comes from the visible rooms when they agree. A
   line the platform does not give reads "Not shown".
 
-Joining a room goes through the join confirmation (§9.3).
+Joining a room goes through the join confirmation (§9.3). When that dialog
+is for a VRChat room that has a category or vibes, the same words appear
+under the people count, in 12 px `--text-dim`, separated by " · ". A room
+without them, and every ChilloutVR join, leaves that line out.
 
 Source: [`ExploreRoute.tsx`](../src/renderer/src/components/ExploreRoute.tsx),
 [`ExploreView.tsx`](../src/renderer/src/components/ExploreView.tsx),

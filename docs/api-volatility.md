@@ -391,6 +391,7 @@ are Synthetic.
 | `GET /worlds/active?n=12`            | Array of worlds. First 12 parsed.                                                   |
 | `GET /worlds/{worldId}`              | World with `instances` as `[instanceId, userCount, object]` tuples. First 100 kept. |
 | `GET /worlds/{worldId}/{instanceId}` | One room. Both ids validated, then URI-encoded.                                     |
+| `GET /instanceOptions`               | `{ categories, vibes }`. Spec `bfafa918`. Once per session. Not a captured reply.   |
 
 - **Worlds:** `id` must be `wrld_<UUID>` and `name` non-empty. `occupants`
   (non-negative integer), `thumbnailImageUrl` and `popularity` are optional.
@@ -422,8 +423,11 @@ are Synthetic.
   or non-string value is null. `dominantLanguage` is kept when
   `isBcp47LanguageTag` accepts it, including a regional tag such as `pt-BR`.
   The row names that tag with `languageTagLabel`. Anything else is null.
-  `categoryId`, `vibeIds`, `displayVibeId`,
-  `creatorId` and `ownerId` are not shown. The community spec still describes
+  `categoryId` maps to a category `name`, and at most three `vibeIds` map to
+  vibe `title`s, from `GET /instanceOptions`. `displayVibeId` leads when it is
+  also in `vibeIds`. A deleted catalog row, an unknown id, or a failed options
+  read leaves that word out. The ids themselves are not shown. `iconUrl` is
+  ignored. `creatorId` and `ownerId` are not shown. The community spec still describes
   `ownerId` as null for a public instance, and the full `Instance` schema has
   no owner display name. A room is joinable only when the
   response `type` and `groupAccessType` agree with the id's access, the id is not

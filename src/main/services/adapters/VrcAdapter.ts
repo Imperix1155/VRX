@@ -28,6 +28,8 @@ import {
   isNotFoundStatus,
   NetworkError,
   RateLimitError,
+  RequestCancelledError,
+  RequestQueueFullError,
   signInFailure
 } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
@@ -58,6 +60,14 @@ import {
   parseVrcExploreRoom,
   parseVrcExploreWorld
 } from './vrchat/parseExplore'
+import {
+  INSTANCE_OPTIONS_CACHE_MS,
+  INSTANCE_OPTIONS_FAILURE_CACHE_MS,
+  mapInstanceOptionLabels,
+  parseInstanceOptionCatalog,
+  parseInstanceOptionIds,
+  type InstanceOptionCatalog
+} from './vrchat/instanceOptions'
 import { AVATAR_LIBRARY_MAX_ITEMS, isAvatarId, type AvatarItem } from '@shared/avatarLibrary'
 import {
   AvatarDataError,
@@ -348,6 +358,12 @@ export class VrcAdapter
   private accountId: string | null = null
   private pendingTwoFactorMethod: TwoFactorMethod | null = null
   private sessionGeneration = 0
+  /** Category and vibe names for the current session. Memory only. */
+  private instanceOptionsCache: {
+    expiresAt: number
+    catalog: InstanceOptionCatalog | null
+  } | null = null
+  private instanceOptionsFlight: Promise<InstanceOptionCatalog | null> | null = null
   private authBucketRevision = 0
   /** One-use evidence from a successful, durably owner-bound status probe. */
   private freshAuthBuckets: {
@@ -1058,6 +1074,7 @@ export class VrcAdapter
     if (!isVrcExploreWorldId(target.worldId) || !isVrcExploreRoomId(target.instanceId)) {
       throw new ExploreDataError('Invalid VRChat room target')
     }
+    const catalog = await this.instanceOptionCatalog(context)
     const raw = await this.runExploreRequest(context, () =>
       this.get(
         `/worlds/${encodeURIComponent(target.worldId)}/${encodeURIComponent(target.instanceId)}`,
@@ -1078,7 +1095,79 @@ export class VrcAdapter
     ) {
       throw new ExploreDataError('VRChat room response did not match the requested target')
     }
-    return parseVrcExploreRoom(raw, target.worldId, target.instanceId)
+    const evidence = parseVrcExploreRoom(raw, target.worldId, target.instanceId)
+    if (!evidence) return null
+    const labels = mapInstanceOptionLabels(parseInstanceOptionIds(outer), catalog)
+    return { ...evidence, instanceCategory: labels.category, instanceVibes: labels.vibes }
+  }
+
+  /**
+   * One `GET /instanceOptions` for this session. It does not call
+   * `beforeDispatch`, so it stays outside the world job's read cap.
+   * A 401, a rate limit, a cancellation, or a full queue still propagate.
+   */
+  private async instanceOptionCatalog(
+    context: ExploreRequestContext
+  ): Promise<InstanceOptionCatalog | null> {
+    const now = Date.now()
+    if (this.instanceOptionsCache && now < this.instanceOptionsCache.expiresAt) {
+      return this.instanceOptionsCache.catalog
+    }
+    if (this.instanceOptionsFlight) return this.instanceOptionsFlight
+    const generation = this.sessionGeneration
+    const flight = this.loadInstanceOptions(context, generation).finally(() => {
+      if (this.instanceOptionsFlight === flight) this.instanceOptionsFlight = null
+    })
+    this.instanceOptionsFlight = flight
+    return flight
+  }
+
+  private rememberInstanceOptions(
+    catalog: InstanceOptionCatalog | null,
+    ttl: number,
+    generation: number
+  ): void {
+    if (generation !== this.sessionGeneration) return
+    this.instanceOptionsCache = { catalog, expiresAt: Date.now() + ttl }
+  }
+
+  private async loadInstanceOptions(
+    context: ExploreRequestContext,
+    generation: number
+  ): Promise<InstanceOptionCatalog | null> {
+    try {
+      const raw = await this.runExploreRequest(context, () =>
+        this.get('/instanceOptions', z.unknown(), {
+          lease: context.lease,
+          signal: context.signal,
+          priority: context.priority,
+          retry: 'none',
+          recordCircuitFailure: false
+        })
+      )
+      const catalog = parseInstanceOptionCatalog(raw)
+      this.rememberInstanceOptions(
+        catalog,
+        catalog ? INSTANCE_OPTIONS_CACHE_MS : INSTANCE_OPTIONS_FAILURE_CACHE_MS,
+        generation
+      )
+      return catalog
+    } catch (error) {
+      if (error instanceof AuthError && error.status === 403) {
+        this.rememberInstanceOptions(null, INSTANCE_OPTIONS_FAILURE_CACHE_MS, generation)
+        return null
+      }
+      if (
+        error instanceof AuthError ||
+        error instanceof RateLimitError ||
+        error instanceof RequestCancelledError ||
+        error instanceof RequestQueueFullError
+      ) {
+        throw error
+      }
+      this.rememberInstanceOptions(null, INSTANCE_OPTIONS_FAILURE_CACHE_MS, generation)
+      return null
+    }
   }
 
   private exploreRequestOptions(context: ExploreRequestContext): AdapterRequestOptions {
@@ -2507,6 +2596,8 @@ export class VrcAdapter
     this.blockListRead = null
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
+    this.instanceOptionsCache = null
+    this.instanceOptionsFlight = null
     this.worldResolver.clear()
     this.groupResolver.clear()
     this.metadataOwner = null

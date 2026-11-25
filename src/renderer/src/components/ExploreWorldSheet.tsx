@@ -109,6 +109,8 @@ function RoomRow({
     ? languageTagLabel(room.spokenLanguage, i18n.language || 'en')
     : null
   const details = [
+    room.instanceCategory,
+    ...room.instanceVibes,
     region === null ? null : t(region),
     language === null ? null : t('explore.room.language', { language }),
     room.groupName

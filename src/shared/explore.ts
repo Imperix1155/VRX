@@ -82,6 +82,14 @@ export interface ExploreRoom {
    * a well-formed tag. The row names it with `languageTagLabel`.
    */
   spokenLanguage: string | null
+  /**
+   * Category name from VRChat's instance options (`Hangout`). Null when the
+   * platform omitted it, the id is unknown, or the platform has no category.
+   * Plain text, never a chip. ChilloutVR stays null.
+   */
+  instanceCategory: string | null
+  /** Up to three vibe titles, display vibe first. Empty when there are none. */
+  instanceVibes: readonly string[]
   action: ExploreRoomAction
 }
 

@@ -76,8 +76,8 @@ transport, and published adapter events.
   `isAllowedLaunchUrl` validation and `shell.openExternal` stay in IPC.
 - `parseExplore.ts` returns public evidence only: no references, actions,
   URLs or raw responses. A room may keep a clipped `displayName`,
-  `description` and BCP-47 `dominantLanguage`, and drops category, vibe and
-  owner ids.
+  `description` and BCP-47 `dominantLanguage`. Category and vibe ids
+  map to names; raw ids stay out.
 - `parseAvatars.ts` reads only the fields the Avatars page shows; a record
   without an `avtr_` ID or a name is skipped, and image URLs must be `https`.
 - `parseBlocked.ts` answers whether a player-moderation list holds a `block`

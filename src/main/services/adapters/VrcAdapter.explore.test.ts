@@ -146,6 +146,7 @@ describe('VrcAdapter Explore capability', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: worldId, name: 'World', instances: [] }))
+      .mockResolvedValueOnce(jsonResponse({ categories: [], vibes: [] }))
       .mockResolvedValueOnce(
         jsonResponse({
           worldId,
@@ -182,7 +183,148 @@ describe('VrcAdapter Explore capability', () => {
     ).rejects.toBeInstanceOf(ExploreDataError)
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       `https://api.vrchat.cloud/api/1/worlds/${worldId}`,
+      'https://api.vrchat.cloud/api/1/instanceOptions',
       `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`,
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`
+    ])
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/instanceCategories'))).toBe(
+      false
+    )
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/instanceVibes'))).toBe(false)
+  })
+
+  it('maps category and vibe labels from one options read', async () => {
+    const roomId = 'public-room'
+    const hangout = 'icat_44bc6a70-493f-4f84-8a3b-1f290c864c2a'
+    const adventure = 'ivib_2d8445c4-f47b-4635-b565-467fc32c4003'
+    const cozy = 'ivib_11111111-1111-1111-1111-111111111111'
+    const options = {
+      categories: [
+        {
+          deleted: false,
+          iconUrl: 'vrchat://category_hangout',
+          id: hangout,
+          name: 'Hangout',
+          order: 0
+        }
+      ],
+      vibes: [
+        { deleted: false, id: cozy, title: 'cozy' },
+        { deleted: false, id: adventure, title: 'adventure' }
+      ]
+    }
+    const roomBody = {
+      worldId,
+      instanceId: roomId,
+      id: `${worldId}:${roomId}`,
+      location: `${worldId}:${roomId}`,
+      categoryId: hangout,
+      displayVibeId: adventure,
+      vibeIds: [cozy, adventure]
+    }
+    const beforeDispatch = vi.fn()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(options))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(store(), instantAdmission())
+    markVrcSessionEstablished(adapter)
+
+    const first = await adapter.getExploreRoom(
+      { worldId, instanceId: roomId },
+      context(adapter, beforeDispatch)
+    )
+    const second = await adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+
+    expect(first).toMatchObject({
+      instanceCategory: 'Hangout',
+      instanceVibes: ['adventure', 'cozy']
+    })
+    expect(second).toMatchObject({
+      instanceCategory: 'Hangout',
+      instanceVibes: ['adventure', 'cozy']
+    })
+    const encoded = JSON.stringify(first)
+    expect(encoded).not.toContain('icat_')
+    expect(encoded).not.toContain('ivib_')
+    expect(encoded).not.toContain('vrchat://')
+    expect(beforeDispatch).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.vrchat.cloud/api/1/instanceOptions',
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`,
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`
+    ])
+  })
+
+  it('still returns the room when instance options fails, and does not fetch the room on a 401', async () => {
+    const roomId = 'public-room'
+    const roomBody = {
+      worldId,
+      instanceId: roomId,
+      id: `${worldId}:${roomId}`,
+      location: `${worldId}:${roomId}`,
+      categoryId: 'icat_44bc6a70-493f-4f84-8a3b-1f290c864c2a',
+      vibeIds: ['ivib_2d8445c4-f47b-4635-b565-467fc32c4003']
+    }
+    const failed = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('no', { status: 500 }))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+    vi.stubGlobal('fetch', failed)
+    const adapter = new VrcAdapter(store(), instantAdmission())
+    markVrcSessionEstablished(adapter)
+
+    const room = await adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+    expect(room).toMatchObject({ instanceCategory: null, instanceVibes: [] })
+    expect(JSON.stringify(room)).not.toContain('icat_')
+    const again = await adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+    expect(again).toMatchObject({ instanceCategory: null, instanceVibes: [] })
+    expect(failed.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.vrchat.cloud/api/1/instanceOptions',
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`,
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`
+    ])
+
+    const denied = vi.fn().mockResolvedValueOnce(new Response(null, { status: 401 }))
+    vi.stubGlobal('fetch', denied)
+    const signedOut = new VrcAdapter(store(), instantAdmission())
+    markVrcSessionEstablished(signedOut)
+    await expect(
+      signedOut.getExploreRoom({ worldId, instanceId: roomId }, context(signedOut))
+    ).rejects.toBeInstanceOf(AuthError)
+    expect(denied).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads instance options again after the session changes', async () => {
+    const roomId = 'public-room'
+    const roomBody = {
+      worldId,
+      instanceId: roomId,
+      id: `${worldId}:${roomId}`,
+      location: `${worldId}:${roomId}`
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ categories: [], vibes: [] }))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+      .mockResolvedValueOnce(jsonResponse({ categories: [], vibes: [] }))
+      .mockResolvedValueOnce(jsonResponse(roomBody))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(store(), instantAdmission())
+    markVrcSessionEstablished(adapter)
+
+    await adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+    const internal = adapter as unknown as { bumpSessionGeneration(): void }
+    internal.bumpSessionGeneration()
+    await adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.vrchat.cloud/api/1/instanceOptions',
+      `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`,
+      'https://api.vrchat.cloud/api/1/instanceOptions',
       `https://api.vrchat.cloud/api/1/worlds/${worldId}/${roomId}`
     ])
   })

@@ -121,7 +121,9 @@ describe('ChilloutVR Explore parsers', () => {
         access: 'public',
         occupancy: { state: 'complete', value: 7, source: 'cvr-room-current-player-count' },
         capacity: 7,
-        joinEligibility: 'eligible'
+        joinEligibility: 'eligible',
+        instanceCategory: null,
+        instanceVibes: []
       })
     )
     expect(
