@@ -120,6 +120,8 @@ const ready: ExploreWorldSnapshot = {
       instanceTitle: null,
       instanceDescription: null,
       spokenLanguage: null,
+      instanceCategory: null,
+      instanceVibes: [],
       action: { state: 'available', selectionRef: 'selection' }
     }
   ],

@@ -223,17 +223,18 @@ that omit all three.
 
 - **What:** Show the instance category and up to three vibes (Hangout, Games,
   and the mood words from the 2026.4.2 notes).
+- **Approved read:** Impy approved one read-only `GET /instanceOptions`
+  (spec commit `bfafa918`, 2026-11-22). The body is `{ categories, vibes }`.
+  Do not call `GET /instanceCategories` or `GET /instanceVibes`.
 - **Blocked:** The room response VRX already gets has `categoryId`
   (`InstanceCategoryID`, example `icat_…`), `displayVibeId` and `vibeIds`
   (`InstanceVibeID`, example `ivib_…`). Those are opaque ids. Names live on
-  other resources VRX does not call:
-  - `GET /instances/categories` (`getInstanceCategories`) → `InstanceCategory`
-    with `id`, `name` (example `Hangout`), `iconUrl` (example
-    `vrchat://category_hangout`), `order`, `deleted`.
-  - `GET /instances/vibes` (`getInstanceVibes`) → `InstanceVibe` with `id`,
-    `title` (example `adventure`), `deleted`.
-    Adding those routes is a new endpoint pair. `docs/api-policy.md` has to
-    record them, and Impy has to accept them, before any code calls them.
+  `GET /instanceOptions`, which returns both lists:
+  - `categories[]` is `InstanceCategory`: `id`, `name` (example `Hangout`),
+    `iconUrl` (example `vrchat://category_hangout`), `order`, `deleted`.
+  - `vibes[]` is `InstanceVibe`: `id`, `title` (example `adventure`),
+    `deleted`.
+    `GET /instanceCategories` and `GET /instanceVibes` stay unused.
     `creationLanguages` is an array of `Unknown` and must not be parsed.
     `languages` is the crowd's language mix, not the category.
 - **Sources:** [`InstanceCategory.yaml`](https://github.com/vrchatapi/specification/blob/main/openapi/components/schemas/InstanceCategory.yaml),
@@ -244,16 +245,19 @@ that omit all three.
   2026-09-28 (`153b70ce`). The 2026.4.2 client is what started asking everyone
   to set them.
 - **Plan:**
-  1. After the policy line is accepted, fetch each catalog at most once per
-     session (or once per 24 h), through the admission queue, `retry: 'none'`.
-     Skip `deleted: true`. Keep at most a few dozen entries.
+  1. Fetch `GET /instanceOptions` at most once per session (kept 24 h; a
+     failure waits 60 s), through the admission queue, `retry: 'none'`.
+     Skip `deleted: true`. Keep at most a few dozen entries. The read must
+     not consume the world job's 7-read cap.
   2. Map `categoryId` to `name` and at most three `vibeIds` to `title`, with
      `displayVibeId` first if it is also in `vibeIds`. Unknown ids are
      dropped, never shown raw.
   3. Ignore `iconUrl` when it is not `https`. A `vrchat://` link is not an
      image and is not opened.
-  4. Show the words on the room row's detail line and in the hot sheet, as
-     plain text. The instance title stays plain text and is never a chip.
+  4. Show the words on the room row's detail line and in the Explore Join
+     dialog, as plain text. The instance title stays plain text and is never
+     a chip. The hot sheet still has no instance object until its own read
+     is approved.
   5. Creating or editing a category or vibe is a write (`CreateInstanceRequest`
      already has `categoryId`, `description`, `displayName`, `vibeIds`). Do
      not add it.
@@ -378,6 +382,7 @@ alone.
 
 ## Docs left unchanged on purpose
 
-`docs/api-policy.md` gained no new endpoint in this branch. #592 already
-recorded the world-rating write. `src/main/services/avatarCache.ts` was not
+`docs/api-policy.md` gained no new endpoint in the original pass. #592 already
+recorded the world-rating write. The category follow-up records read-only
+`GET /instanceOptions`. `src/main/services/avatarCache.ts` was not
 touched. `docs/DESIGN.md` §9.4 now records the instance-copy row.

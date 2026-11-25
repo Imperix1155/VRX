@@ -287,6 +287,8 @@ describe('ExploreService guard rails', () => {
       instanceTitle: null,
       instanceDescription: null,
       spokenLanguage: null,
+      instanceCategory: null,
+      instanceVibes: [],
       joinEligibility: 'eligible'
     }
     h.adapter.candidates = [entry]
@@ -548,6 +550,8 @@ describe('ExploreService guard rails', () => {
           instanceTitle: null,
           instanceDescription: null,
           spokenLanguage: null,
+          instanceCategory: null,
+          instanceVibes: [],
           joinEligibility: 'eligible'
         })
     }
@@ -594,6 +598,8 @@ describe('ExploreService guard rails', () => {
         instanceTitle: null,
         instanceDescription: null,
         spokenLanguage: null,
+        instanceCategory: null,
+        instanceVibes: [],
         joinEligibility: 'eligible'
       }
       h.adapter.rooms.set(`${entry.worldId}/${roomId}`, evidence)

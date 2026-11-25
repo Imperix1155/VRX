@@ -227,6 +227,8 @@ describe('ExploreService integration bounds', () => {
         instanceTitle: null,
         instanceDescription: null,
         spokenLanguage: null,
+        instanceCategory: null,
+        instanceVibes: [],
         joinEligibility: 'eligible'
       })
     }
@@ -270,6 +272,8 @@ describe('ExploreService integration bounds', () => {
       instanceTitle: null,
       instanceDescription: null,
       spokenLanguage: null,
+      instanceCategory: null,
+      instanceVibes: [],
       joinEligibility: 'eligible'
     })
     h.now.value = 60_001
@@ -391,6 +395,8 @@ describe('ExploreService integration bounds', () => {
       instanceTitle: null,
       instanceDescription: null,
       spokenLanguage: null,
+      instanceCategory: null,
+      instanceVibes: [],
       joinEligibility: 'eligible'
     })
     await load(h, 'vrchat')
@@ -435,6 +441,8 @@ describe('ExploreService integration bounds', () => {
       instanceTitle: null,
       instanceDescription: null,
       spokenLanguage: null,
+      instanceCategory: null,
+      instanceVibes: [],
       joinEligibility: 'eligible'
     })
     await load(h, 'vrchat')
@@ -484,6 +492,8 @@ describe('ExploreService integration bounds', () => {
       instanceTitle: null,
       instanceDescription: null,
       spokenLanguage: null,
+      instanceCategory: null,
+      instanceVibes: [],
       joinEligibility: 'eligible'
     })
     await load(h, 'chilloutvr')

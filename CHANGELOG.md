@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A VRChat room in Explore shows its category and up to three vibes, on the
+  room row and in the Join dialog. The words, such as Hangout or adventure,
+  come from VRChat. If they are missing, the room looks as it did before.
+  ChilloutVR rooms do not show them.
+
 ## [1.6.0-dev.1] - 2026-11-25
 
 Dev test build. It has everything in 1.5.0 plus the changes below.

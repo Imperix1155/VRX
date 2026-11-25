@@ -421,9 +421,10 @@ export const worldImages: Record<string, string> = {
 
 /**
  * The first public room on VRChat carries instance copy so the sheet shows the
- * current layout: a plain title above the access and count row, a BCP-47
- * language label (`pt-BR`), and a description long enough to use both lines.
- * The other rooms, and every ChilloutVR room, leave those fields empty.
+ * current layout: a plain title above the access and count row, a category
+ * and two vibes, a BCP-47 language label (`pt-BR`), and a description long
+ * enough to use both lines. The other rooms, and every ChilloutVR room,
+ * leave those fields empty.
  */
 const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
   {
@@ -442,6 +443,8 @@ const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
         ? 'Quiet voices, somewhere to sit. Stay as long as you like, and leave the instance the way you found it.'
         : null,
     spokenLanguage: world.platform === 'vrchat' ? 'pt-BR' : null,
+    instanceCategory: world.platform === 'vrchat' ? 'Hangout' : null,
+    instanceVibes: world.platform === 'vrchat' ? ['cozy', 'adventure'] : [],
     action: { state: 'available', selectionRef: `guide-selection-${world.worldRef}-east` }
   },
   {
@@ -457,6 +460,8 @@ const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
     instanceTitle: null,
     instanceDescription: null,
     spokenLanguage: null,
+    instanceCategory: null,
+    instanceVibes: [],
     action: { state: 'disabled', reason: 'full' }
   },
   {
@@ -472,6 +477,8 @@ const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
     instanceTitle: null,
     instanceDescription: null,
     spokenLanguage: null,
+    instanceCategory: null,
+    instanceVibes: [],
     action: { state: 'disabled', reason: 'unavailable' }
   }
 ]

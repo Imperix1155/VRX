@@ -151,6 +151,8 @@ describe('useJoinInstance', () => {
       instanceTitle: null,
       instanceDescription: null,
       spokenLanguage: null,
+      instanceCategory: null,
+      instanceVibes: [],
       action: { state: 'available', selectionRef: 'selection-ref' }
     }
     const hook = renderHook(() => useJoinInstance())
@@ -194,6 +196,8 @@ describe('useJoinInstance', () => {
       instanceTitle: null,
       instanceDescription: null,
       spokenLanguage: null,
+      instanceCategory: null,
+      instanceVibes: [],
       action: { state: 'disabled', reason: 'stale' }
     }
     const hook = renderHook(() => useJoinInstance())
