@@ -66,6 +66,7 @@ import type {
 } from './instanceLog'
 import type { FavoriteWriteResult, FavoritesRevision } from './favorites'
 import type { GameFavoritesResult, GameFavoriteWriteResult } from './gameFavorites'
+import type { PerformanceSnapshot } from './performance'
 import type {
   ExplorePlatformSnapshot,
   ExploreImageResult,
@@ -312,6 +313,7 @@ export interface IpcInvoke {
   /** Quick launch: start the game without joining anyone. Main owns the link. */
   'launch-game': { req: { platform: Platform }; res: GameLaunchResult }
   'get-app-status': { req: void; res: AppStatus }
+  'get-performance': { req: void; res: PerformanceSnapshot }
   /** What the operating system's startup list says now, for Settings to show
    *  when the Start with your computer choice could not be applied. */
   'get-login-item': { req: void; res: LoginItemStatus }

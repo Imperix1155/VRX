@@ -46,6 +46,7 @@ import { useAlertPicks } from '../queries/alertPicks'
 import { useLoginItemProblem, type LoginItemProblem } from '../queries/loginItem'
 import PickedFriendsDialog from './PickedFriendsDialog'
 import ExportDataRow from './ExportDataRow'
+import PerformanceSettings from './PerformanceSettings'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -1347,6 +1348,8 @@ export default function SettingsView(): React.JSX.Element {
             <LegalSettingsRow />
           </section>
         )}
+
+        {category === 'performance' && <PerformanceSettings />}
       </div>
     </div>
   )

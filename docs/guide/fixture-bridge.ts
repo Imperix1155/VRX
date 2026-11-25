@@ -392,6 +392,27 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         ws: { vrchat: 'live', chilloutvr: 'live' },
         lastReconcileAt: { vrchat: null, chilloutvr: null }
       }),
+    // Sample numbers for Settings → Performance. The guide does not measure
+    // the machine it is open on.
+    getPerformance: () =>
+      Promise.resolve({
+        version: '1.5.0',
+        channel: 'stable',
+        platform: 'linux',
+        arch: 'x64',
+        osRelease: '6.12.0',
+        packaged: false,
+        totalWorkingSetKiB: 1536,
+        processes: [
+          { pid: 100, kind: 'browser', name: null, workingSetKiB: 1024, cpuPercent: 1.2 },
+          { pid: 101, kind: 'renderer', name: null, workingSetKiB: 512, cpuPercent: null }
+        ],
+        mainHeapUsedBytes: 32 * 1024 * 1024,
+        windowReadyMs: 800,
+        firstRenderMs: 900,
+        cpuIntervalMs: 2000,
+        sockets: { vrchat: 'live', chilloutvr: 'down' }
+      }),
     getActivity: () => Promise.resolve(variant === 'empty' ? [] : activityEntries(Date.now())),
     // A friend's History: that friend's sample entries, and a few older ones
     // so the dialog shows more than one day. The Activity page gets no older

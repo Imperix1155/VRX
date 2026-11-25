@@ -27,7 +27,8 @@ export default function SegmentedControl<T extends string>({
   ariaDescribedBy,
   onChange,
   textColors,
-  disabled = false
+  disabled = false,
+  dense = false
 }: {
   values: readonly T[]
   active: T
@@ -38,6 +39,7 @@ export default function SegmentedControl<T extends string>({
   onChange: (value: T) => void
   textColors?: Partial<Record<T, string>>
   disabled?: boolean
+  dense?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const activeIndex = values.indexOf(active)
@@ -94,7 +96,8 @@ export default function SegmentedControl<T extends string>({
               focusRadioSibling(e.currentTarget, next)
             }}
             className={[
-              'relative z-10 flex-1 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[9px]',
+              'relative z-10 flex-1 text-[12.5px] font-semibold py-[6px] rounded-[9px]',
+              dense ? 'px-[8px]' : 'px-[13px]',
               'border-0 bg-transparent motion-safe:transition-colors whitespace-nowrap',
               disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
               wordColor != null

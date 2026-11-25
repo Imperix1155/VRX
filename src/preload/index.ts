@@ -96,6 +96,7 @@ const vrx = {
   // A platform only: main owns the link that starts the game.
   launchGame: (req: IpcInvoke['launch-game']['req']) => invoke('launch-game', req),
   getAppStatus: () => invoke('get-app-status', undefined),
+  getPerformance: () => invoke('get-performance', undefined),
   getLoginItem: () => invoke('get-login-item', undefined),
   getActivity: () => invoke('get-activity', undefined),
   getActivityPage: (req: IpcInvoke['get-activity-page']['req']) => invoke('get-activity-page', req),

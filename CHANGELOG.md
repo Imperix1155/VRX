@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Settings → Performance keeps the last numbers when a refresh fails, says
+  when that reading was taken, and the copied report includes that same line.
+
+### Added
+
+- Settings → Performance, after About. It shows VRX's memory, CPU and startup
+  time, measured on this computer, and only while that page is open. Copy
+  report puts a text snapshot on the clipboard. Nothing is sent.
+
+### Fixed
+
 - A settings save that did not stick no longer makes the next Kept choice
   take effect early. History is read again only after that choice's own save
   has been answered, so visits the new choice deletes do not stay listed.
