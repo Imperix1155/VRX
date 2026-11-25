@@ -787,6 +787,7 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     onFriendEvent: unsubscribe,
     onIdentityBoundary: unsubscribe,
     onNavigateToDashboard: unsubscribe,
+    onDoNotDisturbChanged: unsubscribe,
     onUpdaterStateChanged: unsubscribe
   }
 }

@@ -17,10 +17,19 @@ const TO_VRC_STATUS: Readonly<Record<OwnStatus, string>> = {
   dnd: 'busy'
 }
 
-function ownStatus(value: unknown): OwnStatus | null {
+/** VRChat's status word, or null when it is missing or not one VRX knows. */
+export function vrcOwnStatus(value: unknown): OwnStatus | null {
   if (typeof value !== 'string') return null
   const key = value.toLowerCase()
   return Object.hasOwn(FROM_VRC_STATUS, key) ? (FROM_VRC_STATUS[key] ?? null) : null
+}
+
+/** A known status on `user-update`, or `undefined` when the word is missing or unknown. */
+export function vrcStatusFromUserUpdate(content: unknown): OwnStatus | undefined {
+  if (content === null || typeof content !== 'object') return undefined
+  const user = (content as { user?: unknown }).user
+  if (user === null || typeof user !== 'object') return undefined
+  return vrcOwnStatus((user as { status?: unknown }).status) ?? undefined
 }
 
 /**
@@ -37,7 +46,7 @@ export function parseVrcOwnProfile(value: unknown, accountId: string): OwnProfil
   const pronouns = ownText(raw.pronouns)
   const statusText = ownText(raw.statusDescription)
   if (bio === undefined || pronouns === undefined || statusText === undefined) return null
-  return { platform: 'vrchat', bio, pronouns, status: ownStatus(raw.status), statusText }
+  return { platform: 'vrchat', bio, pronouns, status: vrcOwnStatus(raw.status), statusText }
 }
 
 /**

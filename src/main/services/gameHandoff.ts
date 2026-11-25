@@ -38,8 +38,11 @@ const PIPE_TIMEOUT_MS = 3_000
 /** No real host comes close; bounds memory if `/proc` is unusual. */
 const MAX_PROCESS_ENTRIES = 20_000
 
-/** Lower-cased process image names, or an empty list when they can't be read. */
-export type ProcessNameLister = () => Promise<string[]>
+/**
+ * Lower-cased process image names. `null` means the list could not be read.
+ * An empty array is a successful read that found nothing.
+ */
+export type ProcessNameLister = () => Promise<string[] | null>
 
 /** Parse `tasklist /FO CSV /NH` output: the first quoted field is the image name. */
 export function parseTasklistNames(stdout: string): string[] {
@@ -51,23 +54,23 @@ export function parseTasklistNames(stdout: string): string[] {
   return names
 }
 
-function listWindowsProcessNames(): Promise<string[]> {
+function listWindowsProcessNames(): Promise<string[] | null> {
   return new Promise((resolve) => {
     execFile(
       'tasklist',
       ['/FO', 'CSV', '/NH'],
       { windowsHide: true, timeout: PROCESS_LIST_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 },
-      (error, stdout) => resolve(error ? [] : parseTasklistNames(String(stdout)))
+      (error, stdout) => resolve(error ? null : parseTasklistNames(String(stdout)))
     )
   })
 }
 
-async function listLinuxProcessNames(): Promise<string[]> {
+async function listLinuxProcessNames(): Promise<string[] | null> {
   let entries: string[]
   try {
     entries = await readdir('/proc')
   } catch {
-    return []
+    return null
   }
   const pids = entries.filter((entry) => /^\d+$/.test(entry)).slice(0, MAX_PROCESS_ENTRIES)
   const names = await Promise.all(
@@ -92,7 +95,7 @@ export function processNameListerFor(hostPlatform: NodeJS.Platform): ProcessName
 /** Which games run now, from one cached process list shared by both platforms. */
 export class RunningGames {
   private cached: { at: number; names: Set<string> } | null = null
-  private inFlight: Promise<Set<string>> | null = null
+  private inFlight: Promise<ReadonlySet<string> | null> | null = null
 
   constructor(
     private readonly list: ProcessNameLister,
@@ -100,21 +103,37 @@ export class RunningGames {
   ) {}
 
   async isRunning(platform: Platform): Promise<boolean> {
-    return (await this.names()).has(GAME_PROCESS_NAMES[platform])
+    return (await this.names())?.has(GAME_PROCESS_NAMES[platform]) ?? false
   }
 
-  private async names(): Promise<Set<string>> {
-    if (this.cached && this.clock() - this.cached.at < PROCESS_CHECK_TTL_MS) {
+  /**
+   * Games whose process was listed, or `null` when the list could not be read.
+   * A failure is not cached and is not an empty list. `fresh` skips the 2 s
+   * cache so a baseline is a list taken now, not one from before a game started.
+   */
+  async runningPlatforms(options?: { fresh?: boolean }): Promise<ReadonlySet<Platform> | null> {
+    const names = await this.names(options?.fresh === true)
+    if (names === null) return null
+    const running = new Set<Platform>()
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      if (names.has(GAME_PROCESS_NAMES[platform])) running.add(platform)
+    }
+    return running
+  }
+
+  private async names(fresh = false): Promise<ReadonlySet<string> | null> {
+    if (!fresh && this.cached && this.clock() - this.cached.at < PROCESS_CHECK_TTL_MS) {
       return this.cached.names
     }
     if (this.inFlight) return this.inFlight
     this.inFlight = this.list()
-      .catch(() => [] as string[])
-      .then((names) => {
-        const set = new Set(names)
-        this.cached = { at: this.clock(), names: set }
-        return set
+      .then((listed) => {
+        if (listed === null) return null
+        const names = new Set(listed)
+        this.cached = { at: this.clock(), names }
+        return names
       })
+      .catch(() => null)
       .finally(() => {
         this.inFlight = null
       })

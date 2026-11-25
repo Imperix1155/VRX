@@ -5,6 +5,7 @@
  * mapping, malformed-frame tolerance, reconnect backoff, stop. No network.
  */
 import { describe, expect, it, vi } from 'vitest'
+import type { OwnStatus } from '@shared/ownProfile'
 import type { AdapterEvent } from '@shared/types'
 import type { PipelineSocket } from './VrcPipeline'
 import { VRC_REMOVED_FRIEND_GRACE_MS, VrcPipeline } from './VrcPipeline'
@@ -47,7 +48,11 @@ interface Rig {
 }
 
 function rig(
-  opts: { token?: string | null | (() => string | null); now?: () => number } = {}
+  opts: {
+    token?: string | null | (() => string | null)
+    now?: () => number
+    onOwnStatus?: (status: OwnStatus) => void
+  } = {}
 ): Rig {
   const events: AdapterEvent[] = []
   const sockets: FakeSocket[] = []
@@ -73,7 +78,8 @@ function rig(
       return tick()
     },
     log,
-    ...(opts.now ? { now: opts.now } : {})
+    ...(opts.now ? { now: opts.now } : {}),
+    ...(opts.onOwnStatus ? { onOwnStatus: opts.onOwnStatus } : {})
   })
 
   return { pipeline, events, sockets, urls, sleeps, tokenProvider, log }
@@ -684,6 +690,30 @@ describe('VrcPipeline', () => {
       { type: 'friend-offline', platform: 'vrchat', platformUserId: 'usr_1' }
     ])
     pipeline.stop()
+  })
+
+  it('reads the signed-in status on user-update and still does not route the event', async () => {
+    const statuses: OwnStatus[] = []
+    const r = rig({ onOwnStatus: (status) => statuses.push(status) })
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    const before = r.events.length
+    r.sockets[0]!.fire(
+      'message',
+      frame('user-update', { userId: 'usr_me', user: { id: 'usr_me', status: 'busy' } })
+    )
+    r.sockets[0]!.fire(
+      'message',
+      frame('user-update', { userId: 'usr_me', user: { id: 'usr_me', status: 'ask me' } })
+    )
+    r.sockets[0]!.fire(
+      'message',
+      frame('user-update', { userId: 'usr_me', user: { id: 'usr_me', bio: 'hi' } })
+    )
+    expect(statuses).toEqual(['dnd', 'ask-me'])
+    expect(r.events.slice(before).every((event) => event.type === 'connection')).toBe(true)
+    r.pipeline.stop()
   })
 
   it('start() is idempotent while running (one loop, one socket)', async () => {

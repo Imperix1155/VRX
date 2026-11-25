@@ -61,6 +61,8 @@
  *   vrOverlayAlerts, vrOverlayAlertDuration → the same alerts in the VR headset through
  *                            XSOverlay, which VRCX and CVRX both support (owner, 2026-10-31;
  *                            default off, v22)
+ *   doNotDisturb, doNotDisturbUntil, doNotDisturbEndOnGameStart,
+ *   doNotDisturbFollowStatus → mute every alert (owner, 2026-11-25; default off, v32)
  *   backgroundPictureFade  → how much the user's own background picture fades (owner, 2026-10-26)
  *   saveNotesToAccounts    → friend notes also go to the user's own account, as in VRCX and
  *                            CVRX (owner, 2026-11-01; default on, v24)
@@ -101,12 +103,13 @@ import {
   VRCHAT_OPEN_GAME_JOINS
 } from './types'
 import { ACTIVITY_FILTERS, ACTIVITY_KEEP_FOR } from './activity'
+import { DO_NOT_DISTURB_CHOICES } from './doNotDisturb'
 
 /** Additive-at-the-same-version fields can be silently stripped and rewritten by
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 31 as const
+export const SETTINGS_VERSION = 32 as const
 
 const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -214,6 +217,16 @@ const SettingsSchema = z.object({
   vrOverlayAlerts: z.boolean().catch(false),
   /** How long each VR alert stays in view. */
   vrOverlayAlertDuration: z.enum(VR_ALERT_DURATIONS).catch('medium'),
+  /** Mute every desktop and VR alert. `1h` and `3h` also store a deadline. */
+  doNotDisturb: z.enum(DO_NOT_DISTURB_CHOICES).catch('off'),
+  /** Epoch milliseconds when a timed mute ends. Null for off and until-off.
+   *  A past number is off at read time and is not rewritten here. */
+  doNotDisturbUntil: z.number().finite().nullable().catch(null),
+  /** Turn the mute off when VRChat or ChilloutVR starts on this computer. */
+  doNotDisturbEndOnGameStart: z.boolean().catch(false),
+  /** Also mute while the signed-in VRChat status is Ask Me or Do Not Disturb.
+   *  Read only. ChilloutVR has no status, so it never mutes through this. */
+  doNotDisturbFollowStatus: z.boolean().catch(false),
   /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default;
    *  `off` hides the glow (owner, 2026-10-26). */
   backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard'),
@@ -361,7 +374,10 @@ const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
     if (!Array.isArray(sections) || sections.includes('quick-launch')) return { ...prev }
     const saved: unknown[] = sections
     return { ...prev, dashboardSections: ['quick-launch', ...saved.slice(0, 15)] }
-  }
+  },
+  // v31 → v32: Do not disturb is additive. The version boundary stops an
+  // older build from stripping a mute that is still on.
+  31: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

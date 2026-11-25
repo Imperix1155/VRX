@@ -13,6 +13,7 @@ import { useLinkedProfileEvents } from './queries/linkedProfiles'
 import { useActivityEvents } from './queries/activity'
 import { useInboxEvents } from './queries/inbox'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
+import { useDoNotDisturbSync } from './hooks/useDoNotDisturbSync'
 import { usePlatformFilterSettings } from './hooks/usePlatformFilterSettings'
 import { useSettingsStore } from './stores/settings'
 import { useFriendsStore } from './stores/friends'
@@ -22,6 +23,7 @@ function App(): React.JSX.Element {
   // Load persisted settings + save changes (VRX-184) — before useApplyTheme
   // reads the store so the persisted theme lands as early as possible.
   useSettingsPersistence()
+  useDoNotDisturbSync()
   usePlatformFilterSettings()
   // Apply the stored theme before any view renders (must be top-level, no early return above).
   useApplyTheme()

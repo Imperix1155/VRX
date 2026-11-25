@@ -350,3 +350,49 @@ describe('Sidebar update button (VRX-113)', () => {
     expect(updaterState.install).toHaveBeenCalledOnce()
   })
 })
+
+describe('Sidebar Do not disturb', () => {
+  it('starts a three hour mute and turns it off again', () => {
+    render(<Sidebar />)
+    fireEvent.click(
+      screen.getByRole('button', { name: i18n.t('settings.doNotDisturb.sidebar.open') })
+    )
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: i18n.t('settings.doNotDisturb.threeHours') })
+    )
+    expect(useSettingsStore.getState().settings.doNotDisturb).toBe('3h')
+    expect(useSettingsStore.getState().settings.doNotDisturbUntil).not.toBeNull()
+    const off = screen.getByRole('button', { name: /Turn off/ })
+    fireEvent.click(off)
+    expect(useSettingsStore.getState().settings.doNotDisturb).toBe('off')
+    expect(useSettingsStore.getState().settings.doNotDisturbUntil).toBeNull()
+  })
+
+  it('returns keyboard focus to the sidebar control after choosing a duration', () => {
+    render(<Sidebar />)
+    const opener = screen.getByRole('button', {
+      name: i18n.t('settings.doNotDisturb.sidebar.open')
+    })
+    opener.focus()
+    fireEvent.click(opener)
+    const hour = screen.getByRole('menuitem', { name: i18n.t('settings.doNotDisturb.oneHour') })
+    hour.focus()
+    fireEvent.click(hour)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Turn off/ }))
+  })
+
+  it('returns keyboard focus to the sidebar control after Escape', () => {
+    render(<Sidebar />)
+    const opener = screen.getByRole('button', {
+      name: i18n.t('settings.doNotDisturb.sidebar.open')
+    })
+    fireEvent.click(opener)
+    const three = screen.getByRole('menuitem', {
+      name: i18n.t('settings.doNotDisturb.threeHours')
+    })
+    three.focus()
+    fireEvent.keyDown(three, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(opener)
+  })
+})

@@ -473,6 +473,37 @@ describe('SettingsView — Notifications section (VRX-84/85)', () => {
     expect(useSettingsStore.getState().settings.notifyHotInstance).toBe(true)
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
+
+  it('mutes every alert for a chosen duration and turns the optional switches on', () => {
+    useUiStore.setState({ settingsCategory: 'notifications' })
+    renderSettings()
+    const group = screen.getByRole('radiogroup', { name: msg('settings.doNotDisturb.aria') })
+    expect(
+      within(group)
+        .getByRole('radio', { name: msg('settings.doNotDisturb.off') })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+    const before = Date.now()
+    fireEvent.click(
+      within(group).getByRole('radio', { name: msg('settings.doNotDisturb.oneHour') })
+    )
+    const settings = useSettingsStore.getState().settings
+    expect(settings.doNotDisturb).toBe('1h')
+    expect(settings.doNotDisturbUntil).toBeGreaterThanOrEqual(before + 60 * 60 * 1000)
+    expect(settings.doNotDisturbUntil).toBeLessThanOrEqual(Date.now() + 60 * 60 * 1000)
+    fireEvent.click(
+      within(
+        screen.getByRole('radiogroup', { name: msg('settings.doNotDisturb.endOnGameStart.aria') })
+      ).getByRole('radio', { name: msg('settings.boolean.on') })
+    )
+    fireEvent.click(
+      within(
+        screen.getByRole('radiogroup', { name: msg('settings.doNotDisturb.followStatus.aria') })
+      ).getByRole('radio', { name: msg('settings.boolean.on') })
+    )
+    expect(useSettingsStore.getState().settings.doNotDisturbEndOnGameStart).toBe(true)
+    expect(useSettingsStore.getState().settings.doNotDisturbFollowStatus).toBe(true)
+  })
 })
 
 describe('SettingsView — Alerts in VR (owner, 2026-10-31)', () => {

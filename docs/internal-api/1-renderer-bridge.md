@@ -38,6 +38,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `getLoginItem` | [`queries/loginItem.ts`](../../src/renderer/src/queries/loginItem.ts) (`useLoginItemProblem`, read by Settings → About once the choice is saved) |
 | `getSettings`, `saveSettings` | [`hooks/useSettingsPersistence.ts`](../../src/renderer/src/hooks/useSettingsPersistence.ts) |
 | `getUpdaterState`, `checkForUpdates`, `downloadUpdate`, `installUpdate`, `onUpdaterStateChanged` | [`hooks/useUpdater.ts`](../../src/renderer/src/hooks/useUpdater.ts) |
+| `onDoNotDisturbChanged` | [`hooks/useDoNotDisturbSync.ts`](../../src/renderer/src/hooks/useDoNotDisturbSync.ts) |
 | `openUrl`, `openLogsFolder` | [`SettingsView.tsx`](../../src/renderer/src/components/SettingsView.tsx) |
 | `exportData` | [`components/ExportDataRow.tsx`](../../src/renderer/src/components/ExportDataRow.tsx) (Settings → Accounts) |
 | `getAppBackground`, `chooseAppBackground`, `clearAppBackground` | [`queries/appBackground.ts`](../../src/renderer/src/queries/appBackground.ts), through [`hooks/useBackgroundPicturePicker.ts`](../../src/renderer/src/hooks/useBackgroundPicturePicker.ts) |
