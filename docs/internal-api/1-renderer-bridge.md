@@ -8,7 +8,7 @@ Rule: the global is declared optional (`vrx?: VrxBridge`) because unit tests, Pr
 
 | Symbol | File | Purpose |
 | --- | --- | --- |
-| `VrxBridge` | [`index.d.ts`](../../src/preload/index.d.ts) | The bridge type: 73 invoke methods (both `getAvatar` and `getKeptAvatar` call `get-avatar`), one notify method and eight subscriptions, all derived from `@shared/ipc`. The design guide's fixture bridge implements the same type with synthetic data ([design guide fixtures](8-design-guide.md#8-design-guide-fixtures-docsguide)). |
+| `VrxBridge` | [`index.d.ts`](../../src/preload/index.d.ts) | The bridge type: 86 invoke methods (both `getAvatar` and `getKeptAvatar` call `get-avatar`), one notify method and nine subscriptions, all derived from `@shared/ipc`. The design guide's fixture bridge implements the same type with synthetic data ([design guide fixtures](8-design-guide.md#8-design-guide-fixtures-docsguide)). |
 | `window.vrx` | [`index.ts`](../../src/preload/index.ts) | Exposed with `contextBridge.exposeInMainWorld` when context isolation is on. If exposure throws, preload writes to the devtools console, a documented exception to the electron-log rule. A non-isolated window is dev-only. |
 | `rate_limited` errors | [`index.ts`](../../src/preload/index.ts) | The private `invoke` wrapper turns Electron's `Error invoking remote method '<channel>': Error: rate_limited` into `Error('rate_limited')`. Other rejections pass through. The renderer query client never retries this error. |
 | `notifyRendererHydrated()` | [`index.ts`](../../src/preload/index.ts) | Sends `renderer-hydrated` once settings-backed document attributes are applied. Main shows the window when this and `ready-to-show` have both arrived, or 3 s after `ready-to-show`. |
@@ -28,6 +28,7 @@ Reuse the existing renderer owner before adding a direct bridge call:
 | `getActivity`, `getActivityPage`, `getFriendHistory`, `clearActivity`, `onActivityChanged` | [`queries/activity.ts`](../../src/renderer/src/queries/activity.ts) |
 | `getInstanceVisits`, `getInstanceVisitPeople`, `clearInstanceLog` | [`queries/instanceLog.ts`](../../src/renderer/src/queries/instanceLog.ts) |
 | `importVrcxHistory`, `backupHistory`, `restoreHistory` | [`components/HistoryTransfer.tsx`](../../src/renderer/src/components/HistoryTransfer.tsx) (Activity → Kept) |
+| `getAutoBackup`, `chooseAutoBackupFolder`, `resetAutoBackupFolder`, `restoreAutoBackup`, `onAutoBackupChanged` | [`components/AutoBackupCard.tsx`](../../src/renderer/src/components/AutoBackupCard.tsx) (Settings → Accounts) |
 | `joinInstance`, `joinExploreRoom`, `joinInvite` | [`hooks/useJoinInstance.ts`](../../src/renderer/src/hooks/useJoinInstance.ts) |
 | `selfInvite` | No renderer caller. Main's [join handoff](2-ipc-channels.md#join-handoff) calls it when VRChat is already open. |
 | `getJoinHandoff` | [`hooks/useJoinHandoff.ts`](../../src/renderer/src/hooks/useJoinHandoff.ts), once per join dialog open |

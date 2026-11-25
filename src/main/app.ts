@@ -131,6 +131,7 @@ import {
   restoreHistory,
   type HistoryTransferOptions
 } from './services/historyTransfer'
+import { createAutoBackup } from './services/autoBackup'
 import { createSessionImporter } from './services/sessionImport'
 import { mt, setMainLocale } from './i18n'
 import { showFatalErrorBox } from './fatalErrorBox'
@@ -846,6 +847,32 @@ app
         pushActivityChanged()
       }
     }
+    const pushAutoBackupChanged = (): void => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send('auto-backup-changed')
+      }
+    }
+    const autoBackup = createAutoBackup({
+      userDataDir: () => app.getPath('userData'),
+      snapshotHistory: (destinationPath) =>
+        historyDatabase
+          .job(() => isKeepingInstanceLog() && historyDatabase.storage === 'file')
+          .backupTo(destinationPath),
+      historyIsFile: () => historyDatabase.storage === 'file',
+      settings: () => {
+        const saved = getSettingsSnapshot()
+        return {
+          autoBackup: saved.autoBackup,
+          autoBackupInterval: saved.autoBackupInterval,
+          autoBackupKeep: saved.autoBackupKeep
+        }
+      },
+      now: () => Date.now(),
+      restoreHistory: (sourcePath) => restoreHistory(historyTransfer, sourcePath),
+      log: (message) => log.info(message),
+      onChanged: pushAutoBackupChanged
+    })
+    autoBackup.start()
     historyBoundary.current = {
       resetPlatform: (platform) => {
         friendLog.resetPlatform(platform)
@@ -1226,6 +1253,22 @@ app
         backUp: (targetPath) => backUpHistory(historyTransfer, targetPath),
         restore: (sourcePath) => restoreHistory(historyTransfer, sourcePath)
       },
+      autoBackup: {
+        status: () => autoBackup.status(),
+        pickFolder: async (event) => {
+          const owner = BrowserWindow.fromWebContents(event.sender)
+          const options: Electron.OpenDialogOptions = {
+            title: mt('autoBackup.folderTitle'),
+            properties: ['openDirectory', 'createDirectory']
+          }
+          const picked = owner
+            ? await dialog.showOpenDialog(owner, options)
+            : await dialog.showOpenDialog(options)
+          return picked.canceled ? null : (picked.filePaths[0] ?? null)
+        },
+        setDirectory: (absolutePath) => autoBackup.setDirectory(absolutePath),
+        restore: (id) => autoBackup.restore(id)
+      },
       onSettingsApplied: (saved) => {
         applyWindowTheme(saved.theme)
         applyUpdaterSettings(saved)
@@ -1237,6 +1280,7 @@ app
           instanceLog.clearAll()
           restartInstanceSources()
         }
+        void autoBackup.check()
         if (saved.activityKeepFor !== appliedActivityKeepFor) {
           const wasSaving = appliedActivityKeepFor !== 'session'
           appliedActivityKeepFor = saved.activityKeepFor
@@ -1380,6 +1424,7 @@ app
         })
       }
       clearInterval(activityPruneTimer)
+      autoBackup.stop()
       vrchatGameLog.stop()
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'

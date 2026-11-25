@@ -65,8 +65,9 @@ through `@shared`.
 - Every additive persisted setting bumps `SETTINGS_VERSION` and registers an
   identity migration from the previous version, so an older build cannot strip
   it during a downgrade. Keep the full migration chain.
-- Settings rules that must survive future changes: alerts, `autoUpdate` and
-  `vrOverlayAlerts` default off; `updateChannel` is `stable`, `beta` or `dev`
+- Settings rules that must survive future changes: alerts, `autoUpdate`,
+  `vrOverlayAlerts` and `autoBackup` default off; `autoBackupInterval` is
+  `daily` and `autoBackupKeep` is 5. `updateChannel` is `stable`, `beta` or `dev`
   (anything else is `stable`). `confirmJoin` and `joinMode` keep their values
   while `allowJoinInstances` is off. Dashboard section switches and the page
   switches (`show*Page`) only hide things and change no other preference;

@@ -17,6 +17,7 @@ import {
   registerHistoryTransferHandlers,
   type HistoryTransferHandlerOptions
 } from './history-transfer'
+import { registerAutoBackupHandlers, type AutoBackupHandlerOptions } from './auto-backup'
 import { registerLoginItemHandlers } from './login-item'
 import { registerFriendActionHandlers } from './friend-actions'
 import type { FriendActionsService } from '../services/friendActions'
@@ -123,6 +124,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   appBackground: AppBackgroundHandlerOptions
   dataExport: DataExportHandlerOptions
   historyTransfer: HistoryTransferHandlerOptions
+  autoBackup: AutoBackupHandlerOptions
   inbox: InboxService
   friendActions: FriendActionsService
   vrOverlayAlerts: Pick<VrOverlayAlerts, 'test'>
@@ -230,6 +232,7 @@ export function registerIpcHandlers(
     registerAppBackgroundHandlers(options.appBackground)
     registerDataExportHandlers(options.dataExport)
     registerHistoryTransferHandlers(options.historyTransfer)
+    registerAutoBackupHandlers(options.autoBackup)
     registerInboxHandlers(options.inbox)
     registerFriendActionHandlers(options.friendActions)
     registerVrAlertHandlers(options.vrOverlayAlerts)

@@ -52,6 +52,7 @@ const en = {
   'dataExport.dialogTitle': 'Save your VRX export',
   'dataExport.dialogFilter': 'JSON file',
   'historyTransfer.backupTitle': 'Save a backup of your VRX history',
+  'autoBackup.folderTitle': 'Choose a folder for VRX backups',
   'historyTransfer.restoreTitle': 'Choose a VRX history backup',
   'historyTransfer.dialogFilter': 'VRX history backup'
 } as const
@@ -103,6 +104,7 @@ const ja: Record<MainStringKey, string> = {
   'dataExport.dialogTitle': 'VRX の書き出しを保存',
   'dataExport.dialogFilter': 'JSON ファイル',
   'historyTransfer.backupTitle': 'VRX の履歴のバックアップを保存',
+  'autoBackup.folderTitle': 'VRX のバックアップ先フォルダーを選択',
   'historyTransfer.restoreTitle': 'VRX の履歴のバックアップを選択',
   'historyTransfer.dialogFilter': 'VRX の履歴のバックアップ'
 }

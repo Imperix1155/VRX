@@ -45,6 +45,9 @@
  *   dashboardQuickLaunch   → the Dashboard's Quick launch row: one button per platform that
  *                            starts the game without joining anyone (owner, 2026-11-18;
  *                            default shown, v31)
+ *   autoBackup             → a local copy while VRX is open (owner, 2026-11-25; default off, v32)
+ *   autoBackupInterval     → daily, every 3 days, or weekly (default daily)
+ *   autoBackupKeep         → how many of those copies to keep, 1 to 20 (default 5)
  *   dashboardHideEmpty     → Dashboard sections with nothing to show step aside so the rest
  *                            use the space (owner, 2026-10-27; default on, v21)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
@@ -101,12 +104,18 @@ import {
   VRCHAT_OPEN_GAME_JOINS
 } from './types'
 import { ACTIVITY_FILTERS, ACTIVITY_KEEP_FOR } from './activity'
+import {
+  AUTO_BACKUP_INTERVALS,
+  AUTO_BACKUP_KEEP_DEFAULT,
+  AUTO_BACKUP_KEEP_MAX,
+  AUTO_BACKUP_KEEP_MIN
+} from './autoBackup'
 
 /** Additive-at-the-same-version fields can be silently stripped and rewritten by
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 31 as const
+export const SETTINGS_VERSION = 32 as const
 
 const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -256,7 +265,19 @@ const SettingsSchema = z.object({
    * a missing or unknown value, stays on stable so a bad patch cannot opt in
    * to a prerelease feed.
    */
-  updateChannel: z.enum(UPDATE_CHANNELS).catch('stable')
+  updateChannel: z.enum(UPDATE_CHANNELS).catch('stable'),
+  /** A local copy of this computer's VRX data while VRX is open. Off until
+   *  the user turns it on. Nothing is uploaded. */
+  autoBackup: z.boolean().catch(false),
+  /** How far apart those copies are. */
+  autoBackupInterval: z.enum(AUTO_BACKUP_INTERVALS).catch('daily'),
+  /** How many copies to keep. Missing values and anything outside 1 to 20 become 5. */
+  autoBackupKeep: z
+    .number()
+    .int()
+    .min(AUTO_BACKUP_KEEP_MIN)
+    .max(AUTO_BACKUP_KEEP_MAX)
+    .catch(AUTO_BACKUP_KEEP_DEFAULT)
 })
 
 export type Settings = z.infer<typeof SettingsSchema>
@@ -270,9 +291,10 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v29 are deliberately
- * identity-only: the shape remains schema-compatible, while the version boundary
- * protects newer fields from older-build key stripping during rollback.
+ * v1 → v2 through v10 → v11, v12 → v13, v14 → v29, and v31 → v32 are
+ * deliberately identity-only: the shape remains schema-compatible, while the
+ * version boundary protects newer fields from older-build key stripping during
+ * rollback.
  */
 const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   1: (prev) => ({ ...prev }),
@@ -361,7 +383,10 @@ const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
     if (!Array.isArray(sections) || sections.includes('quick-launch')) return { ...prev }
     const saved: unknown[] = sections
     return { ...prev, dashboardSections: ['quick-launch', ...saved.slice(0, 15)] }
-  }
+  },
+  // v31 → v32: `autoBackup`, `autoBackupInterval` and `autoBackupKeep` are
+  // additive. The version boundary stops an older build from stripping a user's On.
+  31: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

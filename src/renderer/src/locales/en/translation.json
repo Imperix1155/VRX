@@ -253,6 +253,50 @@
       "failed": "Couldn't save the file. Try another folder.",
       "tooMany": "Too many tries. Wait a minute, then try again."
     },
+    "autoBackup": {
+      "label": "Back up automatically",
+      "description": "Saves a copy of this computer's VRX data while VRX is open. Nothing is uploaded.",
+      "aria": "Back up automatically",
+      "last": "Last backup: {{time}}",
+      "none": "No backup yet",
+      "error": {
+        "failed": "The last backup didn't finish.",
+        "folder": "The backup folder can't be used.",
+        "integrity": "The last backup didn't check out, so it was discarded."
+      },
+      "interval": {
+        "label": "How often",
+        "aria": "How often to back up",
+        "daily": "Daily",
+        "3d": "Every 3 days",
+        "weekly": "Weekly"
+      },
+      "keep": {
+        "label": "Copies to keep",
+        "aria": "Copies to keep"
+      },
+      "folder": {
+        "label": "Backup folder",
+        "default": "VRX's folder",
+        "change": "Change folder",
+        "useDefault": "Use VRX's folder"
+      },
+      "restoreButton": "Restore…",
+      "list": {
+        "empty": "No backups yet.",
+        "restore": "Restore",
+        "ask": "Replace saved history with this backup? A copy of what you have now is kept first.",
+        "confirm": "Restore",
+        "cancel": "Cancel"
+      },
+      "restored": "History restored from this backup.",
+      "restoreFailed": "Couldn't restore this backup.",
+      "restoreNotBackup": "That backup can't be read.",
+      "restoreNewer": "That backup is from a newer VRX.",
+      "restoreOff": "History isn't being saved, so there's nothing to restore.",
+      "tooMany": "Too many tries. Wait a minute, then try again.",
+      "unknown": "That backup is no longer there."
+    },
     "labelScheme": {
       "label": "Instance labels",
       "description": "Which words the instance labels use.",

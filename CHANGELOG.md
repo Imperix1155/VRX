@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Automatic local backups, off by default. While VRX is open it keeps a copy
+  of history, settings, notes, stars and linked people on this computer.
+  Nothing is uploaded.
+
 ### Fixed
 
 - A settings save that did not stick no longer makes the next Kept choice

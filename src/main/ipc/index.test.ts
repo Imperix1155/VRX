@@ -95,6 +95,26 @@ vi.mock('./history-transfer', () => ({
     electron.ipcMain.handle('restore-history', () => ({ ok: false, reason: 'cancelled' }))
   }
 }))
+vi.mock('./auto-backup', () => ({
+  registerAutoBackupHandlers: () => {
+    electron.ipcMain.handle('get-auto-backup', () => ({
+      usingDefaultFolder: true,
+      folderName: 'backups',
+      lastBackupAt: null,
+      lastError: null,
+      copies: []
+    }))
+    electron.ipcMain.handle('choose-auto-backup-folder', () => ({
+      ok: false,
+      reason: 'cancelled'
+    }))
+    electron.ipcMain.handle('reset-auto-backup-folder', () => ({
+      usingDefaultFolder: true,
+      folderName: 'backups'
+    }))
+    electron.ipcMain.handle('restore-auto-backup', () => ({ ok: false, reason: 'unknown' }))
+  }
+}))
 vi.mock('./login-item', () => ({
   registerLoginItemHandlers: () => electron.ipcMain.handle('get-login-item', () => 'off')
 }))
@@ -173,6 +193,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'cancel-explore-world',
   'change-linked-profile',
   'choose-app-background',
+  'choose-auto-backup-folder',
   'clear-activity',
   'clear-app-background',
   'clear-inbox',
@@ -186,6 +207,7 @@ const EXPECTED_INVOKE_CHANNELS = [
   'get-app-background',
   'get-app-status',
   'get-auth-status',
+  'get-auto-backup',
   'get-avatar',
   'get-avatar-details',
   'get-avatar-library',
@@ -226,6 +248,8 @@ const EXPECTED_INVOKE_CHANNELS = [
   'open-bug-report',
   'open-logs-folder',
   'open-url',
+  'reset-auto-backup-folder',
+  'restore-auto-backup',
   'restore-history',
   'save-own-profile',
   'save-settings',
@@ -274,6 +298,7 @@ function options(): IpcHandlerOptions {
     appBackground: {} as IpcHandlerOptions['appBackground'],
     dataExport: {} as IpcHandlerOptions['dataExport'],
     historyTransfer: {} as IpcHandlerOptions['historyTransfer'],
+    autoBackup: {} as IpcHandlerOptions['autoBackup'],
     inbox: {} as IpcHandlerOptions['inbox'],
     friendActions: {} as IpcHandlerOptions['friendActions'],
     vrOverlayAlerts: { test: async () => undefined },
