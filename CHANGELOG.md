@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0-dev.2] - 2026-11-25
+
 ### Added
 
 - A VRChat room in Explore shows its category and up to three vibes, on the
