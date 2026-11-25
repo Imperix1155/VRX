@@ -465,6 +465,43 @@ describe('VrcAdapter Explore capability', () => {
     expect(optionsReads).toBe(2)
   })
 
+  it('keeps a live room read when another room job cancels the shared options read', async () => {
+    const roomId = 'public-room'
+    const roomBody = {
+      worldId,
+      instanceId: roomId,
+      id: `${worldId}:${roomId}`,
+      location: `${worldId}:${roomId}`
+    }
+    let releaseOptions: ((response: Response) => void) | undefined
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).endsWith('/instanceOptions')) {
+        return new Promise<Response>((resolve) => {
+          releaseOptions = resolve
+        })
+      }
+      return Promise.resolve(jsonResponse(roomBody))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(store(), instantAdmission())
+    markVrcSessionEstablished(adapter)
+    const cancelled = new AbortController()
+    const first = adapter.getExploreRoom(
+      { worldId, instanceId: roomId },
+      { ...context(adapter), signal: cancelled.signal }
+    )
+    await vi.waitFor(() => expect(releaseOptions).toBeTypeOf('function'))
+    const second = adapter.getExploreRoom({ worldId, instanceId: roomId }, context(adapter))
+    cancelled.abort()
+    releaseOptions!(jsonResponse({ categories: [], vibes: [] }))
+
+    await expect(first).rejects.toBeInstanceOf(RequestCancelledError)
+    await expect(second).resolves.toMatchObject({ roomId, instanceCategory: null })
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/instanceOptions'))
+    ).toHaveLength(1)
+  })
+
   it('does not invalidate a replacement session for an old lease auth error', async () => {
     const adapter = new VrcAdapter(store(), instantAdmission())
     markVrcSessionEstablished(adapter)

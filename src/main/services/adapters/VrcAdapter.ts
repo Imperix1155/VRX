@@ -1104,7 +1104,9 @@ export class VrcAdapter
   /**
    * One `GET /instanceOptions` for this session. It does not call
    * `beforeDispatch`, so it stays outside the world job's read cap.
-   * A 401, a rate limit, a cancellation, or a full queue still propagate.
+   * The read follows the session lease, not one room job's signal: a closed
+   * sheet must not fail another room read that is still waiting on it.
+   * A 401, a rate limit, a session cancellation, or a full queue still propagate.
    */
   private async instanceOptionCatalog(
     context: ExploreRequestContext
@@ -1139,7 +1141,6 @@ export class VrcAdapter
       const raw = await this.runExploreRequest(context, () =>
         this.get('/instanceOptions', z.unknown(), {
           lease: context.lease,
-          signal: context.signal,
           priority: context.priority,
           retry: 'none',
           recordCircuitFailure: false
