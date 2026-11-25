@@ -11,11 +11,17 @@
  */
 import { chmodSync, existsSync, renameSync } from 'node:fs'
 import { DatabaseSync, type StatementSync } from 'node:sqlite'
-import { ACTIVITY_KINDS, type ActivityEntry, type ActivityKind } from '@shared/activity'
+import {
+  ACTIVITY_KINDS,
+  activityLikePattern,
+  activitySearchText,
+  type ActivityEntry,
+  type ActivityKind
+} from '@shared/activity'
 import type { Platform } from '@shared/types'
 
 /** The schema this build writes. Bump with a migration step below. */
-export const HISTORY_SCHEMA_VERSION = 1
+export const HISTORY_SCHEMA_VERSION = 2
 
 export const HISTORY_FILE_NAME = 'history.sqlite3'
 
@@ -92,6 +98,12 @@ export interface ActivityPageQuery {
   /** Only these people, each under their own account. */
   friends: ReadonlyArray<{ accountKey: string; platformUserId: string }> | null
   limit: number
+  /** Substring matched without regard to ASCII case. Null or omitted matches every row. */
+  text?: string | null
+  /** Inclusive lower bound on `at`. Null or omitted means no lower bound. */
+  from?: number | null
+  /** Inclusive upper bound on `at`. Null or omitted means no upper bound. */
+  to?: number | null
 }
 
 const KNOWN_KINDS: ReadonlySet<unknown> = new Set<ActivityKind>(ACTIVITY_KINDS)
@@ -325,6 +337,48 @@ export class HistoryDatabase {
             `(${query.friends.map(() => '(account_key = ? AND user_id = ?)').join(' OR ')})`
           )
           for (const friend of query.friends) params.push(friend.accountKey, friend.platformUserId)
+        }
+        const needle = activitySearchText(query.text ?? undefined)
+        if (needle !== null) {
+          const pattern = activityLikePattern(needle)
+          // The platform words are the pill ("VRChat", "ChilloutVR") and the short form.
+          where.push(`(
+            display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+            OR IFNULL(previous_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+            OR IFNULL(world_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+            OR (CASE WHEN account_key LIKE 'chilloutvr:%' THEN 'chilloutvr cvr' ELSE 'vrchat vrc' END)
+              LIKE ? ESCAPE '\\' COLLATE NOCASE
+            OR EXISTS (
+              SELECT 1 FROM friend_roster AS roster
+              WHERE roster.account_key = activity.account_key
+                AND roster.user_id = activity.user_id
+                AND roster.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+            )
+            OR EXISTS (
+              SELECT 1 FROM friend_names AS earlier
+              WHERE earlier.account_key = activity.account_key
+                AND earlier.user_id = activity.user_id
+                AND earlier.previous_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+            )
+            OR EXISTS (
+              SELECT 1 FROM activity AS named
+              WHERE named.account_key = activity.account_key
+                AND named.user_id = activity.user_id
+                AND (
+                  named.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+                  OR IFNULL(named.previous_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+                )
+            )
+          )`)
+          params.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern)
+        }
+        if (typeof query.from === 'number') {
+          where.push('at >= ?')
+          params.push(query.from)
+        }
+        if (typeof query.to === 'number') {
+          where.push('at <= ?')
+          params.push(query.to)
         }
         const rows = this.statement(
           `SELECT id, account_key, kind, user_id, display_name, world_name, previous_name, at
@@ -616,6 +670,12 @@ export class HistoryDatabase {
   pageVisits(query: {
     accounts: ReadonlyArray<{ accountKey: string; before: number | null }>
     limit: number
+    /** Substring matched without regard to ASCII case. Null or omitted matches every visit. */
+    text?: string | null
+    /** Inclusive lower bound on the moment the visit started. */
+    from?: number | null
+    /** Inclusive upper bound on the moment the visit started. */
+    to?: number | null
   }): SavedVisit[] {
     if (query.accounts.length === 0 || query.limit <= 0) return []
     return (
@@ -631,13 +691,51 @@ export class HistoryDatabase {
             parameters.push(account.accountKey, account.before)
           }
         }
+        const where = [`(${clauses.join(' OR ')})`]
+        const needle = activitySearchText(query.text ?? undefined)
+        if (needle !== null) {
+          const pattern = activityLikePattern(needle)
+          where.push(`(
+            IFNULL(v.world_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+            OR (CASE WHEN v.account_key LIKE 'chilloutvr:%' THEN 'chilloutvr cvr' ELSE 'vrchat vrc' END)
+              LIKE ? ESCAPE '\\' COLLATE NOCASE
+            OR EXISTS (
+              SELECT 1 FROM encounters AS person
+              WHERE person.visit_id = v.id
+                AND (
+                  person.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+                  OR EXISTS (
+                    SELECT 1 FROM friend_roster AS roster
+                    WHERE roster.account_key = person.account_key
+                      AND roster.user_id = person.user_id
+                      AND roster.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+                  )
+                  OR EXISTS (
+                    SELECT 1 FROM friend_names AS earlier
+                    WHERE earlier.account_key = person.account_key
+                      AND earlier.user_id = person.user_id
+                      AND earlier.previous_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+                  )
+                )
+            )
+          )`)
+          parameters.push(pattern, pattern, pattern, pattern, pattern)
+        }
+        if (typeof query.from === 'number') {
+          where.push('v.entered_at >= ?')
+          parameters.push(query.from)
+        }
+        if (typeof query.to === 'number') {
+          where.push('v.entered_at <= ?')
+          parameters.push(query.to)
+        }
         parameters.push(query.limit)
         const rows = this.statement(
           `SELECT v.id, v.account_key, v.world_name, v.entered_at, v.left_at,
                   (SELECT COUNT(DISTINCT e.user_id) FROM encounters e WHERE e.visit_id = v.id)
                     AS people
            FROM visits v
-           WHERE ${clauses.join(' OR ')}
+           WHERE ${where.join(' AND ')}
            ORDER BY v.entered_at DESC, v.id DESC LIMIT ?`
         ).all(...parameters) as RawVisitRow[]
         const visits: SavedVisit[] = []
@@ -1196,6 +1294,7 @@ function migrate(db: DatabaseSync, from: number): void {
         CREATE INDEX IF NOT EXISTS activity_by_account ON activity (account_key, id);
         CREATE INDEX IF NOT EXISTS activity_by_friend ON activity (account_key, user_id, id);
         CREATE INDEX IF NOT EXISTS activity_by_time ON activity (at);
+        CREATE INDEX IF NOT EXISTS activity_by_account_time ON activity (account_key, at);
         CREATE TABLE IF NOT EXISTS friend_roster (
           account_key TEXT NOT NULL,
           user_id TEXT NOT NULL,
@@ -1241,6 +1340,9 @@ function migrate(db: DatabaseSync, from: number): void {
           at INTEGER NOT NULL
         ) WITHOUT ROWID;
       `)
+    }
+    if (from < 2) {
+      db.exec('CREATE INDEX IF NOT EXISTS activity_by_account_time ON activity (account_key, at)')
     }
     db.exec(`PRAGMA user_version = ${HISTORY_SCHEMA_VERSION}`)
     db.exec('COMMIT')

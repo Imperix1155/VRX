@@ -9,6 +9,7 @@ import {
   HistoryDatabase,
   platformOfAccountKey,
   toActivityEntry,
+  type ActivityPageQuery,
   type SavedActivityRow
 } from './historyDatabase'
 
@@ -388,5 +389,145 @@ describe('account keys', () => {
       worldName: null,
       at: 1_001
     })
+  })
+})
+
+describe('activity search and dates', () => {
+  const base = {
+    accounts: [{ accountKey: VRC, beforeId: null }],
+    kinds: null,
+    friends: null,
+    limit: 10
+  } satisfies ActivityPageQuery
+
+  function ids(db: HistoryDatabase, query: Partial<ActivityPageQuery> = {}): number[] {
+    return db.pageActivity({ ...base, ...query }).map((entry) => entry.id)
+  }
+
+  it('matches a name, a world, a platform, a current name and an earlier name', () => {
+    const db = database()
+    db.insertActivity(row(1, { displayName: 'Alice', worldName: 'Night Market', at: 10 }))
+    db.insertActivity(row(2, { displayName: 'Alice', kind: 'offline', at: 20 }))
+    db.insertActivity(row(3, { displayName: 'Bob', platformUserId: 'usr_b', at: 30 }))
+    db.insertActivity(
+      row(4, { accountKey: CVR, displayName: 'Cara', platformUserId: 'friend-1', at: 40 })
+    )
+    const both = [
+      { accountKey: VRC, beforeId: null },
+      { accountKey: CVR, beforeId: null }
+    ]
+    db.saveFriends(VRC, [
+      {
+        platformUserId: 'usr_a',
+        displayName: 'Robert',
+        since: 1,
+        sinceKnown: true,
+        misses: 0
+      }
+    ])
+    db.insertNameChange(VRC, 'usr_a', 'Carol', 5)
+
+    expect(ids(db, { text: 'ali' })).toEqual([2, 1])
+    expect(ids(db, { text: 'NIGHT' })).toEqual([1])
+    expect(ids(db, { text: 'robert' })).toEqual([2, 1])
+    expect(ids(db, { text: 'carol' })).toEqual([2, 1])
+    expect(ids(db, { text: 'vrchat', accounts: both })).toEqual([3, 2, 1])
+    expect(ids(db, { text: 'cvr', accounts: both })).toEqual([4])
+    expect(ids(db, { text: '%' })).toEqual([])
+    db.insertActivity(row(5, { displayName: '100%', platformUserId: 'usr_pct', at: 50 }))
+    expect(ids(db, { text: '%' })).toEqual([5])
+  })
+
+  it('includes the first and last moment, and pages inside a kind', () => {
+    const db = database()
+    for (let id = 1; id <= 5; id++) {
+      db.insertActivity(row(id, { displayName: 'Alice', kind: 'online', at: id * 100 }))
+    }
+    db.insertActivity(row(6, { displayName: 'Alice', kind: 'offline', at: 350 }))
+    db.insertActivity(
+      row(7, { displayName: 'Bob', platformUserId: 'usr_b', kind: 'online', at: 500 })
+    )
+
+    expect(ids(db, { from: 200, to: 400 })).toEqual([6, 4, 3, 2])
+    expect(ids(db, { from: 200, to: 200 })).toEqual([2])
+    expect(ids(db, { from: 201, to: 299 })).toEqual([])
+    expect(ids(db, { text: 'alice', kinds: ['online'], limit: 2 })).toEqual([5, 4])
+    expect(
+      ids(db, {
+        text: 'alice',
+        kinds: ['online'],
+        limit: 2,
+        accounts: [{ accountKey: VRC, beforeId: 4 }]
+      })
+    ).toEqual([3, 2])
+  })
+
+  it('keeps an index on activity time and uses the account time index for a date window', () => {
+    const created = database()
+    created.close()
+    const prepared = new DatabaseSync(path)
+    prepared.exec('DROP INDEX IF EXISTS activity_by_account_time')
+    prepared.exec('PRAGMA user_version = 1')
+    prepared.close()
+
+    database().close()
+    const raw = new DatabaseSync(path, { readOnly: true })
+    try {
+      expect(raw.prepare('PRAGMA user_version').get()).toEqual({
+        user_version: HISTORY_SCHEMA_VERSION
+      })
+      const names = (
+        raw
+          .prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'activity'`)
+          .all() as Array<{
+          name: string
+        }>
+      ).map((index) => index.name)
+      expect(names).toContain('activity_by_time')
+      expect(names).toContain('activity_by_account_time')
+      const plan = raw
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT id FROM activity
+           WHERE (account_key = ? OR account_key = ?) AND at >= ? AND at <= ?
+           ORDER BY id DESC LIMIT ?`
+        )
+        .all(VRC, CVR, 1, 9_000, 100) as Array<{ detail: string }>
+      expect(plan.map((step) => step.detail).join('\n')).toContain('activity_by_account_time')
+    } finally {
+      raw.close()
+    }
+  })
+
+  it('matches an instance by world, person and the moment it started', () => {
+    const db = database()
+    const lounge = db.openVisit(VRC, {
+      instanceId: 'wrld_1:1',
+      worldName: 'Night Market',
+      enteredAt: 1_000
+    })
+    const hall = db.openVisit(VRC, {
+      instanceId: 'wrld_2:1',
+      worldName: 'Quiet Hall',
+      enteredAt: 2_000
+    })
+    expect(lounge).not.toBeNull()
+    expect(hall).not.toBeNull()
+    db.encounterJoined(VRC, lounge ?? 0, {
+      platformUserId: 'usr_a',
+      displayName: 'Alice',
+      at: 1_000
+    })
+    const visits = (query: { text?: string; from?: number; to?: number }): string[] =>
+      db
+        .pageVisits({ accounts: [{ accountKey: VRC, before: null }], limit: 10, ...query })
+        .map((visit) => visit.worldName ?? '')
+
+    expect(visits({ text: 'night' })).toEqual(['Night Market'])
+    expect(visits({ text: 'alice' })).toEqual(['Night Market'])
+    expect(visits({ text: 'vrc' })).toEqual(['Quiet Hall', 'Night Market'])
+    expect(visits({ from: 2_000, to: 2_000 })).toEqual(['Quiet Hall'])
+    expect(visits({ from: 1_000, to: 1_000 })).toEqual(['Night Market'])
+    expect(visits({ from: 1_001, to: 1_999 })).toEqual([])
   })
 })

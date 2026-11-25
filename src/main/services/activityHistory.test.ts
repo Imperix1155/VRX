@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ActivityEntry, ActivityKeepFor } from '@shared/activity'
+import type { ActivityEntry, ActivityFilter, ActivityKeepFor } from '@shared/activity'
 import type { AdapterEvent, Platform, VrcFriend } from '@shared/types'
 import { ACTIVITY_MAX_ENTRIES_PER_PLATFORM, ACTIVITY_PAGE_SIZE } from '@shared/constants'
 import { ActivityFeed } from './activityFeed'
@@ -209,6 +209,66 @@ describe('ActivityHistory', () => {
     setKeepFor('30d')
     history.prune()
     expect(ids()).toEqual([3])
+  })
+
+  it('applies a search and inclusive dates together with the kind', () => {
+    const { history } = setup()
+    history.append(entry(1, { displayName: 'Alice', worldName: 'Night Market', at: 10 }))
+    history.append(
+      entry(2, { displayName: 'Bob', platformUserId: 'usr_b', kind: 'offline', at: 20 })
+    )
+    history.append(entry(3, { displayName: 'Alice', kind: 'online', at: 30 }))
+    const page = (
+      query: { text?: string; from?: number; to?: number },
+      filter: ActivityFilter = 'all'
+    ): number[] | undefined =>
+      history
+        .page(
+          { scope: [{ platform: 'vrchat', beforeId: null }], filter, ...(query ? { query } : {}) },
+          10
+        )
+        ?.map((item) => item.id)
+
+    expect(page({ text: 'night' })).toEqual([1])
+    expect(page({ text: 'alice' })).toEqual([3, 1])
+    expect(page({ text: 'alice' }, 'offline')).toEqual([])
+    expect(page({ from: 10, to: 10 })).toEqual([1])
+    expect(page({ from: 20, to: 30 })).toEqual([3, 2])
+    expect(page({ from: 11, to: 19 })).toEqual([])
+    expect(page({ text: 'vrc' })).toEqual([3, 2, 1])
+  })
+})
+
+describe('ActivityFeed while nothing is saved', () => {
+  it('filters the list in memory by name, kind and inclusive dates', () => {
+    const world = setup('session')
+    const feed = world.feed()
+    seed(feed, ['usr_a', 'usr_b'])
+    world.setNow(1_000)
+    feed.consume(presence(friend('usr_a', 'active', 'Alice')))
+    world.setNow(2_000)
+    feed.consume(presence(friend('usr_b', 'active', 'Bob')))
+    world.setNow(3_000)
+    feed.consume(presence(friend('usr_a', 'offline', 'Alice')))
+
+    const names = (
+      query: { text?: string; from?: number; to?: number },
+      filter: ActivityFilter = 'all'
+    ): string[] =>
+      feed
+        .page({
+          scope: [{ platform: 'vrchat', beforeId: null }],
+          filter,
+          query
+        })
+        .entries.map((item) => `${item.displayName}:${item.kind}`)
+
+    expect(names({ text: 'ali' })).toEqual(['Alice:offline', 'Alice:online'])
+    expect(names({ text: 'ali' }, 'offline')).toEqual(['Alice:offline'])
+    expect(names({ from: 1_000, to: 1_000 })).toEqual(['Alice:online'])
+    expect(names({ from: 3_000, to: 3_000 })).toEqual(['Alice:offline'])
+    expect(names({ from: 1_001, to: 1_999 })).toEqual([])
+    expect(world.database.maxActivityId()).toBe(0)
   })
 })
 

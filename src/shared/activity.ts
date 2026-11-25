@@ -76,6 +76,71 @@ export interface ActivityPageCursor {
   beforeId: number | null
 }
 
+/** How long a search string may be. Longer text is refused at the bridge. */
+export const ACTIVITY_SEARCH_MAX_LENGTH = 100
+
+/**
+ * A search and a date window on one page of activity or instances. Every
+ * field is optional; a blank search and no dates match everything. `from`
+ * and `to` are inclusive, in ms since the epoch.
+ */
+export interface ActivityListQuery {
+  text?: string
+  from?: number
+  to?: number
+}
+
+/** The trimmed search, or null when there is nothing to match. */
+export function activitySearchText(text: string | undefined): string | null {
+  if (text === undefined) return null
+  const trimmed = text.trim()
+  if (trimmed === '') return null
+  return trimmed.slice(0, ACTIVITY_SEARCH_MAX_LENGTH)
+}
+
+/** A `LIKE ? ESCAPE '\'` pattern that treats `%`, `_` and `\` as ordinary text. */
+export function activityLikePattern(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (character) => `\\${character}`)}%`
+}
+
+/** The words a platform search matches: the name on the pill, and its short form. */
+export function activityPlatformText(platform: Platform): string {
+  return platform === 'chilloutvr' ? 'chilloutvr cvr' : 'vrchat vrc'
+}
+
+/**
+ * Whether one entry is inside the search and the dates. `storedNames` are
+ * other names already saved for the same friend (their current name, or an
+ * earlier one). A blank search matches every name.
+ */
+export function matchesActivityListQuery(
+  entry: {
+    displayName: string
+    previousName?: string
+    worldName: string | null
+    platform: Platform
+    at: number
+  },
+  query: ActivityListQuery | undefined,
+  storedNames: readonly string[] = []
+): boolean {
+  if (query === undefined) return true
+  if (query.from !== undefined && entry.at < query.from) return false
+  if (query.to !== undefined && entry.at > query.to) return false
+  const needle = activitySearchText(query.text)?.toLowerCase()
+  if (needle === undefined) return true
+  const parts = [
+    entry.displayName,
+    entry.previousName,
+    entry.worldName,
+    activityPlatformText(entry.platform),
+    ...storedNames
+  ]
+  return parts.some(
+    (part) => part !== undefined && part !== null && part.toLowerCase().includes(needle)
+  )
+}
+
 /** Older saved activity, one page at a time. */
 export interface ActivityPageRequest {
   /** One or both platforms, each from its own place, so two platforms with
@@ -85,6 +150,8 @@ export interface ActivityPageRequest {
   filter: ActivityFilter
   /** Only these friends (one, or a linked person's two accounts). */
   friends?: ActivityFriendRef[]
+  /** Search and dates. Absent matches everything this scope and filter list. */
+  query?: ActivityListQuery
 }
 
 /**

@@ -1,8 +1,10 @@
 import { ipcMain } from 'electron'
 import {
   ACTIVITY_FILTERS,
+  ACTIVITY_SEARCH_MAX_LENGTH,
   type ActivityEntry,
   type ActivityFriendRef,
+  type ActivityListQuery,
   type ActivityPage,
   type ActivityPageCursor,
   type FriendHistoryFacts
@@ -92,6 +94,30 @@ function parseFriends(value: unknown): ActivityFriendRef[] | undefined | null {
   return friends
 }
 
+/** A search and inclusive dates. Absent matches everything. `null` is a bad request. */
+function parseListQuery(value: unknown): ActivityListQuery | undefined | null {
+  if (value === undefined) return undefined
+  if (!isPlainObject(value)) return null
+  const { text, from, to } = value
+  if (text !== undefined && typeof text !== 'string') return null
+  if (typeof text === 'string' && text.trim().length > ACTIVITY_SEARCH_MAX_LENGTH) return null
+  const lower = parseBound(from)
+  const upper = parseBound(to)
+  if (lower === null || upper === null) return null
+  const query: ActivityListQuery = {}
+  if (typeof text === 'string' && text.trim() !== '') query.text = text.trim()
+  if (lower !== undefined) query.from = lower
+  if (upper !== undefined) query.to = upper
+  return query
+}
+
+/** An inclusive moment, or absent. `null` is a bad request. */
+function parseBound(value: unknown): number | undefined | null {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'number' || !Number.isSafeInteger(value)) return null
+  return value
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const prototype: unknown = Object.getPrototypeOf(value)
@@ -119,10 +145,12 @@ export function registerActivityHandlers(
       if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
       const friends = isPlainObject(req) ? parseFriends(req.friends) : null
       const scope = isPlainObject(req) ? parseScope(req.scope) : null
+      const query = isPlainObject(req) ? parseListQuery(req.query) : null
       if (
         !isPlainObject(req) ||
         friends === null ||
         scope === null ||
+        query === null ||
         !VALID_FILTERS.has(req.filter)
       ) {
         throw new Error('Invalid get-activity-page request')
@@ -130,7 +158,11 @@ export function registerActivityHandlers(
       return activity.page({
         scope,
         filter: req.filter,
-        ...(friends === undefined ? {} : { friends })
+        ...(friends === undefined ? {} : { friends }),
+        ...(query === undefined ||
+        (query.text === undefined && query.from === undefined && query.to === undefined)
+          ? {}
+          : { query })
       })
     }
   )
@@ -159,8 +191,15 @@ export function registerActivityHandlers(
     (event, req: IpcInvoke['get-instance-visits']['req']): InstanceVisitPage => {
       if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
       const scope = isPlainObject(req) ? parseVisitScope(req.scope) : null
-      if (scope === null) throw new Error('Invalid get-instance-visits request')
-      return instanceLog.page({ scope })
+      const query = isPlainObject(req) ? parseListQuery(req.query) : null
+      if (scope === null || query === null) throw new Error('Invalid get-instance-visits request')
+      return instanceLog.page({
+        scope,
+        ...(query === undefined ||
+        (query.text === undefined && query.from === undefined && query.to === undefined)
+          ? {}
+          : { query })
+      })
     }
   )
 
