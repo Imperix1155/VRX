@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tab is gone. The readings are the same, and they update only while that
   section is open. A leftover choice of the old tab opens About.
 
+## [1.6.0-dev.3] - 2026-11-25
+
 ### Added
 
 - The sidebar Do not disturb button can be hidden in Settings → Appearance,
