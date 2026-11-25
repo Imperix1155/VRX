@@ -60,6 +60,11 @@ export interface AutoBackupOptions {
   now: () => number
   restoreHistory: (sourcePath: string) => Promise<HistoryRestoreResult>
   /**
+   * Share the history queue with a VRCX import and a manual backup or restore.
+   * Absent in tests, which run one action at a time themselves.
+   */
+  inTurn?: <T>(run: () => Promise<T>, failed: T) => Promise<T>
+  /**
    * Run before the JSON files are copied. Settings land on disk a moment
    * after the change is applied, so a backup started by that change would
    * otherwise copy the previous file.
@@ -433,16 +438,20 @@ export function createAutoBackup(options: AutoBackupOptions): AutoBackup {
         } catch {
           snap = 'failed'
         }
-        if (snap !== 'saved') {
+        if (snap === 'failed') {
           await discard(partial)
           return { outcome: 'failed', name: null }
         }
-        const checked = verifiedHistory(historyPath)
-        if (checked !== 'ok') {
-          await discard(partial)
-          return { outcome: checked, name: null }
+        // `stopped` means history is not being kept. Settings, notes and links
+        // are still copied.
+        if (snap === 'saved') {
+          const checked = verifiedHistory(historyPath)
+          if (checked !== 'ok') {
+            await discard(partial)
+            return { outcome: checked, name: null }
+          }
+          files.push(HISTORY_FILE)
         }
-        files.push(HISTORY_FILE)
       }
       for (const fileName of JSON_FILES) {
         if (await copyRegularFile(join(userData, fileName), join(partial, fileName))) {
@@ -567,7 +576,12 @@ export function createAutoBackup(options: AutoBackupOptions): AutoBackup {
     return notify
   }
 
-  const check = async (): Promise<void> => {
+  const turn = <T>(run: () => Promise<T>, failed: T): Promise<T> =>
+    options.inTurn?.(run, failed) ?? run()
+
+  const check = (): Promise<void> => turn(() => checkNow(), undefined).then(() => undefined)
+
+  const checkNow = async (): Promise<void> => {
     if (!options.settings().autoBackup) return
     if (!tryBegin()) return
     let changed: boolean
@@ -670,7 +684,10 @@ export function createAutoBackup(options: AutoBackupOptions): AutoBackup {
     return passRestore(await options.restoreHistory(join(target, HISTORY_FILE)))
   }
 
-  const restore = async (id: string): Promise<AutoBackupRestoreResult> => {
+  const restore = (id: string): Promise<AutoBackupRestoreResult> =>
+    turn(() => restoreNow(id), { ok: false, reason: 'failed' })
+
+  const restoreNow = async (id: string): Promise<AutoBackupRestoreResult> => {
     if (!isBackupId(id)) return { ok: false, reason: 'unknown' }
     if (!options.historyIsFile()) return { ok: false, reason: 'off' }
     if (!tryBegin()) return { ok: false, reason: 'failed' }

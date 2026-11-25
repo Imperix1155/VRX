@@ -9,7 +9,6 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -199,19 +198,25 @@ describe('scheduled local backups', () => {
 
   it('snapshots history through the database, not by copying the live file', async () => {
     database.insertActivity(row(1, 'Kept'))
-    const live = join(userData, HISTORY_FILE_NAME)
-    renameSync(live, `${live}.held`)
-    writeFileSync(live, 'SENTINEL-NOT-A-DATABASE')
     autoBackup = true
-    await service().check()
+    await service({
+      snapshotHistory: (dest) => {
+        const saved = realSnapshot(dest)
+        if (saved !== 'saved') return saved
+        const snap = new DatabaseSync(dest)
+        snap.prepare(`UPDATE activity SET display_name = ? WHERE id = 1`).run('FromSnapshot')
+        snap.close()
+        return 'saved'
+      }
+    }).check()
 
-    expect(readFileSync(live, 'utf8')).toBe('SENTINEL-NOT-A-DATABASE')
+    expect(liveNames()).toEqual(['Kept'])
     const copy = join(backupFolder(), backupNames()[0] ?? '', HISTORY_FILE_NAME)
     const db = new DatabaseSync(copy, { readOnly: true })
     try {
       expect(db.prepare('PRAGMA integrity_check').all()).toEqual([{ integrity_check: 'ok' }])
       expect(db.prepare('SELECT display_name FROM activity').all()).toEqual([
-        { display_name: 'Kept' }
+        { display_name: 'FromSnapshot' }
       ])
       expect(db.prepare('PRAGMA user_version').get()).toEqual({
         user_version: HISTORY_SCHEMA_VERSION
@@ -225,7 +230,18 @@ describe('scheduled local backups', () => {
     } finally {
       db.close()
     }
-    expect(readFileSync(copy).includes('SENTINEL-NOT-A-DATABASE')).toBe(false)
+  })
+
+  it('still copies settings when history is not being kept', async () => {
+    writeFileSync(join(userData, 'settings.json'), '{"kept":true}')
+    keeping = false
+    autoBackup = true
+    const backups = service()
+    await backups.check()
+    const names = readdirSync(join(backupFolder(), backupNames()[0] ?? ''))
+    expect(names).toContain('settings.json')
+    expect(names).not.toContain(HISTORY_FILE_NAME)
+    expect((await backups.status()).lastError).toBeNull()
   })
 
   it('keeps the newest copies and leaves a credential file in the folder alone', async () => {

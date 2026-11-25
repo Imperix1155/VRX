@@ -129,6 +129,7 @@ import { importVrcxHistory } from './services/vrcxHistoryImport'
 import {
   backUpHistory,
   historyBackupFileName,
+  inHistoryTurn,
   restoreHistory,
   type HistoryTransferOptions
 } from './services/historyTransfer'
@@ -878,6 +879,7 @@ app
       },
       now: () => Date.now(),
       restoreHistory: (sourcePath) => restoreHistory(historyTransfer, sourcePath),
+      inTurn: inHistoryTurn,
       beforeCopy: () => flushPendingSettingsSave(),
       log: (message) => log.info(message),
       onChanged: pushAutoBackupChanged

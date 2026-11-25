@@ -145,8 +145,9 @@ export default function AutoBackupCard(): React.JSX.Element {
     void resetting.then(
       (result) =>
         finish(() => {
-          if ('ok' in result && result.ok === false) setNotice(t('settings.autoBackup.tooMany'))
-          else setNotice('')
+          if (result.ok) setNotice('')
+          else if (result.reason === 'rate-limited') setNotice(t('settings.autoBackup.tooMany'))
+          else setNotice(t('settings.autoBackup.error.folder'))
         }),
       () => finish(() => setNotice(t('settings.autoBackup.tooMany')))
     )

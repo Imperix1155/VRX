@@ -382,11 +382,8 @@ export interface IpcInvoke {
   'get-auto-backup': { req: void; res: AutoBackupStatus }
   /** Pick a folder for those copies. Cancel leaves the stored folder as it was. */
   'choose-auto-backup-folder': { req: void; res: AutoBackupFolderResult }
-  /** Go back to VRX's own backup folder. */
-  'reset-auto-backup-folder': {
-    req: void
-    res: { usingDefaultFolder: true; folderName: 'backups' } | { ok: false; reason: 'rate-limited' }
-  }
+  /** Go back to VRX's own backup folder. A failed save leaves the old folder. */
+  'reset-auto-backup-folder': { req: void; res: AutoBackupFolderResult }
   /** Replace saved history with one scheduled copy. The id is the copy's name. */
   'restore-auto-backup': { req: { id: string }; res: AutoBackupRestoreResult }
   /** Invites and requests that arrived while VRX was open. */

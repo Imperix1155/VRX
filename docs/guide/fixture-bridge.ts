@@ -647,7 +647,7 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     chooseAutoBackupFolder: () =>
       Promise.resolve({ ok: true, usingDefaultFolder: false, folderName: 'Backups' }),
     resetAutoBackupFolder: () =>
-      Promise.resolve({ usingDefaultFolder: true, folderName: 'backups' }),
+      Promise.resolve({ ok: true, usingDefaultFolder: true, folderName: 'backups' }),
     restoreAutoBackup: () => Promise.resolve({ ok: true }),
     onAutoBackupChanged: unsubscribe,
     dismissInboxItem: ({ platform, id }) => {

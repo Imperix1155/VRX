@@ -52,14 +52,10 @@ export function registerAutoBackupHandlers(options: AutoBackupHandlerOptions): v
     })()
   })
 
-  ipcMain.handle(
-    'reset-auto-backup-folder',
-    async (event): Promise<{ usingDefaultFolder: true; folderName: 'backups' }> => {
-      if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-      await options.setDirectory(null)
-      return { usingDefaultFolder: true, folderName: 'backups' }
-    }
-  )
+  ipcMain.handle('reset-auto-backup-folder', (event): Promise<AutoBackupFolderResult> => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    return options.setDirectory(null)
+  })
 
   ipcMain.handle('restore-auto-backup', (event, req: unknown): Promise<AutoBackupRestoreResult> => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
