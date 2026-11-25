@@ -500,6 +500,7 @@
       "copied": "Report copied",
       "copyFailed": "Couldn't copy the report.",
       "unavailable": "Couldn't read performance.",
+      "refreshFailed": "Couldn't refresh. These numbers are from {{time}}.",
       "kind": {
         "browser": "Main",
         "renderer": "Renderer",

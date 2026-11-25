@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { PerformanceSnapshot } from '@shared/performance'
+import { formatReadAt, type PerformanceSnapshot } from '@shared/performance'
 import i18n from '../i18n'
 import PerformanceSettings from './PerformanceSettings'
 
@@ -93,6 +93,7 @@ describe('PerformanceSettings', () => {
     expect(report).toContain('Renderer pid 10  1.5 MB  measuring')
     expect(report).toContain('GPU pid 11  512 KB  25.0%')
     expect(report).not.toContain('0.0%')
+    expect(report).not.toContain("Couldn't refresh")
     expect(
       await screen.findByRole('button', { name: msg('settings.performance.copied') })
     ).toBeTruthy()
@@ -105,6 +106,50 @@ describe('PerformanceSettings', () => {
     })
     renderPage(() => Promise.resolve(snapshot))
     expect(await screen.findByText(/Renderer JS heap 1\.5 MB/)).toBeTruthy()
+  })
+
+  it('keeps the last numbers when a refresh fails, and the copy includes that same line', async () => {
+    const readAt = new Date('2026-11-25T15:04:05Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(readAt)
+    let calls = 0
+    const getPerformance = vi.fn(() => {
+      calls += 1
+      if (calls === 1) return Promise.resolve(snapshot)
+      return Promise.reject(new Error('unavailable'))
+    })
+    const copied: string[] = []
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          copied.push(text)
+          return Promise.resolve()
+        }
+      },
+      configurable: true
+    })
+    renderPage(getPerformance)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(screen.getByText(/Window ready 842 ms/)).toBeTruthy()
+    expect(screen.queryByText(/Couldn't refresh/)).toBeNull()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+
+    const staleLine = i18n.t('settings.performance.refreshFailed', {
+      time: formatReadAt(readAt.getTime(), i18n.language)
+    })
+    expect(calls).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText(staleLine)).toBeTruthy()
+    expect(screen.getByText(/Window ready 842 ms/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.performance.copy') }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(copied[0]).toContain(staleLine)
   })
 
   it('stops asking main after the page unmounts', async () => {

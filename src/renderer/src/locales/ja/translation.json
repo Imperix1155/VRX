@@ -497,6 +497,7 @@
       "copied": "報告をコピーしました",
       "copyFailed": "報告をコピーできませんでした。",
       "unavailable": "性能を読み取れませんでした。",
+      "refreshFailed": "更新できませんでした。表示は {{time}} の数値です。",
       "kind": {
         "browser": "メイン",
         "renderer": "レンダラー",

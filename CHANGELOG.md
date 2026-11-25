@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Settings → Performance keeps the last numbers when a refresh fails, says
+  when that reading was taken, and the copied report includes that same line.
+
 ### Added
 
 - Settings → Performance, after About. It shows VRX's memory, CPU and startup

@@ -195,12 +195,25 @@ const REPORT_SOCKET: Record<ConnectionHealth, string> = {
   down: 'Down'
 }
 
+const READ_AT: Intl.DateTimeFormatOptions = {
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit'
+}
+
+/** Clock time of a reading, in the given locale. The page and the copied line share it. */
+export function formatReadAt(epochMs: number, locale: string): string {
+  return new Intl.DateTimeFormat(locale, READ_AT).format(epochMs)
+}
+
 export function formatPerformanceReport(
   snapshot: PerformanceSnapshot,
-  rendererHeapBytes: number | null
+  rendererHeapBytes: number | null,
+  staleLine: string | null = null
 ): string {
   const lines = [
     'VRX performance',
+    ...(staleLine !== null && staleLine !== '' ? [staleLine] : []),
     `Version: ${snapshot.version}`,
     `Channel: ${snapshot.channel}`,
     `OS: ${snapshot.platform} ${snapshot.osRelease} (${snapshot.arch})`,

@@ -190,6 +190,7 @@ describe('formatPerformanceReport', () => {
     expect(report).toContain('VRChat: Live')
     expect(report).toContain('ChilloutVR: Down')
     expect(report).not.toContain('0.0%')
+    expect(report).not.toContain("Couldn't refresh")
   })
 
   it('includes a renderer heap when the page measured one', () => {
@@ -201,6 +202,18 @@ describe('formatPerformanceReport', () => {
     const report = formatPerformanceReport(sampler.sample(), 512 * 1024)
     expect(report).toContain('Working set: 512 KB')
     expect(report).toContain('Renderer JS heap: 512 KB')
+  })
+
+  it('includes the same stale line the page shows', () => {
+    const sampler = new PerformanceSampler(
+      () => [raw({ workingSetKiB: 512 })],
+      () => facts,
+      () => 1
+    )
+    const line = "Couldn't refresh. These numbers are from 3:04:05 PM."
+    const report = formatPerformanceReport(sampler.sample(), null, line)
+    expect(report).toContain(line)
+    expect(report).toContain('Working set: 512 KB')
   })
 })
 

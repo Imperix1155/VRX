@@ -7,6 +7,7 @@ import {
   formatCpuPercent,
   formatDurationMs,
   formatPerformanceReport,
+  formatReadAt,
   formatWorkingSetKiB,
   type PerformanceProcessKind,
   type PerformanceSnapshot
@@ -36,6 +37,18 @@ const PLATFORM_LABEL_KEYS: Record<Platform, string> = {
 
 type CopyState = 'idle' | 'copied' | 'failed'
 
+type HeldReading = {
+  snapshot: PerformanceSnapshot
+  readAt: number
+}
+
+/** Last good reading, and whether the latest attempt failed. Current and stale cannot be confused. */
+type PerformanceView =
+  | { status: 'pending' }
+  | { status: 'unavailable' }
+  | { status: 'current'; reading: HeldReading }
+  | { status: 'stale'; reading: HeldReading }
+
 function readRendererJsHeapBytes(): number | null {
   const memory = (performance as Performance & { memory?: { usedJSHeapSize?: unknown } }).memory
   const used = memory?.usedJSHeapSize
@@ -46,14 +59,44 @@ function startupText(label: string, ms: number | null, notYet: string): string {
   return `${label} ${ms === null ? notYet : formatDurationMs(ms)}`
 }
 
+function staleOrUnavailable(view: PerformanceView): PerformanceView {
+  if (view.status === 'current' || view.status === 'stale') {
+    return { status: 'stale', reading: view.reading }
+  }
+  return { status: 'unavailable' }
+}
+
 export default function PerformanceSettings(): React.JSX.Element {
-  const { t } = useTranslation()
-  const { data, isError } = useQuery({
+  const { t, i18n } = useTranslation()
+  const viewRef = useRef<PerformanceView>({ status: 'pending' })
+  const attempt = useRef(0)
+  const [view, setView] = useState<PerformanceView>({ status: 'pending' })
+
+  const note = (next: PerformanceView): void => {
+    viewRef.current = next
+    setView(next)
+  }
+
+  useQuery({
     queryKey: ['performance'],
-    queryFn: async (): Promise<PerformanceSnapshot> => {
+    queryFn: async (): Promise<PerformanceSnapshot | null> => {
+      const ticket = ++attempt.current
+      const finish = (next: PerformanceView): void => {
+        if (ticket === attempt.current) note(next)
+      }
       const read = window.vrx?.getPerformance
-      if (!read) throw new Error('unavailable')
-      return read()
+      if (!read) {
+        finish(staleOrUnavailable(viewRef.current))
+        throw new Error('unavailable')
+      }
+      try {
+        const snapshot = await read()
+        finish({ status: 'current', reading: { snapshot, readAt: Date.now() } })
+        return snapshot
+      } catch (error) {
+        finish(staleOrUnavailable(viewRef.current))
+        throw error
+      }
     },
     refetchInterval: PERFORMANCE_POLL_MS,
     refetchIntervalInBackground: false,
@@ -62,7 +105,16 @@ export default function PerformanceSettings(): React.JSX.Element {
     staleTime: 0,
     gcTime: 0
   })
-  const rendererHeapBytes = data === undefined ? null : readRendererJsHeapBytes()
+
+  const held = view.status === 'current' || view.status === 'stale' ? view.reading : null
+  const snapshot = held?.snapshot
+  const staleLine =
+    view.status === 'stale'
+      ? t('settings.performance.refreshFailed', {
+          time: formatReadAt(view.reading.readAt, i18n.language)
+        })
+      : null
+  const rendererHeapBytes = held === null ? null : readRendererJsHeapBytes()
   const [copyState, setCopyState] = useState<CopyState>('idle')
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mounted = useRef(true)
@@ -83,8 +135,8 @@ export default function PerformanceSettings(): React.JSX.Element {
   }
 
   function copyReport(): void {
-    if (data === undefined) return
-    const text = formatPerformanceReport(data, readRendererJsHeapBytes())
+    if (held === null) return
+    const text = formatPerformanceReport(held.snapshot, readRendererJsHeapBytes(), staleLine)
     let writing: Promise<void>
     try {
       writing = navigator.clipboard.writeText(text)
@@ -119,10 +171,15 @@ export default function PerformanceSettings(): React.JSX.Element {
           <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
             {t('settings.performance.description')}
           </p>
-          {data !== undefined ? (
+          {snapshot !== undefined ? (
             <>
+              {staleLine !== null ? (
+                <p className="mt-[var(--space-1)] text-xs text-[var(--error)]" role="status">
+                  {staleLine}
+                </p>
+              ) : null}
               <p className="mt-[var(--space-1)] text-sm font-semibold tabular-nums text-[var(--text)]">
-                {formatWorkingSetKiB(data.totalWorkingSetKiB)}
+                {formatWorkingSetKiB(snapshot.totalWorkingSetKiB)}
               </p>
               <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
                 {t('settings.performance.workingSetNote')}
@@ -130,13 +187,13 @@ export default function PerformanceSettings(): React.JSX.Element {
               <p className="mt-[var(--space-1)] text-xs tabular-nums text-[var(--text)]">
                 {startupText(
                   t('settings.performance.windowReady'),
-                  data.windowReadyMs,
+                  snapshot.windowReadyMs,
                   t('settings.performance.notYet')
                 )}
                 {' · '}
                 {startupText(
                   t('settings.performance.firstRender'),
-                  data.firstRenderMs,
+                  snapshot.firstRenderMs,
                   t('settings.performance.notYet')
                 )}
               </p>
@@ -144,18 +201,18 @@ export default function PerformanceSettings(): React.JSX.Element {
                 {t('settings.performance.startupNote')}
               </p>
               <p className="mt-[var(--space-1)] text-xs tabular-nums text-[var(--text)]">
-                {t('settings.performance.mainHeap')} {formatByteSize(data.mainHeapUsedBytes)}
+                {t('settings.performance.mainHeap')} {formatByteSize(snapshot.mainHeapUsedBytes)}
                 {rendererHeapBytes === null
                   ? ''
                   : ` · ${t('settings.performance.rendererHeap')} ${formatByteSize(rendererHeapBytes)}`}
               </p>
               <p className="mt-[var(--space-1)] text-xs text-[var(--text)]">
-                {`${t('settings.performance.sockets')}: ${t(PLATFORM_LABEL_KEYS.vrchat)} ${t(SOCKET_KEYS[data.sockets.vrchat])} · ${t(PLATFORM_LABEL_KEYS.chilloutvr)} ${t(SOCKET_KEYS[data.sockets.chilloutvr])}`}
+                {`${t('settings.performance.sockets')}: ${t(PLATFORM_LABEL_KEYS.vrchat)} ${t(SOCKET_KEYS[snapshot.sockets.vrchat])} · ${t(PLATFORM_LABEL_KEYS.chilloutvr)} ${t(SOCKET_KEYS[snapshot.sockets.chilloutvr])}`}
               </p>
             </>
           ) : (
             <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]" role="status">
-              {isError
+              {view.status === 'unavailable'
                 ? t('settings.performance.unavailable')
                 : t('settings.performance.measuring')}
             </p>
@@ -164,7 +221,7 @@ export default function PerformanceSettings(): React.JSX.Element {
         <button
           type="button"
           data-copy-state={copyState}
-          disabled={data === undefined}
+          disabled={snapshot === undefined}
           onClick={copyReport}
           className={[
             'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
@@ -182,16 +239,16 @@ export default function PerformanceSettings(): React.JSX.Element {
         </span>
       </div>
 
-      {data !== undefined ? (
+      {snapshot !== undefined ? (
         <div className="setting-card">
           <p className="text-sm font-medium text-[var(--text)]">
             {t('settings.performance.processes')}
           </p>
           <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-            {data.cpuIntervalMs === null
+            {snapshot.cpuIntervalMs === null
               ? t('settings.performance.cpuNote')
               : t('settings.performance.cpuInterval', {
-                  seconds: (data.cpuIntervalMs / 1000).toFixed(1)
+                  seconds: (snapshot.cpuIntervalMs / 1000).toFixed(1)
                 })}
           </p>
           <table className="mt-[var(--space-2)] w-full text-xs">
@@ -210,7 +267,7 @@ export default function PerformanceSettings(): React.JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {data.processes.map((entry) => (
+              {snapshot.processes.map((entry) => (
                 <tr key={entry.pid} className="text-[var(--text)]">
                   <th scope="row" className="py-[2px] text-left font-medium">
                     {t(KIND_LABEL_KEYS[entry.kind])}
