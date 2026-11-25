@@ -68,7 +68,8 @@ through `@shared`.
   it during a downgrade. Keep the full migration chain.
 - Settings rules that must survive future changes: alerts, `autoUpdate`,
   `vrOverlayAlerts`, `doNotDisturb` (`off`), `doNotDisturbEndOnGameStart`,
-  `doNotDisturbFollowStatus` and `autoBackup` default off. `autoBackupInterval`
+  `doNotDisturbFollowStatus` and `autoBackup` default off. `showSidebarDoNotDisturb`
+  defaults on and only hides the sidebar button. `autoBackupInterval`
   is `daily` and `autoBackupKeep` is 5. `updateChannel` is `stable`, `beta` or `dev`
   (anything else is `stable`). `confirmJoin` and `joinMode` keep their values
   while `allowJoinInstances` is off. Dashboard section switches and the page

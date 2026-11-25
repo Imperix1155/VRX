@@ -109,13 +109,24 @@ export function doNotDisturbAfterGames(input: {
   return { action: 'keep', seen: new Set(input.running) }
 }
 
-/** Skip both alert sinks together. The test button does not use this. */
+/**
+ * Skip both alert sinks together. The test button does not use this.
+ * Returns whether the alert was delivered. A false `allowed` drops it before
+ * the mute, so a bypass cannot revive a type the friend or the global switch
+ * turned off. A mute still delivers when `bypassesMute` is true.
+ */
 export function gateAlert<T>(options: {
   muted: () => boolean
+  /** False drops the alert. Omitted allows it. */
+  allowed?: (alert: T) => boolean
+  /** While muted, still deliver when this is true. Omitted never bypasses. */
+  bypassesMute?: (alert: T) => boolean
   deliver: (alert: T) => void
-}): (alert: T) => void {
+}): (alert: T) => boolean {
   return (alert) => {
-    if (options.muted()) return
+    if (options.allowed?.(alert) === false) return false
+    if (options.muted() && options.bypassesMute?.(alert) !== true) return false
     options.deliver(alert)
+    return true
   }
 }

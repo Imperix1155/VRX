@@ -66,6 +66,8 @@
  *                            default off, v22)
  *   doNotDisturb, doNotDisturbUntil, doNotDisturbEndOnGameStart,
  *   doNotDisturbFollowStatus → mute every alert (owner, 2026-11-25; default off, v33)
+ *   showSidebarDoNotDisturb → the sidebar mute button (owner, 2026-11-25; default shown, v34).
+ *                            Hiding it changes no mute.
  *   backgroundPictureFade  → how much the user's own background picture fades (owner, 2026-10-26)
  *   saveNotesToAccounts    → friend notes also go to the user's own account, as in VRCX and
  *                            CVRX (owner, 2026-11-01; default on, v24)
@@ -118,7 +120,7 @@ import { DO_NOT_DISTURB_CHOICES } from './doNotDisturb'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 33 as const
+export const SETTINGS_VERSION = 34 as const
 
 const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -236,6 +238,8 @@ const SettingsSchema = z.object({
   /** Also mute while the signed-in VRChat status is Ask Me or Do Not Disturb.
    *  Read only. ChilloutVR has no status, so it never mutes through this. */
   doNotDisturbFollowStatus: z.boolean().catch(false),
+  /** The sidebar mute button. Off only hides it. Do not disturb itself is unchanged. */
+  showSidebarDoNotDisturb: z.boolean().catch(true),
   /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default;
    *  `off` hides the glow (owner, 2026-10-26). */
   backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard'),
@@ -402,7 +406,10 @@ const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   31: (prev) => ({ ...prev }),
   // v32 → v33: Do not disturb is additive. The version boundary stops an
   // older build from stripping a mute that is still on.
-  32: (prev) => ({ ...prev })
+  32: (prev) => ({ ...prev }),
+  // v33 → v34: `showSidebarDoNotDisturb` is additive. The version boundary
+  // stops an older build from stripping a user's Off and showing the button again.
+  33: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

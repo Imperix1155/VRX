@@ -72,6 +72,7 @@ describe('settings schema', () => {
       doNotDisturbUntil: null,
       doNotDisturbEndOnGameStart: false,
       doNotDisturbFollowStatus: false,
+      showSidebarDoNotDisturb: true,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
@@ -254,6 +255,9 @@ describe('settings schema', () => {
     expect(parseSettings({}).doNotDisturbFollowStatus).toBe(false)
     expect(parseSettings({ doNotDisturb: 'forever' }).doNotDisturb).toBe('off')
     expect(parseSettings({ doNotDisturbUntil: 'later' }).doNotDisturbUntil).toBeNull()
+    expect(parseSettings({}).showSidebarDoNotDisturb).toBe(true)
+    expect(parseSettings({ showSidebarDoNotDisturb: false }).showSidebarDoNotDisturb).toBe(false)
+    expect(parseSettings({ showSidebarDoNotDisturb: 'no' }).showSidebarDoNotDisturb).toBe(true)
     const until = 1_700_000_000_000
     expect(
       parseSettings({
@@ -268,7 +272,23 @@ describe('settings schema', () => {
       doNotDisturb: 'until-off',
       doNotDisturbUntil: until,
       doNotDisturbEndOnGameStart: true,
-      doNotDisturbFollowStatus: true
+      doNotDisturbFollowStatus: true,
+      showSidebarDoNotDisturb: true
+    })
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 34,
+      doNotDisturb: '1h',
+      doNotDisturbUntil: until,
+      showSidebarDoNotDisturb: false
+    }
+    const oldNormalized = { ...disk, version: 33 }
+    Reflect.deleteProperty(oldNormalized, 'showSidebarDoNotDisturb')
+    if (shouldPersistSettings(disk, 33)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({
+      doNotDisturb: '1h',
+      doNotDisturbUntil: until,
+      showSidebarDoNotDisturb: false
     })
   })
 
@@ -372,6 +392,7 @@ describe('migration runner', () => {
       doNotDisturbUntil: null,
       doNotDisturbEndOnGameStart: false,
       doNotDisturbFollowStatus: false,
+      showSidebarDoNotDisturb: true,
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -445,6 +466,7 @@ describe('migration runner', () => {
       doNotDisturbUntil: null,
       doNotDisturbEndOnGameStart: false,
       doNotDisturbFollowStatus: false,
+      showSidebarDoNotDisturb: true,
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -519,6 +541,7 @@ describe('migration runner', () => {
       doNotDisturbUntil: null,
       doNotDisturbEndOnGameStart: false,
       doNotDisturbFollowStatus: false,
+      showSidebarDoNotDisturb: true,
       setupPending: false,
       backgroundPictureFade: 'medium',
       friendAlertScope: 'everyone',
@@ -595,6 +618,7 @@ describe('migration runner', () => {
       doNotDisturbUntil: null,
       doNotDisturbEndOnGameStart: false,
       doNotDisturbFollowStatus: false,
+      showSidebarDoNotDisturb: true,
       setupPending: false,
       drawerOpener: 'card',
       confirmJoin: true,
@@ -669,6 +693,7 @@ describe('migration runner', () => {
       doNotDisturbUntil: null,
       doNotDisturbEndOnGameStart: false,
       doNotDisturbFollowStatus: false,
+      showSidebarDoNotDisturb: true,
       setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
@@ -744,6 +769,7 @@ describe('migration runner', () => {
       doNotDisturbUntil: null,
       doNotDisturbEndOnGameStart: false,
       doNotDisturbFollowStatus: false,
+      showSidebarDoNotDisturb: true,
       setupPending: false,
       joinOpenGame: true,
       vrchatOpenGameJoin: 'go',
@@ -1400,6 +1426,7 @@ describe('Optional pages and first-run setup', () => {
       doNotDisturbUntil: null,
       doNotDisturbEndOnGameStart: false,
       doNotDisturbFollowStatus: false,
+      showSidebarDoNotDisturb: true,
       setupPending: false
     })
     expect(shouldPersistSettings({ version: 13, showExplorePage: false }, 12)).toBe(false)

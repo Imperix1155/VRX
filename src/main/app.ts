@@ -115,13 +115,12 @@ import { createFriendRosterReader } from './services/friendRoster'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import {
   createFriendNotificationNotifier,
-  type NativeAlert,
+  createShowAlert,
   isFriendAlertEnabled,
   isFriendAlertIncluded,
   isInboxAlertEnabled
 } from './friendNotifications'
 import { createVrOverlayAlerts } from './vrOverlayAlerts'
-import { alertsMuted, gateAlert } from '@shared/doNotDisturb'
 import { DoNotDisturbGameWatch } from './doNotDisturbWatch'
 import { OwnAlertStatus } from './ownAlertStatus'
 import { wireAdapterEvents } from './adapterWiring'
@@ -726,19 +725,13 @@ app
       },
       logFailure: () => log.warn('VR alert failed')
     })
-    const showAlert = gateAlert<NativeAlert>({
-      // One gate for desktop notifications and XSOverlay. The Settings test
-      // button calls vrOverlayAlerts.test and stays available.
-      muted: () => {
-        const settings = getSettingsSnapshot()
-        return alertsMuted({
-          doNotDisturb: settings.doNotDisturb,
-          doNotDisturbUntil: settings.doNotDisturbUntil,
-          doNotDisturbFollowStatus: settings.doNotDisturbFollowStatus,
-          ownStatus: ownAlertStatus.current(),
-          now: Date.now()
-        })
-      },
+    // One gate for desktop notifications and XSOverlay. The Settings test
+    // button calls vrOverlayAlerts.test and stays available.
+    const showAlert = createShowAlert({
+      getSettings: getSettingsSnapshot,
+      ownStatus: () => ownAlertStatus.current(),
+      now: () => Date.now(),
+      picks: alertPicks,
       deliver: (alert) => {
         showFriendAlert(alert)
         vrOverlayAlerts.notify(alert)

@@ -161,6 +161,7 @@ const vrx = {
   syncFriendNote: (req: IpcInvoke['sync-friend-note']['req']) => invoke('sync-friend-note', req),
   getAlertPicks: (req: IpcInvoke['get-alert-picks']['req']) => invoke('get-alert-picks', req),
   setAlertPick: (req: IpcInvoke['set-alert-pick']['req']) => invoke('set-alert-pick', req),
+  setFriendAlert: (req: IpcInvoke['set-friend-alert']['req']) => invoke('set-friend-alert', req),
   getFavoriteFriends: (req: IpcInvoke['get-favorite-friends']['req']) =>
     invoke('get-favorite-friends', req),
   setFavoriteFriend: (req: IpcInvoke['set-favorite-friend']['req']) =>

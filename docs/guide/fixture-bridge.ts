@@ -729,6 +729,8 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     getAlertPicks: ({ platform }) =>
       Promise.resolve({
         friendIds: [...alertPicks[platform]],
+        bypassFriendIds: [],
+        optOuts: {},
         revision: { platformAccountId: fixtureAuth(platform).accountId ?? '', epoch: 1 }
       }),
     setAlertPick: ({ platform, friendIds, picked }) => {
@@ -738,6 +740,7 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       }
       return Promise.resolve({ ok: true })
     },
+    setFriendAlert: () => Promise.resolve({ ok: true }),
     getFavoriteFriends: ({ platform }) =>
       Promise.resolve({
         friendIds: [...favoriteFriends[platform]],

@@ -33,7 +33,7 @@ describe('FriendAlertPicks', () => {
   })
 
   it('has no picks and no revision while signed out, and refuses a write', () => {
-    expect(picks.list('vrchat')).toEqual({ friendIds: [] })
+    expect(picks.list('vrchat')).toEqual({ friendIds: [], bypassFriendIds: [], optOuts: {} })
     expect(picks.isPicked('vrchat', 'usr_a')).toBe(false)
     expect(picks.set('vrchat', ['usr_a'], true, { platformAccountId: 'usr_me', epoch: 1 })).toEqual(
       {
@@ -68,7 +68,7 @@ describe('FriendAlertPicks', () => {
 
     accountSession.setIdentity('vrchat', 'usr_other')
     expect(picks.isPicked('vrchat', 'usr_a')).toBe(false)
-    expect(picks.list('vrchat').friendIds).toEqual([])
+    expect(picks.list('vrchat')).toMatchObject({ friendIds: [], bypassFriendIds: [], optOuts: {} })
 
     accountSession.setIdentity('vrchat', 'usr_me')
     expect(picks.isPicked('vrchat', 'usr_a')).toBe(true)
@@ -152,6 +152,51 @@ describe('FriendAlertPicks', () => {
       reason: 'invalid'
     })
     expect(storage.writes).toBe(0)
+  })
+
+  it('keeps an older file alerting every type, and remembers a type and a bypass', () => {
+    accountSession.setIdentity('vrchat', 'usr_me')
+    storage.value = {
+      storeFormatVersion: 1,
+      accounts: {
+        'vrchat:usr_me': {
+          socialPrefs: {
+            schemaVersion: 1,
+            platform: 'vrchat',
+            platformAccountId: 'usr_me',
+            data: { followedFriendIds: ['usr_a'] }
+          }
+        }
+      }
+    }
+    const loaded = new FriendAlertPicks(accountSession, new SocialStore(accountSession, storage))
+    expect(loaded.isTypeEnabled('vrchat', 'usr_a', 'online')).toBe(true)
+    expect(loaded.isTypeEnabled('vrchat', 'usr_a', 'in-game')).toBe(true)
+    expect(loaded.isTypeEnabled('vrchat', 'usr_a', 'offline')).toBe(true)
+    expect(loaded.bypassesDoNotDisturb('vrchat', 'usr_a')).toBe(false)
+    expect(loaded.isPicked('vrchat', 'usr_a')).toBe(true)
+
+    const revision = loaded.list('vrchat').revision
+    expect(
+      loaded.setFriendAlert(
+        'vrchat',
+        ['usr_a'],
+        { kind: 'type', type: 'offline', enabled: false },
+        revision
+      )
+    ).toEqual({ ok: true })
+    expect(
+      loaded.setFriendAlert('vrchat', ['usr_b'], { kind: 'bypass', enabled: true }, revision)
+    ).toEqual({ ok: true })
+    expect(loaded.isTypeEnabled('vrchat', 'usr_a', 'offline')).toBe(false)
+    expect(loaded.isTypeEnabled('vrchat', 'usr_a', 'online')).toBe(true)
+    expect(loaded.bypassesDoNotDisturb('vrchat', 'usr_b')).toBe(true)
+    expect(loaded.isPicked('vrchat', 'usr_a')).toBe(true)
+
+    const restarted = new FriendAlertPicks(accountSession, new SocialStore(accountSession, storage))
+    expect(restarted.isTypeEnabled('vrchat', 'usr_a', 'offline')).toBe(false)
+    expect(restarted.bypassesDoNotDisturb('vrchat', 'usr_b')).toBe(true)
+    expect(restarted.list('vrchat').friendIds).toEqual(['usr_a'])
   })
 
   it('writes several picks in one save', () => {

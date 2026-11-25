@@ -62,6 +62,8 @@ const perFriendOptOutsSchema = cappedRecordSchema(
   z.array(alertTypeSchema).max(alertTypeSchema.options.length),
   PER_FRIEND_OPT_OUTS_MAX
 )
+/** Friends whose alerts still go out during Do not disturb. Missing means none. */
+const doNotDisturbBypassSchema = cappedRecordSchema(z.literal(true), FAVORITES_MAX)
 
 export type FavoritesData = Record<string, true>
 export interface FavoriteWorldRecord {
@@ -85,6 +87,8 @@ export type PerFriendOptOutsData = Record<
   string,
   Array<'online' | 'in-game' | 'offline' | 'hot-instance'>
 >
+/** Friend id → true. An id that is absent does not bypass Do not disturb. */
+export type DoNotDisturbBypassData = Record<string, true>
 
 export interface BoundedHistoryRing<T> {
   capacity: typeof HISTORY_RING_CAPACITY
@@ -99,6 +103,7 @@ export interface SocialNamespaceDataMap {
   tags: TagsData
   socialPrefs: SocialPrefsData
   perFriendOptOuts: PerFriendOptOutsData
+  doNotDisturbBypass: DoNotDisturbBypassData
   instanceHistory: BoundedHistoryRing<Record<string, unknown>>
   activityHistory: BoundedHistoryRing<Record<string, unknown>>
 }
@@ -134,7 +139,8 @@ const namespaceSchemas: Record<SmallSocialNamespace, z.ZodType> = {
   noteSync: noteSyncSchema,
   tags: tagsSchema,
   socialPrefs: socialPrefsSchema,
-  perFriendOptOuts: perFriendOptOutsSchema
+  perFriendOptOuts: perFriendOptOutsSchema,
+  doNotDisturbBypass: doNotDisturbBypassSchema
 }
 
 function createEnvelopeSchema<T extends z.ZodType>(
@@ -160,7 +166,8 @@ const envelopeSchemas = {
   noteSync: createEnvelopeSchema(noteSyncSchema),
   tags: createEnvelopeSchema(tagsSchema),
   socialPrefs: createEnvelopeSchema(socialPrefsSchema),
-  perFriendOptOuts: createEnvelopeSchema(perFriendOptOutsSchema)
+  perFriendOptOuts: createEnvelopeSchema(perFriendOptOutsSchema),
+  doNotDisturbBypass: createEnvelopeSchema(doNotDisturbBypassSchema)
 } satisfies Record<SmallSocialNamespace, z.ZodType>
 
 const rootSchema = z

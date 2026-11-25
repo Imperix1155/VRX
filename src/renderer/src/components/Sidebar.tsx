@@ -162,6 +162,7 @@ export default function Sidebar(): React.JSX.Element {
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
   const showSearchPage = useSettingsStore((s) => s.settings.showSearchPage)
   const showGroupsPage = useSettingsStore((s) => s.settings.showGroupsPage)
+  const showSidebarDoNotDisturb = useSettingsStore((s) => s.settings.showSidebarDoNotDisturb)
   const sidebarOrder = useSettingsStore((s) => s.settings.sidebarOrder)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   const movablePages = sidebarOrder.filter((id) =>
@@ -309,7 +310,7 @@ export default function Sidebar(): React.JSX.Element {
         <ReorderMenu point={menu.point} onClose={menu.close} />
       </nav>
 
-      {reorder.on ? null : <SidebarDoNotDisturb />}
+      {reorder.on || !showSidebarDoNotDisturb ? null : <SidebarDoNotDisturb />}
 
       <p aria-live="polite" className="sr-only">
         {announcement}

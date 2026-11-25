@@ -23,4 +23,12 @@ export function registerAlertPicksHandlers(picks: FriendAlertPicks): void {
     }
     return picks.set(req.platform, req.friendIds, req.picked, req.revision)
   })
+
+  ipcMain.handle('set-friend-alert', (event, req: IpcInvoke['set-friend-alert']['req']) => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    if (!req || !VALID_PLATFORMS.has(req.platform)) {
+      throw new Error('Invalid set-friend-alert request')
+    }
+    return picks.setFriendAlert(req.platform, req.friendIds, req, req.revision)
+  })
 }
