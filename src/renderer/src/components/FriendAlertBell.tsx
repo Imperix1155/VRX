@@ -3,7 +3,7 @@ import { QueryClientContext } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { Friend } from '@shared/types'
 import type { Platform } from '@shared/types'
-import { useAlertPicks, useSetFriendAlert } from '../queries/alertPicks'
+import { useAlertPicks, useSetFriendAlert, type FriendAlertChange } from '../queries/alertPicks'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import AlertPickRow from './AlertPickRow'
@@ -127,9 +127,13 @@ function WithPicks(view: ViewProps): React.JSX.Element {
   const vrchat = useAlertPicks('vrchat')
   const chilloutvr = useAlertPicks('chilloutvr')
   const setFriendAlert = useSetFriendAlert()
-  const [failure, setFailure] = useState<string | null>(null)
+  const [failure, setFailure] = useState<{ owner: string; key: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const picks = { vrchat, chilloutvr }
+  const owner = view.accounts
+    .map((account) => `${account.platform}:${account.platformUserId}`)
+    .join('|')
+  const shownFailure = failure?.owner === owner ? failure.key : null
   const picked = view.accounts.some((account) =>
     picks[account.platform].picked.has(account.platformUserId)
   )
@@ -143,11 +147,8 @@ function WithPicks(view: ViewProps): React.JSX.Element {
     picks[account.platform].bypass.has(account.platformUserId)
   )
 
-  const save = async (
-    change:
-      | { kind: 'type'; type: FriendAlertKind; enabled: boolean }
-      | { kind: 'bypass'; enabled: boolean }
-  ): Promise<void> => {
+  const save = async (change: FriendAlertChange): Promise<void> => {
+    const savedFor = owner
     setFailure(null)
     setSaving(true)
     let reason: string | null = null
@@ -159,8 +160,12 @@ function WithPicks(view: ViewProps): React.JSX.Element {
       reason ??= await setFriendAlert(platform, picks[platform].accountId, ids, change)
     }
     setSaving(false)
-    if (reason !== null)
-      setFailure(reason === 'full' ? 'drawer.alerts.full' : 'drawer.alerts.saveFailed')
+    if (reason !== null) {
+      setFailure({
+        owner: savedFor,
+        key: reason === 'full' ? 'drawer.alerts.full' : 'drawer.alerts.saveFailed'
+      })
+    }
   }
 
   return (
@@ -171,7 +176,7 @@ function WithPicks(view: ViewProps): React.JSX.Element {
       bypassOn={bypassOn}
       writable={writable}
       saving={saving}
-      failure={failure}
+      failure={shownFailure}
       onType={(type, enabled) => void save({ kind: 'type', type, enabled })}
       onBypass={(enabled) => void save({ kind: 'bypass', enabled })}
     />

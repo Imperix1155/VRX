@@ -16,6 +16,7 @@ import { friendsQueryKey } from '../queries/friends'
 import SettingsView from './SettingsView'
 import AlertPickRow from './AlertPickRow'
 import FriendDrawer from './FriendDrawer'
+import FriendAlertBell from './FriendAlertBell'
 
 vi.stubGlobal(
   'ResizeObserver',
@@ -473,6 +474,38 @@ describe('FriendDrawer alerts bell', () => {
         })
       )
     )
+  })
+
+  it('keeps a failed save on the friend it belongs to', async () => {
+    const setFriendAlert = vi.fn(async () => ({ ok: false as const, reason: 'stale' as const }))
+    Object.assign(window.vrx ?? {}, { setFriendAlert })
+    withScope('everyone')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const panel = (id: string, name: string): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <FriendAlertBell
+          accounts={[friend('vrchat', id, name)]}
+          name={name}
+          drawerOpen
+          onLeave={() => undefined}
+        />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(panel('usr_alex', 'Alex'))
+    fireEvent.click(bell('bellOn', 'Alex'))
+    const online = screen.getByRole('checkbox', {
+      name: msg('drawer.alerts.kinds.aria', {
+        kind: msg('drawer.alerts.kinds.online'),
+        name: 'Alex'
+      })
+    })
+    await waitFor(() => expect(online.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(online)
+    await screen.findByText(msg('drawer.alerts.saveFailed'))
+
+    rerender(panel('usr_bea', 'Bea'))
+    fireEvent.click(bell('bellOn', 'Bea'))
+    expect(screen.queryByText(msg('drawer.alerts.saveFailed'))).toBeNull()
   })
 
   it('folds on Esc without closing the drawer, then Esc closes the drawer', () => {

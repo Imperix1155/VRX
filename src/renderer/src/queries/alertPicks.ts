@@ -104,9 +104,13 @@ function withPicks(
   return { ...kept(current), friendIds: [...ids] }
 }
 
-type FriendAlertChange =
-  | { kind: 'type'; type: 'online' | 'in-game' | 'offline'; enabled: boolean }
-  | { kind: 'bypass'; enabled: boolean }
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
+/** The change fields of `set-friend-alert`, taken from the shared request. */
+export type FriendAlertChange = DistributiveOmit<
+  IpcInvoke['set-friend-alert']['req'],
+  'platform' | 'friendIds' | 'revision'
+>
 
 function withFriendAlert(
   current: AlertPicks | undefined,
