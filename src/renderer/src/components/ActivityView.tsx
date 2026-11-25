@@ -312,7 +312,12 @@ export default function ActivityView(): React.JSX.Element {
           listQuery.text ?? '',
           listQuery.from ?? '',
           listQuery.to ?? '',
-          live?.[0]?.id ?? '',
+          // The choice main has applied. A shorter one deletes rows, so the
+          // filtered pages read again only after that answer, as the unfiltered
+          // list does. `dataUpdatedAt` also moves when a world name fills in
+          // on an entry that already has an id.
+          keptFor,
+          activity.dataUpdatedAt,
           restarts
         ].join('|')
       : [

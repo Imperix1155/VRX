@@ -745,6 +745,36 @@ describe('ActivityView', () => {
     ).toBe('true')
   })
 
+  it('reads a filtered page again after Kept is applied and after a world name fills in', async () => {
+    getActivityPage.mockResolvedValue({ entries: [], hasMore: false })
+    renderView()
+    fireEvent.change(screen.getByRole('textbox', { name: msg('activity.search.aria') }), {
+      target: { value: 'Aurora' }
+    })
+    await waitFor(() => expect(getActivityPage).toHaveBeenCalled())
+    const beforeKeep = getActivityPage.mock.calls.length
+
+    act(() => useSettingsStore.getState().updateSettings({ activityKeepFor: '30d' }))
+    expect(getActivityPage.mock.calls.length).toBe(beforeKeep)
+
+    act(() => useSettingsStore.getState().markSaved())
+    await waitFor(() => expect(getActivityPage.mock.calls.length).toBeGreaterThan(beforeKeep))
+
+    const beforeName = getActivityPage.mock.calls.length
+    const named = entries.map((entry) =>
+      entry.id === entries[1]!.id ? { ...entry, worldName: 'Aurora Transit' } : entry
+    )
+    getActivityPage.mockResolvedValue({
+      entries: [named.find((entry) => entry.worldName === 'Aurora Transit')!],
+      hasMore: false
+    })
+    act(() => {
+      client.setQueryData(activityKey, named)
+    })
+    await waitFor(() => expect(getActivityPage.mock.calls.length).toBeGreaterThan(beforeName))
+    expect(screen.getByText(msg('activity.joined', { world: 'Aurora Transit' }))).toBeTruthy()
+  })
+
   it('asks to connect a single filtered platform that is signed out', () => {
     authState.value = 'unauthenticated'
     useFriendsStore.setState({ platformFilter: 'vrchat' })

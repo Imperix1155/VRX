@@ -341,36 +341,42 @@ export class HistoryDatabase {
         const needle = activitySearchText(query.text ?? undefined)
         if (needle !== null) {
           const pattern = activityLikePattern(needle)
-          // The platform words are the pill ("VRChat", "ChilloutVR") and the short form.
+          const accountKeys = [...new Set(query.accounts.map((account) => account.accountKey))]
+          const accountList = accountKeys.map(() => '?').join(', ')
+          // Names are gathered once. A match on any saved name then includes
+          // every row for that friend, without scanning those rows per candidate.
           where.push(`(
-            display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
-            OR IFNULL(previous_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
-            OR IFNULL(world_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+            IFNULL(world_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
             OR (CASE WHEN account_key LIKE 'chilloutvr:%' THEN 'chilloutvr cvr' ELSE 'vrchat vrc' END)
               LIKE ? ESCAPE '\\' COLLATE NOCASE
-            OR EXISTS (
-              SELECT 1 FROM friend_roster AS roster
-              WHERE roster.account_key = activity.account_key
-                AND roster.user_id = activity.user_id
-                AND roster.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
-            )
-            OR EXISTS (
-              SELECT 1 FROM friend_names AS earlier
-              WHERE earlier.account_key = activity.account_key
-                AND earlier.user_id = activity.user_id
-                AND earlier.previous_name LIKE ? ESCAPE '\\' COLLATE NOCASE
-            )
-            OR EXISTS (
-              SELECT 1 FROM activity AS named
-              WHERE named.account_key = activity.account_key
-                AND named.user_id = activity.user_id
+            OR (account_key, user_id) IN (
+              SELECT named.account_key, named.user_id FROM activity AS named
+              WHERE named.account_key IN (${accountList})
                 AND (
                   named.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
                   OR IFNULL(named.previous_name, '') LIKE ? ESCAPE '\\' COLLATE NOCASE
                 )
+              UNION
+              SELECT roster.account_key, roster.user_id FROM friend_roster AS roster
+              WHERE roster.account_key IN (${accountList})
+                AND roster.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+              UNION
+              SELECT earlier.account_key, earlier.user_id FROM friend_names AS earlier
+              WHERE earlier.account_key IN (${accountList})
+                AND earlier.previous_name LIKE ? ESCAPE '\\' COLLATE NOCASE
             )
           )`)
-          params.push(pattern, pattern, pattern, pattern, pattern, pattern, pattern, pattern)
+          params.push(
+            pattern,
+            pattern,
+            ...accountKeys,
+            pattern,
+            pattern,
+            ...accountKeys,
+            pattern,
+            ...accountKeys,
+            pattern
+          )
         }
         if (typeof query.from === 'number') {
           where.push('at >= ?')
