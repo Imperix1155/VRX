@@ -7,6 +7,7 @@ import type { IPlatformAdapter, RosterCompleteness } from '../services/adapters/
 import { registerAccountsHandlers } from './accounts'
 import { registerActivityHandlers } from './activity'
 import { registerAppStatusHandlers } from './app-status'
+import { registerPerformanceHandlers } from './performance'
 import { registerAuthHandlers } from './auth'
 import { registerAvatarHandlers } from './avatar'
 import { registerAppBackgroundHandlers, type AppBackgroundHandlerOptions } from './app-background'
@@ -222,6 +223,7 @@ export function registerIpcHandlers(
     registerOwnProfileHandlers(options.ownProfile)
     registerSocialHandlers(options.social)
     registerAppStatusHandlers(options.appStatus)
+    registerPerformanceHandlers(options.appStatus)
     registerLoginItemHandlers(options.loginItem)
     registerActivityHandlers(options.activity, options.friendLog, options.instanceLog)
     registerLaunchHandlers()

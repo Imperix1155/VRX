@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Performance, after About. It shows VRX's memory, CPU and startup
+  time, measured on this computer, and only while that page is open. Copy
+  report puts a text snapshot on the clipboard. Nothing is sent.
+
 ### Fixed
 
 - A settings save that did not stick no longer makes the next Kept choice

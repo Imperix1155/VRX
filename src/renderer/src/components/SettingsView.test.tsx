@@ -109,14 +109,15 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
   })
 
-  it('the category list reads appearance/dashboard/behavior/notifications/accounts/about', () => {
+  it('the category list reads appearance/dashboard/behavior/notifications/accounts/about/performance', () => {
     expect([...SETTINGS_CATEGORIES]).toEqual([
       'appearance',
       'dashboard',
       'behavior',
       'notifications',
       'accounts',
-      'about'
+      'about',
+      'performance'
     ])
   })
 
