@@ -737,7 +737,7 @@ describe('ActivityView', () => {
         query: bounds
       })
     )
-    expect(screen.getByText(msg('activity.noMatches'))).toBeTruthy()
+    await waitFor(() => expect(screen.getByText(msg('activity.noMatches'))).toBeTruthy())
     expect(
       screen
         .getByRole<HTMLButtonElement>('button', { name: msg('activity.clearFiltered') })
