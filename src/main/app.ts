@@ -869,6 +869,7 @@ app
       },
       now: () => Date.now(),
       restoreHistory: (sourcePath) => restoreHistory(historyTransfer, sourcePath),
+      beforeCopy: () => flushPendingSettingsSave(),
       log: (message) => log.info(message),
       onChanged: pushAutoBackupChanged
     })

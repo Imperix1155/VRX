@@ -59,6 +59,12 @@ export interface AutoBackupOptions {
   }
   now: () => number
   restoreHistory: (sourcePath: string) => Promise<HistoryRestoreResult>
+  /**
+   * Run before the JSON files are copied. Settings land on disk a moment
+   * after the change is applied, so a backup started by that change would
+   * otherwise copy the previous file.
+   */
+  beforeCopy?: () => void
   /** A fixed sentence. Never a path, a name, a row, or file bytes. */
   log: (message: string) => void
   /** Fired when a window should read status again. */
@@ -88,6 +94,12 @@ interface ListedCopy {
 
 type CopyPrefix = 'vrx-backup' | 'vrx-safety'
 type CopyOutcome = 'saved' | 'failed' | 'integrity'
+
+interface WrittenCopy {
+  outcome: CopyOutcome
+  /** The finished directory name. Set only when `outcome` is `saved`. */
+  name: string | null
+}
 
 function emptyState(): BackupState {
   return { directory: null, lastError: null, lastErrorAt: null }
@@ -404,12 +416,14 @@ export function createAutoBackup(options: AutoBackupOptions): AutoBackup {
     folder: string,
     userData: string,
     prefix: CopyPrefix
-  ): Promise<CopyOutcome> => {
+  ): Promise<WrittenCopy> => {
     const createdAt = options.now()
-    const partial = join(folder, `${prefix}-${formatStamp(createdAt)}.partial`)
+    const name = `${prefix}-${formatStamp(createdAt)}`
+    const partial = join(folder, `${name}.partial`)
     await discard(partial)
     try {
       await mkdir(partial)
+      options.beforeCopy?.()
       const files: string[] = []
       if (options.historyIsFile()) {
         const historyPath = join(partial, HISTORY_FILE)
@@ -421,24 +435,26 @@ export function createAutoBackup(options: AutoBackupOptions): AutoBackup {
         }
         if (snap !== 'saved') {
           await discard(partial)
-          return 'failed'
+          return { outcome: 'failed', name: null }
         }
         const checked = verifiedHistory(historyPath)
         if (checked !== 'ok') {
           await discard(partial)
-          return checked
+          return { outcome: checked, name: null }
         }
         files.push(HISTORY_FILE)
       }
-      for (const name of JSON_FILES) {
-        if (await copyRegularFile(join(userData, name), join(partial, name))) files.push(name)
+      for (const fileName of JSON_FILES) {
+        if (await copyRegularFile(join(userData, fileName), join(partial, fileName))) {
+          files.push(fileName)
+        }
       }
       await writeManifest(partial, createdAt, files)
-      await rename(partial, join(folder, `${prefix}-${formatStamp(createdAt)}`))
-      return 'saved'
+      await rename(partial, join(folder, name))
+      return { outcome: 'saved', name }
     } catch {
       await discard(partial)
-      return 'failed'
+      return { outcome: 'failed', name: null }
     }
   }
 
@@ -450,16 +466,25 @@ export function createAutoBackup(options: AutoBackupOptions): AutoBackup {
     }
   }
 
-  const pruneSafety = async (folder: string): Promise<boolean> => {
+  const pruneSafety = async (folder: string, keepName: string | null): Promise<boolean> => {
     const names: string[] = []
     for (const entry of await readEntries(folder)) {
       if (!SAFETY_DIR.test(entry.name) || entry.isSymbolicLink() || !entry.isDirectory()) continue
       if (!(await contained(folder, join(folder, entry.name)))) continue
       names.push(entry.name)
     }
-    names.sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+    // The copy just written is the one that has to survive. Its name is a
+    // clock stamp, so a clock step backward would sort it behind an older
+    // copy and the prune would delete the rows it was made to keep.
+    const keep =
+      keepName ??
+      names.reduce<string | null>(
+        (best, name) => (best === null || name > best ? name : best),
+        null
+      )
     let removed = false
-    for (const name of names.slice(1)) {
+    for (const name of names) {
+      if (name === keep) continue
       if (await removeContainedDirectory(folder, name)) removed = true
     }
     return removed
@@ -472,7 +497,7 @@ export function createAutoBackup(options: AutoBackupOptions): AutoBackup {
     for (const extra of copies.slice(keep)) {
       if (await removeContainedDirectory(folder, extra.name)) removed = true
     }
-    if (await pruneSafety(folder)) removed = true
+    if (await pruneSafety(folder, null)) removed = true
     return removed
   }
 
@@ -517,15 +542,21 @@ export function createAutoBackup(options: AutoBackupOptions): AutoBackup {
     let notify = false
     if (due) {
       const written = await writeCopy(folder, userData, 'vrx-backup')
-      if (written === 'saved') {
+      if (written.outcome === 'saved') {
         await clearError(userData, state)
         options.log('automatic backup saved')
         notify = true
       } else {
         options.log(
-          written === 'integrity' ? 'automatic backup discarded' : 'automatic backup failed'
+          written.outcome === 'integrity' ? 'automatic backup discarded' : 'automatic backup failed'
         )
-        if (await storeError(userData, state, written === 'integrity' ? 'integrity' : 'failed')) {
+        if (
+          await storeError(
+            userData,
+            state,
+            written.outcome === 'integrity' ? 'integrity' : 'failed'
+          )
+        ) {
           notify = true
         }
       }
@@ -631,11 +662,11 @@ export function createAutoBackup(options: AutoBackupOptions): AutoBackup {
       return { ok: false, reason: 'not-a-backup' }
     }
     const safety = await writeCopy(folder, userData, 'vrx-safety')
-    if (safety !== 'saved') {
+    if (safety.outcome !== 'saved' || safety.name === null) {
       options.log('automatic restore failed')
       return { ok: false, reason: 'failed' }
     }
-    await pruneSafety(folder)
+    await pruneSafety(folder, safety.name)
     return passRestore(await options.restoreHistory(join(target, HISTORY_FILE)))
   }
 

@@ -265,6 +265,14 @@ describe('scheduled local backups', () => {
     await backups.check()
     database.insertActivity(row(2, 'Replacement'))
     const id = (await backups.status()).copies[0]?.id ?? ''
+    // A later stamp must not win over the copy this restore just wrote.
+    const planted = join(backupFolder(), 'vrx-safety-99991231T235959999Z')
+    mkdirSync(planted)
+    writeFileSync(
+      join(planted, 'manifest.json'),
+      JSON.stringify({ kind: 'vrx-backup', version: 1, createdAt: Date.UTC(9999, 11, 31) })
+    )
+    writeFileSync(join(planted, HISTORY_FILE_NAME), 'not-the-pre-restore-copy')
     await expect(backups.restore(id)).resolves.toEqual({ ok: true })
     expect(liveNames()).toEqual(['Original'])
 
@@ -272,6 +280,7 @@ describe('scheduled local backups', () => {
       /^vrx-safety-\d{8}T\d{9}Z$/.test(name)
     )
     expect(safety).toHaveLength(1)
+    expect(safety[0]?.startsWith('vrx-safety-2026')).toBe(true)
     expect(namesIn(join(backupFolder(), safety[0] ?? '', HISTORY_FILE_NAME))).toContain(
       'Replacement'
     )
@@ -313,6 +322,16 @@ describe('scheduled local backups', () => {
     await expect(backups.restore(id)).resolves.toEqual({ ok: false, reason: 'failed' })
     expect(restore).not.toHaveBeenCalled()
     expect(liveNames()).toEqual(['Replacement', 'Original'])
+  })
+
+  it('copies settings after they have been written out', async () => {
+    writeFileSync(join(userData, 'settings.json'), '{"stale":true}')
+    autoBackup = true
+    await service({
+      beforeCopy: () => writeFileSync(join(userData, 'settings.json'), '{"fresh":true}')
+    }).check()
+    const dir = join(backupFolder(), backupNames()[0] ?? '')
+    expect(readFileSync(join(dir, 'settings.json'), 'utf8')).toBe('{"fresh":true}')
   })
 
   it('records a failed snapshot and discards a copy that does not check out', async () => {
