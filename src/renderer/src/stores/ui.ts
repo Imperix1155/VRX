@@ -36,10 +36,19 @@ export const SETTINGS_CATEGORIES = [
   'behavior',
   'notifications',
   'accounts',
-  'about',
-  'performance'
+  'about'
 ] as const
 export type SettingsCategory = (typeof SETTINGS_CATEGORIES)[number]
+
+/** A value that is no longer a category, including the retired Performance tab, opens About. */
+function settingsCategoryFrom(value: unknown): SettingsCategory {
+  if (typeof value === 'string') {
+    for (const category of SETTINGS_CATEGORIES) {
+      if (category === value) return category
+    }
+  }
+  return 'about'
+}
 
 interface UiState {
   activeTab: ActiveTab
@@ -97,5 +106,13 @@ export const useUiStore = create<UiState>((set) => ({
   openHotFromAlert: () => set({ activeTab: 'hot', hotOpenedFromAlert: true }),
   setDrawerOpen: (drawerOpen) => set({ drawerOpen }),
   toggleDrawer: () => set((state) => ({ drawerOpen: !state.drawerOpen })),
-  setSettingsCategory: (settingsCategory) => set({ settingsCategory })
+  setSettingsCategory: (settingsCategory) =>
+    set({ settingsCategory: settingsCategoryFrom(settingsCategory) })
 }))
+
+// setState can carry a leftover `performance` selection. Rewrite it here so
+// every reader, including the category nav, lands on About.
+useUiStore.subscribe((state) => {
+  const category = settingsCategoryFrom(state.settingsCategory)
+  if (category !== state.settingsCategory) useUiStore.setState({ settingsCategory: category })
+})

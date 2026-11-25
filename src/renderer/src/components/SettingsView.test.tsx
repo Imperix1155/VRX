@@ -11,11 +11,12 @@ import { act, fireEvent, within, render, screen, cleanup, waitFor } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from '@shared/settings'
+import type { PerformanceSnapshot } from '@shared/performance'
 import { ISSUES_URL, releasesUrlFor } from '@shared/constants'
 import type { UpdaterSnapshot } from '@shared/ipc'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
-import { useUiStore, SETTINGS_CATEGORIES } from '../stores/ui'
+import { useUiStore, SETTINGS_CATEGORIES, type SettingsCategory } from '../stores/ui'
 import SettingsView from './SettingsView'
 
 // jsdom has no ResizeObserver; the segmented controls' bubble hook needs one.
@@ -109,15 +110,14 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
   })
 
-  it('the category list reads appearance/dashboard/behavior/notifications/accounts/about/performance', () => {
+  it('the category list reads appearance/dashboard/behavior/notifications/accounts/about', () => {
     expect([...SETTINGS_CATEGORIES]).toEqual([
       'appearance',
       'dashboard',
       'behavior',
       'notifications',
       'accounts',
-      'about',
-      'performance'
+      'about'
     ])
   })
 
@@ -593,6 +593,68 @@ describe('SettingsView — Accounts section (VRX-191)', () => {
   })
 })
 
+const performanceSnapshot: PerformanceSnapshot = {
+  version: '1.5.0',
+  channel: 'dev',
+  platform: 'linux',
+  arch: 'x64',
+  osRelease: '6.12.113',
+  packaged: false,
+  totalWorkingSetKiB: 1536,
+  processes: [],
+  mainHeapUsedBytes: 1.5 * 1024 * 1024,
+  windowReadyMs: 842,
+  firstRenderMs: null,
+  cpuIntervalMs: null,
+  sockets: { vrchat: 'live', chilloutvr: 'down' }
+}
+
+describe('SettingsView — Performance on About', () => {
+  it('starts closed, then shows the readings and stops asking while closed', async () => {
+    const getPerformance = vi.fn(() => Promise.resolve(performanceSnapshot))
+    setBridge({ getPerformance } as unknown as VrxBridge)
+    useUiStore.setState({ settingsCategory: 'about' })
+    renderSettings()
+
+    const toggle = screen.getByRole('button', { name: msg('settings.performance.show') })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    const panel = document.getElementById(toggle.getAttribute('aria-controls')!)
+    expect(panel?.closest('[inert]')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('settings.performance.copy') })).toBeNull()
+    expect(getPerformance).not.toHaveBeenCalled()
+
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(toggle.textContent).toBe(msg('settings.performance.hide'))
+    expect(panel?.closest('[inert]')).toBeNull()
+    expect(await screen.findByText(/Window ready 842 ms/)).toBeTruthy()
+    expect(getPerformance).toHaveBeenCalled()
+
+    fireEvent.click(toggle)
+    expect(
+      screen
+        .getByRole('button', { name: msg('settings.performance.show') })
+        .getAttribute('aria-expanded')
+    ).toBe('false')
+    expect(screen.queryByRole('button', { name: msg('settings.performance.copy') })).toBeNull()
+  })
+
+  it('opens About when the stored category is the retired performance tab', () => {
+    useUiStore.setState({
+      settingsCategory: 'performance' as unknown as SettingsCategory
+    })
+    expect(useUiStore.getState().settingsCategory).toBe('about')
+    renderSettings()
+    expect(screen.getByRole('button', { name: msg('settings.setup.run') })).toBeTruthy()
+    expect(
+      screen
+        .getByRole('button', { name: msg('settings.performance.show') })
+        .getAttribute('aria-expanded')
+    ).toBe('false')
+    expect(screen.queryByRole('radio', { name: msg('settings.performance.heading') })).toBeNull()
+  })
+})
+
 describe('SettingsView — Legal (About page)', () => {
   it('starts closed and opens the full legal text in place', () => {
     const openUrl = vi.fn(() => Promise.resolve())
@@ -600,7 +662,9 @@ describe('SettingsView — Legal (About page)', () => {
     useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
-    const toggle = screen.getByRole('button', { name: msg('settings.legal.show') })
+    const toggle = screen.getByRole('button', {
+      name: (name) => name === msg('settings.legal.show')
+    })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     const panel = document.getElementById(toggle.getAttribute('aria-controls')!)
     expect(panel?.closest('[inert]')).toBeTruthy()

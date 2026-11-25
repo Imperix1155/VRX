@@ -129,11 +129,13 @@ const UPDATER_FAILURE_KEYS: Record<UpdaterFailure, string> = {
 function SettingCard({
   parent,
   expanded,
-  children
+  children,
+  className
 }: {
   parent: React.ReactNode
   expanded: boolean
   children: React.ReactNode
+  className?: string
 }): React.JSX.Element {
   const card = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
@@ -143,7 +145,10 @@ function SettingCard({
     }
   }, [expanded])
   return (
-    <div ref={card} className="setting-card">
+    <div
+      ref={card}
+      className={className === undefined ? 'setting-card' : `setting-card ${className}`}
+    >
       {parent}
       <div
         ref={content}
@@ -674,6 +679,72 @@ const LEGAL_SECTIONS = [
   { title: 'settings.legal.privacyTitle', body: ['settings.legal.privacy'] },
   { title: 'settings.legal.licenseTitle', body: ['settings.legal.license'] }
 ] as const
+
+/**
+ * Performance (owner, 2026-11-25): the old category, now a disclosure on
+ * About. Closed by default. Readings update only while it is open.
+ */
+function PerformanceSettingsRow(): React.JSX.Element {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const panelId = useId()
+  // The readings open at the bottom of About. Bring them to the top of the
+  // settings scroller once the disclosure has its height.
+  useEffect(() => {
+    if (!open) return
+    const reveal = (): void => {
+      const panel = document.getElementById(panelId)
+      const scroller = panel?.closest('main')
+      if (panel === null || !(scroller instanceof HTMLElement)) return
+      const delta = panel.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+      if (delta > 8) scroller.scrollTop += delta
+    }
+    reveal()
+    const timer = window.setTimeout(reveal, 240)
+    return () => window.clearTimeout(timer)
+  }, [open, panelId])
+  const button = [
+    'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
+    'border border-[var(--border)]',
+    'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+    'text-[var(--text)]',
+    'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+    'cursor-pointer'
+  ].join(' ')
+  return (
+    <SettingCard
+      // About has no room for another full card at 900×670. One line, with the
+      // tighter vertical padding, keeps this closed row on screen.
+      className="py-[var(--space-0-5)]"
+      expanded={open}
+      parent={
+        <div className="setting-row">
+          <p className="flex min-w-0 items-baseline gap-x-[var(--space-2)]">
+            <span className="shrink-0 text-sm font-medium text-[var(--text)]">
+              {t('settings.performance.heading')}
+            </span>
+            <span className="truncate text-xs text-[var(--text-dim)]">
+              {t('settings.performance.summary')}
+            </span>
+          </p>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => setOpen((value) => !value)}
+            className={button}
+          >
+            {t(open ? 'settings.performance.hide' : 'settings.performance.show')}
+          </button>
+        </div>
+      }
+    >
+      <div id={panelId} className="grid gap-[var(--space-2)]">
+        <PerformanceSettings active={open} />
+      </div>
+    </SettingCard>
+  )
+}
 
 /**
  * Legal (owner, 2026-10-23): closed by default, opens in place. Carries
@@ -1370,10 +1441,9 @@ export default function SettingsView(): React.JSX.Element {
             <BugReportSettingsRow />
             <LogsSettingsRow />
             <LegalSettingsRow />
+            <PerformanceSettingsRow />
           </section>
         )}
-
-        {category === 'performance' && <PerformanceSettings />}
       </div>
     </div>
   )

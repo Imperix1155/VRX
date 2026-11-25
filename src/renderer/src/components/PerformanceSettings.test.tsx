@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { JSX } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -150,6 +151,37 @@ describe('PerformanceSettings', () => {
       await Promise.resolve()
     })
     expect(copied[0]).toContain(staleLine)
+  })
+
+  it('does not ask main while the section is closed, and starts when it opens', async () => {
+    vi.useFakeTimers()
+    const getPerformance = vi.fn(() => Promise.resolve(snapshot))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    ;(window as unknown as { vrx?: { getPerformance: typeof getPerformance } }).vrx = {
+      getPerformance
+    }
+    const page = (active: boolean): JSX.Element => (
+      <QueryClientProvider client={client}>
+        <PerformanceSettings active={active} />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(page(false))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+    expect(getPerformance).not.toHaveBeenCalled()
+
+    rerender(page(true))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(getPerformance).toHaveBeenCalledTimes(1)
+    const whileOpen = getPerformance.mock.calls.length
+    rerender(page(false))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+    expect(getPerformance).toHaveBeenCalledTimes(whileOpen)
   })
 
   it('stops asking main after the page unmounts', async () => {
