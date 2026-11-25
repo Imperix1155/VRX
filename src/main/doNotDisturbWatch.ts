@@ -23,7 +23,7 @@ export class DoNotDisturbGameWatch {
       until: () => number | null
       endOnGameStart: () => boolean
       now: () => number
-      runningPlatforms: () => Promise<ReadonlySet<Platform>>
+      runningPlatforms: () => Promise<ReadonlySet<Platform> | null>
       end: () => void
       intervalMs?: number
     }
@@ -71,12 +71,11 @@ export class DoNotDisturbGameWatch {
       this.stop()
       return
     }
-    let running: ReadonlySet<Platform>
+    let running: ReadonlySet<Platform> | null
     try {
       running = await this.options.runningPlatforms()
     } catch {
-      this.arm()
-      return
+      running = null
     }
     if (!this.armed || !this.wanted()) {
       if (!this.wanted()) this.stop()

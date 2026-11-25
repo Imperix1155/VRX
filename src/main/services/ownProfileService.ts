@@ -27,7 +27,15 @@ export interface OwnProfileServiceOptions {
   clock?: () => number
   log?: OwnProfileLog
   /** A profile VRX just read or saved. Not a new request. */
-  onProfile?: (profile: OwnProfile) => void
+  onProfile?: (update: {
+    profile: OwnProfile
+    /** Present on a save: the fields that were written. Absent on a read. */
+    changes?: OwnProfileChanges
+    /** `statusRevision()` from when this read or save started. */
+    asOf: number
+  }) => void
+  /** The alert-status revision, so a read cannot overwrite a newer live update. */
+  statusRevision?: () => number
 }
 
 interface PlatformState {
@@ -86,6 +94,7 @@ export class OwnProfileService {
       return this.denied(platform, 'cooldown')
     }
     state.saving = true
+    const asOf = this.options.statusRevision?.() ?? 0
     try {
       // Changes are compared with what the platform holds now. A session
       // renewed since the editor opened has no answer yet: read it first.
@@ -101,7 +110,7 @@ export class OwnProfileService {
         const profile = answered ?? withChanges(current.profile, changes)
         state.profile = profile
         state.readAt = this.clock()
-        this.options.onProfile?.(profile)
+        this.options.onProfile?.({ profile, changes, asOf })
         return { ok: true, profile }
       } catch (error) {
         // Part of a Save may have gone through (ChilloutVR sends a field per
@@ -133,12 +142,13 @@ export class OwnProfileService {
   }
 
   private async read(adapter: OwnProfileAdapter, state: PlatformState): Promise<OwnProfileResult> {
+    const asOf = this.options.statusRevision?.() ?? 0
     try {
       const profile = await adapter.getOwnProfile(state.lease)
       assertRequestLease(state.lease)
       state.profile = profile
       state.readAt = this.clock()
-      this.options.onProfile?.(profile)
+      this.options.onProfile?.({ profile, asOf })
       return { ok: true, profile }
     } catch (error) {
       return { ok: false, reason: this.failure(adapter.platform, error) }

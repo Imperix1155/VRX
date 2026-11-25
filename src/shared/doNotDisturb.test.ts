@@ -163,6 +163,15 @@ describe('doNotDisturbAfterGames', () => {
         running: new Set(['vrchat'])
       })
     ).toEqual({ action: 'ignore' })
+
+    expect(
+      doNotDisturbAfterGames({
+        active: true,
+        endOnGameStart: true,
+        seen: new Set(['vrchat']),
+        running: null
+      })
+    ).toEqual({ action: 'unknown' })
   })
 
   it('ends when a game that had stopped starts again', () => {

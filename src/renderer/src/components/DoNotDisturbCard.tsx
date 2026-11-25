@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import {
@@ -146,6 +146,13 @@ export function SidebarDoNotDisturb(): React.JSX.Element {
   const detail = remainText(t, doNotDisturbRemain(choice, until, now))
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
+  const opener = useRef<HTMLButtonElement>(null)
+  const menuWasOpen = useRef(false)
+
+  useLayoutEffect(() => {
+    if (menuWasOpen.current && !open) opener.current?.focus()
+    menuWasOpen.current = open
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -173,6 +180,7 @@ export function SidebarDoNotDisturb(): React.JSX.Element {
   return (
     <div ref={root} className="relative mt-[12px]">
       <button
+        ref={opener}
         type="button"
         aria-expanded={active ? undefined : open}
         aria-label={

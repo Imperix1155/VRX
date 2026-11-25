@@ -122,7 +122,7 @@ import {
 import { createVrOverlayAlerts } from './vrOverlayAlerts'
 import { alertsMuted, gateAlert } from '@shared/doNotDisturb'
 import { DoNotDisturbGameWatch } from './doNotDisturbWatch'
-import type { OwnStatus } from '@shared/ownProfile'
+import { OwnAlertStatus } from './ownAlertStatus'
 import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
 import { RosterCatchUp } from './rosterCatchUp'
@@ -551,9 +551,9 @@ app
       directory: join(app.getPath('userData'), VRC_METADATA_DIRECTORY),
       log: (message, meta) => log.warn(message, meta)
     })
-    // The signed-in VRChat status, from replies and user-update VRX already
-    // receives. Cleared at a session boundary. ChilloutVR has no status.
-    let ownAlertStatus: OwnStatus | null = null
+    // The signed-in VRChat status alerts may follow. One merger for live
+    // updates and profile reads and saves. ChilloutVR has no status.
+    const ownAlertStatus = new OwnAlertStatus()
     const vrcAdapter = new VrcAdapter(vrcCredentials, vrcAdmission, {
       metadataStore: vrcMetadataStore,
       captureRosterRevision: () => locationAuthority.captureSeedRevision('vrchat'),
@@ -561,8 +561,8 @@ app
       // can retry instead of waiting for the OS default (~1-2 min).
       socketFactory: createVrcSocket,
       log: (level, message, meta) => log[level](message, meta),
-      onOwnStatus: (status: OwnStatus) => {
-        ownAlertStatus = status
+      onOwnStatus: (status) => {
+        ownAlertStatus.observe(status)
       },
       onIdentity: (accountId) => {
         accountSession.setIdentity('vrchat', accountId)
@@ -571,7 +571,7 @@ app
         if (accountId !== null) activityBoundary.current?.hydrate('vrchat')
       },
       onSessionBoundary: ({ identityRetained }) => {
-        ownAlertStatus = null
+        ownAlertStatus.clear()
         friendAlertBoundary.current?.resetPlatform('vrchat')
         // The same account after a data-path 401 keeps its activity and inbox.
         activityBoundary.current?.resetPlatform('vrchat', { keepEntries: identityRetained })
@@ -724,7 +724,7 @@ app
           doNotDisturb: settings.doNotDisturb,
           doNotDisturbUntil: settings.doNotDisturbUntil,
           doNotDisturbFollowStatus: settings.doNotDisturbFollowStatus,
-          ownStatus: ownAlertStatus,
+          ownStatus: ownAlertStatus.current(),
           now: Date.now()
         })
       },
@@ -845,12 +845,7 @@ app
       until: () => getSettingsSnapshot().doNotDisturbUntil,
       endOnGameStart: () => getSettingsSnapshot().doNotDisturbEndOnGameStart,
       now: () => Date.now(),
-      runningPlatforms: async () => {
-        const running = new Set<Platform>()
-        if (await runningGames.isRunning('vrchat')) running.add('vrchat')
-        if (await runningGames.isRunning('chilloutvr')) running.add('chilloutvr')
-        return running
-      },
+      runningPlatforms: () => runningGames.runningPlatforms(),
       end: endDoNotDisturb
     })
     doNotDisturbWatch.sync()
@@ -1028,10 +1023,8 @@ app
         ['chilloutvr', cvrAdapter]
       ]),
       log: (message, meta) => log.warn(message, meta),
-      onProfile: (profile) => {
-        if (profile.platform === 'vrchat' && profile.status !== null)
-          ownAlertStatus = profile.status
-      }
+      statusRevision: () => ownAlertStatus.revision(),
+      onProfile: (update) => ownAlertStatus.observeProfile(update)
     })
     ownProfileBoundary.current = ownProfile
     // Friend notes on the user's own accounts: a check when a drawer opens,

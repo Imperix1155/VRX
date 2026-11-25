@@ -39,6 +39,58 @@ describe('DoNotDisturbGameWatch', () => {
     watch.stop()
   })
 
+  it('treats a failed process check as unknown, so the same game does not look newly started', async () => {
+    const end = vi.fn()
+    const reads: Array<ReadonlySet<Platform> | null> = [
+      new Set(['vrchat']),
+      null,
+      new Set(['vrchat'])
+    ]
+    let calls = 0
+    const watch = new DoNotDisturbGameWatch({
+      choice: () => 'until-off',
+      until: () => null,
+      endOnGameStart: () => true,
+      now: () => NOW,
+      runningPlatforms: () => {
+        const read = reads[Math.min(calls, reads.length - 1)] ?? null
+        calls += 1
+        return Promise.resolve(read)
+      },
+      end,
+      intervalMs: 1
+    })
+    watch.sync()
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(calls).toBeGreaterThanOrEqual(3)
+    expect(end).not.toHaveBeenCalled()
+    watch.stop()
+  })
+
+  it('does not treat the first successful list after a failure as a game start', async () => {
+    const end = vi.fn()
+    const reads: Array<ReadonlySet<Platform> | null> = [null, new Set(['vrchat'])]
+    let calls = 0
+    const watch = new DoNotDisturbGameWatch({
+      choice: () => 'until-off',
+      until: () => null,
+      endOnGameStart: () => true,
+      now: () => NOW,
+      runningPlatforms: () => {
+        const read = reads[Math.min(calls, reads.length - 1)] ?? null
+        calls += 1
+        return Promise.resolve(read)
+      },
+      end,
+      intervalMs: 1
+    })
+    watch.sync()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(calls).toBeGreaterThanOrEqual(2)
+    expect(end).not.toHaveBeenCalled()
+    watch.stop()
+  })
+
   it('stays quiet when ending on game start is off', async () => {
     const end = vi.fn()
     const running = vi.fn(() => Promise.resolve(new Set<Platform>(['vrchat'])))

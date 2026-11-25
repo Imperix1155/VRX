@@ -39,21 +39,29 @@ describe('RunningGames', () => {
     expect(list).toHaveBeenCalledOnce()
   })
 
-  it('caches briefly, shares one read between callers, and treats a failed read as nothing running', async () => {
+  it('caches a successful read and shares it, and does not cache a failed read as an empty list', async () => {
     let now = 0
     const list = vi
-      .fn<() => Promise<string[]>>()
-      .mockRejectedValueOnce(new Error('denied'))
-      .mockResolvedValue(['chilloutvr.exe'])
+      .fn<() => Promise<string[] | null>>()
+      .mockResolvedValueOnce(['chilloutvr.exe'])
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(['vrchat.exe'])
     const games = new RunningGames(list, () => now)
-    const [a, b] = await Promise.all([games.isRunning('vrchat'), games.isRunning('chilloutvr')])
-    expect([a, b]).toEqual([false, false])
+    const [a, b] = await Promise.all([games.isRunning('vrchat'), games.runningPlatforms()])
+    expect(a).toBe(false)
+    expect(b).toEqual(new Set(['chilloutvr']))
     expect(list).toHaveBeenCalledOnce()
     now = 1_999
-    await expect(games.isRunning('chilloutvr')).resolves.toBe(false)
+    await expect(games.runningPlatforms()).resolves.toEqual(new Set(['chilloutvr']))
     now = 2_000
-    await expect(games.isRunning('chilloutvr')).resolves.toBe(true)
-    expect(list).toHaveBeenCalledTimes(2)
+    await expect(games.runningPlatforms()).resolves.toBeNull()
+    await expect(games.isRunning('vrchat')).resolves.toBe(true)
+    expect(list).toHaveBeenCalledTimes(3)
+  })
+
+  it('reports a process list that cannot be read as unknown', async () => {
+    if (process.platform === 'win32') return
+    await expect(processNameListerFor('win32')()).resolves.toBeNull()
   })
 
   it('reports nothing running on macOS without reading processes', async () => {
@@ -64,7 +72,7 @@ describe('RunningGames', () => {
     if (process.platform !== 'linux') return
     const names = await processNameListerFor('linux')()
     // The test runner itself is a node process.
-    expect(names.some((name) => name.startsWith('node') || name.includes('vitest'))).toBe(true)
+    expect(names?.some((name) => name.startsWith('node') || name.includes('vitest'))).toBe(true)
   })
 })
 

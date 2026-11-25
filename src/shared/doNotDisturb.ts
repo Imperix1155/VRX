@@ -88,6 +88,7 @@ export function doNotDisturbRemain(
 
 export type GameWatchStep =
   | { action: 'ignore' }
+  | { action: 'unknown' }
   | { action: 'baseline'; seen: Set<Platform> }
   | { action: 'keep'; seen: Set<Platform> }
   | { action: 'end' }
@@ -96,9 +97,11 @@ export function doNotDisturbAfterGames(input: {
   active: boolean
   endOnGameStart: boolean
   seen: ReadonlySet<Platform> | null
-  running: ReadonlySet<Platform>
+  /** `null` means the process list could not be read. */
+  running: ReadonlySet<Platform> | null
 }): GameWatchStep {
   if (!input.active || !input.endOnGameStart) return { action: 'ignore' }
+  if (input.running === null) return { action: 'unknown' }
   if (input.seen === null) return { action: 'baseline', seen: new Set(input.running) }
   for (const platform of input.running) {
     if (!input.seen.has(platform)) return { action: 'end' }
