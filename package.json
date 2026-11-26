@@ -118,6 +118,9 @@
       "undici": "6.29.1"
     },
     "minimatch": "11.0.1",
-    "glob@>=9.0.0 <=14.0.1": "14.0.2"
+    "glob@>=9.0.0 <=14.0.1": "14.0.2",
+    "@typescript-eslint/typescript-estree": {
+      "@typescript/native": "npm:typescript@^7.0.2"
+    }
   }
 }
