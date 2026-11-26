@@ -62,7 +62,9 @@ UI, use the [design guide](#design-guide) and its sample data instead.
 TypeScript: `npm run typecheck` uses the TypeScript 7 compiler (`tsc` from
 `@typescript/native`). ESLint and the design-token scanner use the TypeScript
 6 API from the `typescript` package (`tsc6`), because TypeScript 7 doesn't
-ship that API.
+ship that API. `overrides` keeps typescript-eslint's optional
+`@typescript/native` peer on that same alias; see
+[Dependency and security changes](#dependency-and-security-changes).
 
 ## Find your way around
 
@@ -200,6 +202,15 @@ After `npm install <package>`, read `git diff package-lock.json`. npm on Linux
 can delete the `"libc"` lines of packages you did not touch;
 `scripts/lockfile.test.mjs` fails when they are gone.
 [Maintaining](MAINTAINING.md#accept-a-dependency-update) has the fix.
+
+`@typescript-eslint/typescript-estree` optionally peers on `@typescript/native`
+at a TypeScript 7.1 nightly range. The `overrides` entry forces that peer onto
+the direct `npm:typescript@^7.0.2` alias, the compiler `tsc` already uses.
+Without the override, npm installs today's nightly beside 7.0.2 and `npm ci`
+rejects the lockfile. `scripts/lockfile.test.mjs` fails when the override
+drifts from that alias or a TypeScript nightly is locked. ESLint does not load
+that peer unless its experimental tsgo backend is turned on, which this repo
+does not do.
 
 The audit job blocks high and critical advisories. Current exceptions, if
 any, are listed in [SECURITY.md](../SECURITY.md#audit-policy). An exception is

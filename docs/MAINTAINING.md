@@ -194,7 +194,7 @@ test, skip it or loosen the rule to get a green run.
 | A token or class named in `DESIGN.md` that does not exist   | `docs/guide/design-doc.test.ts`                                                                     |
 | A broken link or heading anchor in the docs                 | `npm run docs:links` (also part of `npm test`)                                                      |
 | An `AGENTS.md` chain too long for a bounded reader          | `scripts/agents-contract-size.test.mjs`. Shorten text; do not raise the limit.                      |
-| A lockfile that lost its platform lines, or a stale version | `scripts/lockfile.test.mjs`                                                                         |
+| A lockfile that lost platform lines, a nightly, or is stale | `scripts/lockfile.test.mjs`                                                                         |
 | A dependency with a high or critical advisory               | The `audit` job (`scripts/audit-policy.mjs`)                                                        |
 | An alert or activity row that names a hidden friend's world | `src/main/friendNotificationPrivacy.test.ts`                                                        |
 | A release with an empty changelog section, or over red CI   | [`release.yml`](../.github/workflows/release.yml) (`extract-changelog.mjs`, `require-green-ci.mjs`) |
